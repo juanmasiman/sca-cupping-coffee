@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cupping">
+  <meta name="theme-color" content="#14100d">
+  <title>SCA Cupping</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ SETUP SCREEN ============ -->
+  <section id="screen-setup" class="screen active">
+    <div class="setup-inner">
+      <header class="setup-hero">
+        <div class="hero-cup">
+          <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="cupGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#e8b06b"/>
+                <stop offset="1" stop-color="#b5793a"/>
+              </linearGradient>
+            </defs>
+            <path class="steam steam-1" d="M48 30 C44 22, 52 18, 48 10" fill="none"/>
+            <path class="steam steam-2" d="M60 28 C56 20, 64 16, 60 8" fill="none"/>
+            <path class="steam steam-3" d="M72 30 C68 22, 76 18, 72 10" fill="none"/>
+            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="url(#cupGrad)"/>
+            <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="#14100d" opacity=".35"/>
+            <ellipse cx="60" cy="48" rx="30" ry="5" fill="#5a3a1e"/>
+          </svg>
+        </div>
+        <h1>SCA Cupping</h1>
+        <p class="subtitle">Specialty Coffee Association<br>Cupping Protocol &amp; Scoresheet</p>
+      </header>
+
+      <div class="setup-cards">
+        <div class="setup-card">
+          <div class="setup-card-label">
+            <span class="setup-card-title">Coffees</span>
+            <span class="setup-card-hint">samples on the table</span>
+          </div>
+          <div class="stepper" id="stepper-coffees">
+            <button class="stepper-btn" data-action="dec" aria-label="Fewer coffees">−</button>
+            <span class="stepper-value" id="value-coffees">3</span>
+            <button class="stepper-btn" data-action="inc" aria-label="More coffees">+</button>
+          </div>
+        </div>
+
+        <div class="setup-card">
+          <div class="setup-card-label">
+            <span class="setup-card-title">Cups per coffee</span>
+            <span class="setup-card-hint">SCA standard is 5</span>
+          </div>
+          <div class="stepper" id="stepper-cups">
+            <button class="stepper-btn" data-action="dec" aria-label="Fewer cups">−</button>
+            <span class="stepper-value" id="value-cups">5</span>
+            <button class="stepper-btn" data-action="inc" aria-label="More cups">+</button>
+          </div>
+        </div>
+
+        <div class="cups-preview" id="cups-preview" aria-hidden="true"></div>
+      </div>
+
+      <div class="setup-actions">
+        <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
+        <button id="btn-start" class="btn btn-primary">Start cupping</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CUPPING SCREEN ============ -->
+  <section id="screen-cupping" class="screen">
+    <header class="cupping-header">
+      <button id="btn-back-setup" class="icon-btn" aria-label="Back to setup">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <nav class="coffee-tabs" id="coffee-tabs"></nav>
+      <button id="btn-finish" class="finish-btn">Results</button>
+    </header>
+
+    <div class="panels" id="panels"></div>
+
+    <footer class="scorebar" id="scorebar">
+      <div class="scorebar-info">
+        <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
+        <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
+      </div>
+      <div class="scorebar-score">
+        <span id="scorebar-value">82.50</span>
+        <span class="scorebar-max">/100</span>
+      </div>
+    </footer>
+  </section>
+
+  <!-- ============ RESULTS SCREEN ============ -->
+  <section id="screen-results" class="screen">
+    <header class="results-header">
+      <button id="btn-back-cupping" class="icon-btn" aria-label="Back to cupping">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Results</h2>
+      <button id="btn-share" class="icon-btn" aria-label="Share results">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3v13M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <div class="results-scroll">
+      <div class="podium" id="podium"></div>
+      <div class="radar-card">
+        <h3>Sensory profile</h3>
+        <div id="radar-wrap"></div>
+        <div class="radar-legend" id="radar-legend"></div>
+      </div>
+      <div class="ranking" id="ranking"></div>
+      <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
+      <div class="results-footpad"></div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
