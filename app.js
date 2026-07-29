@@ -8,6 +8,8 @@
 /* ---------- constants ---------- */
 
 const STORAGE_KEY = 'sca-cupping-session-v1';
+const HISTORY_KEY = 'sca-cupping-history-v1';
+const THEME_KEY = 'sca-cupping-theme-v1';
 
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
@@ -29,19 +31,41 @@ const CUP_ATTRS = [
 
 const RADAR_ATTRS = [...SCALE_ATTRS, ...CUP_ATTRS];
 
-const RADAR_COLORS = ['#e8b06b', '#8fc98a', '#7fb3d5', '#e07a5f', '#c39bd3', '#f4d35e', '#76d7c4', '#f1948a'];
+const RADAR_COLORS = ['#e8b06b', '#8fc98a', '#7fb3d5', '#e07a5f', '#c39bd3', '#f4d35e', '#76d7c4', '#f1948a', '#aab7f0', '#d4a373'];
 
-const LIMITS = { coffees: [1, 8], cups: [1, 5] };
+const LIMITS = { coffees: [1, 10], cups: [1, 5] };
+
+// Coffee details (origin metadata)
+const META_FIELDS = [
+  { key: 'variety', label: 'Variety', placeholder: 'Geisha, Caturra…', list: 'variety-list' },
+  { key: 'process', label: 'Process', placeholder: 'Washed, Natural…', list: 'process-list' },
+  { key: 'altitude', label: 'Altitude (masl)', placeholder: '1750', inputmode: 'numeric' },
+  { key: 'country', label: 'Origin', placeholder: 'Ethiopia, Colombia…' },
+  { key: 'farm', label: 'Farm', placeholder: 'Finca…', wide: true },
+  { key: 'producer', label: 'Producer', placeholder: 'Producer name', wide: true },
+];
+
+const THEMES = [
+  { id: 'roast', name: 'Roast', bg: '#14100d', accent: '#e8b06b' },
+  { id: 'crema', name: 'Crema', bg: '#f5efe6', accent: '#b5793a' },
+  { id: 'midnight', name: 'Midnight', bg: '#0e1116', accent: '#e0956a' },
+  { id: 'berry', name: 'Berry', bg: '#170f16', accent: '#e8829e' },
+];
 
 /* ---------- state ---------- */
 
-let state = null; // { coffees: [...], cupsPerCoffee, activeIndex }
+let state = null; // { id, cupsPerCoffee, activeIndex, coffees: [...] }
+
+function emptyMeta() {
+  return Object.fromEntries(META_FIELDS.map(f => [f.key, '']));
+}
 
 function newCoffee(nCups) {
   const scores = {};
   SCALE_ATTRS.forEach(a => { scores[a.key] = 7.5; });
   return {
     name: '',
+    meta: emptyMeta(),
     scores,
     cups: Object.fromEntries(CUP_ATTRS.map(a => [a.key, Array(nCups).fill(true)])),
     taintCups: 0,
@@ -51,7 +75,7 @@ function newCoffee(nCups) {
 }
 
 function newSession(nCoffees, nCups) {
-  state = { cupsPerCoffee: nCups, activeIndex: 0, coffees: [] };
+  state = { id: 'S' + Date.now(), cupsPerCoffee: nCups, activeIndex: 0, coffees: [] };
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
   save();
 }
@@ -66,6 +90,9 @@ function load() {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.coffees) || !s.coffees.length) return null;
+    // migrate sessions saved by older versions
+    if (!s.id) s.id = 'S' + Date.now();
+    s.coffees.forEach(c => { c.meta = Object.assign(emptyMeta(), c.meta || {}); });
     return s;
   } catch (e) { return null; }
 }
@@ -73,6 +100,76 @@ function load() {
 function clearSession() {
   state = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+}
+
+/* ---------- history archive ---------- */
+
+function loadArchive() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function saveArchive(arr) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+
+// Snapshot the current session into history (upsert by session id, so
+// revisiting Results after edits refreshes the archived copy).
+function archiveSession() {
+  if (!state) return;
+  const archive = loadArchive();
+  const entry = {
+    id: state.id,
+    date: Date.now(),
+    cupsPerCoffee: state.cupsPerCoffee,
+    coffees: state.coffees.map((c, i) => ({
+      name: coffeeName(c, i),
+      meta: { ...c.meta },
+      notes: c.notes,
+      score: coffeeScore(c),
+    })),
+  };
+  const idx = archive.findIndex(s => s.id === state.id);
+  if (idx >= 0) { entry.date = archive[idx].date; archive[idx] = entry; }
+  else archive.push(entry);
+  saveArchive(archive);
+}
+
+function clearArchive() {
+  try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+}
+
+/* ---------- theming ---------- */
+
+function applyTheme(id) {
+  const theme = THEMES.find(t => t.id === id) || THEMES[0];
+  document.documentElement.dataset.theme = theme.id;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme.bg;
+  try { localStorage.setItem(THEME_KEY, theme.id); } catch (e) {}
+  document.querySelectorAll('.theme-swatch').forEach(sw => {
+    sw.classList.toggle('selected', sw.dataset.theme === theme.id);
+  });
+}
+
+function initThemePicker() {
+  const row = document.getElementById('theme-row');
+  THEMES.forEach(t => {
+    const sw = el('button', 'theme-swatch');
+    sw.dataset.theme = t.id;
+    sw.setAttribute('aria-label', `${t.name} theme`);
+    sw.innerHTML = `
+      <span class="theme-swatch-dot" style="background: linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)"></span>
+      <span class="theme-swatch-name">${t.name}</span>`;
+    sw.addEventListener('click', () => { haptic(); applyTheme(t.id); });
+    row.appendChild(sw);
+  });
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+  applyTheme(saved || 'roast');
 }
 
 /* ---------- scoring ---------- */
@@ -102,6 +199,16 @@ function gradeFor(score) {
 
 function coffeeName(c, i) {
   return c.name.trim() || `Coffee ${i + 1}`;
+}
+
+function metaSummary(meta) {
+  const bits = [];
+  if (meta.variety) bits.push(meta.variety);
+  if (meta.process) bits.push(meta.process);
+  if (meta.altitude) bits.push(`${meta.altitude} masl`);
+  if (meta.country) bits.push(meta.country);
+  if (meta.farm) bits.push(meta.farm);
+  return bits.join(' · ');
 }
 
 function fmt(n) {
@@ -136,6 +243,10 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
   $('#scorebar').classList.toggle('visible', id === '#screen-cupping');
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
 /* ============================================================
@@ -233,10 +344,6 @@ function refreshTabs() {
   });
 }
 
-function escapeHTML(s) {
-  return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
-
 function buildPanels() {
   const panels = $('#panels');
   panels.innerHTML = '';
@@ -288,6 +395,9 @@ function buildPanel(coffee, index) {
   });
   panel.appendChild(name);
 
+  // origin details
+  panel.appendChild(buildDetailsCard(coffee));
+
   // scale attributes
   SCALE_ATTRS.forEach(attr => panel.appendChild(buildScaleCard(coffee, attr)));
 
@@ -306,6 +416,55 @@ function buildPanel(coffee, index) {
   panel.appendChild(notes);
 
   return panel;
+}
+
+/* ---------- details card (variety, process, altitude, …) ---------- */
+
+function buildDetailsCard(coffee) {
+  const card = el('div', 'details-card');
+  card.innerHTML = `
+    <button class="details-toggle">
+      <span class="details-toggle-label">Details</span>
+      <span class="details-summary"></span>
+      <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="details-collapse"><div class="details-collapse-inner"><div class="details-grid"></div></div></div>
+  `;
+
+  const summaryEl = card.querySelector('.details-summary');
+  const grid = card.querySelector('.details-grid');
+
+  const refreshSummary = () => {
+    summaryEl.textContent = metaSummary(coffee.meta) || 'variety · process · farm…';
+  };
+
+  META_FIELDS.forEach(f => {
+    const cell = el('div', 'detail-cell' + (f.wide ? ' wide' : ''));
+    const input = document.createElement('input');
+    input.className = 'detail-field';
+    input.type = 'text';
+    input.placeholder = f.placeholder;
+    input.value = coffee.meta[f.key] || '';
+    input.maxLength = 60;
+    if (f.list) input.setAttribute('list', f.list);
+    if (f.inputmode) input.setAttribute('inputmode', f.inputmode);
+    input.addEventListener('input', () => {
+      coffee.meta[f.key] = input.value;
+      refreshSummary();
+      save();
+    });
+    cell.appendChild(el('span', 'detail-label', f.label));
+    cell.appendChild(input);
+    grid.appendChild(cell);
+  });
+
+  card.querySelector('.details-toggle').addEventListener('click', () => {
+    haptic();
+    card.classList.toggle('open');
+  });
+
+  refreshSummary();
+  return card;
 }
 
 /* ---------- scale attribute card with custom slider ---------- */
@@ -538,12 +697,14 @@ function buildResults() {
 
   // podium
   const winner = ranked[0];
+  const winnerMeta = metaSummary(winner.coffee.meta);
   const podium = $('#podium');
   podium.innerHTML = `
     <div class="podium-crown">🏆</div>
     <div class="podium-name">${escapeHTML(coffeeName(winner.coffee, winner.index))}</div>
     <div class="podium-score">${fmt(winner.score)}</div>
     <div class="podium-grade">${gradeFor(winner.score)}</div>
+    ${winnerMeta ? `<div class="podium-meta">${escapeHTML(winnerMeta)}</div>` : ''}
   `;
 
   buildRadar(ranked);
@@ -555,6 +716,7 @@ function buildResults() {
     const card = el('div', 'rank-card');
     card.style.animationDelay = `${pos * 0.07}s`;
     const medalCls = pos < 3 ? ` m${pos + 1}` : '';
+    const meta = metaSummary(r.coffee.meta);
     card.innerHTML = `
       <div class="rank-top">
         <div class="rank-medal${medalCls}">${pos + 1}</div>
@@ -565,6 +727,7 @@ function buildResults() {
         <div class="rank-score">${fmt(r.score)}</div>
       </div>
       <div class="rank-bar"><div class="rank-bar-fill"></div></div>
+      ${meta ? `<div class="rank-meta">${escapeHTML(meta)}</div>` : ''}
       ${r.coffee.notes.trim() ? `<div class="rank-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}
     `;
     ranking.appendChild(card);
@@ -572,6 +735,9 @@ function buildResults() {
       card.querySelector('.rank-bar-fill').style.width = `${r.score}%`;
     });
   });
+
+  // every visit to Results refreshes the archived snapshot
+  archiveSession();
 }
 
 /* ---------- radar chart (SVG) ---------- */
@@ -655,6 +821,8 @@ function buildShareText() {
   const lines = ['☕️ SCA Cupping Results', ''];
   ranked.forEach((r, pos) => {
     lines.push(`${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})`);
+    const meta = metaSummary(r.coffee.meta);
+    if (meta) lines.push(`   ${meta}`);
     if (r.coffee.notes.trim()) lines.push(`   ${r.coffee.notes.trim()}`);
   });
   return lines.join('\n');
@@ -674,6 +842,147 @@ async function shareResults() {
 }
 
 /* ============================================================
+   HISTORY SCREEN
+   ============================================================ */
+
+const DIMENSIONS = [
+  { key: 'process', label: 'Process' },
+  { key: 'variety', label: 'Variety' },
+  { key: 'country', label: 'Origin' },
+  { key: 'farm', label: 'Farm' },
+  { key: 'producer', label: 'Producer' },
+  { key: 'altitude', label: 'Altitude' },
+];
+
+let activeDim = 'process';
+
+function altitudeBucket(raw) {
+  const m = String(raw).match(/\d{3,4}/);
+  if (!m) return null;
+  const masl = parseInt(m[0], 10);
+  if (masl < 1200) return 'Below 1200 masl';
+  if (masl < 1500) return '1200–1500 masl';
+  if (masl < 1800) return '1500–1800 masl';
+  if (masl < 2100) return '1800–2100 masl';
+  return 'Above 2100 masl';
+}
+
+function flatCoffees(archive) {
+  return archive.flatMap(s => s.coffees.map(c => ({ ...c, date: s.date })));
+}
+
+function aggregateBy(coffees, dimKey) {
+  const groups = new Map();
+  coffees.forEach(c => {
+    let value = (c.meta && c.meta[dimKey] || '').trim();
+    if (dimKey === 'altitude') value = altitudeBucket(value) || '';
+    if (!value) return;
+    const norm = value.toLowerCase();
+    if (!groups.has(norm)) groups.set(norm, { name: value, scores: [] });
+    groups.get(norm).scores.push(c.score);
+  });
+  return [...groups.values()]
+    .map(g => ({
+      name: g.name,
+      count: g.scores.length,
+      avg: g.scores.reduce((a, b) => a + b, 0) / g.scores.length,
+      best: Math.max(...g.scores),
+    }))
+    .sort((a, b) => b.avg - a.avg);
+}
+
+function buildHistory() {
+  const archive = loadArchive().sort((a, b) => b.date - a.date);
+  const empty = archive.length === 0;
+  $('#history-empty').classList.toggle('hidden', !empty);
+  $('#history-content').classList.toggle('hidden', empty);
+  if (empty) return;
+
+  const coffees = flatCoffees(archive);
+  const allScores = coffees.map(c => c.score);
+  const avg = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+
+  // stat tiles
+  $('#stats-row').innerHTML = `
+    <div class="stat-tile"><div class="stat-value">${archive.length}</div><div class="stat-label">Cuppings</div></div>
+    <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">Coffees</div></div>
+    <div class="stat-tile"><div class="stat-value">${fmt(avg)}</div><div class="stat-label">Avg score</div></div>
+  `;
+
+  // dimension segmented control
+  const seg = $('#dim-seg');
+  seg.innerHTML = '';
+  DIMENSIONS.forEach(d => {
+    const btn = el('button', 'seg-btn' + (d.key === activeDim ? ' active' : ''), d.label);
+    btn.addEventListener('click', () => {
+      activeDim = d.key;
+      haptic();
+      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderGroups(coffees);
+    });
+    seg.appendChild(btn);
+  });
+
+  renderGroups(coffees);
+
+  // recent coffees
+  const list = $('#hist-list');
+  list.innerHTML = '';
+  coffees
+    .sort((a, b) => b.date - a.date)
+    .slice(0, 12)
+    .forEach(c => {
+      const item = el('div', 'hist-item');
+      const meta = metaSummary(c.meta || {});
+      const date = new Date(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      item.innerHTML = `
+        <div class="hist-item-info">
+          <div class="hist-item-name">${escapeHTML(c.name)}</div>
+          ${meta ? `<div class="hist-item-meta">${escapeHTML(meta)}</div>` : ''}
+        </div>
+        <div class="hist-item-right">
+          <div class="hist-item-score">${fmt(c.score)}</div>
+          <div class="hist-item-date">${date}</div>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+}
+
+function renderGroups(coffees) {
+  const wrap = $('#group-list');
+  wrap.innerHTML = '';
+  const groups = aggregateBy(coffees, activeDim);
+  const dimLabel = DIMENSIONS.find(d => d.key === activeDim).label.toLowerCase();
+
+  if (!groups.length) {
+    wrap.appendChild(el('div', 'group-empty',
+      `No ${escapeHTML(dimLabel)} data yet — fill in coffee details while cupping.`));
+    return;
+  }
+
+  groups.forEach((g, i) => {
+    const row = el('div', 'group-row');
+    row.style.animationDelay = `${i * 0.04}s`;
+    row.innerHTML = `
+      <div class="group-row-top">
+        <span class="group-name">${escapeHTML(g.name)}</span>
+        <span class="group-count">${g.count} coffee${g.count > 1 ? 's' : ''} · best ${fmt(g.best)}</span>
+        <span class="group-avg">${fmt(g.avg)}</span>
+      </div>
+      <div class="group-bar"><div class="group-bar-fill"></div></div>
+    `;
+    wrap.appendChild(row);
+    // bars scaled over 60–100 so small score differences stay visible
+    const barPct = Math.max(0, Math.min(100, ((g.avg - 60) / 40) * 100));
+    requestAnimationFrame(() => {
+      row.querySelector('.group-bar-fill').style.width = `${barPct}%`;
+    });
+  });
+}
+
+/* ============================================================
    WIRING
    ============================================================ */
 
@@ -684,6 +993,7 @@ function startCupping() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initThemePicker();
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
   renderCupsPreview();
@@ -718,10 +1028,24 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-share').addEventListener('click', shareResults);
 
   $('#btn-new-session').addEventListener('click', () => {
-    if (!confirm('Discard this session and start a new one?')) return;
+    if (!confirm('Start a new session? This cupping is already saved to History.')) return;
     clearSession();
     $('#btn-resume').classList.add('hidden');
     showScreen('#screen-setup');
+  });
+
+  $('#btn-history').addEventListener('click', () => {
+    buildHistory();
+    showScreen('#screen-history');
+  });
+
+  $('#btn-back-history').addEventListener('click', () => showScreen('#screen-setup'));
+
+  $('#btn-clear-history').addEventListener('click', () => {
+    if (!confirm('Delete all cupping history? This cannot be undone.')) return;
+    clearArchive();
+    buildHistory();
+    toast('History cleared');
   });
 
   // keep swipe panel aligned on rotation / resize

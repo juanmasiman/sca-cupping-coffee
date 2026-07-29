@@ -22,16 +22,16 @@
           <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
             <defs>
               <linearGradient id="cupGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#e8b06b"/>
-                <stop offset="1" stop-color="#b5793a"/>
+                <stop offset="0" stop-color="var(--accent)"/>
+                <stop offset="1" stop-color="var(--accent-deep)"/>
               </linearGradient>
             </defs>
             <path class="steam steam-1" d="M48 30 C44 22, 52 18, 48 10" fill="none"/>
             <path class="steam steam-2" d="M60 28 C56 20, 64 16, 60 8" fill="none"/>
             <path class="steam steam-3" d="M72 30 C68 22, 76 18, 72 10" fill="none"/>
             <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="url(#cupGrad)"/>
-            <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="#14100d" opacity=".35"/>
-            <ellipse cx="60" cy="48" rx="30" ry="5" fill="#5a3a1e"/>
+            <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="var(--bg)" opacity=".35"/>
+            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--accent-deep)" opacity=".55"/>
           </svg>
         </div>
         <h1>SCA Cupping</h1>
@@ -63,10 +63,18 @@
           </div>
         </div>
 
+        <div class="setup-card setup-card-column">
+          <div class="setup-card-label">
+            <span class="setup-card-title">Theme</span>
+          </div>
+          <div class="theme-row" id="theme-row"></div>
+        </div>
+
         <div class="cups-preview" id="cups-preview" aria-hidden="true"></div>
       </div>
 
       <div class="setup-actions">
+        <button id="btn-history" class="btn btn-ghost">History</button>
         <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
         <button id="btn-start" class="btn btn-primary">Start cupping</button>
       </div>
@@ -121,6 +129,63 @@
       <div class="results-footpad"></div>
     </div>
   </section>
+
+  <!-- ============ HISTORY SCREEN ============ -->
+  <section id="screen-history" class="screen">
+    <header class="results-header">
+      <button id="btn-back-history" class="icon-btn" aria-label="Back to setup">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>History</h2>
+      <span class="icon-btn" aria-hidden="true"></span>
+    </header>
+
+    <div class="results-scroll" id="history-scroll">
+      <div class="history-empty hidden" id="history-empty">
+        <div class="history-empty-icon">☕️</div>
+        <p>No cuppings yet.<br>Finish a session and it will be archived here automatically.</p>
+      </div>
+
+      <div id="history-content">
+        <div class="stats-row" id="stats-row"></div>
+
+        <div class="hist-section">
+          <h3 class="hist-title">Average score by</h3>
+          <div class="seg" id="dim-seg"></div>
+          <div class="group-list" id="group-list"></div>
+        </div>
+
+        <div class="hist-section">
+          <h3 class="hist-title">Recent coffees</h3>
+          <div class="hist-list" id="hist-list"></div>
+        </div>
+
+        <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+      </div>
+      <div class="results-footpad"></div>
+    </div>
+  </section>
+
+  <datalist id="process-list">
+    <option value="Washed"></option>
+    <option value="Natural"></option>
+    <option value="Honey"></option>
+    <option value="Anaerobic"></option>
+    <option value="Carbonic Maceration"></option>
+    <option value="Wet-Hulled"></option>
+  </datalist>
+  <datalist id="variety-list">
+    <option value="Typica"></option>
+    <option value="Bourbon"></option>
+    <option value="Caturra"></option>
+    <option value="Catuaí"></option>
+    <option value="Geisha"></option>
+    <option value="SL28"></option>
+    <option value="SL34"></option>
+    <option value="Pacamara"></option>
+    <option value="Castillo"></option>
+    <option value="Heirloom"></option>
+  </datalist>
 
   <div id="toast" class="toast" role="status"></div>
 
