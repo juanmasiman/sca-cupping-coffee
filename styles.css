@@ -255,38 +255,6 @@ input, textarea, select { font: inherit; }
 .stepper-value.bump { animation: bump 0.3s var(--spring); }
 @keyframes bump { 50% { transform: scale(1.25); color: var(--accent); } }
 
-/* ---------- theme picker ---------- */
-
-.theme-row { display: flex; gap: 12px; }
-
-.theme-swatch {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 0;
-  border-radius: var(--radius-sm);
-  transition: transform 0.18s var(--spring);
-}
-.theme-swatch:active { transform: scale(0.92); }
-
-.theme-swatch-dot {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 2px solid var(--line);
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.25s var(--spring);
-}
-.theme-swatch.selected .theme-swatch-dot {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  transform: scale(1.08);
-}
-
-.theme-swatch-name { font-size: 11.5px; font-weight: 700; color: var(--text-faint); }
-.theme-swatch.selected .theme-swatch-name { color: var(--accent); }
-
 /* animated table preview */
 .cups-preview {
   display: flex;

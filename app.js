@@ -9,7 +9,6 @@
 
 const STORAGE_KEY = 'sca-cupping-session-v1';
 const HISTORY_KEY = 'sca-cupping-history-v1';
-const THEME_KEY = 'sca-cupping-theme-v1';
 
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
@@ -43,13 +42,7 @@ const META_FIELDS = [
   { key: 'country', label: 'Origin', placeholder: 'Ethiopia, Colombia…' },
   { key: 'farm', label: 'Farm', placeholder: 'Finca…', wide: true },
   { key: 'producer', label: 'Producer', placeholder: 'Producer name', wide: true },
-];
-
-const THEMES = [
-  { id: 'roast', name: 'Roast', bg: '#14100d', accent: '#e8b06b' },
-  { id: 'crema', name: 'Crema', bg: '#f5efe6', accent: '#b5793a' },
-  { id: 'midnight', name: 'Midnight', bg: '#0e1116', accent: '#e0956a' },
-  { id: 'berry', name: 'Berry', bg: '#170f16', accent: '#e8829e' },
+  { key: 'roast', label: 'Roast profile', placeholder: 'Light · 9:30 total · 1:45 dev · drop 203°C…', wide: true },
 ];
 
 /* ---------- state ---------- */
@@ -142,36 +135,6 @@ function clearArchive() {
   try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
 }
 
-/* ---------- theming ---------- */
-
-function applyTheme(id) {
-  const theme = THEMES.find(t => t.id === id) || THEMES[0];
-  document.documentElement.dataset.theme = theme.id;
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = theme.bg;
-  try { localStorage.setItem(THEME_KEY, theme.id); } catch (e) {}
-  document.querySelectorAll('.theme-swatch').forEach(sw => {
-    sw.classList.toggle('selected', sw.dataset.theme === theme.id);
-  });
-}
-
-function initThemePicker() {
-  const row = document.getElementById('theme-row');
-  THEMES.forEach(t => {
-    const sw = el('button', 'theme-swatch');
-    sw.dataset.theme = t.id;
-    sw.setAttribute('aria-label', `${t.name} theme`);
-    sw.innerHTML = `
-      <span class="theme-swatch-dot" style="background: linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)"></span>
-      <span class="theme-swatch-name">${t.name}</span>`;
-    sw.addEventListener('click', () => { haptic(); applyTheme(t.id); });
-    row.appendChild(sw);
-  });
-  let saved = null;
-  try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
-  applyTheme(saved || 'roast');
-}
-
 /* ---------- scoring ---------- */
 
 function coffeeScore(c) {
@@ -205,6 +168,7 @@ function metaSummary(meta) {
   const bits = [];
   if (meta.variety) bits.push(meta.variety);
   if (meta.process) bits.push(meta.process);
+  if (meta.roast) bits.push(meta.roast);
   if (meta.altitude) bits.push(`${meta.altitude} masl`);
   if (meta.country) bits.push(meta.country);
   if (meta.farm) bits.push(meta.farm);
@@ -848,6 +812,7 @@ async function shareResults() {
 const DIMENSIONS = [
   { key: 'process', label: 'Process' },
   { key: 'variety', label: 'Variety' },
+  { key: 'roast', label: 'Roast' },
   { key: 'country', label: 'Origin' },
   { key: 'farm', label: 'Farm' },
   { key: 'producer', label: 'Producer' },
@@ -993,7 +958,6 @@ function startCupping() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initThemePicker();
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
   renderCupsPreview();
