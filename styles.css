@@ -292,6 +292,9 @@ input, textarea, select { font: inherit; }
   gap: 10px;
 }
 
+.setup-actions-row { display: flex; gap: 10px; }
+.setup-actions-row .btn { flex: 1; }
+
 /* ---------- buttons ---------- */
 
 .btn {
@@ -1025,6 +1028,130 @@ input, textarea, select { font: inherit; }
 .hist-item-right { text-align: right; flex: none; }
 .hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
 .hist-item-date { font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
+
+/* ============================================================
+   TEAM SCORES (social cupping)
+   ============================================================ */
+
+.team-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.team-card h3 { font-size: 15px; font-weight: 800; }
+.team-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; margin-bottom: 12px; }
+
+.team-name-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+
+.team-actions { display: flex; gap: 8px; }
+.team-actions .btn { flex: 1; padding: 13px 8px; font-size: 14px; border-radius: 13px; }
+
+.team-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+
+.team-coffee-row {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+}
+.team-coffee-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.team-coffee-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-coffee-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
+.team-coffee-avg small { font-size: 10px; font-weight: 700; color: var(--text-faint); margin-left: 3px; }
+.team-coffee-cuppers {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.team-cuppers-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.cupper-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+}
+.cupper-chip button {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent);
+  background: transparent;
+}
+.cupper-chip.me { padding-right: 12px; }
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  animation: fadeIn 0.25s var(--ease);
+}
+@keyframes fadeIn { from { opacity: 0; } }
+
+.modal-sheet {
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 22px 22px 0 0;
+  padding: 22px 20px calc(var(--sab) + 20px);
+  animation: sheetUp 0.35s var(--spring);
+}
+@keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } }
+
+.modal-sheet h3 { font-size: 17px; font-weight: 800; }
+.modal-hint { font-size: 13px; color: var(--text-dim); line-height: 1.45; margin: 6px 0 12px; }
+
+.modal-input {
+  width: 100%;
+  resize: none;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-all;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.modal-input:focus { border-color: var(--accent-deep); }
+
+.modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+.modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
 
 /* toast */
 .toast {

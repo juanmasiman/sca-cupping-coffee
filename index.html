@@ -67,7 +67,10 @@
       </div>
 
       <div class="setup-actions">
-        <button id="btn-history" class="btn btn-ghost">History</button>
+        <div class="setup-actions-row">
+          <button id="btn-history" class="btn btn-ghost">History</button>
+          <button id="btn-join" class="btn btn-ghost">Join a cupping</button>
+        </div>
         <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
         <button id="btn-start" class="btn btn-primary">Start cupping</button>
       </div>
@@ -81,6 +84,9 @@
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <nav class="coffee-tabs" id="coffee-tabs"></nav>
+      <button id="btn-share-session" class="icon-btn" aria-label="Share cupping code">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
+      </button>
       <button id="btn-finish" class="finish-btn">Results</button>
     </header>
 
@@ -117,6 +123,7 @@
         <div id="radar-wrap"></div>
         <div class="radar-legend" id="radar-legend"></div>
       </div>
+      <div class="team-card" id="team-card"></div>
       <div class="ranking" id="ranking"></div>
       <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
       <div class="results-footpad"></div>
@@ -179,6 +186,18 @@
     <option value="Castillo"></option>
     <option value="Heirloom"></option>
   </datalist>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3 id="modal-title">Paste code</h3>
+      <p id="modal-hint" class="modal-hint"></p>
+      <textarea id="modal-input" class="modal-input" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="modal-submit" class="btn btn-primary">Load</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status"></div>
 

@@ -12,6 +12,12 @@ A mobile-first web app for running coffee cuppings with the **SCA (Specialty Cof
    - Free-text tasting notes per coffee
 3. **Results** — winner podium, full ranking with score bars, and an overlaid sensory radar chart (tap a legend name to isolate a coffee). Share/copy the results.
 
+## Social cupping (no backend needed)
+
+A cupping leader sets up the table (coffees, names, details) and taps the share icon in the cupping header — the app generates a **session code** that itself carries the coffee lineup (JSON → gzip → base64url, typically ~100–500 characters). Participants tap **Join a cupping** and paste the code; the coffees load ready to score.
+
+After scoring, each cupper shares a **score code** from the Results screen; the leader pastes them into **Team scores** to see per-coffee table averages and each cupper's numbers side by side — a quick calibration view. Everything travels over iMessage/WhatsApp/anything; no server, no accounts.
+
 ## Details
 
 - Live total score (max 100) with SCA quality grade in a floating score bar

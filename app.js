@@ -9,6 +9,7 @@
 
 const STORAGE_KEY = 'sca-cupping-session-v1';
 const HISTORY_KEY = 'sca-cupping-history-v1';
+const CUPPER_KEY = 'sca-cupping-cupper-name-v1';
 
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
@@ -68,7 +69,7 @@ function newCoffee(nCups) {
 }
 
 function newSession(nCoffees, nCups) {
-  state = { id: 'S' + Date.now(), cupsPerCoffee: nCups, activeIndex: 0, coffees: [] };
+  state = { id: 'S' + Date.now(), cupsPerCoffee: nCups, activeIndex: 0, coffees: [], team: [] };
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
   save();
 }
@@ -85,6 +86,7 @@ function load() {
     if (!s || !Array.isArray(s.coffees) || !s.coffees.length) return null;
     // migrate sessions saved by older versions
     if (!s.id) s.id = 'S' + Date.now();
+    if (!Array.isArray(s.team)) s.team = [];
     s.coffees.forEach(c => { c.meta = Object.assign(emptyMeta(), c.meta || {}); });
     return s;
   } catch (e) { return null; }
@@ -211,6 +213,161 @@ function showScreen(id) {
 
 function escapeHTML(s) {
   return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/* ============================================================
+   SESSION & SCORE CODES (social cupping, serverless)
+   The "code" carries the data itself: JSON → gzip → base64url,
+   so sharing works over any messenger with no backend.
+   ============================================================ */
+
+function b64urlEncode(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64urlDecode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function gzipBytes(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzipBytes(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+// kind is 'CUP' (session) or 'SCR' (scores); G = gzipped, P = plain
+async function encodeCode(kind, obj) {
+  const raw = new TextEncoder().encode(JSON.stringify(obj));
+  if (typeof CompressionStream !== 'undefined') {
+    try { return `${kind}G.${b64urlEncode(await gzipBytes(raw))}`; } catch (e) { /* fall through */ }
+  }
+  return `${kind}P.${b64urlEncode(raw)}`;
+}
+
+async function decodeCode(kind, text) {
+  // tolerate the code being pasted with surrounding message text
+  const m = (text || '').replace(/\s+/g, ' ').match(new RegExp(kind + '([GP])\\.([A-Za-z0-9_-]+)'));
+  if (!m) return null;
+  try {
+    let bytes = b64urlDecode(m[2]);
+    if (m[1] === 'G') {
+      if (typeof DecompressionStream === 'undefined') return null;
+      bytes = await gunzipBytes(bytes);
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (e) { return null; }
+}
+
+function buildSessionPayload() {
+  return {
+    v: 1,
+    c: state.cupsPerCoffee,
+    k: state.coffees.map((c, i) => ({
+      n: coffeeName(c, i),
+      m: Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim())),
+    })),
+  };
+}
+
+async function buildSessionCode() {
+  return encodeCode('CUP', buildSessionPayload());
+}
+
+async function joinSessionFromCode(text) {
+  const obj = await decodeCode('CUP', text);
+  if (!obj || !Array.isArray(obj.k) || !obj.k.length) return false;
+  const nCups = Math.min(LIMITS.cups[1], Math.max(LIMITS.cups[0], obj.c || 5));
+  const coffees = obj.k.slice(0, LIMITS.coffees[1]);
+  newSession(coffees.length, nCups);
+  coffees.forEach((k, i) => {
+    state.coffees[i].name = String(k.n || '').slice(0, 40);
+    state.coffees[i].meta = Object.assign(emptyMeta(),
+      Object.fromEntries(Object.entries(k.m || {}).map(([key, v]) => [key, String(v).slice(0, 60)])));
+  });
+  save();
+  return true;
+}
+
+function getCupperName() {
+  try { return localStorage.getItem(CUPPER_KEY) || ''; } catch (e) { return ''; }
+}
+
+function setCupperName(name) {
+  try { localStorage.setItem(CUPPER_KEY, name); } catch (e) {}
+}
+
+async function buildScoreCode() {
+  return encodeCode('SCR', {
+    v: 1,
+    n: getCupperName() || 'Cupper',
+    s: state.coffees.map(c => Math.round(coffeeScore(c) * 100) / 100),
+    t: state.coffees.map((c, i) => coffeeName(c, i)),
+  });
+}
+
+async function addTeamScoresFromCode(text) {
+  const obj = await decodeCode('SCR', text);
+  if (!obj || !Array.isArray(obj.s) || !obj.s.length) return { ok: false, error: 'That doesn’t look like a score code.' };
+  if (obj.s.length !== state.coffees.length) {
+    return { ok: false, error: `That code has ${obj.s.length} coffee${obj.s.length > 1 ? 's' : ''}, this session has ${state.coffees.length}.` };
+  }
+  const scores = obj.s.map(v => Math.max(0, Math.min(100, Number(v) || 0)));
+  state.team.push({ name: String(obj.n || 'Cupper').slice(0, 24), scores });
+  save();
+  return { ok: true };
+}
+
+/* ---------- modal ---------- */
+
+function openModal({ title, hint, cta, onSubmit }) {
+  const modal = $('#modal');
+  const input = $('#modal-input');
+  $('#modal-title').textContent = title;
+  $('#modal-hint').textContent = hint;
+  $('#modal-submit').textContent = cta;
+  input.value = '';
+  modal.classList.remove('hidden');
+  setTimeout(() => input.focus(), 60);
+
+  const close = () => {
+    modal.classList.add('hidden');
+    $('#modal-submit').onclick = null;
+    $('#modal-cancel').onclick = null;
+    modal.onclick = null;
+  };
+  $('#modal-cancel').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+  $('#modal-submit').onclick = async () => {
+    const done = await onSubmit(input.value);
+    if (done) close();
+  };
+}
+
+/* ---------- native share with clipboard fallback ---------- */
+
+async function shareText(text, copiedMsg) {
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(copiedMsg);
+  } catch (e) {
+    toast('Could not share');
+  }
 }
 
 /* ============================================================
@@ -700,8 +857,103 @@ function buildResults() {
     });
   });
 
+  renderTeamCard();
+
   // every visit to Results refreshes the archived snapshot
   archiveSession();
+}
+
+/* ---------- team scores (social cupping) ---------- */
+
+function renderTeamCard() {
+  const card = $('#team-card');
+  card.innerHTML = `
+    <h3>Team scores</h3>
+    <p class="team-sub">Cupping with others? Share your scores as a code, and paste theirs to see how the table scored.</p>
+    <div class="team-name-row">
+      <span class="detail-label">Your name</span>
+      <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
+    </div>
+    <div class="team-actions">
+      <button class="btn btn-ghost" id="btn-share-scores">Share my scores</button>
+      <button class="btn btn-ghost" id="btn-add-scores">Add cupper’s scores</button>
+    </div>
+    <div class="team-cuppers-row" id="team-cuppers"></div>
+    <div class="team-results" id="team-results"></div>
+  `;
+
+  const nameInput = card.querySelector('#cupper-name');
+  nameInput.value = getCupperName();
+  nameInput.addEventListener('input', () => setCupperName(nameInput.value.trim()));
+
+  card.querySelector('#btn-share-scores').addEventListener('click', async () => {
+    const code = await buildScoreCode();
+    shareText(
+      `☕️ My cupping scores — in SCA Cupping open Results → “Add cupper’s scores” and paste:\n\n${code}`,
+      'Score code copied'
+    );
+  });
+
+  card.querySelector('#btn-add-scores').addEventListener('click', () => {
+    openModal({
+      title: 'Add cupper’s scores',
+      hint: 'Paste a score code another cupper shared from their Results screen.',
+      cta: 'Add scores',
+      onSubmit: async text => {
+        const res = await addTeamScoresFromCode(text);
+        if (!res.ok) { toast(res.error); return false; }
+        renderTeamTable();
+        toast('Scores added');
+        return true;
+      },
+    });
+  });
+
+  renderTeamTable();
+}
+
+function renderTeamTable() {
+  const chips = $('#team-cuppers');
+  const results = $('#team-results');
+  chips.innerHTML = '';
+  results.innerHTML = '';
+  if (!state.team.length) return;
+
+  const myName = getCupperName() || 'You';
+
+  const me = el('span', 'cupper-chip me', escapeHTML(myName));
+  chips.appendChild(me);
+  state.team.forEach((t, ti) => {
+    const chip = el('span', 'cupper-chip');
+    chip.innerHTML = `${escapeHTML(t.name)}<button aria-label="Remove ${escapeHTML(t.name)}">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      state.team.splice(ti, 1);
+      save();
+      renderTeamTable();
+    });
+    chips.appendChild(chip);
+  });
+
+  const rows = state.coffees.map((c, i) => {
+    const values = [
+      { name: myName, score: coffeeScore(c) },
+      ...state.team.map(t => ({ name: t.name, score: t.scores[i] })),
+    ];
+    const avg = values.reduce((a, v) => a + v.score, 0) / values.length;
+    return { name: coffeeName(c, i), avg, values };
+  }).sort((a, b) => b.avg - a.avg);
+
+  rows.forEach(r => {
+    const row = el('div', 'team-coffee-row');
+    row.innerHTML = `
+      <div class="team-coffee-top">
+        <span class="team-coffee-name">${escapeHTML(r.name)}</span>
+        <span class="team-coffee-avg">${fmt(r.avg)}<small>AVG</small></span>
+      </div>
+      <div class="team-coffee-cuppers">${r.values.map(v => `${escapeHTML(v.name)} ${fmt(v.score)}`).join(' · ')}</div>
+    `;
+    results.appendChild(row);
+  });
 }
 
 /* ---------- radar chart (SVG) ---------- */
@@ -978,6 +1230,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#btn-back-setup').addEventListener('click', () => showScreen('#screen-setup'));
+
+  $('#btn-join').addEventListener('click', () => {
+    openModal({
+      title: 'Join a cupping',
+      hint: 'Paste the session code the cupping leader shared. The coffees and their details will load, ready to score.',
+      cta: 'Join',
+      onSubmit: async text => {
+        const ok = await joinSessionFromCode(text);
+        if (!ok) { toast('That doesn’t look like a session code'); return false; }
+        startCupping();
+        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+        return true;
+      },
+    });
+  });
+
+  $('#btn-share-session').addEventListener('click', async () => {
+    const code = await buildSessionCode();
+    shareText(
+      `☕️ Join my cupping! In SCA Cupping tap “Join a cupping” and paste:\n\n${code}`,
+      'Session code copied'
+    );
+  });
 
   $('#btn-finish').addEventListener('click', () => {
     buildResults();
