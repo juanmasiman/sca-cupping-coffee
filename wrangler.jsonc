@@ -1,0 +1,22 @@
+{
+  "name": "sca-cupping-coffee",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "observability": {
+    "enabled": true
+  }
+
+  // Live join codes need a KV namespace. Create one named CUPPINGS in the
+  // dashboard (Storage & Databases → KV), then uncomment this block with
+  // its ID and redeploy. Until then the app falls back to QR/link sharing.
+  //
+  // "kv_namespaces": [
+  //   { "binding": "CUPPINGS", "id": "paste-the-namespace-id-here" }
+  // ]
+}

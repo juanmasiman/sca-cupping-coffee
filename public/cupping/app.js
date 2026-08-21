@@ -11,11 +11,13 @@ const STORAGE_KEY = 'sca-cupping-session-v1';
 const HISTORY_KEY = 'sca-cupping-history-v1';
 const CUPPER_KEY = 'sca-cupping-cupper-name-v1';
 
-// Where the app lives — QR codes and share links point here.
-const APP_URL = 'https://lento.cafe/cupping/';
-// Optional relay for Apple-TV-style live codes; the app works fully
-// without it (long codes + QR carry the data themselves).
-const RELAY_URL = 'https://lento.cafe/cupping/api';
+// Derived from wherever the app is served, so QR codes, share links,
+// and sign-in redirects work on any domain (workers.dev, lento.cafe,
+// a local server) with no config.
+const APP_URL = location.origin + location.pathname.replace(/[^/]*$/, '');
+// Relay for Apple-TV-style live codes, served by the same Worker; the
+// app works fully without it (long codes + QR carry the data themselves).
+const RELAY_URL = APP_URL + 'api';
 
 // Optional Supabase project for sign-in + cloud history sync.
 // Leave empty to run device-only; see DEPLOY.md to enable.
