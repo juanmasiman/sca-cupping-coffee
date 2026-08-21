@@ -10,13 +10,11 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
 
-  // Live join codes need a KV namespace. Create one named CUPPINGS in the
-  // dashboard (Storage & Databases → KV), then uncomment this block with
-  // its ID and redeploy. Until then the app falls back to QR/link sharing.
-  //
-  // "kv_namespaces": [
-  //   { "binding": "CUPPINGS", "id": "paste-the-namespace-id-here" }
-  // ]
+  // Stores the short-lived 4-digit join codes for live cuppings.
+  // The binding name is what worker/index.js reads as env.CUPPINGS.
+  "kv_namespaces": [
+    { "binding": "CUPPINGS", "id": "3625eb6dd7d5425fb8ded9f43a85338f" }
+  ]
 }
