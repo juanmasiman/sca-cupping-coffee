@@ -191,6 +191,32 @@
     <option value="Heirloom"></option>
   </datalist>
 
+  <div id="join-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3>Join a cupping</h3>
+      <p class="modal-hint">Enter the 4-digit code from the cupping leader.</p>
+      <div class="pin-boxes" id="pin-boxes" role="group" aria-label="Cupping code"></div>
+      <p class="pin-error" id="pin-error"></p>
+      <div class="keypad" id="keypad"></div>
+      <button class="pin-alt" id="pin-alt">Have a link or long code? Paste it instead</button>
+      <div class="modal-actions">
+        <button id="join-cancel" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="name-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3>What’s your name?</h3>
+      <p class="modal-hint">The cupping leader will see who has joined the table.</p>
+      <input id="name-input" class="detail-field" type="text" maxlength="24" placeholder="e.g. Juan" autocomplete="given-name">
+      <div class="modal-actions">
+        <button id="name-skip" class="btn btn-ghost">Skip</button>
+        <button id="name-submit" class="btn btn-primary">Join cupping</button>
+      </div>
+    </div>
+  </div>
+
   <div id="account-modal" class="modal hidden">
     <div class="modal-sheet" id="account-sheet"></div>
   </div>
@@ -206,6 +232,23 @@
         <div class="share-qr" id="share-qr"></div>
       </div>
       <p class="modal-hint" id="share-hint">Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.</p>
+
+      <label class="switch-row" for="toggle-details">
+        <span class="switch-label">
+          <span class="switch-title">Share coffee details</span>
+          <span class="switch-sub">Off keeps the cupping blind — cuppers see names only</span>
+        </span>
+        <span class="switch">
+          <input type="checkbox" id="toggle-details">
+          <span class="switch-track"><span class="switch-knob"></span></span>
+        </span>
+      </label>
+
+      <div class="joined-wrap hidden" id="joined-wrap">
+        <span class="detail-label" id="joined-title">At the table</span>
+        <div class="joined-list" id="joined-list"></div>
+      </div>
+
       <div class="modal-actions">
         <button id="share-close" class="btn btn-ghost">Done</button>
         <button id="share-link" class="btn btn-primary">Share link</button>

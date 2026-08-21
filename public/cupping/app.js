@@ -84,7 +84,14 @@ function newCoffee(nCups) {
 }
 
 function newSession(nCoffees, nCups) {
-  state = { id: 'S' + Date.now(), cupsPerCoffee: nCups, activeIndex: 0, coffees: [], team: [] };
+  state = {
+    id: 'S' + Date.now(),
+    cupsPerCoffee: nCups,
+    activeIndex: 0,
+    coffees: [],
+    team: [],
+    shareDetails: false, // blind by default: guests get names, not origin details
+  };
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
   save();
 }
@@ -102,6 +109,7 @@ function load() {
     // migrate sessions saved by older versions
     if (!s.id) s.id = 'S' + Date.now();
     if (!Array.isArray(s.team)) s.team = [];
+    if (typeof s.shareDetails !== 'boolean') s.shareDetails = false;
     s.coffees.forEach(c => { c.meta = Object.assign(emptyMeta(), c.meta || {}); });
     return s;
   } catch (e) { return null; }
@@ -551,10 +559,14 @@ function buildSessionPayload() {
   return {
     v: 1,
     c: state.cupsPerCoffee,
-    k: state.coffees.map((c, i) => ({
-      n: coffeeName(c, i),
-      m: Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim())),
-    })),
+    k: state.coffees.map((c, i) => {
+      const entry = { n: coffeeName(c, i) };
+      // origin details only travel when the leader chooses to share them
+      if (state.shareDetails) {
+        entry.m = Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim()));
+      }
+      return entry;
+    }),
   };
 }
 
@@ -596,19 +608,43 @@ async function relayRequest(path, options) {
   }
 }
 
-// Returns a short live code ("4821") or null when the relay is unreachable.
+// Returns { code, token } or null when the relay is unreachable.
 async function relayCreateSession(payload) {
   const data = await relayRequest('/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  return data && data.code ? String(data.code) : null;
+  return data && data.code ? { code: String(data.code), token: data.token } : null;
+}
+
+// Push an updated lineup to an existing code (e.g. after revealing details).
+async function relayUpdateSession(code, token, payload) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, payload }),
+  });
+  return Boolean(data && data.ok);
 }
 
 async function relayFetchSession(code) {
   const data = await relayRequest(`/sessions/${encodeURIComponent(code)}`, { method: 'GET' });
   return data && data.payload ? data.payload : null;
+}
+
+async function relayJoinSession(code, name) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return Boolean(data && data.id);
+}
+
+async function relayListParticipants(code) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants`, { method: 'GET' });
+  return data && Array.isArray(data.participants) ? data.participants : null;
 }
 
 function getCupperName() {
@@ -666,23 +702,154 @@ function openModal({ title, hint, cta, onSubmit }) {
   };
 }
 
+/* ---------- join by keypad ---------- */
+
+function openJoinSheet() {
+  const modal = $('#join-modal');
+  const boxes = $('#pin-boxes');
+  const keypad = $('#keypad');
+  const errorEl = $('#pin-error');
+  const LEN = 4;
+  let digits = '';
+  let busy = false;
+
+  const close = () => {
+    modal.classList.add('hidden');
+    document.removeEventListener('keydown', onKey);
+  };
+
+  const render = () => {
+    [...boxes.children].forEach((box, i) => {
+      box.textContent = digits[i] || '';
+      box.classList.toggle('filled', i < digits.length);
+      box.classList.toggle('next', i === digits.length);
+    });
+  };
+
+  const submit = async () => {
+    busy = true;
+    errorEl.textContent = '';
+    const payload = await relayFetchSession(digits);
+    busy = false;
+    if (!payload) {
+      errorEl.textContent = 'No cupping found for that code.';
+      boxes.classList.remove('shake');
+      void boxes.offsetWidth;
+      boxes.classList.add('shake');
+      digits = '';
+      render();
+      return;
+    }
+    close();
+    askNameThenJoin(payload, digits);
+  };
+
+  const press = key => {
+    if (busy) return;
+    haptic();
+    if (key === 'del') {
+      digits = digits.slice(0, -1);
+      errorEl.textContent = '';
+      render();
+      return;
+    }
+    if (digits.length >= LEN) return;
+    digits += key;
+    const box = boxes.children[digits.length - 1];
+    box.classList.remove('pop');
+    void box.offsetWidth;
+    box.classList.add('pop');
+    render();
+    if (digits.length === LEN) setTimeout(submit, 180);
+  };
+
+  const onKey = e => {
+    if (/^\d$/.test(e.key)) press(e.key);
+    else if (e.key === 'Backspace') press('del');
+    else if (e.key === 'Escape') close();
+  };
+
+  // build once per open so state is always fresh
+  boxes.innerHTML = '';
+  for (let i = 0; i < LEN; i++) boxes.appendChild(el('div', 'pin-box'));
+
+  keypad.innerHTML = '';
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].forEach(k => {
+    if (k === '') { keypad.appendChild(el('div', 'key blank')); return; }
+    const btn = el('button', k === 'del' ? 'key action' : 'key', k === 'del' ? '⌫' : k);
+    btn.type = 'button';
+    if (k === 'del') btn.setAttribute('aria-label', 'Delete');
+    btn.addEventListener('click', () => press(k));
+    keypad.appendChild(btn);
+  });
+
+  errorEl.textContent = '';
+  render();
+  modal.classList.remove('hidden');
+  document.addEventListener('keydown', onKey);
+
+  $('#join-cancel').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+  $('#pin-alt').onclick = () => {
+    close();
+    openModal({
+      title: 'Paste a cupping link or code',
+      hint: 'Paste the message the leader shared — the app will find the code inside it.',
+      cta: 'Join',
+      onSubmit: async text => {
+        const ok = await joinSessionFromCode(text);
+        if (!ok) { toast('That doesn’t look like a cupping code'); return false; }
+        startCupping();
+        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+        return true;
+      },
+    });
+  };
+}
+
+/* ---------- name prompt, then join ---------- */
+
+function askNameThenJoin(payload, code) {
+  const finish = async name => {
+    if (name) setCupperName(name);
+    applySessionPayload(payload);
+    if (code) {
+      state.joinedCode = code;
+      save();
+      if (name) relayJoinSession(code, name); // fire-and-forget presence
+    }
+    startCupping();
+    toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+  };
+
+  const known = getCupperName();
+  if (known) { finish(known); return; }
+
+  const modal = $('#name-modal');
+  const input = $('#name-input');
+  input.value = '';
+  modal.classList.remove('hidden');
+  setTimeout(() => input.focus(), 80);
+
+  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+  const go = name => { close(); finish(name); };
+
+  $('#name-submit').onclick = () => go(input.value.trim());
+  $('#name-skip').onclick = () => go('');
+  input.onkeydown = e => { if (e.key === 'Enter') go(input.value.trim()); };
+  modal.onclick = e => { if (e.target === modal) go(''); };
+}
+
 /* ---------- invite sheet: QR + live code ---------- */
 
 function joinURL(code) {
   return `${APP_URL}#join=${code}`;
 }
 
-async function openInviteSheet() {
-  const modal = $('#share-modal');
-  const pinWrap = $('#share-pin-wrap');
-  const pin = $('#share-pin');
+let inviteTimer = null;
+
+function renderQR(url) {
   const qrBox = $('#share-qr');
-
-  const longCode = await buildSessionCode();
-  const url = joinURL(longCode);
-
-  // QR encodes the join URL itself, so it works even with no relay:
-  // scanning opens the app with the coffees already on board.
   qrBox.innerHTML = '';
   try {
     const qr = qrcode(0, 'M');
@@ -692,30 +859,88 @@ async function openInviteSheet() {
   } catch (e) {
     qrBox.textContent = 'QR unavailable';
   }
+}
 
+async function openInviteSheet() {
+  const modal = $('#share-modal');
+  const pinWrap = $('#share-pin-wrap');
+  const pin = $('#share-pin');
+  const toggle = $('#toggle-details');
+  const joinedWrap = $('#joined-wrap');
+  const joinedList = $('#joined-list');
+
+  // link that carries the lineup itself — works with no relay at all
+  let shareUrl = joinURL(await buildSessionCode());
+  renderQR(shareUrl);
+
+  toggle.checked = state.shareDetails;
   pin.textContent = 'Getting live code…';
   pin.classList.add('pending');
   pinWrap.classList.remove('hidden');
+  joinedWrap.classList.add('hidden');
   modal.classList.remove('hidden');
 
   const close = () => {
     modal.classList.add('hidden');
+    clearInterval(inviteTimer);
+    inviteTimer = null;
     $('#share-close').onclick = null;
     $('#share-link').onclick = null;
+    toggle.onchange = null;
     modal.onclick = null;
   };
   $('#share-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
   $('#share-link').onclick = () => shareText(
-    `☕️ Join my cupping: ${url}\n\nOr open ${APP_URL}, tap “Join a cupping” and paste this message.`,
+    `☕️ Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
     'Join link copied'
   );
+
+  const refreshJoined = async () => {
+    if (!state.liveCode) return;
+    const people = await relayListParticipants(state.liveCode);
+    if (!people) return;
+    joinedWrap.classList.remove('hidden');
+    $('#joined-title').textContent = people.length ? `At the table · ${people.length}` : 'At the table';
+    joinedList.innerHTML = '';
+    if (!people.length) {
+      joinedList.appendChild(el('span', 'joined-empty', 'Waiting for cuppers to join…'));
+      return;
+    }
+    people.forEach((p, i) => {
+      const chip = el('span', 'joined-chip', escapeHTML(p.name));
+      chip.style.animationDelay = `${i * 0.04}s`;
+      joinedList.appendChild(chip);
+    });
+  };
+
+  // revealing details reissues the lineup under the same code
+  toggle.onchange = async () => {
+    state.shareDetails = toggle.checked;
+    save();
+    haptic();
+    shareUrl = joinURL(await buildSessionCode());
+    if (!state.liveCode) renderQR(shareUrl);
+    if (state.liveCode && state.liveToken) {
+      await relayUpdateSession(state.liveCode, state.liveToken, buildSessionPayload());
+    }
+    toast(state.shareDetails ? 'Coffee details shared' : 'Cupping is blind again');
+  };
 
   // live code is a bonus on top — fetch it after the sheet is visible
   const live = await relayCreateSession(buildSessionPayload());
   if (live) {
+    state.liveCode = live.code;
+    state.liveToken = live.token;
+    save();
     pin.classList.remove('pending');
-    pin.textContent = live;
+    pin.textContent = live.code;
+    // point the QR at the code so joiners are counted and can get late updates
+    shareUrl = `${APP_URL}#code=${live.code}`;
+    renderQR(shareUrl);
+    refreshJoined();
+    clearInterval(inviteTimer);
+    inviteTimer = setInterval(refreshJoined, 4000);
   } else {
     pinWrap.classList.add('hidden');
   }
@@ -1596,28 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-back-setup').addEventListener('click', () => showScreen('#screen-setup'));
 
-  $('#btn-join').addEventListener('click', () => {
-    openModal({
-      title: 'Join a cupping',
-      hint: 'Enter the leader’s live code (e.g. 4821), or paste a shared link or session code. The coffees load ready to score.',
-      cta: 'Join',
-      onSubmit: async text => {
-        const trimmed = (text || '').trim();
-        let ok = false;
-        if (/^\d{4,6}$/.test(trimmed)) {
-          const payload = await relayFetchSession(trimmed);
-          if (!payload) { toast('No cupping found for that code — check it, or ask for the link.'); return false; }
-          ok = applySessionPayload(payload);
-        } else {
-          ok = await joinSessionFromCode(trimmed);
-        }
-        if (!ok) { toast('That doesn’t look like a cupping code'); return false; }
-        startCupping();
-        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
-        return true;
-      },
-    });
-  });
+  $('#btn-join').addEventListener('click', openJoinSheet);
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
 
@@ -1627,15 +1831,19 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAccountButton();
   if (loadAuth()) cloudSyncAll();
 
-  // auto-join when opened from a scanned QR / shared link (…#join=CUPG.xxx)
-  const hashMatch = location.hash.match(/join=([^&]+)/);
-  if (hashMatch) {
+  // auto-join when opened from a scanned QR / shared link
+  const codeMatch = location.hash.match(/code=(\d{4,6})/);       // …#code=4821
+  const joinMatch = location.hash.match(/join=([^&]+)/);          // …#join=CUPG.xxx
+  if (codeMatch) {
     history.replaceState(null, '', location.pathname + location.search);
-    joinSessionFromCode(decodeURIComponent(hashMatch[1])).then(ok => {
-      if (ok) {
-        startCupping();
-        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
-      }
+    relayFetchSession(codeMatch[1]).then(payload => {
+      if (payload) askNameThenJoin(payload, codeMatch[1]);
+      else toast('That cupping has ended or the code expired');
+    });
+  } else if (joinMatch) {
+    history.replaceState(null, '', location.pathname + location.search);
+    decodeCode('CUP', decodeURIComponent(joinMatch[1])).then(payload => {
+      if (payload) askNameThenJoin(payload, null);
     });
   }
 
