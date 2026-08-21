@@ -8,13 +8,11 @@ If the domain isn't on Cloudflare yet: Cloudflare dashboard → Add a domain →
 
 ## 2. Deploy the app (Cloudflare Pages)
 
-1. Workers & Pages → **Create → Pages → Connect to Git** → pick `juanmasiman/sca-cupping-coffee`.
+1. Workers & Pages → **Create → Pages → Connect to Git** → pick `juanmasiman/sca-cupping-coffee`, production branch `main`.
 2. Build settings: no framework, **no build command**, output directory `/`.
 3. Deploy, then **Custom domains → add `lento.cafe`**.
 
-To serve the app under the `/cupping/` path specifically, either:
-- keep the repo files at the root and add a redirect from `/cupping/*` (Pages → `_redirects` file), or
-- simplest: move the app files into a `cupping/` folder in the repo so `lento.cafe/cupping/` maps naturally. A landing page for lento.cafe itself can live at the root later.
+The repo is already laid out for the domain: the root `index.html` is a small lento.cafe landing page, and the app lives in `cupping/`, so `lento.cafe/cupping/` just works.
 
 ## 3. Deploy the live-code relay (optional but recommended)
 

@@ -1,233 +1,104 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="crema">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Cupping">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f5efe6">
-  <title>SCA Cupping</title>
+  <title>lento.cafe</title>
+  <meta name="description" content="lento — coffee, taken slowly. Tools for people who cup, roast, and care.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%EF%B8%8F%3C/text%3E%3C/svg%3E">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    :root {
+      --bg: #f5efe6;
+      --bg-card: #fffdf8;
+      --line: #e4d8c4;
+      --text: #2b2117;
+      --text-dim: #7a6a55;
+      --text-faint: #ab9a81;
+      --accent: #b5793a;
+      --accent-deep: #8a5526;
+      --accent-soft: rgba(181, 121, 58, 0.13);
+      --spring: cubic-bezier(0.32, 1.4, 0.45, 1);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 32px 22px;
+    }
+    .wrap { width: 100%; max-width: 420px; text-align: center; }
+    .mark {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      background: linear-gradient(120deg, #e8b06b, var(--accent) 55%, var(--accent-deep));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+    }
+    .tagline { margin-top: 8px; color: var(--text-dim); font-size: 16px; }
+    .cards { margin-top: 38px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+    .card {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.2s var(--spring), box-shadow 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(95, 65, 25, 0.12); }
+    .card:active { transform: scale(0.98); }
+    .card-icon {
+      width: 46px; height: 46px;
+      flex: none;
+      border-radius: 13px;
+      background: var(--accent-soft);
+      display: grid;
+      place-items: center;
+      font-size: 23px;
+    }
+    .card-title { font-size: 16.5px; font-weight: 700; }
+    .card-sub { font-size: 13px; color: var(--text-faint); margin-top: 2px; }
+    .card-arrow { margin-left: auto; color: var(--accent); flex: none; }
+    .soon { opacity: 0.55; pointer-events: none; }
+    footer { margin-top: 42px; font-size: 12.5px; color: var(--text-faint); }
+  </style>
 </head>
 <body>
+  <main class="wrap">
+    <h1 class="mark">lento</h1>
+    <p class="tagline">coffee, taken slowly.</p>
 
-  <!-- ============ SETUP SCREEN ============ -->
-  <section id="screen-setup" class="screen active">
-    <div class="setup-inner">
-      <button id="btn-account" class="icon-btn account-btn" aria-label="Your profile">
-        <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span class="account-dot hidden" id="account-dot"></span>
-      </button>
-      <header class="setup-hero">
-        <div class="hero-cup">
-          <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="cupGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="var(--accent)"/>
-                <stop offset="1" stop-color="var(--accent-deep)"/>
-              </linearGradient>
-            </defs>
-            <path class="steam steam-1" d="M48 30 C44 22, 52 18, 48 10" fill="none"/>
-            <path class="steam steam-2" d="M60 28 C56 20, 64 16, 60 8" fill="none"/>
-            <path class="steam steam-3" d="M72 30 C68 22, 76 18, 72 10" fill="none"/>
-            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="url(#cupGrad)"/>
-            <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="var(--bg)" opacity=".35"/>
-            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--accent-deep)" opacity=".55"/>
-          </svg>
-        </div>
-        <h1>SCA Cupping</h1>
-        <p class="subtitle">Specialty Coffee Association<br>Cupping Protocol &amp; Scoresheet</p>
-      </header>
-
-      <div class="setup-cards">
-        <div class="setup-card">
-          <div class="setup-card-label">
-            <span class="setup-card-title">Coffees</span>
-            <span class="setup-card-hint">samples on the table</span>
-          </div>
-          <div class="stepper" id="stepper-coffees">
-            <button class="stepper-btn" data-action="dec" aria-label="Fewer coffees">−</button>
-            <span class="stepper-value" id="value-coffees">3</span>
-            <button class="stepper-btn" data-action="inc" aria-label="More coffees">+</button>
-          </div>
-        </div>
-
-        <div class="setup-card">
-          <div class="setup-card-label">
-            <span class="setup-card-title">Cups per coffee</span>
-            <span class="setup-card-hint">SCA standard is 5</span>
-          </div>
-          <div class="stepper" id="stepper-cups">
-            <button class="stepper-btn" data-action="dec" aria-label="Fewer cups">−</button>
-            <span class="stepper-value" id="value-cups">5</span>
-            <button class="stepper-btn" data-action="inc" aria-label="More cups">+</button>
-          </div>
-        </div>
-
-        <div class="cups-preview" id="cups-preview" aria-hidden="true"></div>
-      </div>
-
-      <div class="setup-actions">
-        <div class="setup-actions-row">
-          <button id="btn-history" class="btn btn-ghost">History</button>
-          <button id="btn-join" class="btn btn-ghost">Join a cupping</button>
-        </div>
-        <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
-        <button id="btn-start" class="btn btn-primary">Start cupping</button>
+    <div class="cards">
+      <a class="card" href="/cupping/">
+        <span class="card-icon">☕️</span>
+        <span>
+          <span class="card-title">Cupping</span>
+          <span class="card-sub" style="display:block">SCA scoresheet · solo or with your table</span>
+        </span>
+        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <div class="card soon">
+        <span class="card-icon">🔥</span>
+        <span>
+          <span class="card-title">Roasting log</span>
+          <span class="card-sub" style="display:block">coming later</span>
+        </span>
       </div>
     </div>
-  </section>
 
-  <!-- ============ CUPPING SCREEN ============ -->
-  <section id="screen-cupping" class="screen">
-    <header class="cupping-header">
-      <button id="btn-back-setup" class="icon-btn" aria-label="Back to setup">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <nav class="coffee-tabs" id="coffee-tabs"></nav>
-      <button id="btn-share-session" class="icon-btn" aria-label="Share cupping code">
-        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
-      </button>
-      <button id="btn-finish" class="finish-btn">Results</button>
-    </header>
-
-    <div class="panels" id="panels"></div>
-
-    <footer class="scorebar" id="scorebar">
-      <div class="scorebar-info">
-        <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
-        <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
-      </div>
-      <div class="scorebar-score">
-        <span id="scorebar-value">82.50</span>
-        <span class="scorebar-max">/100</span>
-      </div>
-    </footer>
-  </section>
-
-  <!-- ============ RESULTS SCREEN ============ -->
-  <section id="screen-results" class="screen">
-    <header class="results-header">
-      <button id="btn-back-cupping" class="icon-btn" aria-label="Back to cupping">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <h2>Results</h2>
-      <button id="btn-share" class="icon-btn" aria-label="Share results">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3v13M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </header>
-
-    <div class="results-scroll">
-      <div class="podium" id="podium"></div>
-      <div class="radar-card">
-        <h3>Sensory profile</h3>
-        <div id="radar-wrap"></div>
-        <div class="radar-legend" id="radar-legend"></div>
-      </div>
-      <div class="team-card" id="team-card"></div>
-      <div class="ranking" id="ranking"></div>
-      <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
-      <div class="results-footpad"></div>
-    </div>
-  </section>
-
-  <!-- ============ HISTORY SCREEN ============ -->
-  <section id="screen-history" class="screen">
-    <header class="results-header">
-      <button id="btn-back-history" class="icon-btn" aria-label="Back to setup">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <h2>History</h2>
-      <span class="icon-btn" aria-hidden="true"></span>
-    </header>
-
-    <div class="results-scroll" id="history-scroll">
-      <div class="history-empty hidden" id="history-empty">
-        <div class="history-empty-icon">☕️</div>
-        <p>No cuppings yet.<br>Finish a session and it will be archived here automatically.</p>
-      </div>
-
-      <div id="history-content">
-        <div class="stats-row" id="stats-row"></div>
-
-        <div class="hist-section">
-          <h3 class="hist-title">Average score by</h3>
-          <div class="seg" id="dim-seg"></div>
-          <div class="group-list" id="group-list"></div>
-        </div>
-
-        <div class="hist-section">
-          <h3 class="hist-title">Recent coffees</h3>
-          <div class="hist-list" id="hist-list"></div>
-        </div>
-
-        <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
-      </div>
-      <div class="results-footpad"></div>
-    </div>
-  </section>
-
-  <datalist id="process-list">
-    <option value="Washed"></option>
-    <option value="Natural"></option>
-    <option value="Honey"></option>
-    <option value="Anaerobic"></option>
-    <option value="Carbonic Maceration"></option>
-    <option value="Wet-Hulled"></option>
-  </datalist>
-  <datalist id="variety-list">
-    <option value="Typica"></option>
-    <option value="Bourbon"></option>
-    <option value="Caturra"></option>
-    <option value="Catuaí"></option>
-    <option value="Geisha"></option>
-    <option value="SL28"></option>
-    <option value="SL34"></option>
-    <option value="Pacamara"></option>
-    <option value="Castillo"></option>
-    <option value="Heirloom"></option>
-  </datalist>
-
-  <div id="account-modal" class="modal hidden">
-    <div class="modal-sheet" id="account-sheet"></div>
-  </div>
-
-  <div id="share-modal" class="modal hidden">
-    <div class="modal-sheet">
-      <h3>Invite cuppers</h3>
-      <div class="share-pin-wrap" id="share-pin-wrap">
-        <span class="detail-label">Live code</span>
-        <div class="share-pin" id="share-pin"></div>
-      </div>
-      <div class="share-qr-wrap">
-        <div class="share-qr" id="share-qr"></div>
-      </div>
-      <p class="modal-hint" id="share-hint">Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.</p>
-      <div class="modal-actions">
-        <button id="share-close" class="btn btn-ghost">Done</button>
-        <button id="share-link" class="btn btn-primary">Share link</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="modal" class="modal hidden">
-    <div class="modal-sheet">
-      <h3 id="modal-title">Paste code</h3>
-      <p id="modal-hint" class="modal-hint"></p>
-      <textarea id="modal-input" class="modal-input" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-      <div class="modal-actions">
-        <button id="modal-cancel" class="btn btn-ghost">Cancel</button>
-        <button id="modal-submit" class="btn btn-primary">Load</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast" class="toast" role="status"></div>
-
-  <script src="qrcode.js"></script>
-  <script src="app.js"></script>
+    <footer>lento.cafe</footer>
+  </main>
 </body>
 </html>
