@@ -167,6 +167,23 @@ input, textarea, select { font: inherit; }
   display: flex;
   flex-direction: column;
   padding: calc(var(--sat) + 28px) 22px calc(var(--sab) + 24px);
+  position: relative;
+}
+
+.account-btn {
+  position: absolute;
+  top: calc(var(--sat) + 16px);
+  right: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+}
+.account-dot {
+  position: absolute;
+  top: 7px; right: 7px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--bg-card);
 }
 
 .setup-hero { text-align: center; margin-bottom: 26px; }
@@ -1152,6 +1169,61 @@ input, textarea, select { font: inherit; }
 
 .modal-actions { display: flex; gap: 10px; margin-top: 14px; }
 .modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
+
+/* account sheet */
+.auth-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+
+.auth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  transition: transform 0.18s var(--spring), filter 0.18s;
+}
+.auth-btn:active { transform: scale(0.97); filter: brightness(1.06); }
+.auth-btn svg { flex: none; }
+
+.auth-apple { background: #000000; color: #ffffff; }
+.auth-google { background: #ffffff; color: #1f1f1f; border: 1px solid #dadce0; }
+
+.account-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 13px 15px;
+  margin-top: 12px;
+}
+.account-avatar {
+  width: 40px; height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 17px;
+  overflow: hidden;
+}
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-user-info { min-width: 0; }
+.account-user-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-user-mail { font-size: 12.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.account-status {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 17px;
+}
 
 /* invite sheet: live PIN + QR */
 .share-pin-wrap {

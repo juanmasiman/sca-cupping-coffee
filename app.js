@@ -17,6 +17,13 @@ const APP_URL = 'https://lento.cafe/cupping/';
 // without it (long codes + QR carry the data themselves).
 const RELAY_URL = 'https://lento.cafe/cupping/api';
 
+// Optional Supabase project for sign-in + cloud history sync.
+// Leave empty to run device-only; see DEPLOY.md to enable.
+// (window overrides let deploys inject config without editing this file)
+const SUPABASE_URL = window.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+const AUTH_KEY = 'sca-cupping-auth-v1';
+
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
   { key: 'fragrance', label: 'Fragrance / Aroma', sub: 'dry grounds & wet crust' },
@@ -125,6 +132,7 @@ function archiveSession() {
   const entry = {
     id: state.id,
     date: Date.now(),
+    updated: Date.now(),
     cupsPerCoffee: state.cupsPerCoffee,
     coffees: state.coffees.map((c, i) => ({
       name: coffeeName(c, i),
@@ -137,10 +145,244 @@ function archiveSession() {
   if (idx >= 0) { entry.date = archive[idx].date; archive[idx] = entry; }
   else archive.push(entry);
   saveArchive(archive);
+  cloudPushEntry(entry); // fire-and-forget backup when signed in
 }
 
 function clearArchive() {
   try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+}
+
+/* ============================================================
+   ACCOUNTS & CLOUD SYNC (Supabase, optional)
+   Sign in with Apple/Google keeps history synced across devices.
+   Everything works without it; this layer only activates when
+   SUPABASE_URL is configured. Plain REST — no SDK.
+   ============================================================ */
+
+function cloudEnabled() {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
+
+function loadAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch (e) { return null; }
+}
+
+function saveAuth(auth) {
+  try { localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); } catch (e) {}
+}
+
+function clearAuth() {
+  try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+}
+
+async function sbFetch(path, opts = {}) {
+  const auth = loadAuth();
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json',
+    ...(auth ? { Authorization: `Bearer ${auth.access_token}` } : {}),
+    ...(opts.headers || {}),
+  };
+  const res = await fetch(`${SUPABASE_URL}${path}`, { ...opts, headers });
+  if (!res.ok) throw new Error(`supabase ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function signInWith(provider) {
+  const redirect = encodeURIComponent(APP_URL);
+  location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${redirect}`;
+}
+
+async function signOut() {
+  try { await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { /* best effort */ }
+  clearAuth();
+  renderAccountButton();
+  toast('Signed out — history stays on this device');
+}
+
+// After the OAuth redirect, Supabase returns tokens in the URL hash.
+async function handleAuthRedirect() {
+  if (!location.hash.includes('access_token=')) return false;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const access = params.get('access_token');
+  const refresh = params.get('refresh_token');
+  const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!access) return false;
+  saveAuth({ access_token: access, refresh_token: refresh, expires_at: Date.now() + expiresIn * 1000, user: null });
+  try {
+    const user = await sbFetch('/auth/v1/user');
+    const auth = loadAuth();
+    auth.user = {
+      id: user.id,
+      email: user.email || '',
+      name: (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '',
+      avatar: (user.user_metadata && user.user_metadata.avatar_url) || '',
+    };
+    saveAuth(auth);
+    if (auth.user.name && !getCupperName()) setCupperName(auth.user.name.split(' ')[0]);
+    toast(`Signed in${auth.user.name ? ' as ' + auth.user.name.split(' ')[0] : ''}`);
+    cloudSyncAll();
+  } catch (e) {
+    clearAuth();
+    toast('Sign-in failed — please try again');
+  }
+  return true;
+}
+
+async function ensureFreshAuth() {
+  const auth = loadAuth();
+  if (!auth) return null;
+  if (auth.expires_at - Date.now() > 60000) return auth;
+  if (!auth.refresh_token) { clearAuth(); return null; }
+  try {
+    const data = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: auth.refresh_token }),
+    });
+    const next = {
+      ...auth,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || auth.refresh_token,
+      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+    };
+    saveAuth(next);
+    return next;
+  } catch (e) {
+    clearAuth();
+    return null;
+  }
+}
+
+async function cloudPushEntry(entry) {
+  if (!cloudEnabled()) return;
+  const auth = await ensureFreshAuth();
+  if (!auth || !auth.user) return;
+  try {
+    await sbFetch('/rest/v1/cuppings?on_conflict=user_id,id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify([{
+        id: entry.id,
+        user_id: auth.user.id,
+        date: entry.date,
+        updated: entry.updated || entry.date,
+        data: entry,
+      }]),
+    });
+  } catch (e) { /* offline — next sync catches up */ }
+}
+
+// Two-way merge: newest copy of each cupping wins, everywhere.
+async function cloudSyncAll() {
+  if (!cloudEnabled()) return false;
+  const auth = await ensureFreshAuth();
+  if (!auth || !auth.user) return false;
+  try {
+    const rows = await sbFetch('/rest/v1/cuppings?select=id,updated,data');
+    const byId = new Map(loadArchive().map(e => [e.id, e]));
+    let changed = false;
+    rows.forEach(r => {
+      const mine = byId.get(r.id);
+      if (!mine || (r.updated || 0) > (mine.updated || mine.date || 0)) {
+        byId.set(r.id, r.data);
+        changed = true;
+      }
+    });
+    if (changed) saveArchive([...byId.values()]);
+    const cloudUpdated = new Map(rows.map(r => [r.id, r.updated || 0]));
+    for (const e of byId.values()) {
+      if (!cloudUpdated.has(e.id) || (e.updated || e.date || 0) > cloudUpdated.get(e.id)) {
+        await cloudPushEntry(e);
+      }
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function cloudDeleteAll() {
+  if (!cloudEnabled()) return;
+  const auth = await ensureFreshAuth();
+  if (!auth || !auth.user) return;
+  try {
+    await sbFetch(`/rest/v1/cuppings?user_id=eq.${auth.user.id}`, { method: 'DELETE' });
+  } catch (e) { /* best effort */ }
+}
+
+/* ---------- account UI ---------- */
+
+function renderAccountButton() {
+  const auth = loadAuth();
+  $('#account-dot').classList.toggle('hidden', !(auth && auth.user));
+}
+
+const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
+
+const appleIconSVG = `<svg width="16" height="19" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>`;
+
+function openAccountSheet() {
+  const modal = $('#account-modal');
+  const sheet = $('#account-sheet');
+  const auth = loadAuth();
+  const archive = loadArchive();
+  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+
+  if (auth && auth.user) {
+    const initial = (auth.user.name || auth.user.email || '?').trim()[0].toUpperCase();
+    sheet.innerHTML = `
+      <h3>Your profile</h3>
+      <div class="account-user">
+        <div class="account-avatar">${auth.user.avatar ? `<img src="${escapeHTML(auth.user.avatar)}" alt="">` : escapeHTML(initial)}</div>
+        <div class="account-user-info">
+          <div class="account-user-name">${escapeHTML(auth.user.name || 'Cupper')}</div>
+          <div class="account-user-mail">${escapeHTML(auth.user.email)}</div>
+        </div>
+      </div>
+      <p class="account-status" id="account-status">${archive.length} cupping${archive.length === 1 ? '' : 's'} in your history</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-signout">Sign out</button>
+        <button class="btn btn-primary" id="btn-sync">Sync now</button>
+      </div>
+    `;
+    sheet.querySelector('#btn-signout').onclick = async () => { await signOut(); close(); };
+    sheet.querySelector('#btn-sync').onclick = async () => {
+      const status = sheet.querySelector('#account-status');
+      status.textContent = 'Syncing…';
+      const ok = await cloudSyncAll();
+      const n = loadArchive().length;
+      status.textContent = ok ? `Synced · ${n} cupping${n === 1 ? '' : 's'} backed up` : 'Could not reach the cloud — will retry later';
+    };
+  } else if (cloudEnabled()) {
+    sheet.innerHTML = `
+      <h3>Keep your history everywhere</h3>
+      <p class="modal-hint">Sign in to back up your cuppings and sync them across devices. Joining a cupping and scoring never requires an account.</p>
+      <div class="auth-buttons">
+        <button class="auth-btn auth-apple" id="btn-auth-apple">${appleIconSVG} Continue with Apple</button>
+        <button class="auth-btn auth-google" id="btn-auth-google">${googleIconSVG} Continue with Google</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-auth-cancel">Not now</button>
+      </div>
+    `;
+    sheet.querySelector('#btn-auth-apple').onclick = () => signInWith('apple');
+    sheet.querySelector('#btn-auth-google').onclick = () => signInWith('google');
+    sheet.querySelector('#btn-auth-cancel').onclick = close;
+  } else {
+    sheet.innerHTML = `
+      <h3>Your cupping history</h3>
+      <p class="modal-hint">History is saved on this device (${archive.length} cupping${archive.length === 1 ? '' : 's'} so far). Cloud sign-in isn’t configured on this deployment yet — once it is, you’ll be able to back up and sync across devices with Apple or Google.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-auth-cancel">Close</button>
+      </div>
+    `;
+    sheet.querySelector('#btn-auth-cancel').onclick = close;
+  }
+
+  modal.classList.remove('hidden');
+  modal.onclick = e => { if (e.target === modal) close(); };
 }
 
 /* ---------- scoring ---------- */
@@ -1351,6 +1593,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
 
+  // account: OAuth return, profile button, quiet background sync
+  $('#btn-account').addEventListener('click', openAccountSheet);
+  handleAuthRedirect().then(() => renderAccountButton());
+  renderAccountButton();
+  if (loadAuth()) cloudSyncAll();
+
   // auto-join when opened from a scanned QR / shared link (…#join=CUPG.xxx)
   const hashMatch = location.hash.match(/join=([^&]+)/);
   if (hashMatch) {
@@ -1390,8 +1638,13 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-back-history').addEventListener('click', () => showScreen('#screen-setup'));
 
   $('#btn-clear-history').addEventListener('click', () => {
-    if (!confirm('Delete all cupping history? This cannot be undone.')) return;
+    const signedIn = Boolean(loadAuth() && loadAuth().user);
+    const msg = signedIn
+      ? 'Delete all cupping history, including your cloud backup? This cannot be undone.'
+      : 'Delete all cupping history? This cannot be undone.';
+    if (!confirm(msg)) return;
     clearArchive();
+    if (signedIn) cloudDeleteAll();
     buildHistory();
     toast('History cleared');
   });

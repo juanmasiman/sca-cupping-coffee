@@ -17,6 +17,10 @@
   <!-- ============ SETUP SCREEN ============ -->
   <section id="screen-setup" class="screen active">
     <div class="setup-inner">
+      <button id="btn-account" class="icon-btn account-btn" aria-label="Your profile">
+        <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span class="account-dot hidden" id="account-dot"></span>
+      </button>
       <header class="setup-hero">
         <div class="hero-cup">
           <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
@@ -186,6 +190,10 @@
     <option value="Castillo"></option>
     <option value="Heirloom"></option>
   </datalist>
+
+  <div id="account-modal" class="modal hidden">
+    <div class="modal-sheet" id="account-sheet"></div>
+  </div>
 
   <div id="share-modal" class="modal hidden">
     <div class="modal-sheet">

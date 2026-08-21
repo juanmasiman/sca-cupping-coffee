@@ -26,7 +26,25 @@ Enables Apple-TV-style 4-digit join codes. Without it, QR and link/code sharing 
 
 Live codes expire after 12 hours; nothing else is stored.
 
-## 4. Check the constants
+## 4. Enable sign-in + cloud history sync (optional)
+
+Without this, the app runs device-only and the profile sheet says cloud sync isn't configured — nothing breaks. To enable Apple/Google sign-in:
+
+1. Create a free project at [supabase.com](https://supabase.com) (any name, e.g. `lento-cupping`).
+2. SQL Editor → paste and run `server/supabase-schema.sql` (creates the `cuppings` table with row-level security).
+3. Authentication → URL Configuration → set **Site URL** to `https://lento.cafe/cupping/`.
+4. **Google provider** (free): in [Google Cloud Console](https://console.cloud.google.com) create a project → OAuth consent screen (External) → Credentials → Create OAuth client ID (Web application). Authorized redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`. Copy client ID + secret into Supabase → Authentication → Providers → Google.
+5. **Apple provider** (needs the $99/yr Apple Developer Program): create a Services ID and Sign in with Apple key in the Apple developer portal, return URL `https://<your-project-ref>.supabase.co/auth/v1/callback`, then fill Supabase → Providers → Apple. Fine to launch Google-only and add Apple later — the Apple button simply errors politely until configured.
+6. Put the project's URL and anon key into `app.js`:
+
+```js
+const SUPABASE_URL = window.SUPABASE_URL || 'https://<your-project-ref>.supabase.co';
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '<anon public key>';
+```
+
+The anon key is designed to be public — row-level security is what protects user data. Alternatively define `window.SUPABASE_URL` / `window.SUPABASE_ANON_KEY` in a small inline script before `app.js` and leave the source untouched.
+
+## 5. Check the constants
 
 `app.js` points at production:
 
