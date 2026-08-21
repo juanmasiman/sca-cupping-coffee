@@ -11,6 +11,12 @@ const STORAGE_KEY = 'sca-cupping-session-v1';
 const HISTORY_KEY = 'sca-cupping-history-v1';
 const CUPPER_KEY = 'sca-cupping-cupper-name-v1';
 
+// Where the app lives — QR codes and share links point here.
+const APP_URL = 'https://lento.cafe/cupping/';
+// Optional relay for Apple-TV-style live codes; the app works fully
+// without it (long codes + QR carry the data themselves).
+const RELAY_URL = 'https://lento.cafe/cupping/api';
+
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
   { key: 'fragrance', label: 'Fragrance / Aroma', sub: 'dry grounds & wet crust' },
@@ -286,8 +292,7 @@ async function buildSessionCode() {
   return encodeCode('CUP', buildSessionPayload());
 }
 
-async function joinSessionFromCode(text) {
-  const obj = await decodeCode('CUP', text);
+function applySessionPayload(obj) {
   if (!obj || !Array.isArray(obj.k) || !obj.k.length) return false;
   const nCups = Math.min(LIMITS.cups[1], Math.max(LIMITS.cups[0], obj.c || 5));
   const coffees = obj.k.slice(0, LIMITS.coffees[1]);
@@ -299,6 +304,41 @@ async function joinSessionFromCode(text) {
   });
   save();
   return true;
+}
+
+async function joinSessionFromCode(text) {
+  return applySessionPayload(await decodeCode('CUP', text));
+}
+
+/* ---------- live-code relay (optional backend) ---------- */
+
+async function relayRequest(path, options) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const res = await fetch(`${RELAY_URL}${path}`, { ...options, signal: ctrl.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Returns a short live code ("4821") or null when the relay is unreachable.
+async function relayCreateSession(payload) {
+  const data = await relayRequest('/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return data && data.code ? String(data.code) : null;
+}
+
+async function relayFetchSession(code) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}`, { method: 'GET' });
+  return data && data.payload ? data.payload : null;
 }
 
 function getCupperName() {
@@ -354,6 +394,61 @@ function openModal({ title, hint, cta, onSubmit }) {
     const done = await onSubmit(input.value);
     if (done) close();
   };
+}
+
+/* ---------- invite sheet: QR + live code ---------- */
+
+function joinURL(code) {
+  return `${APP_URL}#join=${code}`;
+}
+
+async function openInviteSheet() {
+  const modal = $('#share-modal');
+  const pinWrap = $('#share-pin-wrap');
+  const pin = $('#share-pin');
+  const qrBox = $('#share-qr');
+
+  const longCode = await buildSessionCode();
+  const url = joinURL(longCode);
+
+  // QR encodes the join URL itself, so it works even with no relay:
+  // scanning opens the app with the coffees already on board.
+  qrBox.innerHTML = '';
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    qrBox.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+  } catch (e) {
+    qrBox.textContent = 'QR unavailable';
+  }
+
+  pin.textContent = 'Getting live code…';
+  pin.classList.add('pending');
+  pinWrap.classList.remove('hidden');
+  modal.classList.remove('hidden');
+
+  const close = () => {
+    modal.classList.add('hidden');
+    $('#share-close').onclick = null;
+    $('#share-link').onclick = null;
+    modal.onclick = null;
+  };
+  $('#share-close').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+  $('#share-link').onclick = () => shareText(
+    `☕️ Join my cupping: ${url}\n\nOr open ${APP_URL}, tap “Join a cupping” and paste this message.`,
+    'Join link copied'
+  );
+
+  // live code is a bonus on top — fetch it after the sheet is visible
+  const live = await relayCreateSession(buildSessionPayload());
+  if (live) {
+    pin.classList.remove('pending');
+    pin.textContent = live;
+  } else {
+    pinWrap.classList.add('hidden');
+  }
 }
 
 /* ---------- native share with clipboard fallback ---------- */
@@ -1234,11 +1329,19 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-join').addEventListener('click', () => {
     openModal({
       title: 'Join a cupping',
-      hint: 'Paste the session code the cupping leader shared. The coffees and their details will load, ready to score.',
+      hint: 'Enter the leader’s live code (e.g. 4821), or paste a shared link or session code. The coffees load ready to score.',
       cta: 'Join',
       onSubmit: async text => {
-        const ok = await joinSessionFromCode(text);
-        if (!ok) { toast('That doesn’t look like a session code'); return false; }
+        const trimmed = (text || '').trim();
+        let ok = false;
+        if (/^\d{4,6}$/.test(trimmed)) {
+          const payload = await relayFetchSession(trimmed);
+          if (!payload) { toast('No cupping found for that code — check it, or ask for the link.'); return false; }
+          ok = applySessionPayload(payload);
+        } else {
+          ok = await joinSessionFromCode(trimmed);
+        }
+        if (!ok) { toast('That doesn’t look like a cupping code'); return false; }
         startCupping();
         toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
         return true;
@@ -1246,13 +1349,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  $('#btn-share-session').addEventListener('click', async () => {
-    const code = await buildSessionCode();
-    shareText(
-      `☕️ Join my cupping! In SCA Cupping tap “Join a cupping” and paste:\n\n${code}`,
-      'Session code copied'
-    );
-  });
+  $('#btn-share-session').addEventListener('click', openInviteSheet);
+
+  // auto-join when opened from a scanned QR / shared link (…#join=CUPG.xxx)
+  const hashMatch = location.hash.match(/join=([^&]+)/);
+  if (hashMatch) {
+    history.replaceState(null, '', location.pathname + location.search);
+    joinSessionFromCode(decodeURIComponent(hashMatch[1])).then(ok => {
+      if (ok) {
+        startCupping();
+        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+      }
+    });
+  }
 
   $('#btn-finish').addEventListener('click', () => {
     buildResults();

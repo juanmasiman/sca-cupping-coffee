@@ -187,6 +187,24 @@
     <option value="Heirloom"></option>
   </datalist>
 
+  <div id="share-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3>Invite cuppers</h3>
+      <div class="share-pin-wrap" id="share-pin-wrap">
+        <span class="detail-label">Live code</span>
+        <div class="share-pin" id="share-pin"></div>
+      </div>
+      <div class="share-qr-wrap">
+        <div class="share-qr" id="share-qr"></div>
+      </div>
+      <p class="modal-hint" id="share-hint">Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.</p>
+      <div class="modal-actions">
+        <button id="share-close" class="btn btn-ghost">Done</button>
+        <button id="share-link" class="btn btn-primary">Share link</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal" class="modal hidden">
     <div class="modal-sheet">
       <h3 id="modal-title">Paste code</h3>
@@ -201,6 +219,7 @@
 
   <div id="toast" class="toast" role="status"></div>
 
+  <script src="qrcode.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

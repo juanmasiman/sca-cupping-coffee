@@ -1153,6 +1153,35 @@ input, textarea, select { font: inherit; }
 .modal-actions { display: flex; gap: 10px; margin-top: 14px; }
 .modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
 
+/* invite sheet: live PIN + QR */
+.share-pin-wrap {
+  text-align: center;
+  margin: 12px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 58px;
+}
+.share-pin {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em; /* balance the last letter-space */
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.share-pin.pending { font-size: 14px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: 12px 0; }
+
+.share-qr-wrap { display: flex; justify-content: center; margin: 12px 0 4px; }
+.share-qr {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px;
+  line-height: 0;
+  border: 1px solid var(--line);
+}
+.share-qr svg { width: 190px; height: 190px; display: block; }
+
 /* toast */
 .toast {
   position: fixed;

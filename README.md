@@ -18,6 +18,16 @@ A cupping leader sets up the table (coffees, names, details) and taps the share 
 
 After scoring, each cupper shares a **score code** from the Results screen; the leader pastes them into **Team scores** to see per-coffee table averages and each cupper's numbers side by side — a quick calibration view. Everything travels over iMessage/WhatsApp/anything; no server, no accounts.
 
+### Inviting cuppers: QR + live code
+
+The leader taps the share icon while cupping and gets an invite sheet with:
+
+- a **QR code** — participants point their iPhone camera at it and Safari opens the app with the coffees loaded (the QR encodes `lento.cafe/cupping/#join=<code>`, so it works with no backend);
+- a **4-digit live code** (Apple-TV style) — participants type it into "Join a cupping". This uses the optional relay in `server/cloudflare-worker.js`; when the relay is unreachable the app hides the live-code UI and QR/link sharing still works;
+- a **Share link** button for iMessage/WhatsApp.
+
+See `DEPLOY.md` for putting the app on `lento.cafe/cupping` with Cloudflare Pages and deploying the relay worker.
+
 ## Details
 
 - Live total score (max 100) with SCA quality grade in a floating score bar
