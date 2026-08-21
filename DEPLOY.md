@@ -34,7 +34,7 @@ Without this, the app runs device-only and the profile sheet says cloud sync isn
 2. SQL Editor → paste and run `server/supabase-schema.sql` (creates the `cuppings` table with row-level security).
 3. Authentication → URL Configuration → set **Site URL** to `https://lento.cafe/cupping/`.
 4. **Google provider** (free): in [Google Cloud Console](https://console.cloud.google.com) create a project → OAuth consent screen (External) → Credentials → Create OAuth client ID (Web application). Authorized redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`. Copy client ID + secret into Supabase → Authentication → Providers → Google.
-5. **Apple provider** (needs the $99/yr Apple Developer Program): create a Services ID and Sign in with Apple key in the Apple developer portal, return URL `https://<your-project-ref>.supabase.co/auth/v1/callback`, then fill Supabase → Providers → Apple. Fine to launch Google-only and add Apple later — the Apple button simply errors politely until configured.
+5. **Email magic links** (free, works out of the box): the Email provider is enabled by default, so the "Send link" option already works using Supabase's built-in mailer. That mailer is rate-limited (a few emails/hour) — fine for testing; before real launch plug in a free SMTP sender (e.g. Resend or Brevo) under Authentication → SMTP settings, sending from something like `cupping@lento.cafe`.
 6. Put the project's URL and anon key into `app.js`:
 
 ```js
