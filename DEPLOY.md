@@ -1,5 +1,13 @@
 # Deploying to lento.cafe
 
+## Open to-dos
+
+- [ ] **Paste the branded sign-in email into Supabase.** The template is in this repo at `server/email-magic-link.html`. Go to Supabase → Authentication → Emails → **Magic Link**, delete the default body, paste the file's contents, save. This is not cosmetic: the default template contains only `{{ .ConfirmationURL }}`, so the **6-digit code never appears in the email** until this is done, and the app now asks for that code.
+- [ ] **Custom SMTP** so sign-in mail stops landing in junk (see "Sending sign-in email from lento.cafe" below).
+- [ ] **Google sign-in** — needs a Google Cloud OAuth client wired into Supabase; the button fails until then.
+- [ ] **Full UX/UI review pass.**
+
+
 The whole site is one Cloudflare Worker: it serves the static files in `public/` and the cupping live-code API at `/cupping/api/*`. No build step, no second project.
 
 ```
@@ -57,6 +65,35 @@ const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '<anon public key>';
 ```
 
 The anon key is meant to be public — row-level security is what protects user data.
+
+## Sending sign-in email from lento.cafe
+
+Supabase's built-in mailer is shared, rate-limited to a few messages an hour, and has poor sender reputation — mail lands in junk, where spam scanners follow the sign-in link and consume its one-time token. Custom SMTP fixes all of that.
+
+**Resend** (free: 3,000 emails/month, 100/day) with the domain already on Cloudflare:
+
+1. Sign up at [resend.com](https://resend.com) → **Domains → Add Domain** → `lento.cafe`.
+2. Resend shows a set of DNS records. Add each one in Cloudflare → lento.cafe → **DNS → Records → Add record**, copying the type, name and value exactly. They are typically:
+   - an **MX** record on a `send` subdomain (bounce handling),
+   - a **TXT** SPF record on that same subdomain,
+   - a **TXT** DKIM record at `resend._domainkey`.
+
+   MX and TXT records have no proxy option, so there is nothing to toggle.
+
+   > **Do not touch the existing MX records on the root domain** — those are Google Workspace, and changing them breaks your mail. Resend deliberately uses a subdomain so the two coexist.
+3. Back in Resend, click **Verify**. Usually a few minutes.
+4. Resend → **API Keys → Create API Key** (send access is enough). Copy it — it is shown once.
+5. Supabase → **Project Settings → Authentication → SMTP Settings** → enable **Custom SMTP**:
+   - Host `smtp.resend.com`
+   - Port `465`
+   - Username `resend`
+   - Password: the API key from step 4
+   - Sender email `cupping@lento.cafe`
+   - Sender name `lento`
+6. Save, then send yourself a sign-in code from the app to confirm it arrives in the inbox.
+7. Supabase → Authentication → **Rate Limits** → raise the email limit, which the built-in mailer had pinned low.
+
+Brevo (300/day free) works the same way if you prefer it; only the host and credentials differ.
 
 ## Local development
 
