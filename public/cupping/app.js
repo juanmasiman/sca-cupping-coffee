@@ -205,6 +205,9 @@ function newCoffee(nCups) {
     meta: emptyMeta(),
     scores,
     cva,
+    // which sections the cupper has actually rated — a default 5 and a
+    // deliberate 5 are the same number, and only one of them is data
+    touched: {},
     desc: emptyDescriptive(),
     cups: Object.fromEntries(CUP_ATTRS.map(a => [a.key, Array(nCups).fill(true)])),
     taintCups: 0,
@@ -293,6 +296,11 @@ function load() {
     s.coffees.forEach(c => {
       c.meta = Object.assign(emptyMeta(), c.meta || {});
       if (!c.cva) { c.cva = {}; CVA_SECTIONS.forEach(a => { c.cva[a.key] = 5; }); }
+      // sessions predating progress tracking were scored deliberately
+      if (!c.touched) {
+        c.touched = {};
+        [...CVA_SECTIONS, ...SCALE_ATTRS].forEach(a => { c.touched[a.key] = true; });
+      }
       if (typeof c.nonUniform !== 'number') c.nonUniform = 0;
       if (typeof c.defective !== 'number') c.defective = 0;
       // descriptive data predating the 103-2024 rebuild is dropped rather
@@ -740,6 +748,22 @@ function legacyScore(c) {
   });
   total -= defectPenalty(c);
   return Math.max(0, total);
+}
+
+// How much of a coffee's scoresheet has actually been filled in.
+function scoreProgress(c) {
+  const sections = usingCVA() ? CVA_SECTIONS : SCALE_ATTRS;
+  const done = sections.filter(a => c.touched && c.touched[a.key]).length;
+  return { done, total: sections.length, complete: done === sections.length };
+}
+
+function sessionProgress() {
+  const rows = state.coffees.map(scoreProgress);
+  return {
+    complete: rows.every(r => r.complete),
+    untouched: rows.filter(r => r.done === 0).length,
+    partial: rows.filter(r => r.done > 0 && !r.complete).length,
+  };
 }
 
 function defectPenalty(c) {
@@ -1488,8 +1512,12 @@ function refreshTabs() {
   state.coffees.forEach((c, i) => {
     const tab = tabs[i];
     if (!tab) return;
+    const progress = scoreProgress(c);
     tab.querySelector('.tab-name').textContent = coffeeName(c, i);
-    tab.querySelector('.tab-score').textContent = fmt(coffeeScore(c));
+    tab.querySelector('.tab-score').textContent = progress.complete
+      ? fmt(coffeeScore(c))
+      : `${progress.done}/${progress.total}`;
+    tab.classList.toggle('incomplete', !progress.complete);
     tab.classList.toggle('active', i === state.activeIndex);
   });
 }
@@ -2037,9 +2065,11 @@ function buildCvaCard(coffee, section) {
 
   const refresh = popIt => {
     const v = coffee.cva[section.key];
-    valueEl.textContent = v;
-    desc.textContent = CVA_LABELS[v - 1];
-    [...scale.children].forEach((btn, i) => btn.classList.toggle('selected', i + 1 === v));
+    const rated = Boolean(coffee.touched[section.key]);
+    card.classList.toggle('unrated', !rated);
+    valueEl.textContent = rated ? v : '–';
+    desc.textContent = rated ? CVA_LABELS[v - 1] : 'not rated yet';
+    [...scale.children].forEach((btn, i) => btn.classList.toggle('selected', rated && i + 1 === v));
     if (popIt) {
       valueEl.classList.remove('pop');
       void valueEl.offsetWidth;
@@ -2053,6 +2083,7 @@ function buildCvaCard(coffee, section) {
     btn.setAttribute('aria-label', `${section.label}: ${v}, ${CVA_LABELS[v - 1]}`);
     btn.addEventListener('click', () => {
       coffee.cva[section.key] = v;
+      coffee.touched[section.key] = true;
       haptic();
       refresh(true);
       refreshTabs();
@@ -2150,6 +2181,7 @@ function buildScaleCard(coffee, attr) {
   const thumb = card.querySelector('.slider-thumb');
   const ticks = card.querySelector('.slider-ticks');
   addHelp(card.querySelector('.attr-title'), 'legacy.scale');
+  if (!coffee.touched[attr.key]) card.classList.add('unrated');
 
   // whole-point tick marks
   for (let v = 6; v <= 10; v++) {
@@ -2169,8 +2201,11 @@ function buildScaleCard(coffee, attr) {
   const setValue = (v, popIt) => {
     v = Math.round(v / STEP) * STEP;
     v = Math.min(MAX, Math.max(MIN, v));
-    if (v === coffee.scores[attr.key]) return;
+    const firstTouch = !coffee.touched[attr.key];
+    if (v === coffee.scores[attr.key] && !firstTouch) return;
     coffee.scores[attr.key] = v;
+    coffee.touched[attr.key] = true;
+    card.classList.remove('unrated');
     valueEl.textContent = fmt(v);
     if (popIt) {
       valueEl.classList.remove('pop');
@@ -2333,8 +2368,14 @@ function updateScorebar() {
   const c = state.coffees[state.activeIndex];
   if (!c) return;
   const score = coffeeScore(c);
+  const progress = scoreProgress(c);
   $('#scorebar-name').textContent = coffeeName(c, state.activeIndex);
-  $('#scorebar-grade').textContent = gradeFor(score);
+  // an unfinished sheet reports how far along it is rather than a number
+  // that looks authoritative but is mostly untouched defaults
+  $('#scorebar-grade').textContent = progress.complete
+    ? gradeFor(score)
+    : `${progress.done} of ${progress.total} sections rated`;
+  $('#scorebar').classList.toggle('provisional', !progress.complete);
   const valueEl = $('#scorebar-value');
   if (valueEl.textContent !== fmt(score)) {
     valueEl.textContent = fmt(score);
@@ -3103,6 +3144,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   $('#btn-finish').addEventListener('click', () => {
+    // scoring is what gets archived and shared, so say something before
+    // an unfinished sheet becomes a record
+    const p = sessionProgress();
+    if (!p.complete) {
+      const parts = [];
+      if (p.untouched) parts.push(`${p.untouched} coffee${p.untouched > 1 ? 's have' : ' has'} not been scored at all`);
+      if (p.partial) parts.push(`${p.partial} ${p.partial > 1 ? 'are' : 'is'} part-scored`);
+      if (!confirm(`${parts.join(', ')}. Unrated sections count as 5 (neither high nor low). See results anyway?`)) return;
+    }
     buildResults();
     showScreen('#screen-results');
   });

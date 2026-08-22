@@ -186,9 +186,10 @@ input, textarea, select { font: inherit; }
   border: 2px solid var(--bg-card);
 }
 
-.setup-hero { text-align: center; margin-bottom: 26px; }
+/* Kept compact so "Start cupping" stays above the fold on a small phone */
+.setup-hero { text-align: center; margin-bottom: 12px; }
 
-.hero-cup { width: 104px; margin: 0 auto 8px; }
+.hero-cup { width: 54px; margin: 0 auto 1px; }
 .cup-svg { width: 100%; filter: drop-shadow(0 10px 24px var(--glow)); }
 
 .steam {
@@ -208,18 +209,40 @@ input, textarea, select { font: inherit; }
 }
 
 .setup-hero h1 {
-  font-size: 34px;
+  font-size: 40px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: -1.4px;
+  line-height: 1.05;
   background: linear-gradient(120deg, var(--hi), var(--accent) 55%, var(--accent-deep));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.subtitle { margin-top: 6px; color: var(--text-dim); font-size: 14px; line-height: 1.45; }
+.subtitle {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
-.setup-cards { display: flex; flex-direction: column; gap: 14px; }
+.setup-cards { display: flex; flex-direction: column; gap: 11px; }
+.setup-card { padding: 15px 16px; }
+.setup-cards .cups-preview { padding: 13px 16px; gap: 7px; min-height: 0; }
+.setup-switch { padding: 13px 16px !important; }
+.setup-actions { padding-top: 14px; gap: 9px; }
+.setup-actions .btn { padding: 15px; }
+
+/* On short screens the decoration goes before the controls do */
+@media (max-height: 840px) {
+  .hero-cup { display: none; }
+  .cups-preview { display: none; }
+  .setup-hero { margin-bottom: 10px; }
+  .setup-hero h1 { font-size: 32px; }
+  .setup-inner { padding-top: calc(var(--sat) + 18px); }
+}
 
 .setup-card {
   display: flex;
@@ -284,15 +307,15 @@ input, textarea, select { font: inherit; }
   min-height: 64px;
 }
 
-.preview-row { display: flex; align-items: center; gap: 10px; }
+.preview-row { display: flex; align-items: center; gap: 9px; }
 .preview-coffee-dot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%;
   background: var(--accent-deep);
   flex: none;
 }
-.preview-cups { display: flex; gap: 7px; }
+.preview-cups { display: flex; gap: 6px; }
 .preview-cup {
-  width: 20px; height: 20px;
+  width: 16px; height: 16px;
   border-radius: 50% 50% 42% 42%;
   background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
   border: 1.5px solid var(--accent-deep);
@@ -340,6 +363,8 @@ input, textarea, select { font: inherit; }
   background: none;
   border: 1px solid var(--red);
   color: var(--red);
+  display: block;
+  width: calc(100% - 36px);
   margin: 10px 18px 0;
   opacity: 0.85;
 }
@@ -441,7 +466,8 @@ input, textarea, select { font: inherit; }
   scroll-snap-stop: always;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 16px 16px 130px;
+  /* clears the floating score bar and the wheel button above it */
+  padding: 16px 16px calc(var(--sab) + 172px);
   overscroll-behavior-y: contain;
 }
 
@@ -642,8 +668,8 @@ input, textarea, select { font: inherit; }
 
 .wheel-fab {
   position: fixed;
-  right: 16px;
-  bottom: calc(var(--sab) + 96px);
+  right: 14px;
+  bottom: calc(var(--sab) + 108px);
   width: 52px;
   height: 52px;
   border-radius: 50%;
@@ -775,6 +801,18 @@ input, textarea, select { font: inherit; }
   font-weight: 600;
   color: var(--text-faint);
 }
+
+/* a section nobody has rated yet should not look like a considered 5 */
+.attr-card.unrated { border-style: dashed; }
+.attr-card.unrated .attr-value { color: var(--text-faint); }
+.attr-card.unrated .cva-desc { font-style: italic; opacity: 0.8; }
+.attr-card.unrated .slider-fill { opacity: 0.35; }
+.attr-card.unrated .slider-thumb { filter: grayscale(0.7); opacity: 0.6; }
+
+.coffee-tab.incomplete .tab-score { font-weight: 700; opacity: 0.85; }
+
+.scorebar.provisional .scorebar-score { opacity: 0.5; }
+.scorebar.provisional .scorebar-grade { color: var(--text-dim); }
 
 .form-tag {
   display: inline-block;
