@@ -1,16 +1,32 @@
 {
   "name": "SCA Cupping",
   "short_name": "Cupping",
-  "description": "SCA coffee cupping protocol scoresheet",
-  "start_url": ".",
+  "description": "SCA coffee cupping — CVA and legacy scoresheets, shared sessions, and history",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f5efe6",
   "theme_color": "#f5efe6",
+  "categories": ["food", "productivity", "utilities"],
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2314100d'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle'%3E%E2%98%95%EF%B8%8F%3C/text%3E%3C/svg%3E",
-      "sizes": "any",
-      "type": "image/svg+xml"
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

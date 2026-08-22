@@ -8,7 +8,8 @@
   <meta name="apple-mobile-web-app-title" content="Cupping">
   <meta name="theme-color" content="#f5efe6">
   <title>SCA Cupping</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -159,6 +160,7 @@
       </div>
       <div class="team-card" id="team-card"></div>
       <div class="ranking" id="ranking"></div>
+      <button id="btn-print" class="btn btn-ghost export-btn">Print / save as PDF</button>
       <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
       <div class="results-footpad"></div>
     </div>
@@ -183,6 +185,11 @@
       <div id="history-content">
         <div class="stats-row" id="stats-row"></div>
 
+        <div class="hist-search-wrap">
+          <input id="history-search" class="detail-field" type="search" placeholder="Search flavors, farms, notes…" autocomplete="off">
+          <span class="hist-hits" id="history-hits"></span>
+        </div>
+
         <div class="hist-section">
           <h3 class="hist-title">Average score by</h3>
           <div class="seg" id="dim-seg"></div>
@@ -194,6 +201,7 @@
           <div class="hist-list" id="hist-list"></div>
         </div>
 
+        <button id="btn-export-csv" class="btn btn-ghost export-btn">Export all cuppings as CSV</button>
         <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
       </div>
       <div class="results-footpad"></div>
@@ -321,6 +329,7 @@
     </div>
   </div>
 
+  <div id="offline-badge" class="offline-badge hidden">Offline — everything still works</div>
   <div id="toast" class="toast" role="status"></div>
 
   <script src="qrcode.js"></script>

@@ -339,6 +339,11 @@ function archiveSession() {
       meta: { ...c.meta },
       notes: c.notes,
       score: coffeeScore(c),
+      // descriptors travel with the record so history stays searchable
+      descriptors: usingCVA() && c.desc
+        ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor, ...c.desc.cata.tastes, ...c.desc.cata.mouthfeel])]
+        : [],
+      intensity: usingCVA() && c.desc ? { ...c.desc.intensity } : null,
     })),
   };
   const idx = archive.findIndex(s => s.id === state.id);
@@ -2581,6 +2586,7 @@ async function shareResults() {
    ============================================================ */
 
 const DIMENSIONS = [
+  { key: 'flavor', label: 'Flavor' },
   { key: 'process', label: 'Process' },
   { key: 'variety', label: 'Variety' },
   { key: 'roast', label: 'Roast' },
@@ -2590,7 +2596,20 @@ const DIMENSIONS = [
   { key: 'altitude', label: 'Altitude' },
 ];
 
-let activeDim = 'process';
+let activeDim = 'flavor';
+let historyQuery = '';
+
+// Free-text search across everything recorded about a coffee.
+function matchesQuery(c, q) {
+  if (!q) return true;
+  const hay = [
+    c.name,
+    c.notes,
+    ...(c.descriptors || []),
+    ...Object.values(c.meta || {}),
+  ].join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(term => hay.includes(term));
+}
 
 function altitudeBucket(raw) {
   const m = String(raw).match(/\d{3,4}/);
@@ -2604,18 +2623,32 @@ function altitudeBucket(raw) {
 }
 
 function flatCoffees(archive) {
-  return archive.flatMap(s => s.coffees.map(c => ({ ...c, date: s.date, form: s.form || 'legacy' })));
+  return archive.flatMap(s => s.coffees.map(c => ({
+    ...c,
+    date: s.date,
+    sessionId: s.id,
+    form: s.form || 'legacy',
+    descriptors: c.descriptors || [],
+  })));
 }
 
 function aggregateBy(coffees, dimKey) {
   const groups = new Map();
+  const add = (value, score) => {
+    const norm = value.toLowerCase();
+    if (!groups.has(norm)) groups.set(norm, { name: value, scores: [] });
+    groups.get(norm).scores.push(score);
+  };
   coffees.forEach(c => {
+    if (dimKey === 'flavor') {
+      // a coffee counts once per descriptor it showed
+      (c.descriptors || []).forEach(d => add(d, c.score));
+      return;
+    }
     let value = (c.meta && c.meta[dimKey] || '').trim();
     if (dimKey === 'altitude') value = altitudeBucket(value) || '';
     if (!value) return;
-    const norm = value.toLowerCase();
-    if (!groups.has(norm)) groups.set(norm, { name: value, scores: [] });
-    groups.get(norm).scores.push(c.score);
+    add(value, c.score);
   });
   return [...groups.values()]
     .map(g => ({
@@ -2634,16 +2667,32 @@ function buildHistory() {
   $('#history-content').classList.toggle('hidden', empty);
   if (empty) return;
 
-  const coffees = flatCoffees(archive);
+  const allCoffees = flatCoffees(archive);
+  const coffees = allCoffees.filter(c => matchesQuery(c, historyQuery));
   const allScores = coffees.map(c => c.score);
-  const avg = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+  const avg = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+  const sessionCount = historyQuery
+    ? new Set(coffees.map(c => c.sessionId)).size
+    : archive.length;
 
   // stat tiles
   $('#stats-row').innerHTML = `
-    <div class="stat-tile"><div class="stat-value">${archive.length}</div><div class="stat-label">Cuppings</div></div>
+    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">Cuppings</div></div>
     <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">Coffees</div></div>
     <div class="stat-tile"><div class="stat-value">${fmt(avg)}</div><div class="stat-label">Avg score</div></div>
   `;
+
+  // search
+  const search = $('#history-search');
+  if (search.value !== historyQuery) search.value = historyQuery;
+  search.oninput = () => {
+    historyQuery = search.value.trim();
+    clearTimeout(search._t);
+    search._t = setTimeout(buildHistory, 200);
+  };
+  $('#history-hits').textContent = historyQuery
+    ? `${coffees.length} of ${allCoffees.length} coffees match`
+    : '';
 
   // dimension segmented control
   const seg = $('#dim-seg');
@@ -2672,10 +2721,12 @@ function buildHistory() {
       const item = el('div', 'hist-item');
       const meta = metaSummary(c.meta || {});
       const date = new Date(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const tags = (c.descriptors || []).slice(0, 4);
       item.innerHTML = `
         <div class="hist-item-info">
           <div class="hist-item-name">${escapeHTML(c.name)}<span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span></div>
           ${meta ? `<div class="hist-item-meta">${escapeHTML(meta)}</div>` : ''}
+          ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="hist-item-right">
           <div class="hist-item-score">${fmt(c.score)}</div>
@@ -2693,8 +2744,9 @@ function renderGroups(coffees) {
   const dimLabel = DIMENSIONS.find(d => d.key === activeDim).label.toLowerCase();
 
   if (!groups.length) {
-    wrap.appendChild(el('div', 'group-empty',
-      `No ${escapeHTML(dimLabel)} data yet — fill in coffee details while cupping.`));
+    wrap.appendChild(el('div', 'group-empty', activeDim === 'flavor'
+      ? 'No flavor descriptors yet — check them on the Describe card while cupping.'
+      : `No ${escapeHTML(dimLabel)} data yet — fill in coffee details while cupping.`));
     return;
   }
 
@@ -2719,8 +2771,138 @@ function renderGroups(coffees) {
 }
 
 /* ============================================================
+   EXPORT — CSV and a printable scoresheet
+   ============================================================ */
+
+function csvCell(v) {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function historyCSV() {
+  const archive = loadArchive().sort((a, b) => b.date - a.date);
+  const head = [
+    'date', 'form', 'cups per coffee', 'coffee', 'score', 'grade',
+    'variety', 'process', 'roast profile', 'altitude', 'origin', 'farm', 'producer',
+    'descriptors', 'notes',
+  ];
+  const rows = [head];
+  archive.forEach(session => {
+    session.coffees.forEach(c => {
+      const m = c.meta || {};
+      rows.push([
+        new Date(session.date).toISOString().slice(0, 10),
+        (session.form || 'legacy') === 'cva' ? 'CVA (SCA 104-2024)' : 'Legacy 2004',
+        session.cupsPerCoffee,
+        c.name,
+        fmt(c.score),
+        gradeFor(c.score),
+        m.variety, m.process, m.roast, m.altitude, m.country, m.farm, m.producer,
+        (c.descriptors || []).join('; '),
+        c.notes,
+      ]);
+    });
+  });
+  return rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+}
+
+async function downloadFile(name, text, mime) {
+  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  // iOS Safari handles a share sheet far better than a download attribute
+  const file = new File([blob], name, { type: mime });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Exported');
+}
+
+function exportHistoryCSV() {
+  const archive = loadArchive();
+  if (!archive.length) { toast('No cuppings to export yet'); return; }
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadFile(`cupping-history-${stamp}.csv`, historyCSV(), 'text/csv');
+}
+
+// A clean printed scoresheet — Safari's print dialog saves it as a PDF.
+function printResults() {
+  const ranked = state.coffees
+    .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
+    .sort((a, b) => b.score - a.score);
+
+  const sheet = document.createElement('div');
+  sheet.id = 'print-sheet';
+  const when = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const formName = usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)';
+
+  sheet.innerHTML = `
+    <div class="p-head">
+      <div>
+        <h1>Cupping results</h1>
+        <p>${escapeHTML(formName)} · ${escapeHTML(when)}${getCupperName() ? ` · ${escapeHTML(getCupperName())}` : ''}</p>
+      </div>
+      <div class="p-mark">lento.cafe</div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Coffee</th><th>Origin details</th><th>Descriptors</th><th class="num">Score</th></tr></thead>
+      <tbody>
+        ${ranked.map((r, pos) => {
+          const d = usingCVA() && r.coffee.desc
+            ? [...new Set([...r.coffee.desc.cata.aroma, ...r.coffee.desc.cata.flavor])].join(', ')
+            : '';
+          return `<tr>
+            <td>${pos + 1}</td>
+            <td><strong>${escapeHTML(coffeeName(r.coffee, r.index))}</strong>
+              ${r.coffee.notes.trim() ? `<div class="p-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}</td>
+            <td>${escapeHTML(metaSummary(r.coffee.meta))}</td>
+            <td>${escapeHTML(d)}</td>
+            <td class="num"><strong>${fmt(r.score)}</strong><div class="p-grade">${gradeFor(r.score)}</div></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <p class="p-foot">Scores recorded with lento.cafe/cupping</p>
+  `;
+
+  document.body.appendChild(sheet);
+  const cleanup = () => { sheet.remove(); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => window.print(), 80);
+  setTimeout(cleanup, 60000); // belt and braces if afterprint never fires
+}
+
+/* ============================================================
    WIRING
    ============================================================ */
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
+
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+}
+
+function watchConnection() {
+  const badge = $('#offline-badge');
+  const sync = () => badge.classList.toggle('hidden', navigator.onLine);
+  window.addEventListener('online', sync);
+  window.addEventListener('offline', sync);
+  sync();
+}
 
 function startCupping() {
   buildCuppingUI();
@@ -2729,6 +2911,8 @@ function startCupping() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  registerServiceWorker();
+  watchConnection();
   initFormPicker();
 
   const guided = $('#toggle-guided');
@@ -2799,6 +2983,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#btn-share').addEventListener('click', shareResults);
+  $('#btn-print').addEventListener('click', printResults);
+  $('#btn-export-csv').addEventListener('click', exportHistoryCSV);
 
   $('#btn-new-session').addEventListener('click', () => {
     if (!confirm('Start a new session? This cupping is already saved to History.')) return;

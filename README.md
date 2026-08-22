@@ -49,6 +49,17 @@ The leader taps the share icon while cupping and gets an invite sheet with:
 
 See `DEPLOY.md` for putting the app on `lento.cafe/cupping` with Cloudflare Pages and deploying the relay worker.
 
+## Works offline
+
+A service worker caches the whole app, so it opens instantly and runs with no network at all — scoring, history, the flavor wheel, everything. Only live join codes need the internet, and they fail softly back to QR and long codes. An "Offline" badge appears when the connection drops. Installed to the home screen it launches standalone with its own icon.
+
+## Export
+
+- **CSV** of every cupping from the History screen — one row per coffee with date, form, score, grade, all origin details, descriptors and notes.
+- **Print / save as PDF** from the Results screen: a clean typeset scoresheet, ranked, with details and descriptors.
+
+Both use the iOS share sheet where available, so exports land in Files, Mail, or anywhere else.
+
 ## Details
 
 - Live total score (max 100) with SCA quality grade in a floating score bar
