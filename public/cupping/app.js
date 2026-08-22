@@ -59,6 +59,79 @@ const FORMS = [
   { id: 'legacy', name: 'Legacy', sub: '2004 cupping form' },
 ];
 
+/* ---- CVA: SCA Standard 103-2024, Descriptive Assessment ----
+   Describes the coffee without judging it: intensity 0–15 per
+   attribute, plus check-all-that-apply descriptors.            */
+
+const DESC_ATTRS = [
+  { key: 'fragrance', label: 'Fragrance', sub: 'dry grounds' },
+  { key: 'aroma', label: 'Aroma', sub: 'after breaking the crust' },
+  { key: 'flavor', label: 'Flavor', sub: 'in the mouth' },
+  { key: 'aftertaste', label: 'Aftertaste', sub: 'after swallowing' },
+  { key: 'acidity', label: 'Acidity', sub: '' },
+  { key: 'sweetness', label: 'Sweetness', sub: '' },
+  { key: 'mouthfeel', label: 'Mouthfeel', sub: '' },
+];
+
+// Olfactory descriptors — used for fragrance/aroma and for flavor/aftertaste
+const CATA_OLFACTORY = [
+  'Floral', 'Berry', 'Dried fruit', 'Citrus fruit', 'Other fruit',
+  'Sour / fermented', 'Green / vegetative', 'Cereal', 'Nutty', 'Cocoa',
+  'Spice', 'Sweet aromatics', 'Roasted', 'Tobacco', 'Earthy',
+  'Chemical / papery',
+];
+
+const CATA_GROUPS = [
+  { key: 'aromaCata', label: 'Fragrance / aroma descriptors', options: CATA_OLFACTORY, max: 5 },
+  { key: 'flavorCata', label: 'Flavor / aftertaste descriptors', options: CATA_OLFACTORY, max: 5 },
+  { key: 'acidityCata', label: 'Acidity', options: ['Sour', 'Tart', 'Citric', 'Malic', 'Winey', 'Lactic', 'Acetic'], max: 2 },
+  { key: 'sweetnessCata', label: 'Sweetness', options: ['Brown sugar', 'Caramelized', 'Honey', 'Vanilla', 'Fruity sweet', 'Syrupy'], max: 2 },
+  { key: 'mouthfeelCata', label: 'Mouthfeel', options: ['Silky', 'Creamy', 'Smooth', 'Round', 'Full', 'Thin', 'Watery', 'Astringent', 'Mouth-drying', 'Metallic'], max: 2 },
+];
+
+/* ---------- guided mode help ---------- */
+
+const GUIDED_KEY = 'sca-cupping-guided-v1';
+
+const HELP = {
+  intro: {
+    title: 'How a cupping works',
+    body: 'Smell the dry grounds, pour water, smell again as you break the crust, then skim and taste with a spoon as the coffee cools. Score each coffee on its own — the SCA protocol asks every cupper to score independently, without comparing notes, and the coffee’s official score is the average of the panel. Discuss afterwards.',
+  },
+  cvaScale: {
+    title: 'The 1–9 quality scale',
+    body: 'You are rating your impression of quality, not how strong something is. 5 means neither high nor low — a perfectly ordinary coffee sits there. Above 5 is where quality rises, below 5 is where it falls. Most specialty coffees land between 6 and 8; reserve 9 for something remarkable.',
+  },
+  score: {
+    title: 'What the score means',
+    body: 'The CVA score runs from 58 to 100: it is 0.65625 × the sum of your eight section scores, plus 52.75, minus 2 points per non-uniform cup and 4 per defective cup. By long convention 80+ is considered specialty grade. It is a measure of quality impression, not of how much you personally liked the coffee.',
+  },
+  'cva.fragrance': { title: 'Fragrance', body: 'The smell of the dry, freshly ground coffee, before any water touches it. Break the surface of the grounds with your nose close to the cup. High quality here means the fragrance is clean, distinct, and appealing — not simply loud.' },
+  'cva.aroma': { title: 'Aroma', body: 'The smell of the wet coffee, judged as you break the crust about four minutes after pouring. Push the crust back with your spoon and inhale as the trapped aromatics release. This is often the most revealing moment of the whole cupping.' },
+  'cva.flavor': { title: 'Flavor', body: 'The coffee’s principal character in the mouth — everything between the first impression and the final swallow, combining taste and retronasal aroma. Slurp sharply so the coffee sprays across the palate.' },
+  'cva.aftertaste': { title: 'Aftertaste', body: 'What remains after you swallow or spit. Quality here is about whether the finish is pleasant and holds together — a fine coffee resolves cleanly and lingers agreeably, a lesser one turns thin, harsh, or simply disappears.' },
+  'cva.acidity': { title: 'Acidity', body: 'The brightness and liveliness of the cup. At its best it reads as sweet, juicy, and structural, giving the coffee lift. Judge how well it fits the coffee — high quality acidity is well-integrated, not merely sharp or sour.' },
+  'cva.sweetness': { title: 'Sweetness', body: 'The perception of sweetness, which in coffee comes from ripe, well-processed fruit rather than added sugar. It often shows as a rounded, full sensation and a pleasant lingering finish. Under-ripe or over-fermented lots lose it.' },
+  'cva.mouthfeel': { title: 'Mouthfeel', body: 'The tactile sensation of the liquid — its weight, texture and viscosity. A heavy body is not automatically better than a light one: rate how pleasing and appropriate the texture is, whether that is syrupy and coating or delicate and tea-like.' },
+  'cva.overall': { title: 'Overall', body: 'Your holistic judgement of the coffee as a whole. This is where you record what the individual sections miss — complexity, harmony, distinctiveness, and whether the coffee amounts to more than the sum of its parts.' },
+  cvaDefects: {
+    title: 'Cup deductions',
+    body: 'Count cups, not severity. A non-uniform cup is one that clearly differs from its neighbours and costs 2 points. A defective cup carries a genuine fault — phenolic, ferment, mould, chemical — and costs 4. When a cup is defective, count it only as defective, not also as non-uniform.',
+  },
+  descIntensity: {
+    title: 'Intensity, not quality',
+    body: 'This is the opposite of the scoring form: here you record how strong something is, from 0 to 15, with no judgement about whether that is good. A delicate, elegant coffee may score highly for quality and still be low intensity. Separating the two is the whole point of the Descriptive Assessment.',
+  },
+  cata: {
+    title: 'Choosing descriptors',
+    body: 'Check the descriptors that genuinely apply — up to five for aroma and for flavor. These are broad families from the SCA flavor lexicon rather than poetic notes; pick the category first, then use the tasting notes field for specifics like “jasmine” or “dried apricot”.',
+  },
+  'legacy.scale': { title: 'The 6–10 scale', body: 'The 2004 form scores quality from 6.00 to 10.00 in quarter-point steps: 6 is Good, 7 Very Good, 8 Excellent, 9 Outstanding. Most specialty coffees sit between 7.00 and 8.50. The ten attributes sum to a maximum of 100.' },
+  legacyCups: { title: 'Uniformity, Clean Cup, Sweetness', body: 'These three are judged cup by cup rather than scored on a scale. Every cup starts with credit; tap a cup to fail it. Each cup is worth its share of 10 points, so with five cups on the table each failed cup costs 2 points.' },
+  legacyDefects: { title: 'Taints and faults', body: 'A taint is an off-flavor noticeable in the aroma but not overwhelming, costing 2 points per affected cup. A fault is stronger and usually found in the taste, costing 4 points per cup. Count how many cups are affected, not how bad it seems.' },
+  details: { title: 'Coffee details', body: 'Recording variety, process, altitude, farm, producer and roast profile is what makes your history useful later — it lets the app show how your scores break down by process or origin over time. When you share a cupping, these stay hidden from the table unless you choose to reveal them.' },
+};
+
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
   { key: 'fragrance', label: 'Fragrance / Aroma', sub: 'dry grounds & wet crust' },
@@ -112,6 +185,7 @@ function newCoffee(nCups) {
     meta: emptyMeta(),
     scores,
     cva,
+    desc: emptyDescriptive(),
     cups: Object.fromEntries(CUP_ATTRS.map(a => [a.key, Array(nCups).fill(true)])),
     taintCups: 0,
     faultCups: 0,
@@ -139,6 +213,48 @@ function usingCVA() {
   return !state || state.form !== 'legacy';
 }
 
+/* ---------- guided mode ---------- */
+
+function guidedOn() {
+  try { return localStorage.getItem(GUIDED_KEY) !== 'off'; } catch (e) { return true; }
+}
+
+function setGuided(on) {
+  try { localStorage.setItem(GUIDED_KEY, on ? 'on' : 'off'); } catch (e) {}
+}
+
+// Small "?" button; returns null when guided mode is off so callers can
+// append unconditionally.
+function helpBtn(id) {
+  if (!guidedOn() || !HELP[id]) return null;
+  const btn = el('button', 'help-btn', '?');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', `About ${HELP[id].title}`);
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    openHelp(id);
+  });
+  return btn;
+}
+
+function addHelp(container, id) {
+  const btn = helpBtn(id);
+  if (btn) container.appendChild(btn);
+}
+
+function openHelp(id) {
+  const entry = HELP[id];
+  if (!entry) return;
+  haptic();
+  const modal = $('#help-modal');
+  $('#help-title').textContent = entry.title;
+  $('#help-body').textContent = entry.body;
+  modal.classList.remove('hidden');
+  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+  $('#help-close').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+}
+
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
 }
@@ -159,6 +275,12 @@ function load() {
       if (!c.cva) { c.cva = {}; CVA_SECTIONS.forEach(a => { c.cva[a.key] = 5; }); }
       if (typeof c.nonUniform !== 'number') c.nonUniform = 0;
       if (typeof c.defective !== 'number') c.defective = 0;
+      if (!c.desc) c.desc = emptyDescriptive();
+      else {
+        const base = emptyDescriptive();
+        c.desc.intensity = Object.assign(base.intensity, c.desc.intensity || {});
+        c.desc.cata = Object.assign(base.cata, c.desc.cata || {});
+      }
     });
     return s;
   } catch (e) { return null; }
@@ -1197,6 +1319,7 @@ function buildPanel(coffee, index) {
   panel.appendChild(buildDetailsCard(coffee));
 
   if (usingCVA()) {
+    panel.appendChild(buildDescriptiveCard(coffee));
     CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
     panel.appendChild(buildCvaDefectsCard(coffee));
   } else {
@@ -1231,6 +1354,7 @@ function buildDetailsCard(coffee) {
 
   const summaryEl = card.querySelector('.details-summary');
   const grid = card.querySelector('.details-grid');
+  addHelp(card.querySelector('.details-toggle-label'), 'details');
 
   const refreshSummary = () => {
     summaryEl.textContent = metaSummary(coffee.meta) || 'variety · process · farm…';
@@ -1265,6 +1389,150 @@ function buildDetailsCard(coffee) {
   return card;
 }
 
+/* ---------- CVA Descriptive Assessment (SCA 103-2024) ----------
+   Describes the coffee without valuing it: 0–15 intensities and
+   check-all-that-apply descriptors. Collapsed by default.        */
+
+function emptyDescriptive() {
+  const intensity = {};
+  DESC_ATTRS.forEach(a => { intensity[a.key] = 7; }); // 7 ≈ medium
+  const cata = {};
+  CATA_GROUPS.forEach(g => { cata[g.key] = []; });
+  return { intensity, cata };
+}
+
+function descriptiveSummary(desc) {
+  const picked = [...desc.cata.aromaCata, ...desc.cata.flavorCata];
+  const unique = [...new Set(picked)];
+  return unique.length ? unique.slice(0, 3).join(' · ') + (unique.length > 3 ? '…' : '') : '';
+}
+
+function buildDescriptiveCard(coffee) {
+  const card = el('div', 'details-card');
+  card.innerHTML = `
+    <button class="details-toggle">
+      <span class="details-toggle-label">Describe</span>
+      <span class="details-summary"></span>
+      <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="details-collapse"><div class="details-collapse-inner">
+      <div class="desc-body">
+        <div class="desc-head">
+          <span class="detail-label">Intensity <span class="desc-note">— how much, not how good</span></span>
+        </div>
+        <div class="desc-intensities"></div>
+        <div class="desc-catas"></div>
+      </div>
+    </div></div>
+  `;
+
+  const summaryEl = card.querySelector('.details-summary');
+  const refreshSummary = () => {
+    summaryEl.textContent = descriptiveSummary(coffee.desc) || 'intensity · descriptors…';
+  };
+
+  addHelp(card.querySelector('.desc-head .detail-label'), 'descIntensity');
+
+  // intensity sliders, 0–15
+  const intensities = card.querySelector('.desc-intensities');
+  DESC_ATTRS.forEach(attr => {
+    const row = el('div', 'desc-row');
+    row.innerHTML = `
+      <div class="desc-row-head">
+        <span class="desc-row-name">${attr.label}${attr.sub ? ` <span class="desc-note">${attr.sub}</span>` : ''}</span>
+        <span class="desc-row-value"></span>
+      </div>
+      <div class="slider slim">
+        <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-thumb"></div>
+      </div>
+      <div class="slider-labels"><span>0 low</span><span>7 medium</span><span>15 high</span></div>
+    `;
+    const valueEl = row.querySelector('.desc-row-value');
+    const slider = row.querySelector('.slider');
+    const fill = row.querySelector('.slider-fill');
+    const thumb = row.querySelector('.slider-thumb');
+
+    const position = () => {
+      const pct = (coffee.desc.intensity[attr.key] / 15) * 100;
+      fill.style.width = `${pct}%`;
+      thumb.style.left = `${pct}%`;
+      valueEl.textContent = coffee.desc.intensity[attr.key];
+    };
+    const setValue = v => {
+      v = Math.min(15, Math.max(0, Math.round(v)));
+      if (v === coffee.desc.intensity[attr.key]) return;
+      coffee.desc.intensity[attr.key] = v;
+      haptic();
+      position();
+      save();
+    };
+    const fromEvent = e => {
+      const rect = slider.getBoundingClientRect();
+      const x = Math.min(rect.right, Math.max(rect.left, e.clientX));
+      return ((x - rect.left) / rect.width) * 15;
+    };
+    slider.addEventListener('pointerdown', e => {
+      slider.setPointerCapture(e.pointerId);
+      slider.classList.add('dragging');
+      setValue(fromEvent(e));
+    });
+    slider.addEventListener('pointermove', e => {
+      if (slider.classList.contains('dragging')) setValue(fromEvent(e));
+    });
+    const end = () => slider.classList.remove('dragging');
+    slider.addEventListener('pointerup', end);
+    slider.addEventListener('pointercancel', end);
+
+    position();
+    intensities.appendChild(row);
+  });
+
+  // check-all-that-apply descriptor groups
+  const catas = card.querySelector('.desc-catas');
+  CATA_GROUPS.forEach((group, gi) => {
+    const wrap = el('div', 'cata-group');
+    const head = el('div', 'cata-head');
+    const label = el('span', 'detail-label', `${group.label} <span class="desc-note">up to ${group.max}</span>`);
+    head.appendChild(label);
+    if (gi === 0) addHelp(label, 'cata');
+    wrap.appendChild(head);
+
+    const chips = el('div', 'cata-chips');
+    const selected = () => coffee.desc.cata[group.key];
+
+    group.options.forEach(option => {
+      const chip = el('button', 'cata-chip', escapeHTML(option));
+      chip.type = 'button';
+      const sync = () => chip.classList.toggle('on', selected().includes(option));
+      chip.addEventListener('click', () => {
+        const list = selected();
+        const at = list.indexOf(option);
+        if (at >= 0) list.splice(at, 1);
+        else if (list.length >= group.max) { toast(`Pick up to ${group.max} here`); return; }
+        else list.push(option);
+        haptic();
+        sync();
+        refreshSummary();
+        save();
+      });
+      sync();
+      chips.appendChild(chip);
+    });
+
+    wrap.appendChild(chips);
+    catas.appendChild(wrap);
+  });
+
+  card.querySelector('.details-toggle').addEventListener('click', () => {
+    haptic();
+    card.classList.toggle('open');
+  });
+
+  refreshSummary();
+  return card;
+}
+
 /* ---------- CVA section card: 1–9 impression of quality ---------- */
 
 function buildCvaCard(coffee, section) {
@@ -1284,6 +1552,7 @@ function buildCvaCard(coffee, section) {
   const valueEl = card.querySelector('.attr-value');
   const scale = card.querySelector('.cva-scale');
   const desc = card.querySelector('.cva-desc');
+  addHelp(card.querySelector('.attr-title'), `cva.${section.key}`);
 
   const refresh = popIt => {
     const v = coffee.cva[section.key];
@@ -1345,6 +1614,7 @@ function buildCvaDefectsCard(coffee) {
   `;
 
   const penaltyEl = card.querySelector('.defect-penalty');
+  addHelp(card.querySelector('.attr-title'), 'cvaDefects');
 
   const refresh = () => {
     card.querySelectorAll('.defect-row').forEach(rowEl => {
@@ -1398,6 +1668,7 @@ function buildScaleCard(coffee, attr) {
   const fill = card.querySelector('.slider-fill');
   const thumb = card.querySelector('.slider-thumb');
   const ticks = card.querySelector('.slider-ticks');
+  addHelp(card.querySelector('.attr-title'), 'legacy.scale');
 
   // whole-point tick marks
   for (let v = 6; v <= 10; v++) {
@@ -1473,6 +1744,7 @@ function buildCupCard(coffee, attr) {
   const valueEl = card.querySelector('.attr-value');
   const row = card.querySelector('.cups-row');
   const cups = coffee.cups[attr.key];
+  addHelp(card.querySelector('.attr-title'), 'legacyCups');
 
   const attrScore = () => 10 * cups.filter(Boolean).length / cups.length;
 
@@ -1623,6 +1895,9 @@ function buildResults() {
     card.style.animationDelay = `${pos * 0.07}s`;
     const medalCls = pos < 3 ? ` m${pos + 1}` : '';
     const meta = metaSummary(r.coffee.meta);
+    const descriptors = usingCVA() && r.coffee.desc
+      ? [...new Set([...r.coffee.desc.cata.aromaCata, ...r.coffee.desc.cata.flavorCata])]
+      : null;
     card.innerHTML = `
       <div class="rank-top">
         <div class="rank-medal${medalCls}">${pos + 1}</div>
@@ -1634,6 +1909,7 @@ function buildResults() {
       </div>
       <div class="rank-bar"><div class="rank-bar-fill"></div></div>
       ${meta ? `<div class="rank-meta">${escapeHTML(meta)}</div>` : ''}
+      ${descriptors ? `<div class="rank-tags">${descriptors.map(d => `<span class="rank-tag">${escapeHTML(d)}</span>`).join('')}</div>` : ''}
       ${r.coffee.notes.trim() ? `<div class="rank-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}
     `;
     ranking.appendChild(card);
@@ -2007,6 +2283,16 @@ function startCupping() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initFormPicker();
+
+  const guided = $('#toggle-guided');
+  guided.checked = guidedOn();
+  guided.addEventListener('change', () => {
+    setGuided(guided.checked);
+    haptic();
+    toast(guided.checked ? 'Guided mode on' : 'Guided mode off');
+    if (state && $('#screen-cupping').classList.contains('active')) buildCuppingUI();
+  });
+
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
   renderCupsPreview();

@@ -17,6 +17,10 @@ Both scoresheets are supported, chosen when a session starts:
    **Legacy (2004 form)** — seven attributes from 6.00 to 10.00 in 0.25 steps; Uniformity, Clean Cup and Sweetness scored per cup; taints (−2/cup) and faults (−4/cup).
 
    Both carry free-text tasting notes and origin details per coffee.
+
+   **Descriptive Assessment** (CVA sessions) — a collapsible "Describe" card records what the coffee tastes like *without* judging it: 0–15 intensity for fragrance, aroma, flavor, aftertaste, acidity, sweetness and mouthfeel, plus check-all-that-apply descriptors (up to five for aroma and for flavor, two each for acidity, sweetness and mouthfeel). Selected descriptors surface on the results screen.
+
+   **Guided mode** — on by default, adds a "?" beside every part of the scoresheet explaining what to smell or taste, how the scale works, and how the score is calculated. Switch it off on the setup screen once the table knows the protocol.
 3. **Results** — winner podium, full ranking with score bars, and an overlaid sensory radar chart (tap a legend name to isolate a coffee). Share/copy the results.
 
 ## Social cupping (no backend needed)

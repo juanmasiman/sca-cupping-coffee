@@ -75,6 +75,17 @@
           </div>
         </div>
 
+        <label class="switch-row setup-switch" for="toggle-guided">
+          <span class="switch-label">
+            <span class="switch-title">Guided mode</span>
+            <span class="switch-sub">Show help buttons explaining every part of the scoresheet</span>
+          </span>
+          <span class="switch">
+            <input type="checkbox" id="toggle-guided" checked>
+            <span class="switch-track"><span class="switch-knob"></span></span>
+          </span>
+        </label>
+
         <div class="cups-preview" id="cups-preview" aria-hidden="true"></div>
       </div>
 
@@ -198,6 +209,16 @@
     <option value="Castillo"></option>
     <option value="Heirloom"></option>
   </datalist>
+
+  <div id="help-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3 id="help-title"></h3>
+      <p class="help-body" id="help-body"></p>
+      <div class="modal-actions">
+        <button id="help-close" class="btn btn-primary">Got it</button>
+      </div>
+    </div>
+  </div>
 
   <div id="join-modal" class="modal hidden">
     <div class="modal-sheet">

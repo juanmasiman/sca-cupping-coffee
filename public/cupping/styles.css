@@ -507,7 +507,15 @@ input, textarea, select { font: inherit; }
   transition: grid-template-rows 0.3s var(--ease);
 }
 .details-card.open .details-collapse { grid-template-rows: 1fr; }
-.details-collapse-inner { overflow: hidden; min-height: 0; }
+/* hide collapsed content from pointer and keyboard, but only once the
+   collapse animation has finished */
+.details-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+  visibility: hidden;
+  transition: visibility 0s 0.3s;
+}
+.details-card.open .details-collapse-inner { visibility: visible; transition: visibility 0s 0s; }
 
 .details-grid {
   display: grid;
@@ -571,6 +579,95 @@ input, textarea, select { font: inherit; }
   transition: transform 0.2s var(--spring);
 }
 .attr-value.pop { animation: bump 0.25s var(--spring); }
+
+/* ---------- guided mode help ---------- */
+
+.help-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  flex: none;
+  transition: transform 0.15s var(--spring), background 0.15s;
+}
+.help-btn:active { transform: scale(0.82); background: var(--accent); color: var(--on-accent); }
+
+.help-body {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin-top: 10px;
+}
+
+.setup-switch { margin-top: 0; background: var(--bg-card); padding: 18px; border-radius: var(--radius); }
+
+/* ---------- descriptive assessment ---------- */
+
+.desc-body { padding: 2px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.desc-head { display: flex; align-items: center; }
+.desc-note { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
+
+.desc-intensities { display: flex; flex-direction: column; gap: 10px; }
+
+.desc-row {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px 6px;
+}
+.desc-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.desc-row-name { font-size: 13.5px; font-weight: 700; }
+.desc-row-value {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.slider.slim { height: 34px; margin-top: 2px; }
+.slider.slim .slider-thumb { width: 22px; height: 22px; }
+.slider.slim + .slider-labels { font-size: 10px; padding-bottom: 2px; }
+
+.desc-catas { display: flex; flex-direction: column; gap: 14px; }
+.cata-group { display: flex; flex-direction: column; gap: 8px; }
+.cata-head { display: flex; align-items: center; }
+.cata-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.cata-chip {
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: all 0.18s var(--spring);
+}
+.cata-chip:active { transform: scale(0.93); }
+.cata-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.rank-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.rank-tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
 
 /* ---------- CVA 1–9 impression-of-quality scale ---------- */
 
