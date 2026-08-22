@@ -277,6 +277,20 @@
     </div>
   </div>
 
+  <div id="otp-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3>Enter your sign-in code</h3>
+      <p class="modal-hint">We sent a 6-digit code to <strong id="otp-where"></strong>. It may land in junk — the code works even if the link doesn’t.</p>
+      <div class="pin-boxes" id="otp-boxes" role="group" aria-label="Sign-in code"></div>
+      <p class="pin-error" id="otp-error"></p>
+      <div class="keypad" id="otp-keypad"></div>
+      <button class="pin-alt" id="otp-resend">Send a new code</button>
+      <div class="modal-actions">
+        <button id="otp-cancel" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div id="account-modal" class="modal hidden">
     <div class="modal-sheet" id="account-sheet"></div>
   </div>

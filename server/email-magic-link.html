@@ -1,0 +1,69 @@
+<!--
+  lento.cafe — sign-in email
+
+  Paste into Supabase → Authentication → Emails → Magic Link,
+  replacing the default template. It shows the 6-digit code first
+  (which the app now asks for) and keeps the link as a fallback.
+
+  Supabase variables used:
+    {{ .Token }}            the 6-digit sign-in code
+    {{ .ConfirmationURL }}  the one-tap sign-in link
+
+  Note: the default template only contains {{ .ConfirmationURL }},
+  so the code is never shown until you paste this in.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5efe6;margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#fffdf8;border:1px solid #e4d8c4;border-radius:18px;overflow:hidden;">
+
+        <tr>
+          <td style="padding:30px 30px 8px;text-align:center;">
+            <div style="font-size:30px;font-weight:800;letter-spacing:-0.8px;color:#b5793a;">lento</div>
+            <div style="font-size:13px;color:#7a6a55;margin-top:2px;">coffee, taken slowly</div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:14px 30px 0;text-align:center;">
+            <h1 style="margin:0;font-size:19px;font-weight:700;color:#2b2117;">Your sign-in code</h1>
+            <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#7a6a55;">
+              Enter this code in the cupping app to sign in. It expires in an hour.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:22px 30px 6px;text-align:center;">
+            <div style="display:inline-block;background:#f7f0e4;border:1px solid #e4d8c4;border-radius:14px;padding:16px 26px;font-size:34px;font-weight:800;letter-spacing:0.28em;color:#b5793a;font-variant-numeric:tabular-nums;">
+              {{ .Token }}
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:20px 30px 0;text-align:center;">
+            <p style="margin:0 0 12px;font-size:13px;color:#ab9a81;">or sign in with one tap</p>
+            <a href="{{ .ConfirmationURL }}"
+               style="display:inline-block;background:#b5793a;color:#fff8ec;text-decoration:none;font-size:15px;font-weight:700;padding:13px 28px;border-radius:13px;">
+              Open the cupping app
+            </a>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:24px 30px 28px;">
+            <p style="margin:0;font-size:12px;line-height:1.55;color:#ab9a81;text-align:center;">
+              If you didn’t ask to sign in to lento.cafe, you can ignore this email — nothing will happen.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+
+      <p style="max-width:440px;margin:16px auto 0;font-size:11px;color:#ab9a81;text-align:center;">
+        lento.cafe · SCA cupping
+      </p>
+    </td>
+  </tr>
+</table>

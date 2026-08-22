@@ -26,6 +26,11 @@ const SUPABASE_URL = window.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
 const AUTH_KEY = 'sca-cupping-auth-v1';
 
+// Captured before anything can rewrite the address bar, so sign-in tokens
+// and join codes survive whatever else happens during startup.
+const ENTRY_HASH = location.hash;
+const ENTRY_SEARCH = location.search;
+
 /* ---- CVA: SCA Standard 104-2024, Affective Assessment ----
    Eight sections rated 1–9 (impression of quality), then
    score = 0.65625 × Σ(sections) + 52.75 − 2·(non-uniform cups)
@@ -406,18 +411,17 @@ async function signOut() {
   toast('Signed out — history stays on this device');
 }
 
-// After the OAuth redirect, Supabase returns tokens in the URL hash.
-async function handleAuthRedirect() {
-  if (!location.hash.includes('access_token=')) return false;
-  const params = new URLSearchParams(location.hash.slice(1));
-  const access = params.get('access_token');
-  const refresh = params.get('refresh_token');
-  const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
-  history.replaceState(null, '', location.pathname + location.search);
-  if (!access) return false;
-  saveAuth({ access_token: access, refresh_token: refresh, expires_at: Date.now() + expiresIn * 1000, user: null });
+// Turn a fresh token pair into a signed-in session.
+async function adoptSession(data) {
+  if (!data || !data.access_token) return false;
+  saveAuth({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+    user: null,
+  });
   try {
-    const user = await sbFetch('/auth/v1/user');
+    const user = data.user || await sbFetch('/auth/v1/user');
     const auth = loadAuth();
     auth.user = {
       id: user.id,
@@ -427,13 +431,69 @@ async function handleAuthRedirect() {
     };
     saveAuth(auth);
     if (auth.user.name && !getCupperName()) setCupperName(auth.user.name.split(' ')[0]);
-    toast(`Signed in${auth.user.name ? ' as ' + auth.user.name.split(' ')[0] : ''}`);
+    renderAccountButton();
+    const label = auth.user.name ? auth.user.name.split(' ')[0] : auth.user.email;
+    toast(`Signed in${label ? ' as ' + label : ''}`);
     cloudSyncAll();
+    return true;
   } catch (e) {
     clearAuth();
-    toast('Sign-in failed — please try again');
+    return false;
   }
-  return true;
+}
+
+// Sign in with the 6-digit code from the email — immune to the link
+// being consumed by a spam scanner or opened in a different browser.
+async function verifyEmailCode(email, code) {
+  try {
+    const data = await sbFetch('/auth/v1/verify', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'email', email, token: code }),
+    });
+    return await adoptSession(data);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Handle the return trip from a magic link or OAuth. Supabase reports
+// failures here too, and staying silent about them is worse than useless.
+async function handleAuthRedirect() {
+  const hash = new URLSearchParams(ENTRY_HASH.replace(/^#/, ''));
+  const query = new URLSearchParams(ENTRY_SEARCH);
+  const clean = () => history.replaceState(null, '', location.pathname);
+
+  const error = hash.get('error_description') || hash.get('error')
+    || query.get('error_description') || query.get('error');
+  if (error) {
+    clean();
+    const text = decodeURIComponent(String(error).replace(/\+/g, ' '));
+    toast(/expired|invalid/i.test(text)
+      ? 'That sign-in link was already used or expired — use the code instead'
+      : text.slice(0, 90));
+    return true;
+  }
+
+  if (hash.get('access_token')) {
+    const data = {
+      access_token: hash.get('access_token'),
+      refresh_token: hash.get('refresh_token'),
+      expires_in: parseInt(hash.get('expires_in') || '3600', 10),
+    };
+    clean();
+    if (!await adoptSession(data)) toast('Sign-in failed — please try again');
+    return true;
+  }
+
+  // PKCE-style return: we never started a PKCE flow, so say so plainly
+  // rather than appearing to do nothing.
+  if (query.get('code') && !query.get('state')) {
+    clean();
+    toast('Sign-in link needs the code instead — open your profile and enter it');
+    return true;
+  }
+
+  return false;
 }
 
 async function ensureFreshAuth() {
@@ -526,8 +586,10 @@ function renderAccountButton() {
 
 const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
 
-// Free passwordless option for non-Google users: Supabase emails a
-// sign-in link that redirects back with tokens in the URL hash.
+// Free passwordless option for non-Google users. Supabase emails both a
+// link and a 6-digit code; we lead with the code because links get
+// consumed by spam scanners and open in whichever browser the mail app
+// prefers, neither of which the code cares about.
 async function sendMagicLink(email) {
   try {
     await sbFetch(`/auth/v1/otp?redirect_to=${encodeURIComponent(APP_URL)}`, {
@@ -538,6 +600,41 @@ async function sendMagicLink(email) {
   } catch (e) {
     return false;
   }
+}
+
+function openEmailCodeSheet(email) {
+  const modal = $('#otp-modal');
+  $('#otp-where').textContent = email;
+
+  const pad = mountKeypad({
+    boxes: $('#otp-boxes'),
+    keypad: $('#otp-keypad'),
+    errorEl: $('#otp-error'),
+    length: 6,
+    onComplete: async code => {
+      const ok = await verifyEmailCode(email, code);
+      if (!ok) return 'That code didn’t work — check it or send a new one.';
+      close();
+      return null;
+    },
+  });
+
+  const close = () => {
+    modal.classList.add('hidden');
+    pad.detach();
+    modal.onclick = null;
+  };
+
+  modal.classList.remove('hidden');
+  $('#otp-cancel').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+  $('#otp-resend').onclick = async () => {
+    $('#otp-error').textContent = '';
+    $('#otp-resend').textContent = 'Sending…';
+    const ok = await sendMagicLink(email);
+    $('#otp-resend').textContent = ok ? 'New code sent' : 'Could not resend — wait a minute';
+    setTimeout(() => { $('#otp-resend').textContent = 'Send a new code'; }, 4000);
+  };
 }
 
 function openAccountSheet() {
@@ -581,7 +678,7 @@ function openAccountSheet() {
         <div class="auth-divider"><span>or with your email</span></div>
         <div class="auth-email-row">
           <input class="detail-field" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
-          <button class="btn btn-ghost" id="btn-auth-email">Send link</button>
+          <button class="btn btn-ghost" id="btn-auth-email">Send code</button>
         </div>
         <p class="account-status" id="auth-email-status"></p>
       </div>
@@ -596,9 +693,9 @@ function openAccountSheet() {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status.textContent = 'Enter a valid email address.'; return; }
       status.textContent = 'Sending…';
       const ok = await sendMagicLink(email);
-      status.textContent = ok
-        ? 'Check your inbox — tap the link to sign in.'
-        : 'Could not send the link. Try again in a minute.';
+      if (!ok) { status.textContent = 'Could not send the code. Try again in a minute.'; return; }
+      close();
+      openEmailCodeSheet(email);
     };
     sheet.querySelector('#btn-auth-cancel').onclick = close;
   } else {
@@ -936,21 +1033,13 @@ function openModal({ title, hint, cta, onSubmit }) {
   };
 }
 
-/* ---------- join by keypad ---------- */
+/* ---------- reusable digit keypad ---------- */
 
-function openJoinSheet() {
-  const modal = $('#join-modal');
-  const boxes = $('#pin-boxes');
-  const keypad = $('#keypad');
-  const errorEl = $('#pin-error');
-  const LEN = 4;
+// Wires a set of code boxes and a 0–9 pad. onComplete(code) may return a
+// string to show as an error, which shakes the boxes and clears them.
+function mountKeypad({ boxes, keypad, errorEl, length, onComplete }) {
   let digits = '';
   let busy = false;
-
-  const close = () => {
-    modal.classList.add('hidden');
-    document.removeEventListener('keydown', onKey);
-  };
 
   const render = () => {
     [...boxes.children].forEach((box, i) => {
@@ -960,22 +1049,21 @@ function openJoinSheet() {
     });
   };
 
+  const fail = message => {
+    errorEl.textContent = message;
+    boxes.classList.remove('shake');
+    void boxes.offsetWidth;
+    boxes.classList.add('shake');
+    digits = '';
+    render();
+  };
+
   const submit = async () => {
     busy = true;
     errorEl.textContent = '';
-    const payload = await relayFetchSession(digits);
+    const problem = await onComplete(digits);
     busy = false;
-    if (!payload) {
-      errorEl.textContent = 'No cupping found for that code.';
-      boxes.classList.remove('shake');
-      void boxes.offsetWidth;
-      boxes.classList.add('shake');
-      digits = '';
-      render();
-      return;
-    }
-    close();
-    askNameThenJoin(payload, digits);
+    if (problem) fail(problem);
   };
 
   const press = key => {
@@ -987,25 +1075,23 @@ function openJoinSheet() {
       render();
       return;
     }
-    if (digits.length >= LEN) return;
+    if (digits.length >= length) return;
     digits += key;
     const box = boxes.children[digits.length - 1];
     box.classList.remove('pop');
     void box.offsetWidth;
     box.classList.add('pop');
     render();
-    if (digits.length === LEN) setTimeout(submit, 180);
+    if (digits.length === length) setTimeout(submit, 180);
   };
 
   const onKey = e => {
     if (/^\d$/.test(e.key)) press(e.key);
     else if (e.key === 'Backspace') press('del');
-    else if (e.key === 'Escape') close();
   };
 
-  // build once per open so state is always fresh
   boxes.innerHTML = '';
-  for (let i = 0; i < LEN; i++) boxes.appendChild(el('div', 'pin-box'));
+  for (let i = 0; i < length; i++) boxes.appendChild(el('div', 'pin-box'));
 
   keypad.innerHTML = '';
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].forEach(k => {
@@ -1019,8 +1105,35 @@ function openJoinSheet() {
 
   errorEl.textContent = '';
   render();
-  modal.classList.remove('hidden');
   document.addEventListener('keydown', onKey);
+  return { detach: () => document.removeEventListener('keydown', onKey) };
+}
+
+/* ---------- join by keypad ---------- */
+
+function openJoinSheet() {
+  const modal = $('#join-modal');
+
+  const pad = mountKeypad({
+    boxes: $('#pin-boxes'),
+    keypad: $('#keypad'),
+    errorEl: $('#pin-error'),
+    length: 4,
+    onComplete: async code => {
+      const payload = await relayFetchSession(code);
+      if (!payload) return 'No cupping found for that code.';
+      close();
+      askNameThenJoin(payload, code);
+      return null;
+    },
+  });
+
+  const close = () => {
+    modal.classList.add('hidden');
+    pad.detach();
+  };
+
+  modal.classList.remove('hidden');
 
   $('#join-cancel').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
@@ -2886,14 +2999,11 @@ function printResults() {
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  // Deliberately no reload on controllerchange: the worker claims the page
+  // on its first install, and reloading there discarded the sign-in token
+  // arriving in the URL. Navigations are network-first, so a new version
+  // is picked up on the next load anyway.
   navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
-
-  let reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
-    reloading = true;
-    location.reload();
-  });
 }
 
 function watchConnection() {
@@ -2957,8 +3067,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (loadAuth()) cloudSyncAll();
 
   // auto-join when opened from a scanned QR / shared link
-  const codeMatch = location.hash.match(/code=(\d{4,6})/);       // …#code=4821
-  const joinMatch = location.hash.match(/join=([^&]+)/);          // …#join=CUPG.xxx
+  const codeMatch = ENTRY_HASH.match(/[#&]code=(\d{4,6})/);      // …#code=4821
+  const joinMatch = ENTRY_HASH.match(/[#&]join=([^&]+)/);         // …#join=CUPG.xxx
   if (codeMatch) {
     history.replaceState(null, '', location.pathname + location.search);
     relayFetchSession(codeMatch[1]).then(payload => {
