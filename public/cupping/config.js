@@ -13,7 +13,7 @@
 // Length of the emailed sign-in code, matching Supabase → Authentication
 // → Providers → Email → Email OTP Length. The keypad accepts longer codes
 // regardless, so a mismatch is inconvenient rather than broken.
-window.OTP_LENGTH = 8;
+window.OTP_LENGTH = 6;
 
 window.SUPABASE_URL = 'https://albzajlwlotjnexymazb.supabase.co';
 window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsYnphamx3bG90am5leHltYXpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTc4MDUsImV4cCI6MjEwMjkzMzgwNX0.jpgFZPfQb4ZYJGO2wtSQEE6BBpely7uoRCGVoUqsCeo';
