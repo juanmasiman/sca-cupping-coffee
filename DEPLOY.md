@@ -70,6 +70,19 @@ The anon key is meant to be public — row-level security is what protects user 
 
 Supabase's built-in mailer is shared, rate-limited to a few messages an hour, and has poor sender reputation — mail lands in junk, where spam scanners follow the sign-in link and consume its one-time token. Custom SMTP fixes all of that.
 
+### Quickest unblock: Resend's test sender (no DNS)
+
+Supabase locks email-template editing until custom SMTP exists, and Resend will send from `onboarding@resend.dev` with no domain verification — but **only to the address you signed up with**. That is enough to unlock the templates and test your own sign-in:
+
+1. Sign up at [resend.com](https://resend.com).
+2. **API Keys → Create API Key** (sending access). Copy it.
+3. Supabase → **Project Settings → Authentication → SMTP Settings** → enable Custom SMTP: host `smtp.resend.com`, port `465`, username `resend`, password = the API key, sender email `onboarding@resend.dev`, sender name `lento`.
+4. Save. Template editing unlocks — paste `server/email-magic-link.html` into Authentication → Emails → Magic Link.
+
+Then verify the domain below to send to anyone from `cupping@lento.cafe`.
+
+### Full setup: verify lento.cafe
+
 **Resend** (free: 3,000 emails/month, 100/day) with the domain already on Cloudflare:
 
 1. Sign up at [resend.com](https://resend.com) → **Domains → Add Domain** → `lento.cafe`.
