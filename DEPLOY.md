@@ -6,7 +6,9 @@
 - [ ] **Paste the branded sign-in email into Supabase.** Authentication → Emails → **Magic Link**. Replace **both** fields: the subject (default is "Your sign in link") with something like `Your lento sign-in code`, and the body with `server/email-magic-link.html` from this repo. Not cosmetic — the default body contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done.
 - [ ] **Create a `cupping@lento.cafe` alias** in Google Workspace (Admin console → Users → your user → Add alias, or a Group of that name), then switch the Supabase sender to it so sign-in mail isn't tied to a personal mailbox.
 - [x] **Google sign-in** — OAuth client wired into Supabase and working.
-- [ ] **Google consent screen shows the Supabase project URL** ("sign in to albzajlwlotjnexymazb.supabase.co") because Supabase owns the OAuth callback. Setting the app name, logo and `lento.cafe` as an authorized domain in the Google consent screen improves it for free. Removing the raw URL entirely needs Supabase's Custom Domains add-on, so auth runs at `auth.lento.cafe` — a paid add-on on top of the Pro plan.
+- [x] **Google consent screen** — closed as good enough. It names the Supabase project URL because Supabase owns the OAuth callback; app-name branding is set, and no logo was uploaded deliberately, since that pushes the app into Google's verification queue for no real gain. Email is the primary sign-in and is fully lento-branded, so few people meet this screen. Removing the URL entirely would need Supabase's paid Custom Domains add-on; revisit only if it starts costing credibility with paying customers.
+- [ ] **`cupping@lento.cafe` sender** — add the alias in Google Workspace, register it under Gmail's "Send mail as" (SMTP refuses otherwise), then switch the Supabase sender email to it.
+- [ ] **Security review** before opening the app up — the Worker accepts public writes and there is now an auth layer and row-level security to check.
 - [ ] **Full UX/UI review pass.**
 
 
