@@ -63,6 +63,7 @@ const FORMS = [
    Describes the coffee without judging it: intensity 0–15 per
    attribute, plus check-all-that-apply descriptors.            */
 
+// Sections rated 0–15 for intensity, in the order of the printed form
 const DESC_ATTRS = [
   { key: 'fragrance', label: 'Fragrance', sub: 'dry grounds' },
   { key: 'aroma', label: 'Aroma', sub: 'after breaking the crust' },
@@ -73,21 +74,34 @@ const DESC_ATTRS = [
   { key: 'mouthfeel', label: 'Mouthfeel', sub: '' },
 ];
 
-// Olfactory descriptors — used for fragrance/aroma and for flavor/aftertaste
+// The olfactory CATA list, exactly as printed on the SCA form: nine
+// categories, some with their own sub-descriptors. Used for the
+// fragrance/aroma box and again for the flavor/aftertaste box.
 const CATA_OLFACTORY = [
-  'Floral', 'Berry', 'Dried fruit', 'Citrus fruit', 'Other fruit',
-  'Sour / fermented', 'Green / vegetative', 'Cereal', 'Nutty', 'Cocoa',
-  'Spice', 'Sweet aromatics', 'Roasted', 'Tobacco', 'Earthy',
-  'Chemical / papery',
+  { name: 'Floral' },
+  { name: 'Fruity', children: ['Berry', 'Dried Fruit', 'Citrus Fruit'] },
+  { name: 'Sour/Fermented', children: ['Sour', 'Fermented'] },
+  { name: 'Green/Vegetative' },
+  { name: 'Other', children: ['Chemical', 'Musty/Earthy', 'Woody'] },
+  { name: 'Roasted', children: ['Cereal', 'Burnt', 'Tobacco'] },
+  { name: 'Spice' },
+  { name: 'Nutty/Cocoa', children: ['Nutty', 'Cocoa'] },
+  { name: 'Sweet', children: ['Vanilla/Vanillin', 'Brown Sugar'] },
 ];
 
-const CATA_GROUPS = [
-  { key: 'aromaCata', label: 'Fragrance / aroma descriptors', options: CATA_OLFACTORY, max: 5 },
-  { key: 'flavorCata', label: 'Flavor / aftertaste descriptors', options: CATA_OLFACTORY, max: 5 },
-  { key: 'acidityCata', label: 'Acidity', options: ['Sour', 'Tart', 'Citric', 'Malic', 'Winey', 'Lactic', 'Acetic'], max: 2 },
-  { key: 'sweetnessCata', label: 'Sweetness', options: ['Brown sugar', 'Caramelized', 'Honey', 'Vanilla', 'Fruity sweet', 'Syrupy'], max: 2 },
-  { key: 'mouthfeelCata', label: 'Mouthfeel', options: ['Silky', 'Creamy', 'Smooth', 'Round', 'Full', 'Thin', 'Watery', 'Astringent', 'Mouth-drying', 'Metallic'], max: 2 },
+const CATA_TASTES = ['Salty', 'Bitter', 'Sour', 'Sweet', 'Umami'];
+
+const CATA_MOUTHFEEL = [
+  { name: 'Rough', hint: 'gritty, chalky, sandy' },
+  { name: 'Smooth', hint: 'velvety, silky, syrupy' },
+  { name: 'Metallic' },
+  { name: 'Oily' },
+  { name: 'Mouth-Drying' },
 ];
+
+// Acidity and sweetness carry no CATA list — the standard has tasters
+// write their own descriptors there.
+const DESC_NOTE_FIELDS = ['fragrance', 'flavor', 'acidity', 'sweetness', 'mouthfeel'];
 
 /* ---------- guided mode help ---------- */
 
@@ -96,7 +110,7 @@ const GUIDED_KEY = 'sca-cupping-guided-v1';
 const HELP = {
   intro: {
     title: 'How a cupping works',
-    body: 'Smell the dry grounds, pour water, smell again as you break the crust, then skim and taste with a spoon as the coffee cools. Score each coffee on its own — the SCA protocol asks every cupper to score independently, without comparing notes, and the coffee’s official score is the average of the panel. Discuss afterwards.',
+    body: 'Grind at 8.25 g of coffee per 150 mL of cup, smell the dry grounds, then pour water at 93 ± 3 °C to the rim. Let it stand, break the crust with your spoon and smell again, skim the foam, and taste as the coffee cools. Score each coffee on your own — the standard asks every cupper to score independently, without comparing notes, and the coffee’s score is the panel average. Discuss afterwards.',
   },
   cvaScale: {
     title: 'The 1–9 quality scale',
@@ -120,11 +134,11 @@ const HELP = {
   },
   descIntensity: {
     title: 'Intensity, not quality',
-    body: 'This is the opposite of the scoring form: here you record how strong something is, from 0 to 15, with no judgement about whether that is good. A delicate, elegant coffee may score highly for quality and still be low intensity. Separating the two is the whole point of the Descriptive Assessment.',
+    body: 'This is the opposite of the scoring form: here you record how strong each section is, from 0 to 15, with no judgement about whether that is good. Rate the total intensity of the section, not of any one note — if a fragrance has a strong fruity note and a faint chocolate one, rate how strong the fragrance is overall. A delicate, elegant coffee can score highly for quality and still be low intensity.',
   },
   cata: {
     title: 'Choosing descriptors',
-    body: 'Check the descriptors that genuinely apply — up to five for aroma and for flavor. These are broad families from the SCA flavor lexicon rather than poetic notes; pick the category first, then use the tasting notes field for specifics like “jasmine” or “dried apricot”.',
+    body: 'Check the descriptors that best represent the coffee — up to five in the olfactory list, and up to two main tastes. These are categories from the Coffee Taster’s Flavor Wheel, not poetic notes: check the category, then write specifics like “jasmine” or “dried apricot” in the notes beside it. Acidity and sweetness have no checklist by design — describe those in your own words.',
   },
   'legacy.scale': { title: 'The 6–10 scale', body: 'The 2004 form scores quality from 6.00 to 10.00 in quarter-point steps: 6 is Good, 7 Very Good, 8 Excellent, 9 Outstanding. Most specialty coffees sit between 7.00 and 8.50. The ten attributes sum to a maximum of 100.' },
   legacyCups: { title: 'Uniformity, Clean Cup, Sweetness', body: 'These three are judged cup by cup rather than scored on a scale. Every cup starts with credit; tap a cup to fail it. Each cup is worth its share of 10 points, so with five cups on the table each failed cup costs 2 points.' },
@@ -275,11 +289,15 @@ function load() {
       if (!c.cva) { c.cva = {}; CVA_SECTIONS.forEach(a => { c.cva[a.key] = 5; }); }
       if (typeof c.nonUniform !== 'number') c.nonUniform = 0;
       if (typeof c.defective !== 'number') c.defective = 0;
-      if (!c.desc) c.desc = emptyDescriptive();
+      // descriptive data predating the 103-2024 rebuild is dropped rather
+      // than half-migrated: its CATA lists no longer map onto the standard
+      const base = emptyDescriptive();
+      if (!c.desc || !c.desc.cata || !Array.isArray(c.desc.cata.aroma)) c.desc = base;
       else {
-        const base = emptyDescriptive();
+        c.desc.roast = c.desc.roast || '';
         c.desc.intensity = Object.assign(base.intensity, c.desc.intensity || {});
-        c.desc.cata = Object.assign(base.cata, c.desc.cata || {});
+        c.desc.notes = Object.assign(base.notes, c.desc.notes || {});
+        c.desc.cata = Object.assign(base.cata, c.desc.cata);
       }
     });
     return s;
@@ -1463,22 +1481,184 @@ function buildDetailsCard(coffee) {
   return card;
 }
 
+/* ============================================================
+   FLAVOR WHEEL
+   A reference wheel built from the categories of the SCA/WCR/UC
+   Davis Coffee Taster's Flavor Wheel. Tapping an inner category
+   ticks the matching CATA box; tapping an outer descriptor drops
+   the word into the coffee's tasting notes.
+   ============================================================ */
+
+const WHEEL = [
+  { name: 'Floral', color: '#e87fa8', children: ['Black Tea', 'Chamomile', 'Rose', 'Jasmine'] },
+  { name: 'Fruity', color: '#e0464b', children: ['Berry', 'Dried Fruit', 'Citrus Fruit', 'Blueberry', 'Strawberry', 'Raisin', 'Prune', 'Peach', 'Apple', 'Grape', 'Lemon', 'Orange'] },
+  { name: 'Sour/Fermented', color: '#e5c650', children: ['Sour', 'Fermented', 'Citric Acid', 'Malic Acid', 'Winey', 'Whiskey', 'Overripe'] },
+  { name: 'Green/Vegetative', color: '#5fa855', children: ['Olive Oil', 'Raw', 'Under-ripe', 'Peapod', 'Fresh', 'Hay-like', 'Herb-like'] },
+  { name: 'Other', color: '#9aa3ab', children: ['Chemical', 'Musty/Earthy', 'Woody', 'Papery', 'Petroleum', 'Medicinal', 'Salty', 'Stale'] },
+  { name: 'Roasted', color: '#8a4a2b', children: ['Cereal', 'Burnt', 'Tobacco', 'Pipe Tobacco', 'Acrid', 'Ashy', 'Smoky', 'Grain', 'Malt'] },
+  { name: 'Spices', color: '#b8452f', children: ['Pungent', 'Pepper', 'Brown Spice', 'Anise', 'Nutmeg', 'Cinnamon', 'Clove'] },
+  { name: 'Nutty/Cocoa', color: '#c08a4e', children: ['Nutty', 'Cocoa', 'Peanuts', 'Hazelnut', 'Almond', 'Chocolate', 'Dark Chocolate'] },
+  { name: 'Sweet', color: '#e8963f', children: ['Vanilla/Vanillin', 'Brown Sugar', 'Honey', 'Caramelized', 'Maple Syrup', 'Molasses', 'Overall Sweet'] },
+];
+
+// wheel category → the CATA descriptor it corresponds to on the form
+const WHEEL_TO_CATA = { Spices: 'Spice' };
+
+function wheelCataName(category) {
+  return WHEEL_TO_CATA[category] || category;
+}
+
+function buildWheelSVG() {
+  const SIZE = 340, C = SIZE / 2;
+  const R_IN = 52, R_MID = 108, R_OUT = 164;
+  const total = WHEEL.reduce((n, c) => n + c.children.length, 0);
+
+  const arc = (r0, r1, a0, a1) => {
+    const p = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+    const [x0, y0] = p(r0, a0), [x1, y1] = p(r1, a0);
+    const [x2, y2] = p(r1, a1), [x3, y3] = p(r0, a1);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    return `M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r1},${r1} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${r0},${r0} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
+  };
+
+  let svg = `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coffee flavor wheel">`;
+  let angle = -Math.PI / 2;
+  let outerAngle = -Math.PI / 2;
+
+  WHEEL.forEach(cat => {
+    const span = (cat.children.length / total) * Math.PI * 2;
+    const a0 = angle, a1 = angle + span;
+    const mid = (a0 + a1) / 2;
+
+    svg += `<path class="wheel-seg wheel-cat" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" data-cat="${escapeHTML(cat.name)}"/>`;
+
+    // category label, rotated to sit along its wedge
+    const lx = C + ((R_IN + R_MID) / 2) * Math.cos(mid);
+    const ly = C + ((R_IN + R_MID) / 2) * Math.sin(mid);
+    let deg = (mid * 180) / Math.PI;
+    if (deg > 90 || deg < -90) deg += 180;
+    svg += `<text class="wheel-cat-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${escapeHTML(cat.name.replace('/', ' / '))}</text>`;
+
+    cat.children.forEach(child => {
+      const cSpan = (1 / total) * Math.PI * 2;
+      const c0 = outerAngle, c1 = outerAngle + cSpan;
+      const cMid = (c0 + c1) / 2;
+      svg += `<path class="wheel-seg wheel-child" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
+      const tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
+      const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
+      let cDeg = (cMid * 180) / Math.PI;
+      if (cDeg > 90 || cDeg < -90) cDeg += 180;
+      svg += `<text class="wheel-child-label" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${cDeg.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})">${escapeHTML(child)}</text>`;
+      outerAngle = c1;
+    });
+
+    angle = a1;
+  });
+
+  svg += `<circle cx="${C}" cy="${C}" r="${R_IN - 2}" class="wheel-hub"/>`;
+  svg += `<text x="${C}" y="${C - 5}" text-anchor="middle" class="wheel-hub-label">flavor</text>`;
+  svg += `<text x="${C}" y="${C + 11}" text-anchor="middle" class="wheel-hub-label">wheel</text>`;
+  svg += '</svg>';
+  return svg;
+}
+
+function openFlavorWheel() {
+  const modal = $('#wheel-modal');
+  const holder = $('#wheel-holder');
+  const status = $('#wheel-status');
+  if (!holder.dataset.built) {
+    holder.innerHTML = buildWheelSVG();
+    holder.dataset.built = '1';
+  }
+
+  const coffee = state && state.coffees[state.activeIndex];
+  status.textContent = coffee
+    ? `Tap a descriptor to add it to ${coffeeName(coffee, state.activeIndex)}`
+    : 'Tap a wedge to explore the wheel';
+
+  const sync = () => {
+    if (!coffee || !coffee.desc) return;
+    const picked = new Set([...coffee.desc.cata.aroma, ...coffee.desc.cata.flavor]);
+    holder.querySelectorAll('.wheel-cat').forEach(seg => {
+      seg.classList.toggle('picked', picked.has(wheelCataName(seg.dataset.cat)));
+    });
+  };
+  sync();
+
+  holder.onclick = e => {
+    const seg = e.target.closest('.wheel-seg');
+    if (!seg || !coffee) return;
+    haptic();
+
+    if (seg.classList.contains('wheel-cat')) {
+      const name = wheelCataName(seg.dataset.cat);
+      if (!toggleCata(coffee.desc.cata.flavor, name, 5)) {
+        status.textContent = 'Flavor descriptors are full — up to 5';
+        return;
+      }
+      status.textContent = coffee.desc.cata.flavor.includes(name)
+        ? `${name} checked under flavor`
+        : `${name} unchecked`;
+    } else {
+      const word = seg.dataset.desc;
+      const existing = coffee.notes.trim();
+      if (existing.toLowerCase().includes(word.toLowerCase())) {
+        status.textContent = `${word} is already in your notes`;
+      } else {
+        coffee.notes = existing ? `${existing}, ${word.toLowerCase()}` : word;
+        status.textContent = `Added “${word}” to your notes`;
+      }
+    }
+    save();
+    sync();
+    refreshOpenPanel();
+  };
+
+  modal.classList.remove('hidden');
+  const close = () => { modal.classList.add('hidden'); modal.onclick = null; holder.onclick = null; };
+  $('#wheel-close').onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+}
+
+// keep the visible panel in step with edits made from the wheel
+function refreshOpenPanel() {
+  const panel = $('#panels').children[state.activeIndex];
+  if (!panel) return;
+  const notes = panel.querySelector('.notes-field');
+  if (notes) notes.value = state.coffees[state.activeIndex].notes;
+  const descCard = panel.querySelectorAll('.details-card')[1];
+  if (descCard && descCard.syncCata) descCard.syncCata();
+}
+
 /* ---------- CVA Descriptive Assessment (SCA 103-2024) ----------
    Describes the coffee without valuing it: 0–15 intensities and
    check-all-that-apply descriptors. Collapsed by default.        */
 
 function emptyDescriptive() {
   const intensity = {};
-  DESC_ATTRS.forEach(a => { intensity[a.key] = 7; }); // 7 ≈ medium
-  const cata = {};
-  CATA_GROUPS.forEach(g => { cata[g.key] = []; });
-  return { intensity, cata };
+  DESC_ATTRS.forEach(a => { intensity[a.key] = 5; }); // 5 = MEDIUM anchor
+  const notes = {};
+  DESC_NOTE_FIELDS.forEach(k => { notes[k] = ''; });
+  return {
+    roast: '',
+    intensity,
+    notes,
+    cata: { aroma: [], flavor: [], tastes: [], mouthfeel: [] },
+  };
 }
 
 function descriptiveSummary(desc) {
-  const picked = [...desc.cata.aromaCata, ...desc.cata.flavorCata];
-  const unique = [...new Set(picked)];
+  const unique = [...new Set([...desc.cata.aroma, ...desc.cata.flavor])];
   return unique.length ? unique.slice(0, 3).join(' · ') + (unique.length > 3 ? '…' : '') : '';
+}
+
+// Toggle a descriptor in a capped CATA list; returns false when full.
+function toggleCata(list, option, max) {
+  const at = list.indexOf(option);
+  if (at >= 0) { list.splice(at, 1); return true; }
+  if (list.length >= max) return false;
+  list.push(option);
+  return true;
 }
 
 function buildDescriptiveCard(coffee) {
@@ -1490,13 +1670,7 @@ function buildDescriptiveCard(coffee) {
       <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <div class="details-collapse"><div class="details-collapse-inner">
-      <div class="desc-body">
-        <div class="desc-head">
-          <span class="detail-label">Intensity <span class="desc-note">— how much, not how good</span></span>
-        </div>
-        <div class="desc-intensities"></div>
-        <div class="desc-catas"></div>
-      </div>
+      <div class="desc-body"></div>
     </div></div>
   `;
 
@@ -1505,11 +1679,19 @@ function buildDescriptiveCard(coffee) {
     summaryEl.textContent = descriptiveSummary(coffee.desc) || 'intensity · descriptors…';
   };
 
-  addHelp(card.querySelector('.desc-head .detail-label'), 'descIntensity');
+  const body = card.querySelector('.desc-body');
+  const d = coffee.desc;
 
-  // intensity sliders, 0–15
-  const intensities = card.querySelector('.desc-intensities');
-  DESC_ATTRS.forEach(attr => {
+  // roast level, recorded before tasting begins
+  const roast = el('div', 'desc-field');
+  roast.innerHTML = `<span class="detail-label">Roast level</span>
+    <input class="detail-field" type="text" maxlength="40" placeholder="e.g. light-medium, Agtron 63">`;
+  const roastInput = roast.querySelector('input');
+  roastInput.value = d.roast || '';
+  roastInput.addEventListener('input', () => { d.roast = roastInput.value; save(); });
+  body.appendChild(roast);
+
+  const intensityRow = attr => {
     const row = el('div', 'desc-row');
     row.innerHTML = `
       <div class="desc-row-head">
@@ -1518,25 +1700,32 @@ function buildDescriptiveCard(coffee) {
       </div>
       <div class="slider slim">
         <div class="slider-track"><div class="slider-fill"></div></div>
+        <div class="slider-ticks"></div>
         <div class="slider-thumb"></div>
       </div>
-      <div class="slider-labels"><span>0 low</span><span>7 medium</span><span>15 high</span></div>
+      <div class="slider-labels"><span>0 LOW</span><span>5</span><span>10 MEDIUM</span><span>15 HIGH</span></div>
     `;
     const valueEl = row.querySelector('.desc-row-value');
     const slider = row.querySelector('.slider');
     const fill = row.querySelector('.slider-fill');
     const thumb = row.querySelector('.slider-thumb');
+    const ticks = row.querySelector('.slider-ticks');
+    [0, 5, 10, 15].forEach(v => {
+      const tick = el('span', 'slider-tick');
+      tick.style.left = `${(v / 15) * 100}%`;
+      ticks.appendChild(tick);
+    });
 
     const position = () => {
-      const pct = (coffee.desc.intensity[attr.key] / 15) * 100;
+      const pct = (d.intensity[attr.key] / 15) * 100;
       fill.style.width = `${pct}%`;
       thumb.style.left = `${pct}%`;
-      valueEl.textContent = coffee.desc.intensity[attr.key];
+      valueEl.textContent = d.intensity[attr.key];
     };
     const setValue = v => {
       v = Math.min(15, Math.max(0, Math.round(v)));
-      if (v === coffee.desc.intensity[attr.key]) return;
-      coffee.desc.intensity[attr.key] = v;
+      if (v === d.intensity[attr.key]) return;
+      d.intensity[attr.key] = v;
       haptic();
       position();
       save();
@@ -1559,44 +1748,124 @@ function buildDescriptiveCard(coffee) {
     slider.addEventListener('pointercancel', end);
 
     position();
-    intensities.appendChild(row);
-  });
+    return row;
+  };
 
-  // check-all-that-apply descriptor groups
-  const catas = card.querySelector('.desc-catas');
-  CATA_GROUPS.forEach((group, gi) => {
-    const wrap = el('div', 'cata-group');
-    const head = el('div', 'cata-head');
-    const label = el('span', 'detail-label', `${group.label} <span class="desc-note">up to ${group.max}</span>`);
-    head.appendChild(label);
-    if (gi === 0) addHelp(label, 'cata');
-    wrap.appendChild(head);
-
-    const chips = el('div', 'cata-chips');
-    const selected = () => coffee.desc.cata[group.key];
-
-    group.options.forEach(option => {
-      const chip = el('button', 'cata-chip', escapeHTML(option));
-      chip.type = 'button';
-      const sync = () => chip.classList.toggle('on', selected().includes(option));
-      chip.addEventListener('click', () => {
-        const list = selected();
-        const at = list.indexOf(option);
-        if (at >= 0) list.splice(at, 1);
-        else if (list.length >= group.max) { toast(`Pick up to ${group.max} here`); return; }
-        else list.push(option);
-        haptic();
+  // Olfactory CATA: parent categories with their sub-descriptors, as printed
+  const olfactoryChips = (listKey, max) => {
+    const wrap = el('div', 'cata-chips-tree');
+    const list = () => d.cata[listKey];
+    const chips = [];
+    CATA_OLFACTORY.forEach(cat => {
+      const line = el('div', 'cata-line');
+      [cat.name, ...(cat.children || [])].forEach((name, idx) => {
+        const chip = el('button', `cata-chip${idx ? ' child' : ''}`, escapeHTML(name));
+        chip.type = 'button';
+        chip.dataset.name = name;
+        const sync = () => chip.classList.toggle('on', list().includes(name));
+        chip.addEventListener('click', () => {
+          if (!toggleCata(list(), name, max)) { toast(`Up to ${max} descriptors here`); return; }
+          haptic();
+          chips.forEach(c => c.sync());
+          refreshSummary();
+          save();
+        });
+        chips.push({ sync });
         sync();
-        refreshSummary();
+        line.appendChild(chip);
+      });
+      wrap.appendChild(line);
+    });
+    return { wrap, syncAll: () => chips.forEach(c => c.sync()) };
+  };
+
+  const flatChips = (listKey, options, max) => {
+    const wrap = el('div', 'cata-chips');
+    const list = () => d.cata[listKey];
+    const chips = [];
+    options.forEach(opt => {
+      const name = typeof opt === 'string' ? opt : opt.name;
+      const hint = typeof opt === 'string' ? '' : opt.hint;
+      const chip = el('button', 'cata-chip',
+        `${escapeHTML(name)}${hint ? ` <span class="chip-hint">${escapeHTML(hint)}</span>` : ''}`);
+      chip.type = 'button';
+      const sync = () => chip.classList.toggle('on', list().includes(name));
+      chip.addEventListener('click', () => {
+        if (!toggleCata(list(), name, max)) { toast(`Up to ${max} here`); return; }
+        haptic();
+        chips.forEach(c => c());
         save();
       });
+      chips.push(sync);
       sync();
-      chips.appendChild(chip);
+      wrap.appendChild(chip);
     });
+    return wrap;
+  };
 
-    wrap.appendChild(chips);
-    catas.appendChild(wrap);
-  });
+  const noteField = (key, placeholder) => {
+    const wrap = el('div', 'desc-field');
+    wrap.innerHTML = `<span class="detail-label">Notes</span>
+      <input class="detail-field" type="text" maxlength="80" placeholder="${escapeHTML(placeholder)}">`;
+    const input = wrap.querySelector('input');
+    input.value = d.notes[key] || '';
+    input.addEventListener('input', () => { d.notes[key] = input.value; save(); });
+    return wrap;
+  };
+
+  const section = (title, helpId) => {
+    const s = el('div', 'desc-section');
+    const h = el('div', 'desc-section-head');
+    const label = el('span', 'detail-label', title);
+    h.appendChild(label);
+    if (helpId) addHelp(label, helpId);
+    s.appendChild(h);
+    return s;
+  };
+
+  // --- fragrance + aroma share one olfactory CATA box ---
+  const fa = section('Fragrance & aroma', 'descIntensity');
+  fa.appendChild(intensityRow(DESC_ATTRS[0]));
+  fa.appendChild(intensityRow(DESC_ATTRS[1]));
+  const aromaTree = olfactoryChips('aroma', 5);
+  fa.appendChild(el('span', 'cata-cap', 'Orthonasal descriptors · up to 5'));
+  fa.appendChild(aromaTree.wrap);
+  fa.appendChild(noteField('fragrance', 'freely elicited notes…'));
+  body.appendChild(fa);
+
+  // --- flavor + aftertaste: olfactory CATA plus main tastes ---
+  const fl = section('Flavor & aftertaste', 'cata');
+  fl.appendChild(intensityRow(DESC_ATTRS[2]));
+  fl.appendChild(intensityRow(DESC_ATTRS[3]));
+  const flavorTree = olfactoryChips('flavor', 5);
+  fl.appendChild(el('span', 'cata-cap', 'Retronasal descriptors · up to 5'));
+  fl.appendChild(flavorTree.wrap);
+  fl.appendChild(el('span', 'cata-cap', 'Main tastes · up to 2'));
+  fl.appendChild(flatChips('tastes', CATA_TASTES, 2));
+  fl.appendChild(noteField('flavor', 'freely elicited notes…'));
+  body.appendChild(fl);
+
+  // --- acidity and sweetness: intensity plus the taster's own words ---
+  const ac = section('Acidity');
+  ac.appendChild(intensityRow(DESC_ATTRS[4]));
+  ac.appendChild(noteField('acidity', 'e.g. citric, malic, winey…'));
+  body.appendChild(ac);
+
+  const sw = section('Sweetness');
+  sw.appendChild(intensityRow(DESC_ATTRS[5]));
+  sw.appendChild(noteField('sweetness', 'e.g. honeyed, cane sugar…'));
+  body.appendChild(sw);
+
+  // --- mouthfeel ---
+  const mf = section('Mouthfeel');
+  mf.appendChild(intensityRow(DESC_ATTRS[6]));
+  mf.appendChild(el('span', 'cata-cap', 'Up to 2'));
+  mf.appendChild(flatChips('mouthfeel', CATA_MOUTHFEEL, 2));
+  mf.appendChild(noteField('mouthfeel', 'freely elicited notes…'));
+  body.appendChild(mf);
+
+  // let the flavor wheel tick these boxes
+  card.syncCata = () => { aromaTree.syncAll(); flavorTree.syncAll(); refreshSummary(); };
 
   card.querySelector('.details-toggle').addEventListener('click', () => {
     haptic();
@@ -1970,7 +2239,7 @@ function buildResults() {
     const medalCls = pos < 3 ? ` m${pos + 1}` : '';
     const meta = metaSummary(r.coffee.meta);
     const descriptors = usingCVA() && r.coffee.desc
-      ? [...new Set([...r.coffee.desc.cata.aromaCata, ...r.coffee.desc.cata.flavorCata])]
+      ? [...new Set([...r.coffee.desc.cata.aroma, ...r.coffee.desc.cata.flavor])]
       : null;
     card.innerHTML = `
       <div class="rank-top">
@@ -2495,6 +2764,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-join').addEventListener('click', openJoinSheet);
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
+  $('#btn-wheel').addEventListener('click', openFlavorWheel);
 
   // account: OAuth return, profile button, quiet background sync
   $('#btn-account').addEventListener('click', openAccountSheet);

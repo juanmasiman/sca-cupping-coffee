@@ -115,6 +115,17 @@
 
     <div class="panels" id="panels"></div>
 
+    <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
+      <svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="20" cy="20" r="6.5" fill="currentColor"/>
+        <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M20 2v11M20 27v11M2 20h11M27 20h11"/>
+          <path d="M7.3 7.3l7.8 7.8M24.9 24.9l7.8 7.8M32.7 7.3l-7.8 7.8M15.1 24.9l-7.8 7.8"/>
+        </g>
+      </svg>
+    </button>
+
     <footer class="scorebar" id="scorebar">
       <div class="scorebar-info">
         <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
@@ -209,6 +220,18 @@
     <option value="Castillo"></option>
     <option value="Heirloom"></option>
   </datalist>
+
+  <div id="wheel-modal" class="modal hidden">
+    <div class="modal-sheet wheel-sheet">
+      <h3>Flavor wheel</h3>
+      <p class="modal-hint">Inner ring ticks the CATA box on the descriptive form. Outer ring drops the word into your tasting notes.</p>
+      <div class="wheel-holder" id="wheel-holder"></div>
+      <p class="wheel-status" id="wheel-status"></p>
+      <div class="modal-actions">
+        <button id="wheel-close" class="btn btn-primary">Done</button>
+      </div>
+    </div>
+  </div>
 
   <div id="help-modal" class="modal hidden">
     <div class="modal-sheet">

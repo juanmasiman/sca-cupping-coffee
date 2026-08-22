@@ -18,7 +18,9 @@ Both scoresheets are supported, chosen when a session starts:
 
    Both carry free-text tasting notes and origin details per coffee.
 
-   **Descriptive Assessment** (CVA sessions) — a collapsible "Describe" card records what the coffee tastes like *without* judging it: 0–15 intensity for fragrance, aroma, flavor, aftertaste, acidity, sweetness and mouthfeel, plus check-all-that-apply descriptors (up to five for aroma and for flavor, two each for acidity, sweetness and mouthfeel). Selected descriptors surface on the results screen.
+   **Descriptive Assessment** (SCA 103-2024, CVA sessions) — a collapsible "Describe" card mirroring the printed form: roast level, 0–15 intensity for fragrance, aroma, flavor, aftertaste, acidity, sweetness and mouthfeel, the nine-category olfactory CATA list (up to five, shared by the fragrance/aroma and flavor/aftertaste boxes), main tastes (up to two), the mouthfeel list (up to two), and freely elicited notes per section. Acidity and sweetness carry no checklist, as the standard intends. Selected descriptors surface on the results screen.
+
+   **Flavor wheel** — a floating button on the cupping screen opens an interactive wheel built from the SCA/WCR/UC Davis Coffee Taster's Flavor Wheel categories. Tapping an inner category ticks the matching CATA box; tapping an outer descriptor drops the word into the coffee's tasting notes.
 
    **Guided mode** — on by default, adds a "?" beside every part of the scoresheet explaining what to smell or taste, how the scale works, and how the score is calculated. Switch it off on the setup screen once the table knows the protocol.
 3. **Results** — winner podium, full ranking with score bars, and an overlaid sensory radar chart (tap a legend name to isolate a coffee). Share/copy the results.
