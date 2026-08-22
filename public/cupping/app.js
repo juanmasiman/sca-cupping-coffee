@@ -871,9 +871,31 @@ async function gzipBytes(bytes) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+// Join codes arrive from anyone who can send a link, and a few kilobytes of
+// gzip can expand to gigabytes, so the output is read in chunks and
+// abandoned once it passes a sane ceiling for a ten-coffee lineup.
+const MAX_DECODED_BYTES = 256 * 1024;
+
 async function gunzipBytes(bytes) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const reader = new Blob([bytes]).stream()
+    .pipeThrough(new DecompressionStream('gzip'))
+    .getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_DECODED_BYTES) {
+      reader.cancel();
+      throw new Error('decoded payload too large');
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  chunks.forEach(c => { out.set(c, at); at += c.length; });
+  return out;
 }
 
 // kind is 'CUP' (session) or 'SCR' (scores); G = gzipped, P = plain
@@ -887,10 +909,11 @@ async function encodeCode(kind, obj) {
 
 async function decodeCode(kind, text) {
   // tolerate the code being pasted with surrounding message text
-  const m = (text || '').replace(/\s+/g, ' ').match(new RegExp(kind + '([GP])\\.([A-Za-z0-9_-]+)'));
+  const m = (text || '').replace(/\s+/g, ' ').match(new RegExp(kind + '([GP])\\.([A-Za-z0-9_-]{1,32768})'));
   if (!m) return null;
   try {
     let bytes = b64urlDecode(m[2]);
+    if (bytes.length > MAX_DECODED_BYTES) return null;
     if (m[1] === 'G') {
       if (typeof DecompressionStream === 'undefined') return null;
       bytes = await gunzipBytes(bytes);
@@ -927,8 +950,14 @@ function applySessionPayload(obj) {
   newSession(coffees.length, nCups, obj.f === 'legacy' ? 'legacy' : 'cva');
   coffees.forEach((k, i) => {
     state.coffees[i].name = String(k.n || '').slice(0, 40);
-    state.coffees[i].meta = Object.assign(emptyMeta(),
-      Object.fromEntries(Object.entries(k.m || {}).map(([key, v]) => [key, String(v).slice(0, 60)])));
+    // only the fields the form actually has — a crafted payload does not get
+    // to stuff arbitrary keys into stored state
+    const meta = emptyMeta();
+    META_FIELDS.forEach(f => {
+      const v = k.m && k.m[f.key];
+      if (typeof v === 'string' || typeof v === 'number') meta[f.key] = String(v).slice(0, 60);
+    });
+    state.coffees[i].meta = meta;
   });
   save();
   return true;
@@ -1007,8 +1036,14 @@ async function relayReveal(code, token) {
 }
 
 // { participants:[{name, submitted, scores?}], revealed }
+// The roster is only served to the leader or someone already at the table,
+// so proof of one or the other travels with the request.
 async function relayListParticipants(code) {
-  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants`, { method: 'GET' });
+  const proof = state.liveToken && code === state.liveCode
+    ? `token=${encodeURIComponent(state.liveToken)}`
+    : state.participantId ? `id=${encodeURIComponent(state.participantId)}` : '';
+  if (!proof) return null;
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants?${proof}`, { method: 'GET' });
   return data && Array.isArray(data.participants) ? data : null;
 }
 

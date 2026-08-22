@@ -32,16 +32,31 @@ const MAX_BODY_BYTES = 24 * 1024; // a 10-coffee lineup is ~3 KB
 const CODE_ATTEMPTS = 25;
 const MAX_PARTICIPANTS = 60;
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+// The app is served from the same origin as this API, so no other site
+// needs to call it. Keeping the list closed means a hostile page cannot
+// drive the relay on a visitor's behalf.
+const ALLOWED_ORIGINS = [
+  'https://lento.cafe',
+  'https://www.lento.cafe',
+  'https://sca-cupping-coffee.arc-heli.workers.dev',
+];
 
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
+function corsFor(request) {
+  const origin = request.headers.get('Origin');
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    Vary: 'Origin',
+  };
+}
+
+// Bound per request — several can be in flight in one isolate, so this
+// must never live in module scope.
+function responder(cors) {
+  return (body, status = 200) => new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json', ...cors },
   });
 }
 
@@ -63,7 +78,7 @@ function validPayload(obj) {
     && obj.k.every(c => c && typeof c === 'object');
 }
 
-async function readPayload(request) {
+async function readPayload(request, json) {
   const raw = await request.text();
   if (raw.length > MAX_BODY_BYTES) return { error: json({ error: 'Session too large' }, 413) };
   let body;
@@ -71,13 +86,14 @@ async function readPayload(request) {
   return { body };
 }
 
-async function handleApi(request, env, path) {
-  if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+async function handleApi(request, env, path, cors) {
+  const json = responder(cors);
+  if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
   if (!env.CUPPINGS) return json({ error: 'Live codes are not configured' }, 503);
 
   // --- create a session -------------------------------------------------
   if (request.method === 'POST' && path === '/sessions') {
-    const { body, error } = await readPayload(request);
+    const { body, error } = await readPayload(request, json);
     if (error) return error;
     if (!validPayload(body)) return json({ error: 'Invalid session payload' }, 400);
 
@@ -111,7 +127,7 @@ async function handleApi(request, env, path) {
     const stored = await env.CUPPINGS.get(`s:${code}`);
     if (!stored) return json({ error: 'Not found or expired' }, 404);
 
-    const { body, error } = await readPayload(request);
+    const { body, error } = await readPayload(request, json);
     if (error) return error;
     const record = JSON.parse(stored);
     if (!body || body.token !== record.token) return json({ error: 'Not allowed' }, 403);
@@ -126,7 +142,7 @@ async function handleApi(request, env, path) {
     const code = participantsMatch[1];
     if (!(await env.CUPPINGS.get(`s:${code}`))) return json({ error: 'Not found or expired' }, 404);
 
-    const { body, error } = await readPayload(request);
+    const { body, error } = await readPayload(request, json);
     if (error) return error;
     const name = String((body && body.name) || '').trim().slice(0, 24) || 'Cupper';
 
@@ -149,7 +165,7 @@ async function handleApi(request, env, path) {
     const existing = await env.CUPPINGS.getWithMetadata(key);
     if (existing.value === null && !existing.metadata) return json({ error: 'Not at this table' }, 404);
 
-    const { body, error } = await readPayload(request);
+    const { body, error } = await readPayload(request, json);
     if (error) return error;
 
     const scores = Array.isArray(body && body.scores)
@@ -177,7 +193,7 @@ async function handleApi(request, env, path) {
     const stored = await env.CUPPINGS.get(`s:${code}`);
     if (!stored) return json({ error: 'Not found or expired' }, 404);
 
-    const { body, error } = await readPayload(request);
+    const { body, error } = await readPayload(request, json);
     if (error) return error;
     const record = JSON.parse(stored);
     if (!body || body.token !== record.token) return json({ error: 'Not allowed' }, 403);
@@ -188,10 +204,23 @@ async function handleApi(request, env, path) {
   }
 
   // --- who is at the table ----------------------------------------------
+  // Codes are four digits, so knowing one proves very little. Cuppers'
+  // names and scores therefore need the leader's token or a participant
+  // id — brute-forcing a code alone reveals no people.
   if (request.method === 'GET' && participantsMatch) {
     const code = participantsMatch[1];
     const stored = await env.CUPPINGS.get(`s:${code}`);
-    const revealed = Boolean(stored && JSON.parse(stored).revealed);
+    if (!stored) return json({ error: 'Not found or expired' }, 404);
+    const record = JSON.parse(stored);
+    const revealed = Boolean(record.revealed);
+
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
+    const id = url.searchParams.get('id');
+    const isLeader = token && token === record.token;
+    const isMember = id && /^[0-9a-f]{32}$/.test(id)
+      && (await env.CUPPINGS.getWithMetadata(`p:${code}:${id}`)).metadata;
+    if (!isLeader && !isMember) return json({ error: 'Not at this table' }, 403);
 
     const listed = await env.CUPPINGS.list({ prefix: `p:${code}:`, limit: MAX_PARTICIPANTS });
     const participants = listed.keys
@@ -214,7 +243,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const api = url.pathname.match(/^\/cupping\/api(\/.*)?$/);
-    if (api) return handleApi(request, env, api[1] || '/');
+    if (api) return handleApi(request, env, api[1] || '/', corsFor(request));
     return env.ASSETS.fetch(request);
   },
 };
