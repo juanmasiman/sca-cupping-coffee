@@ -2,8 +2,8 @@
 
 ## Open to-dos
 
-- [ ] **Paste the branded sign-in email into Supabase.** The template is in this repo at `server/email-magic-link.html`. Go to Supabase → Authentication → Emails → **Magic Link**, delete the default body, paste the file's contents, save. This is not cosmetic: the default template contains only `{{ .ConfirmationURL }}`, so the **6-digit code never appears in the email** until this is done, and the app now asks for that code.
-- [ ] **Custom SMTP** so sign-in mail stops landing in junk (see "Sending sign-in email from lento.cafe" below).
+- [ ] **Custom SMTP** — do this one first. Supabase gates email-template editing behind it, and it is what stops sign-in mail landing in junk. See "Sending sign-in email from lento.cafe" below.
+- [ ] **Paste the branded sign-in email into Supabase** (only possible once SMTP is configured). The template is in this repo at `server/email-magic-link.html`. Go to Supabase → Authentication → Emails → **Magic Link**, replace the body, save. Not cosmetic: the default template contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done — until then, recipients must use the link.
 - [ ] **Google sign-in** — needs a Google Cloud OAuth client wired into Supabase; the button fails until then.
 - [ ] **Full UX/UI review pass.**
 
