@@ -24,6 +24,7 @@ const RELAY_URL = APP_URL + 'api';
 // (window overrides let deploys inject config without editing this file)
 const SUPABASE_URL = window.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+const OTP_LENGTH = Math.min(10, Math.max(6, window.OTP_LENGTH || 6));
 const AUTH_KEY = 'sca-cupping-auth-v1';
 
 // Captured before anything can rewrite the address bar, so sign-in tokens
@@ -610,10 +611,13 @@ function openEmailCodeSheet(email) {
     boxes: $('#otp-boxes'),
     keypad: $('#otp-keypad'),
     errorEl: $('#otp-error'),
-    length: 6,
+    length: OTP_LENGTH,
+    maxLength: 10, // Supabase allows 6–10; keep typing if yours is longer
     onComplete: async code => {
       const ok = await verifyEmailCode(email, code);
-      if (!ok) return 'That code didn’t work — check it or send a new one.';
+      if (!ok) return code.length < 10
+        ? 'Not yet — keep typing if your code is longer.'
+        : 'That code didn’t work — send a new one.';
       close();
       return null;
     },
@@ -1037,11 +1041,21 @@ function openModal({ title, hint, cta, onSubmit }) {
 
 // Wires a set of code boxes and a 0–9 pad. onComplete(code) may return a
 // string to show as an error, which shakes the boxes and clears them.
-function mountKeypad({ boxes, keypad, errorEl, length, onComplete }) {
+// Codes auto-submit at `length`; when `maxLength` is larger, a failed
+// attempt keeps the digits so a longer code can simply be typed out —
+// providers do not agree on how long a one-time code should be.
+function mountKeypad({ boxes, keypad, errorEl, length, maxLength = length, onComplete }) {
   let digits = '';
   let busy = false;
+  let shown = length;
 
   const render = () => {
+    const want = Math.max(length, Math.min(maxLength, digits.length + (digits.length >= length ? 1 : 0)));
+    if (want !== shown) {
+      shown = want;
+      boxes.innerHTML = '';
+      for (let i = 0; i < shown; i++) boxes.appendChild(el('div', 'pin-box'));
+    }
     [...boxes.children].forEach((box, i) => {
       box.textContent = digits[i] || '';
       box.classList.toggle('filled', i < digits.length);
@@ -1054,7 +1068,8 @@ function mountKeypad({ boxes, keypad, errorEl, length, onComplete }) {
     boxes.classList.remove('shake');
     void boxes.offsetWidth;
     boxes.classList.add('shake');
-    digits = '';
+    // a longer code is still possible, so keep what was typed
+    if (digits.length >= maxLength) digits = '';
     render();
   };
 
@@ -1075,14 +1090,16 @@ function mountKeypad({ boxes, keypad, errorEl, length, onComplete }) {
       render();
       return;
     }
-    if (digits.length >= length) return;
+    if (digits.length >= maxLength) return;
     digits += key;
     const box = boxes.children[digits.length - 1];
-    box.classList.remove('pop');
-    void box.offsetWidth;
-    box.classList.add('pop');
+    if (box) {
+      box.classList.remove('pop');
+      void box.offsetWidth;
+      box.classList.add('pop');
+    }
     render();
-    if (digits.length === length) setTimeout(submit, 180);
+    if (digits.length >= length) setTimeout(submit, 180);
   };
 
   const onKey = e => {
@@ -1091,7 +1108,7 @@ function mountKeypad({ boxes, keypad, errorEl, length, onComplete }) {
   };
 
   boxes.innerHTML = '';
-  for (let i = 0; i < length; i++) boxes.appendChild(el('div', 'pin-box'));
+  for (let i = 0; i < shown; i++) boxes.appendChild(el('div', 'pin-box'));
 
   keypad.innerHTML = '';
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].forEach(k => {
@@ -1119,9 +1136,12 @@ function openJoinSheet() {
     keypad: $('#keypad'),
     errorEl: $('#pin-error'),
     length: 4,
+    maxLength: 6, // the relay falls back to 6 digits if 4-digit codes collide
     onComplete: async code => {
       const payload = await relayFetchSession(code);
-      if (!payload) return 'No cupping found for that code.';
+      if (!payload) return code.length < 6
+        ? 'No cupping yet — keep typing if your code is longer.'
+        : 'No cupping found for that code.';
       close();
       askNameThenJoin(payload, code);
       return null;
