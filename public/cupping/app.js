@@ -26,6 +26,39 @@ const SUPABASE_URL = window.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
 const AUTH_KEY = 'sca-cupping-auth-v1';
 
+/* ---- CVA: SCA Standard 104-2024, Affective Assessment ----
+   Eight sections rated 1–9 (impression of quality), then
+   score = 0.65625 × Σ(sections) + 52.75 − 2·(non-uniform cups)
+           − 4·(defective cups), rounded to the nearest 0.25.
+   Range runs 58.00 (all ones) to 100.00 (all nines).           */
+
+const CVA_SECTIONS = [
+  { key: 'fragrance', label: 'Fragrance', sub: 'dry aroma of the grounds' },
+  { key: 'aroma', label: 'Aroma', sub: 'wet aroma after breaking the crust' },
+  { key: 'flavor', label: 'Flavor', sub: 'principal character in the mouth' },
+  { key: 'aftertaste', label: 'Aftertaste', sub: 'what lingers after swallowing' },
+  { key: 'acidity', label: 'Acidity', sub: 'brightness and liveliness' },
+  { key: 'sweetness', label: 'Sweetness', sub: 'perceived sweetness' },
+  { key: 'mouthfeel', label: 'Mouthfeel', sub: 'tactile weight and texture' },
+  { key: 'overall', label: 'Overall', sub: 'holistic impression of quality' },
+];
+
+const CVA_LABELS = [
+  'extremely low', 'very low', 'moderately low', 'slightly low',
+  'neither high nor low',
+  'slightly high', 'moderately high', 'very high', 'extremely high',
+];
+
+const CVA_DEFECTS = [
+  { key: 'nonUniform', label: 'Non-uniform cups', sub: 'cups that differ from the rest · −2 each' },
+  { key: 'defective', label: 'Defective cups', sub: 'cups with a fault · −4 each' },
+];
+
+const FORMS = [
+  { id: 'cva', name: 'CVA', sub: 'SCA 2024 standard' },
+  { id: 'legacy', name: 'Legacy', sub: '2004 cupping form' },
+];
+
 // Scale attributes: scored 6.00–10.00 in 0.25 steps
 const SCALE_ATTRS = [
   { key: 'fragrance', label: 'Fragrance / Aroma', sub: 'dry grounds & wet crust' },
@@ -72,20 +105,26 @@ function emptyMeta() {
 function newCoffee(nCups) {
   const scores = {};
   SCALE_ATTRS.forEach(a => { scores[a.key] = 7.5; });
+  const cva = {};
+  CVA_SECTIONS.forEach(a => { cva[a.key] = 5; }); // 5 = neither high nor low
   return {
     name: '',
     meta: emptyMeta(),
     scores,
+    cva,
     cups: Object.fromEntries(CUP_ATTRS.map(a => [a.key, Array(nCups).fill(true)])),
     taintCups: 0,
     faultCups: 0,
+    nonUniform: 0,
+    defective: 0,
     notes: '',
   };
 }
 
-function newSession(nCoffees, nCups) {
+function newSession(nCoffees, nCups, form) {
   state = {
     id: 'S' + Date.now(),
+    form: form || 'cva',
     cupsPerCoffee: nCups,
     activeIndex: 0,
     coffees: [],
@@ -94,6 +133,10 @@ function newSession(nCoffees, nCups) {
   };
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
   save();
+}
+
+function usingCVA() {
+  return !state || state.form !== 'legacy';
 }
 
 function save() {
@@ -110,7 +153,13 @@ function load() {
     if (!s.id) s.id = 'S' + Date.now();
     if (!Array.isArray(s.team)) s.team = [];
     if (typeof s.shareDetails !== 'boolean') s.shareDetails = false;
-    s.coffees.forEach(c => { c.meta = Object.assign(emptyMeta(), c.meta || {}); });
+    if (!s.form) s.form = 'legacy'; // sessions saved before CVA support
+    s.coffees.forEach(c => {
+      c.meta = Object.assign(emptyMeta(), c.meta || {});
+      if (!c.cva) { c.cva = {}; CVA_SECTIONS.forEach(a => { c.cva[a.key] = 5; }); }
+      if (typeof c.nonUniform !== 'number') c.nonUniform = 0;
+      if (typeof c.defective !== 'number') c.defective = 0;
+    });
     return s;
   } catch (e) { return null; }
 }
@@ -143,6 +192,7 @@ function archiveSession() {
     id: state.id,
     date: Date.now(),
     updated: Date.now(),
+    form: state.form,
     cupsPerCoffee: state.cupsPerCoffee,
     coffees: state.coffees.map((c, i) => ({
       name: coffeeName(c, i),
@@ -424,6 +474,18 @@ function openAccountSheet() {
 /* ---------- scoring ---------- */
 
 function coffeeScore(c) {
+  return usingCVA() ? cvaScore(c) : legacyScore(c);
+}
+
+// SCA Standard 104-2024
+function cvaScore(c) {
+  let sum = 0;
+  CVA_SECTIONS.forEach(a => { sum += c.cva[a.key]; });
+  const raw = 0.65625 * sum + 52.75 - defectPenalty(c);
+  return Math.max(0, Math.round(raw / 0.25) * 0.25);
+}
+
+function legacyScore(c) {
   let total = 0;
   SCALE_ATTRS.forEach(a => { total += c.scores[a.key]; });
   CUP_ATTRS.forEach(a => {
@@ -435,7 +497,9 @@ function coffeeScore(c) {
 }
 
 function defectPenalty(c) {
-  return c.taintCups * 2 + c.faultCups * 4;
+  return usingCVA()
+    ? c.nonUniform * 2 + c.defective * 4
+    : c.taintCups * 2 + c.faultCups * 4;
 }
 
 function gradeFor(score) {
@@ -558,6 +622,7 @@ async function decodeCode(kind, text) {
 function buildSessionPayload() {
   return {
     v: 1,
+    f: state.form,
     c: state.cupsPerCoffee,
     k: state.coffees.map((c, i) => {
       const entry = { n: coffeeName(c, i) };
@@ -578,7 +643,8 @@ function applySessionPayload(obj) {
   if (!obj || !Array.isArray(obj.k) || !obj.k.length) return false;
   const nCups = Math.min(LIMITS.cups[1], Math.max(LIMITS.cups[0], obj.c || 5));
   const coffees = obj.k.slice(0, LIMITS.coffees[1]);
-  newSession(coffees.length, nCups);
+  // cuppers join on the leader's scoresheet
+  newSession(coffees.length, nCups, obj.f === 'legacy' ? 'legacy' : 'cva');
   coffees.forEach((k, i) => {
     state.coffees[i].name = String(k.n || '').slice(0, 40);
     state.coffees[i].meta = Object.assign(emptyMeta(),
@@ -964,7 +1030,28 @@ async function shareText(text, copiedMsg) {
    SETUP SCREEN
    ============================================================ */
 
-const setup = { coffees: 3, cups: 5 };
+const setup = { coffees: 3, cups: 5, form: 'cva' };
+
+function initFormPicker() {
+  const seg = $('#form-seg');
+  const hint = $('#form-hint');
+  const hints = {
+    cva: 'SCA Coffee Value Assessment · 8 sections rated 1–9',
+    legacy: 'Retired 2004 form · 7 attributes from 6.00 to 10.00',
+  };
+  FORMS.forEach(f => {
+    const btn = el('button', 'seg-btn' + (f.id === setup.form ? ' active' : ''), f.name);
+    btn.addEventListener('click', () => {
+      setup.form = f.id;
+      haptic();
+      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      hint.textContent = hints[f.id];
+    });
+    seg.appendChild(btn);
+  });
+  hint.textContent = hints[setup.form];
+}
 
 function initStepper(rootId, valueId, key, limitKey) {
   const root = $(rootId);
@@ -1109,14 +1196,14 @@ function buildPanel(coffee, index) {
   // origin details
   panel.appendChild(buildDetailsCard(coffee));
 
-  // scale attributes
-  SCALE_ATTRS.forEach(attr => panel.appendChild(buildScaleCard(coffee, attr)));
-
-  // per-cup attributes
-  CUP_ATTRS.forEach(attr => panel.appendChild(buildCupCard(coffee, attr)));
-
-  // defects
-  panel.appendChild(buildDefectsCard(coffee));
+  if (usingCVA()) {
+    CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
+    panel.appendChild(buildCvaDefectsCard(coffee));
+  } else {
+    SCALE_ATTRS.forEach(attr => panel.appendChild(buildScaleCard(coffee, attr)));
+    CUP_ATTRS.forEach(attr => panel.appendChild(buildCupCard(coffee, attr)));
+    panel.appendChild(buildDefectsCard(coffee));
+  }
 
   // notes
   const notes = document.createElement('textarea');
@@ -1175,6 +1262,114 @@ function buildDetailsCard(coffee) {
   });
 
   refreshSummary();
+  return card;
+}
+
+/* ---------- CVA section card: 1–9 impression of quality ---------- */
+
+function buildCvaCard(coffee, section) {
+  const card = el('div', 'attr-card');
+  card.innerHTML = `
+    <div class="attr-head">
+      <div>
+        <div class="attr-title">${section.label}</div>
+        <div class="attr-sub">${section.sub}</div>
+      </div>
+      <div class="attr-value">${coffee.cva[section.key]}</div>
+    </div>
+    <div class="cva-scale"></div>
+    <div class="cva-desc"></div>
+  `;
+
+  const valueEl = card.querySelector('.attr-value');
+  const scale = card.querySelector('.cva-scale');
+  const desc = card.querySelector('.cva-desc');
+
+  const refresh = popIt => {
+    const v = coffee.cva[section.key];
+    valueEl.textContent = v;
+    desc.textContent = CVA_LABELS[v - 1];
+    [...scale.children].forEach((btn, i) => btn.classList.toggle('selected', i + 1 === v));
+    if (popIt) {
+      valueEl.classList.remove('pop');
+      void valueEl.offsetWidth;
+      valueEl.classList.add('pop');
+    }
+  };
+
+  for (let v = 1; v <= 9; v++) {
+    const btn = el('button', 'cva-btn' + (v === 5 ? ' neutral' : ''), String(v));
+    btn.type = 'button';
+    btn.setAttribute('aria-label', `${section.label}: ${v}, ${CVA_LABELS[v - 1]}`);
+    btn.addEventListener('click', () => {
+      coffee.cva[section.key] = v;
+      haptic();
+      refresh(true);
+      refreshTabs();
+      updateScorebar();
+      save();
+    });
+    scale.appendChild(btn);
+  }
+
+  refresh(false);
+  return card;
+}
+
+/* ---------- CVA cup deductions ---------- */
+
+function buildCvaDefectsCard(coffee) {
+  const card = el('div', 'attr-card');
+  card.innerHTML = `
+    <div class="attr-head">
+      <div>
+        <div class="attr-title">Cup deductions</div>
+        <div class="attr-sub">subtracted from the affective score</div>
+      </div>
+    </div>
+    <div class="defect-rows">
+      ${CVA_DEFECTS.map(d => `
+        <div class="defect-row" data-kind="${d.key}">
+          <div class="defect-info">
+            <span class="defect-name">${d.label}</span>
+            <span class="defect-pts">${d.sub}</span>
+          </div>
+          <div class="stepper">
+            <button class="stepper-btn" data-action="dec">−</button>
+            <span class="stepper-value">0</span>
+            <button class="stepper-btn" data-action="inc">+</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="defect-penalty"></div>
+  `;
+
+  const penaltyEl = card.querySelector('.defect-penalty');
+
+  const refresh = () => {
+    card.querySelectorAll('.defect-row').forEach(rowEl => {
+      const kind = rowEl.dataset.kind;
+      rowEl.querySelector('.stepper-value').textContent = coffee[kind];
+      rowEl.querySelector('[data-action="dec"]').disabled = coffee[kind] <= 0;
+      rowEl.querySelector('[data-action="inc"]').disabled = coffee[kind] >= state.cupsPerCoffee;
+    });
+    const p = defectPenalty(coffee);
+    penaltyEl.textContent = p > 0 ? `−${fmt(p)} points` : '';
+  };
+
+  card.addEventListener('click', e => {
+    const btn = e.target.closest('.stepper-btn');
+    if (!btn || btn.disabled) return;
+    const kind = btn.closest('.defect-row').dataset.kind;
+    coffee[kind] = Math.min(state.cupsPerCoffee, Math.max(0, coffee[kind] + (btn.dataset.action === 'inc' ? 1 : -1)));
+    haptic();
+    refresh();
+    refreshTabs();
+    updateScorebar();
+    save();
+  });
+
+  refresh();
   return card;
 }
 
@@ -1548,7 +1743,17 @@ function renderTeamTable() {
 
 /* ---------- radar chart (SVG) ---------- */
 
+function radarAttrs() {
+  return usingCVA() ? CVA_SECTIONS : RADAR_ATTRS;
+}
+
+// radar floors: enough headroom that differences read, without clipping
+function radarRange() {
+  return usingCVA() ? { min: 3, max: 9 } : { min: 5, max: 10 };
+}
+
 function attrValue(coffee, attr) {
+  if (usingCVA()) return coffee.cva[attr.key];
   if (attr.key in coffee.scores) return coffee.scores[attr.key];
   const cups = coffee.cups[attr.key];
   return 10 * cups.filter(Boolean).length / cups.length;
@@ -1556,8 +1761,9 @@ function attrValue(coffee, attr) {
 
 function buildRadar(ranked) {
   const SIZE = 320, CX = SIZE / 2, CY = SIZE / 2, R = 108;
-  const N = RADAR_ATTRS.length;
-  const MIN = 5, MAX = 10; // radar floor at 5 so differences are visible
+  const ATTRS = radarAttrs();
+  const N = ATTRS.length;
+  const { min: MIN, max: MAX } = radarRange();
 
   const angle = i => (Math.PI * 2 * i) / N - Math.PI / 2;
   const point = (i, r) => [CX + Math.cos(angle(i)) * r, CY + Math.sin(angle(i)) * r];
@@ -1567,12 +1773,12 @@ function buildRadar(ranked) {
   // grid rings
   for (let ring = 1; ring <= 5; ring++) {
     const r = (R * ring) / 5;
-    const pts = RADAR_ATTRS.map((_, i) => point(i, r).map(v => v.toFixed(1)).join(',')).join(' ');
+    const pts = ATTRS.map((_, i) => point(i, r).map(v => v.toFixed(1)).join(',')).join(' ');
     svg += `<polygon class="radar-grid" points="${pts}" stroke-width="${ring === 5 ? 1.2 : 0.6}"/>`;
   }
 
   // spokes + labels
-  RADAR_ATTRS.forEach((attr, i) => {
+  ATTRS.forEach((attr, i) => {
     const [x, y] = point(i, R);
     svg += `<line x1="${CX}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="radar-grid" stroke-width="0.6"/>`;
     const [lx, ly] = point(i, R + 18);
@@ -1583,7 +1789,7 @@ function buildRadar(ranked) {
   // one polygon per coffee (ranked order so winner draws last, on top)
   [...ranked].reverse().forEach(r => {
     const color = RADAR_COLORS[r.index % RADAR_COLORS.length];
-    const pts = RADAR_ATTRS.map((attr, i) => {
+    const pts = ATTRS.map((attr, i) => {
       const v = Math.max(MIN, attrValue(r.coffee, attr));
       const rr = (R * (v - MIN)) / (MAX - MIN);
       return point(i, rr).map(n => n.toFixed(1)).join(',');
@@ -1624,7 +1830,7 @@ function buildShareText() {
     .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
     .sort((a, b) => b.score - a.score);
 
-  const lines = ['☕️ SCA Cupping Results', ''];
+  const lines = [`☕️ SCA Cupping Results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
   ranked.forEach((r, pos) => {
     lines.push(`${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})`);
     const meta = metaSummary(r.coffee.meta);
@@ -1675,7 +1881,7 @@ function altitudeBucket(raw) {
 }
 
 function flatCoffees(archive) {
-  return archive.flatMap(s => s.coffees.map(c => ({ ...c, date: s.date })));
+  return archive.flatMap(s => s.coffees.map(c => ({ ...c, date: s.date, form: s.form || 'legacy' })));
 }
 
 function aggregateBy(coffees, dimKey) {
@@ -1745,7 +1951,7 @@ function buildHistory() {
       const date = new Date(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       item.innerHTML = `
         <div class="hist-item-info">
-          <div class="hist-item-name">${escapeHTML(c.name)}</div>
+          <div class="hist-item-name">${escapeHTML(c.name)}<span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span></div>
           ${meta ? `<div class="hist-item-meta">${escapeHTML(meta)}</div>` : ''}
         </div>
         <div class="hist-item-right">
@@ -1800,6 +2006,7 @@ function startCupping() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initFormPicker();
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
   renderCupsPreview();
@@ -1815,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   $('#btn-start').addEventListener('click', () => {
-    newSession(setup.coffees, setup.cups);
+    newSession(setup.coffees, setup.cups, setup.form);
     startCupping();
   });
 

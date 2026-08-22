@@ -1,15 +1,22 @@
 # ☕️ SCA Cupping
 
-A mobile-first web app for running coffee cuppings with the **SCA (Specialty Coffee Association) cupping protocol**. Built for iPhone — vanilla HTML/CSS/JS, no build step, no dependencies.
+A mobile-first web app for running coffee cuppings with the **SCA (Specialty Coffee Association)** protocols. Built for iPhone — vanilla HTML/CSS/JS, no build step, no dependencies.
+
+Both scoresheets are supported, chosen when a session starts:
+
+- **CVA** (default) — the Affective Assessment of the Coffee Value Assessment, SCA Standard 104-2024, which replaced the 2004 form in November 2024.
+- **Legacy** — the retired 2004 cupping form, still in wide use.
 
 ## Flow
 
-1. **Setup** — choose how many coffees are on the table and how many cups per coffee (SCA standard is 5).
-2. **Cupping** — swipe between coffees, score each one on the full SCA scoresheet:
-   - **Scale attributes** (6.00–10.00, 0.25 steps): Fragrance/Aroma, Flavor, Aftertaste, Acidity, Body, Balance, Overall
-   - **Per-cup attributes**: Uniformity, Clean Cup, Sweetness — tap a cup to fail it; each cup is worth its share of 10 points
-   - **Defects**: Taints (−2/cup) and Faults (−4/cup)
-   - Free-text tasting notes per coffee
+1. **Setup** — pick the scoresheet, how many coffees are on the table, and how many cups per coffee (SCA standard is 5).
+2. **Cupping** — swipe between coffees and score each one.
+
+   **CVA (SCA 104-2024)** — eight sections rated 1–9 for impression of quality (Fragrance, Aroma, Flavor, Aftertaste, Acidity, Sweetness, Mouthfeel, Overall), plus counts of non-uniform (−2 each) and defective (−4 each) cups. The score is `0.65625 × Σ(sections) + 52.75` minus deductions, rounded to the nearest 0.25 — a 58.00 to 100.00 range.
+
+   **Legacy (2004 form)** — seven attributes from 6.00 to 10.00 in 0.25 steps; Uniformity, Clean Cup and Sweetness scored per cup; taints (−2/cup) and faults (−4/cup).
+
+   Both carry free-text tasting notes and origin details per coffee.
 3. **Results** — winner podium, full ranking with score bars, and an overlaid sensory radar chart (tap a legend name to isolate a coffee). Share/copy the results.
 
 ## Social cupping (no backend needed)
