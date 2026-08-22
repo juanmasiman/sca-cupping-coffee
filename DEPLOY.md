@@ -2,8 +2,9 @@
 
 ## Open to-dos
 
-- [ ] **Custom SMTP** — do this one first. Supabase gates email-template editing behind it, and it is what stops sign-in mail landing in junk. See "Sending sign-in email from lento.cafe" below.
-- [ ] **Paste the branded sign-in email into Supabase** (only possible once SMTP is configured). The template is in this repo at `server/email-magic-link.html`. Go to Supabase → Authentication → Emails → **Magic Link**, replace the body, save. Not cosmetic: the default template contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done — until then, recipients must use the link.
+- [x] **Custom SMTP** — sending through Google Workspace (`smtp.gmail.com`, port 465) with an app password, from `jm@lento.cafe` as "LENTO! Cupping". Delivers to the inbox because lento.cafe is already SPF/DKIM-authenticated for Google.
+- [ ] **Paste the branded sign-in email into Supabase.** Authentication → Emails → **Magic Link**. Replace **both** fields: the subject (default is "Your sign in link") with something like `Your lento sign-in code`, and the body with `server/email-magic-link.html` from this repo. Not cosmetic — the default body contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done.
+- [ ] **Create a `cupping@lento.cafe` alias** in Google Workspace (Admin console → Users → your user → Add alias, or a Group of that name), then switch the Supabase sender to it so sign-in mail isn't tied to a personal mailbox.
 - [ ] **Google sign-in** — needs a Google Cloud OAuth client wired into Supabase; the button fails until then.
 - [ ] **Full UX/UI review pass.**
 
