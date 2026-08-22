@@ -5,7 +5,8 @@
 - [x] **Custom SMTP** — sending through Google Workspace (`smtp.gmail.com`, port 465) with an app password, from `jm@lento.cafe` as "LENTO! Cupping". Delivers to the inbox because lento.cafe is already SPF/DKIM-authenticated for Google.
 - [ ] **Paste the branded sign-in email into Supabase.** Authentication → Emails → **Magic Link**. Replace **both** fields: the subject (default is "Your sign in link") with something like `Your lento sign-in code`, and the body with `server/email-magic-link.html` from this repo. Not cosmetic — the default body contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done.
 - [ ] **Create a `cupping@lento.cafe` alias** in Google Workspace (Admin console → Users → your user → Add alias, or a Group of that name), then switch the Supabase sender to it so sign-in mail isn't tied to a personal mailbox.
-- [ ] **Google sign-in** — needs a Google Cloud OAuth client wired into Supabase; the button fails until then.
+- [x] **Google sign-in** — OAuth client wired into Supabase and working.
+- [ ] **Google consent screen shows the Supabase project URL** ("sign in to albzajlwlotjnexymazb.supabase.co") because Supabase owns the OAuth callback. Setting the app name, logo and `lento.cafe` as an authorized domain in the Google consent screen improves it for free. Removing the raw URL entirely needs Supabase's Custom Domains add-on, so auth runs at `auth.lento.cafe` — a paid add-on on top of the Pro plan.
 - [ ] **Full UX/UI review pass.**
 
 
