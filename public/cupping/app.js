@@ -244,6 +244,12 @@ function guidedOn() {
 
 function setGuided(on) {
   try { localStorage.setItem(GUIDED_KEY, on ? 'on' : 'off'); } catch (e) {}
+  applyGuided();
+}
+
+// Off means a denser sheet, not just missing help buttons.
+function applyGuided() {
+  document.body.classList.toggle('plain', !guidedOn());
 }
 
 // Small "?" button; returns null when guided mode is off so callers can
@@ -2063,16 +2069,20 @@ function buildDescriptiveCard(coffee) {
 
 function buildCvaCard(coffee, section) {
   const card = el('div', 'attr-card');
+  // the chosen wording sits beside the number rather than on its own line
+  // below the buttons — eight sections of that added up to a screenful
   card.innerHTML = `
     <div class="attr-head">
-      <div>
+      <div class="attr-head-left">
         <div class="attr-title">${section.label}</div>
         <div class="attr-sub">${section.sub}</div>
       </div>
-      <div class="attr-value">${coffee.cva[section.key]}</div>
+      <div class="attr-head-right">
+        <div class="attr-value">${coffee.cva[section.key]}</div>
+        <div class="cva-desc"></div>
+      </div>
     </div>
     <div class="cva-scale"></div>
-    <div class="cva-desc"></div>
   `;
 
   const valueEl = card.querySelector('.attr-value');
@@ -3092,6 +3102,19 @@ function watchConnection() {
   sync();
 }
 
+// Offered whenever a session exists, not only at page load — leaving the
+// cupping screen used to hide the only route back to it.
+function refreshResumeButton() {
+  const btn = $('#btn-resume');
+  const n = state && state.coffees ? state.coffees.length : 0;
+  btn.classList.toggle('hidden', !n);
+  if (!n) return;
+  const p = sessionProgress();
+  btn.textContent = p.complete
+    ? `Resume · ${n} coffee${n > 1 ? 's' : ''} scored`
+    : `Resume · ${n} coffee${n > 1 ? 's' : ''}`;
+}
+
 function startCupping() {
   buildCuppingUI();
   showScreen('#screen-cupping');
@@ -3101,6 +3124,7 @@ function startCupping() {
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   watchConnection();
+  applyGuided();
   initFormPicker();
 
   const guided = $('#toggle-guided');
@@ -3118,20 +3142,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // resume?
   const saved = load();
-  if (saved) {
-    state = saved;
-    const btn = $('#btn-resume');
-    btn.classList.remove('hidden');
-    btn.textContent = `Resume session · ${saved.coffees.length} coffee${saved.coffees.length > 1 ? 's' : ''}`;
-    btn.addEventListener('click', () => startCupping());
-  }
+  if (saved) state = saved;
+  $('#btn-resume').addEventListener('click', () => { if (state) startCupping(); });
+  refreshResumeButton();
 
   $('#btn-start').addEventListener('click', () => {
+    // starting over replaces the session in progress, so say so first
+    if (state && state.coffees.length) {
+      const p = sessionProgress();
+      const scored = state.coffees.length - p.untouched;
+      if (scored > 0 && !confirm(`You have a cupping in progress with ${scored} coffee${scored > 1 ? 's' : ''} scored. Starting a new one replaces it. Continue?`)) return;
+    }
     newSession(setup.coffees, setup.cups, setup.form);
+    refreshResumeButton();
     startCupping();
   });
 
-  $('#btn-back-setup').addEventListener('click', () => showScreen('#screen-setup'));
+  $('#btn-back-setup').addEventListener('click', () => {
+    refreshResumeButton();
+    showScreen('#screen-setup');
+  });
 
   $('#btn-join').addEventListener('click', openJoinSheet);
 
@@ -3186,7 +3216,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-new-session').addEventListener('click', () => {
     if (!confirm('Start a new session? This cupping is already saved to History.')) return;
     clearSession();
-    $('#btn-resume').classList.add('hidden');
+    refreshResumeButton();
     showScreen('#screen-setup');
   });
 
