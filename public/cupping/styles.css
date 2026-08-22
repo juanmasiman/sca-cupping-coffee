@@ -396,43 +396,81 @@ input, textarea, select { font: inherit; }
 }
 .icon-btn:active { background: var(--accent-soft); transform: scale(0.88); }
 
-.coffee-tabs {
+.cupping-title {
   flex: 1;
+  min-width: 0;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  padding: 2px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 4px;
 }
-.coffee-tabs::-webkit-scrollbar { display: none; }
+.cupping-title-name {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cupping-title-sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
-.coffee-tab {
-  flex: none;
-  padding: 9px 15px;
-  border-radius: 999px;
+/* one segment per coffee: position, progress and jump target in one row */
+.coffee-rail {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 9px;
+  background: var(--glass-h);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--line);
+  z-index: 4;
+}
+
+.rail-seg {
+  position: relative;
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
   background: var(--bg-card);
   border: 1px solid var(--line);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-dim);
-  transition: all 0.25s var(--ease);
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  overflow: hidden;
+  transition: transform 0.18s var(--spring), border-color 0.2s;
 }
-.coffee-tab .tab-score {
-  font-size: 12px;
+.rail-seg:active { transform: scale(0.94); }
+
+.rail-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0;
+  background: var(--accent-soft);
+  transition: width 0.35s var(--ease);
+}
+.rail-seg.done .rail-fill { background: var(--accent); opacity: 0.32; }
+
+.rail-num {
+  position: relative;
+  font-size: 11.5px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
-.coffee-tab.active {
-  background: var(--accent);
+.rail-seg.done .rail-num { color: var(--accent-deep); }
+
+.rail-seg.active {
   border-color: var(--accent);
-  color: var(--on-accent);
-  transform: scale(1.04);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
-.coffee-tab.active .tab-score { color: var(--on-accent); opacity: 0.65; }
+.rail-seg.active .rail-num { color: var(--accent); }
+
+/* ten segments still need to be tappable, so trade padding for count */
+.coffee-rail.dense { gap: 3px; }
+.coffee-rail.dense .rail-seg { height: 30px; border-radius: 7px; }
+.coffee-rail.dense .rail-num { font-size: 10.5px; }
 
 .finish-btn {
   flex: none;
@@ -809,7 +847,6 @@ input, textarea, select { font: inherit; }
 .attr-card.unrated .slider-fill { opacity: 0.35; }
 .attr-card.unrated .slider-thumb { filter: grayscale(0.7); opacity: 0.6; }
 
-.coffee-tab.incomplete .tab-score { font-weight: 700; opacity: 0.85; }
 
 .scorebar.provisional .scorebar-score { opacity: 0.5; }
 .scorebar.provisional .scorebar-grade { color: var(--text-dim); }

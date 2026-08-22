@@ -1495,34 +1495,50 @@ function buildCuppingUI() {
   updateScorebar();
 }
 
+// One segment per coffee — a whole table fits the width at ten samples,
+// where a scrolling tab strip showed barely one and a half.
 function buildTabs() {
-  const tabs = $('#coffee-tabs');
-  tabs.innerHTML = '';
+  const rail = $('#coffee-rail');
+  rail.innerHTML = '';
   state.coffees.forEach((c, i) => {
-    const tab = el('button', 'coffee-tab');
-    tab.innerHTML = `<span class="tab-name">${escapeHTML(coffeeName(c, i))}</span><span class="tab-score">${fmt(coffeeScore(c))}</span>`;
-    tab.addEventListener('click', () => {
+    const seg = el('button', 'rail-seg');
+    seg.type = 'button';
+    seg.innerHTML = '<span class="rail-fill"></span><span class="rail-num"></span>';
+    seg.addEventListener('click', () => {
+      if (i === state.activeIndex) return;
       state.activeIndex = i;
+      haptic();
       scrollToPanel(i, true);
       syncActivePanel(true);
       save();
     });
-    tabs.appendChild(tab);
+    rail.appendChild(seg);
   });
+  rail.classList.toggle('dense', state.coffees.length > 6);
 }
 
 function refreshTabs() {
-  const tabs = $('#coffee-tabs').children;
+  const rail = $('#coffee-rail');
+  const active = state.coffees[state.activeIndex];
+  if (!active) return;
+
+  const progress = scoreProgress(active);
+  $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
+  $('#cupping-position').textContent = state.coffees.length > 1
+    ? `${state.activeIndex + 1} of ${state.coffees.length} · ${progress.complete ? fmt(coffeeScore(active)) : `${progress.done}/${progress.total} rated`}`
+    : (progress.complete ? fmt(coffeeScore(active)) : `${progress.done} of ${progress.total} rated`);
+
   state.coffees.forEach((c, i) => {
-    const tab = tabs[i];
-    if (!tab) return;
-    const progress = scoreProgress(c);
-    tab.querySelector('.tab-name').textContent = coffeeName(c, i);
-    tab.querySelector('.tab-score').textContent = progress.complete
-      ? fmt(coffeeScore(c))
-      : `${progress.done}/${progress.total}`;
-    tab.classList.toggle('incomplete', !progress.complete);
-    tab.classList.toggle('active', i === state.activeIndex);
+    const seg = rail.children[i];
+    if (!seg) return;
+    const p = scoreProgress(c);
+    seg.querySelector('.rail-fill').style.width = `${(p.done / p.total) * 100}%`;
+    seg.querySelector('.rail-num').textContent = i + 1;
+    seg.classList.toggle('active', i === state.activeIndex);
+    seg.classList.toggle('done', p.complete);
+    seg.setAttribute('aria-label',
+      `${coffeeName(c, i)}, ${p.complete ? 'rated' : `${p.done} of ${p.total} rated`}`);
+    seg.setAttribute('aria-current', i === state.activeIndex ? 'true' : 'false');
   });
 }
 
@@ -1553,9 +1569,6 @@ function scrollToPanel(i, smooth) {
 
 function syncActivePanel(animated) {
   refreshTabs();
-  const tabs = $('#coffee-tabs');
-  const active = tabs.children[state.activeIndex];
-  if (active) active.scrollIntoView({ behavior: animated ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
   updateScorebar();
 }
 
