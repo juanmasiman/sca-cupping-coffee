@@ -827,12 +827,35 @@ async function relayJoinSession(code, name) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  return Boolean(data && data.id);
+  return data && data.id ? data.id : null;
 }
 
+async function relaySubmitScores(code, id, name, scores) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scores }),
+  });
+  return Boolean(data && data.ok);
+}
+
+async function relayReveal(code, token) {
+  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/reveal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return Boolean(data && data.ok);
+}
+
+// { participants:[{name, submitted, scores?}], revealed }
 async function relayListParticipants(code) {
   const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants`, { method: 'GET' });
-  return data && Array.isArray(data.participants) ? data.participants : null;
+  return data && Array.isArray(data.participants) ? data : null;
+}
+
+function myScores() {
+  return state.coffees.map(c => Math.round(coffeeScore(c) * 100) / 100);
 }
 
 function getCupperName() {
@@ -1004,7 +1027,11 @@ function askNameThenJoin(payload, code) {
     if (code) {
       state.joinedCode = code;
       save();
-      if (name) relayJoinSession(code, name); // fire-and-forget presence
+      relayJoinSession(code, name || 'Cupper').then(id => {
+        if (!id || !state) return;
+        state.participantId = id;
+        save();
+      });
     }
     startCupping();
     toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
@@ -1086,20 +1113,53 @@ async function openInviteSheet() {
 
   const refreshJoined = async () => {
     if (!state.liveCode) return;
-    const people = await relayListParticipants(state.liveCode);
-    if (!people) return;
+    const data = await relayListParticipants(state.liveCode);
+    if (!data) return;
+    const people = data.participants;
+    const done = people.filter(p => p.submitted).length;
+    state.revealed = data.revealed;
+    save();
+
     joinedWrap.classList.remove('hidden');
-    $('#joined-title').textContent = people.length ? `At the table · ${people.length}` : 'At the table';
+    $('#joined-title').textContent = people.length
+      ? `At the table · ${done} of ${people.length} submitted`
+      : 'At the table';
+
     joinedList.innerHTML = '';
     if (!people.length) {
       joinedList.appendChild(el('span', 'joined-empty', 'Waiting for cuppers to join…'));
-      return;
+    } else {
+      people.forEach((p, i) => {
+        const chip = el('span', `joined-chip${p.submitted ? ' done' : ''}`, escapeHTML(p.name));
+        chip.style.animationDelay = `${i * 0.04}s`;
+        joinedList.appendChild(chip);
+      });
     }
-    people.forEach((p, i) => {
-      const chip = el('span', 'joined-chip', escapeHTML(p.name));
-      chip.style.animationDelay = `${i * 0.04}s`;
-      joinedList.appendChild(chip);
-    });
+
+    // reveal control: sealed scores are the protocol, so this is deliberate
+    revealBtn.classList.toggle('hidden', !people.length);
+    if (data.revealed) {
+      revealBtn.textContent = 'Scores revealed — see Results';
+      revealBtn.disabled = true;
+    } else {
+      revealBtn.disabled = false;
+      revealBtn.textContent = done < people.length
+        ? `Reveal scores now (${people.length - done} still cupping)`
+        : 'Reveal scores to the table';
+    }
+  };
+
+  const revealBtn = $('#btn-reveal');
+  revealBtn.onclick = async () => {
+    if (!state.liveCode || !state.liveToken) return;
+    if (!confirm('Reveal every cupper’s scores? The protocol asks cuppers to score independently first — this opens the table for discussion and cannot be undone.')) return;
+    revealBtn.disabled = true;
+    const ok = await relayReveal(state.liveCode, state.liveToken);
+    if (!ok) { revealBtn.disabled = false; toast('Could not reveal — try again'); return; }
+    state.revealed = true;
+    save();
+    toast('Scores revealed');
+    refreshJoined();
   };
 
   // revealing details reissues the lineup under the same code
@@ -1115,12 +1175,26 @@ async function openInviteSheet() {
     toast(state.shareDetails ? 'Coffee details shared' : 'Cupping is blind again');
   };
 
-  // live code is a bonus on top — fetch it after the sheet is visible
-  const live = await relayCreateSession(buildSessionPayload());
+  // Reuse the code this session already has — reopening the sheet must not
+  // mint a new one, or everyone who already joined is orphaned.
+  let live = null;
+  if (state.liveCode && state.liveToken && await relayFetchSession(state.liveCode)) {
+    live = { code: state.liveCode, token: state.liveToken };
+    relayUpdateSession(live.code, live.token, buildSessionPayload()); // keep the lineup current
+  } else {
+    live = await relayCreateSession(buildSessionPayload());
+  }
+
   if (live) {
     state.liveCode = live.code;
     state.liveToken = live.token;
     save();
+    // The leader is a cupper too: register them at their own table so the
+    // panel average is computed from the same roster everyone else sees.
+    if (!state.participantId) {
+      const id = await relayJoinSession(live.code, getCupperName() || 'Host');
+      if (id && state) { state.participantId = id; save(); }
+    }
     pin.classList.remove('pending');
     pin.textContent = live.code;
     // point the QR at the code so joiners are counted and can get late updates
@@ -1926,6 +2000,10 @@ function buildResults() {
 
 /* ---------- team scores (social cupping) ---------- */
 
+function tableCode() {
+  return state.liveCode || state.joinedCode || null;
+}
+
 function renderTeamCard() {
   const card = $('#team-card');
   card.innerHTML = `
@@ -1935,6 +2013,7 @@ function renderTeamCard() {
       <span class="detail-label">Your name</span>
       <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
     </div>
+    <div class="live-table hidden" id="live-table"></div>
     <div class="team-actions">
       <button class="btn btn-ghost" id="btn-share-scores">Share my scores</button>
       <button class="btn btn-ghost" id="btn-add-scores">Add cupper’s scores</button>
@@ -1942,6 +2021,8 @@ function renderTeamCard() {
     <div class="team-cuppers-row" id="team-cuppers"></div>
     <div class="team-results" id="team-results"></div>
   `;
+
+  if (tableCode()) refreshLiveTable();
 
   const nameInput = card.querySelector('#cupper-name');
   nameInput.value = getCupperName();
@@ -1971,6 +2052,103 @@ function renderTeamCard() {
   });
 
   renderTeamTable();
+}
+
+/* ---------- live table: submit, then read the panel result ---------- */
+
+async function refreshLiveTable() {
+  const code = tableCode();
+  const wrap = $('#live-table');
+  if (!code || !wrap) return;
+
+  const data = await relayListParticipants(code);
+  if (!data) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  state.revealed = data.revealed;
+  save();
+
+  const canSubmit = Boolean(state.participantId);
+  const myName = getCupperName() || (state.liveCode ? 'Host' : 'You');
+  const submittedMine = Boolean(state.submittedAt);
+
+  let html = `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>`;
+
+  if (!data.revealed) {
+    const done = data.participants.filter(p => p.submitted).length;
+    html += `<p class="live-note">Scores stay sealed until the leader reveals them — the protocol asks every cupper to score independently first. <strong>${done} of ${data.participants.length}</strong> submitted.</p>`;
+    if (canSubmit) {
+      html += submittedMine
+        ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
+        : '';
+      html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
+    }
+    wrap.innerHTML = html;
+  } else {
+    // panel result: average of the independent scores, per SCA practice.
+    // Everyone at the table — the leader included — is in this roster, so
+    // every device computes the same panel score.
+    const all = data.participants
+      .filter(p => Array.isArray(p.scores))
+      .map(p => ({ ...p, me: p.name === myName }));
+
+    if (!all.length) {
+      wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>`;
+    } else {
+      const perCoffee = state.coffees.map((c, i) => {
+        const vals = all.map(p => p.scores[i]).filter(v => typeof v === 'number');
+        const avg = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+        return { name: coffeeName(c, i), avg, index: i };
+      }).sort((a, b) => b.avg - a.avg);
+
+      html += `<p class="live-note">Panel score is the average of ${all.length} independent cupper${all.length > 1 ? 's' : ''}.</p>`;
+      html += perCoffee.map(row => `
+        <div class="team-coffee-row">
+          <div class="team-coffee-top">
+            <span class="team-coffee-name">${escapeHTML(row.name)}</span>
+            <span class="team-coffee-avg">${fmt(row.avg)}<small>PANEL</small></span>
+          </div>
+          <div class="team-coffee-cuppers">${all.map(p => {
+            const v = p.scores[row.index];
+            if (typeof v !== 'number') return '';
+            const d = v - row.avg;
+            const sign = d >= 0 ? '+' : '−';
+            return `<span class="cupper-score${p.me ? ' me' : ''}">${escapeHTML(p.name)} ${fmt(v)} <em>${sign}${fmt(Math.abs(d))}</em></span>`;
+          }).filter(Boolean).join('')}</div>
+        </div>`).join('');
+
+      // calibration: who consistently runs high or low against the table
+      const calib = all.map(p => {
+        const diffs = perCoffee.map(r => p.scores[r.index] - r.avg).filter(v => typeof v === 'number' && !isNaN(v));
+        const mean = diffs.reduce((a, b) => a + b, 0) / (diffs.length || 1);
+        return { name: p.name, mean, me: p.me };
+      }).sort((a, b) => b.mean - a.mean);
+
+      html += `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
+        ${calib.map(c => `<div class="calib-row${c.me ? ' me' : ''}"><span>${escapeHTML(c.name)}</span>
+          <span class="calib-val ${c.mean >= 0 ? 'high' : 'low'}">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span></div>`).join('')}
+      </div>`;
+      wrap.innerHTML = html;
+    }
+  }
+
+  const submitBtn = wrap.querySelector('#btn-submit-scores');
+  if (submitBtn) {
+    submitBtn.onclick = async () => {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+      const ok = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
+      if (!ok) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit my scores';
+        toast('Could not submit — check your connection');
+        return;
+      }
+      state.submittedAt = Date.now();
+      save();
+      toast('Scores submitted');
+      refreshLiveTable();
+    };
+  }
 }
 
 function renderTeamTable() {

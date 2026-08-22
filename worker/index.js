@@ -4,12 +4,19 @@
    Serves the static site (public/) and the cupping live-code API
    from one deployment:
 
-     POST /cupping/api/sessions                    → { code, token }
-     PUT  /cupping/api/sessions/{code}             → update lineup (leader)
-     GET  /cupping/api/sessions/{code}             → { payload }
-     POST /cupping/api/sessions/{code}/participants→ { id }
-     GET  /cupping/api/sessions/{code}/participants→ { participants }
-     everything else                               → static assets
+     POST /cupping/api/sessions                     → { code, token }
+     PUT  /cupping/api/sessions/{code}              → update lineup (leader)
+     GET  /cupping/api/sessions/{code}              → { payload, revealed }
+     POST /cupping/api/sessions/{code}/participants → { id }
+     PUT  /cupping/api/sessions/{code}/participants/{id} → submit scores
+     GET  /cupping/api/sessions/{code}/participants → { participants, revealed }
+     POST /cupping/api/sessions/{code}/reveal       → open the scores (leader)
+     everything else                                → static assets
+
+   The SCA protocol has cuppers score independently and only then
+   compare, so submitted scores stay sealed: the roster reports who
+   has submitted, and individual numbers are withheld from every
+   response until the leader reveals the session.
 
    Live codes are the Apple-TV-style short codes for joining a
    cupping. They need a KV namespace bound as CUPPINGS; until one
@@ -94,7 +101,8 @@ async function handleApi(request, env, path) {
   if (request.method === 'GET' && sessionMatch) {
     const stored = await env.CUPPINGS.get(`s:${sessionMatch[1]}`);
     if (!stored) return json({ error: 'Not found or expired' }, 404);
-    return json({ payload: JSON.parse(stored).payload });
+    const record = JSON.parse(stored);
+    return json({ payload: record.payload, revealed: Boolean(record.revealed) });
   }
 
   // --- leader updates the lineup (e.g. reveals coffee details) ----------
@@ -133,15 +141,70 @@ async function handleApi(request, env, path) {
     return json({ id, name });
   }
 
-  // --- leader watches who has joined ------------------------------------
+  // --- a cupper submits their scores ------------------------------------
+  const submitMatch = request.method === 'PUT' && path.match(/^\/sessions\/(\d{4,6})\/participants\/([0-9a-f]{32})$/);
+  if (submitMatch) {
+    const [, code, id] = submitMatch;
+    const key = `p:${code}:${id}`;
+    const existing = await env.CUPPINGS.getWithMetadata(key);
+    if (existing.value === null && !existing.metadata) return json({ error: 'Not at this table' }, 404);
+
+    const { body, error } = await readPayload(request);
+    if (error) return error;
+
+    const scores = Array.isArray(body && body.scores)
+      ? body.scores.slice(0, 10).map(v => Math.max(0, Math.min(100, Number(v) || 0)))
+      : null;
+    if (!scores || !scores.length) return json({ error: 'No scores supplied' }, 400);
+
+    const prev = existing.metadata || {};
+    await env.CUPPINGS.put(key, '', {
+      expirationTtl: TTL_SECONDS,
+      metadata: {
+        name: String((body && body.name) || prev.name || 'Cupper').slice(0, 24),
+        joinedAt: prev.joinedAt || Date.now(),
+        submittedAt: Date.now(),
+        scores,
+      },
+    });
+    return json({ ok: true });
+  }
+
+  // --- leader reveals the table -----------------------------------------
+  const revealMatch = request.method === 'POST' && path.match(/^\/sessions\/(\d{4,6})\/reveal$/);
+  if (revealMatch) {
+    const code = revealMatch[1];
+    const stored = await env.CUPPINGS.get(`s:${code}`);
+    if (!stored) return json({ error: 'Not found or expired' }, 404);
+
+    const { body, error } = await readPayload(request);
+    if (error) return error;
+    const record = JSON.parse(stored);
+    if (!body || body.token !== record.token) return json({ error: 'Not allowed' }, 403);
+
+    record.revealed = true;
+    await env.CUPPINGS.put(`s:${code}`, JSON.stringify(record), { expirationTtl: TTL_SECONDS });
+    return json({ ok: true, revealed: true });
+  }
+
+  // --- who is at the table ----------------------------------------------
   if (request.method === 'GET' && participantsMatch) {
     const code = participantsMatch[1];
+    const stored = await env.CUPPINGS.get(`s:${code}`);
+    const revealed = Boolean(stored && JSON.parse(stored).revealed);
+
     const listed = await env.CUPPINGS.list({ prefix: `p:${code}:`, limit: MAX_PARTICIPANTS });
     const participants = listed.keys
       .map(k => k.metadata || {})
       .filter(m => m.name)
-      .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
-    return json({ participants });
+      .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+      .map(m => ({
+        name: m.name,
+        submitted: Boolean(m.submittedAt),
+        // sealed until the leader reveals, so nobody anchors on anyone else
+        ...(revealed && m.scores ? { scores: m.scores } : {}),
+      }));
+    return json({ participants, revealed });
   }
 
   return json({ error: 'Not found' }, 404);

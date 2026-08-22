@@ -27,7 +27,15 @@ Both scoresheets are supported, chosen when a session starts:
 
 A cupping leader sets up the table (coffees, names, details) and taps the share icon in the cupping header — the app generates a **session code** that itself carries the coffee lineup (JSON → gzip → base64url, typically ~100–500 characters). Participants tap **Join a cupping** and paste the code; the coffees load ready to score.
 
-After scoring, each cupper shares a **score code** from the Results screen; the leader pastes them into **Team scores** to see per-coffee table averages and each cupper's numbers side by side — a quick calibration view. Everything travels over iMessage/WhatsApp/anything; no server, no accounts.
+### Running a table
+
+When a live code is in play, the invite sheet doubles as the leader's dashboard: the roster shows who has joined and who has submitted (`3 of 5 submitted`), alongside the blind-cupping toggle and a **Reveal** button.
+
+Scoring follows the protocol: each cupper scores independently and taps **Submit my scores** on their own Results screen. Submitted scores stay **sealed on the server** — no one, leader included, can read another cupper's numbers until the leader reveals the table. After the reveal every device shows the same **panel score** (the average of all independent scores, per SCA practice), each cupper's number with its deviation, and a **calibration** summary of who runs high or low against the panel.
+
+The leader is a cupper too, and submits like everyone else, so the panel average is identical on every phone.
+
+Offline fallback: each cupper can still share a **score code** from Results and the leader can paste them into **Team scores** — useful with no signal, no server, and no accounts.
 
 ### Inviting cuppers: QR + live code
 
