@@ -684,23 +684,24 @@ function openAccountSheet() {
   } else if (cloudEnabled()) {
     sheet.innerHTML = `
       <h3>Keep your history everywhere</h3>
-      <p class="modal-hint">Sign in to back up your cuppings and sync them across devices. Joining a cupping and scoring never requires an account.</p>
+      <p class="modal-hint">We’ll email you a 6-digit code — no password. Your cuppings then back up and follow you across devices. Joining a cupping and scoring never requires an account.</p>
       <div class="auth-buttons">
-        <button class="auth-btn auth-google" id="btn-auth-google">${googleIconSVG} Continue with Google</button>
-        <div class="auth-divider"><span>or with your email</span></div>
-        <div class="auth-email-row">
-          <input class="detail-field" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
-          <button class="btn btn-ghost" id="btn-auth-email">Send code</button>
-        </div>
+        <label class="detail-label" for="auth-email">Your email</label>
+        <input class="detail-field auth-email-field" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+        <button class="btn btn-primary" id="btn-auth-email">Email me a code</button>
         <p class="account-status" id="auth-email-status"></p>
+        <div class="auth-divider"><span>or</span></div>
+        <button class="auth-btn auth-google" id="btn-auth-google">${googleIconSVG} Continue with Google</button>
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btn-auth-cancel">Not now</button>
       </div>
     `;
     sheet.querySelector('#btn-auth-google').onclick = () => signInWith('google');
-    sheet.querySelector('#btn-auth-email').onclick = async () => {
-      const email = sheet.querySelector('#auth-email').value.trim();
+
+    const emailInput = sheet.querySelector('#auth-email');
+    const sendCode = async () => {
+      const email = emailInput.value.trim();
       const status = sheet.querySelector('#auth-email-status');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status.textContent = 'Enter a valid email address.'; return; }
       status.textContent = 'Sending…';
@@ -709,6 +710,9 @@ function openAccountSheet() {
       close();
       openEmailCodeSheet(email);
     };
+    sheet.querySelector('#btn-auth-email').onclick = sendCode;
+    emailInput.onkeydown = e => { if (e.key === 'Enter') sendCode(); };
+    setTimeout(() => emailInput.focus(), 80);
     sheet.querySelector('#btn-auth-cancel').onclick = close;
   } else {
     sheet.innerHTML = `
