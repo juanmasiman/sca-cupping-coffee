@@ -1414,6 +1414,7 @@ async function openInviteSheet() {
     state.liveCode = live.code;
     state.liveToken = live.token;
     save();
+    refreshTabs(); // surface the code on the header button
     // The leader is a cupper too: register them at their own table so the
     // panel average is computed from the same roster everyone else sees.
     if (!state.participantId) {
@@ -1562,6 +1563,16 @@ function refreshTabs() {
   const rail = $('#coffee-rail');
   const active = state.coffees[state.activeIndex];
   if (!active) return;
+
+  // once a table is live the button carries the code, so the leader can
+  // read it out without opening the sheet
+  const invite = $('#btn-share-session');
+  const live = Boolean(state.liveCode);
+  invite.classList.toggle('live', live);
+  invite.querySelector('span').textContent = live ? state.liveCode : 'Invite';
+  invite.setAttribute('aria-label', live
+    ? `Cupping code ${state.liveCode.split('').join(' ')} — open invite`
+    : 'Invite cuppers to this session');
 
   const progress = scoreProgress(active);
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);

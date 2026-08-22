@@ -484,6 +484,29 @@ input, textarea, select { font: inherit; }
 }
 .finish-btn:active { transform: scale(0.92); }
 
+/* the way into every shared-cupping feature, so it carries a label
+   rather than sitting there as a lone glyph */
+.invite-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform 0.15s var(--spring), background 0.15s;
+}
+.invite-btn:active { transform: scale(0.92); background: var(--accent-soft); }
+.invite-btn.live {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 /* horizontally swipeable panels */
 .panels {
   flex: 1;
