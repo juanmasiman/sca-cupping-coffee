@@ -717,6 +717,8 @@ body.plain .cva-scale { margin-top: 9px; }
 /* ---------- descriptive assessment ---------- */
 
 .desc-body { padding: 2px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+.desc-intro { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.desc-intro strong { color: var(--text); font-weight: 700; }
 .desc-note { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
 
 .desc-section {
@@ -769,7 +771,34 @@ body.plain .cva-scale { margin-top: 9px; }
 
 .wheel-seg { cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
 .wheel-seg:active { opacity: 0.7; }
-.wheel-cat.picked { stroke: var(--text); stroke-width: 2.5; }
+/* anything already chosen is ringed, on both rings — the wheel is useless as
+   a record if you cannot see what you have taken from it */
+.wheel-seg.picked { stroke: var(--text); stroke-width: 2.5; }
+.wheel-child.picked { fill-opacity: 0.95; }
+
+.wheel-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+.wheel-picked:empty { display: none; }
+.wheel-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 11px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform 0.18s var(--spring);
+}
+.wheel-pick.note { background: var(--accent-soft); color: var(--accent); }
+.wheel-pick:active { transform: scale(0.93); }
+.wheel-pick b { font-weight: 800; font-size: 13px; line-height: 1; opacity: 0.75; }
 .wheel-cat-label {
   font-size: 7px;
   font-weight: 800;
@@ -843,19 +872,25 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* ---------- CVA 1–9 impression-of-quality scale ---------- */
 
+/* minmax(0,…) so nine cells can never be pushed wider than the row, and the
+   digit is sized off the viewport so it still fits a 320px phone */
 .cva-scale {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 5px;
   margin-top: 12px;
 }
 
 .cva-btn {
   aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
   border-radius: 10px;
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: 14.5px;
+  font-size: clamp(11px, 3.6vw, 15px);
+  line-height: 1;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
@@ -865,13 +900,44 @@ body.plain .cva-scale { margin-top: 9px; }
 }
 .cva-btn.neutral { border-style: dashed; }
 .cva-btn:active { transform: scale(0.88); }
+/* The selected button used to sit at a permanent scale(1.08), which painted
+   it over its neighbours and read as a number escaping its box. The pop is
+   now an animation that lands back at 1. */
 .cva-btn.selected {
   background: var(--accent);
   border-color: var(--accent);
   border-style: solid;
   color: var(--on-accent);
-  transform: scale(1.08);
+  animation: cva-pop 0.28s var(--spring);
 }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+@keyframes cva-pop {
+  0% { transform: scale(0.84); }
+  55% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* clearing a rating: only offered once there is one to clear */
+.attr-value-row { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+
+.cva-clear {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  display: none;
+  place-items: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.18s var(--spring), color 0.15s, border-color 0.15s;
+}
+.attr-card.rated .cva-clear { display: grid; }
+.cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }
 
 .cva-desc {
   margin-top: 1px;
@@ -879,6 +945,13 @@ body.plain .cva-scale { margin-top: 9px; }
   font-weight: 600;
   line-height: 1.25;
   color: var(--text-faint);
+}
+
+/* a rated section is tinted and carries an accent edge, so what is finished
+   is legible at a glance while scrolling a sheet of eight */
+.attr-card.rated {
+  background: var(--bg-card-2);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 /* a section nobody has rated yet should not look like a considered 5 */
@@ -1395,6 +1468,7 @@ body.plain .cva-scale { margin-top: 9px; }
 
 .team-name-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
 
+.present-cta { width: 100%; }
 .team-actions { display: flex; gap: 8px; }
 .team-actions .btn { flex: 1; padding: 13px 8px; font-size: 14px; border-radius: 13px; }
 
@@ -1753,6 +1827,7 @@ body.plain .cva-scale { margin-top: 9px; }
   gap: 9px;
 }
 .live-head { display: flex; align-items: center; }
+.live-roster { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-note { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 .live-note strong { color: var(--accent); }
 .live-ok { font-size: 12.5px; font-weight: 700; color: var(--green); }
@@ -1906,3 +1981,279 @@ body.plain .cva-scale { margin-top: 9px; }
   box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ============================================================
+   PANEL SECTION HEADS
+   Describing a coffee and scoring it are two different SCA forms
+   asking two different questions, and on one scrolling sheet they
+   were easy to confuse. Each half now announces itself.
+   ============================================================ */
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 4px 8px;
+  margin-top: 4px;
+}
+.panel-head-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.panel-head-sub {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the Describe card is the same shape as the coffee-details card, so it
+   gets its own edge to keep the two apart at a glance */
+.details-card.describe-card { box-shadow: inset 3px 0 0 var(--accent-soft); }
+.describe-card .details-toggle-label { color: var(--accent); }
+
+.optional-pill {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+/* ============================================================
+   LINEUP SCREEN
+   ============================================================ */
+
+.lineup-intro {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  padding: 4px 2px 14px;
+}
+.lineup-intro strong { color: var(--text); font-weight: 700; }
+
+.lineup-list { display: flex; flex-direction: column; gap: 10px; }
+
+.lineup-row {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: rise 0.3s var(--ease) backwards;
+}
+
+.lineup-top { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 13px; }
+
+.lineup-num {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.lineup-row.named .lineup-num { background: var(--accent); color: var(--on-accent); }
+
+.lineup-name {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 15.5px;
+  font-weight: 600;
+  padding: 4px 0;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lineup-name::placeholder { color: var(--text-faint); font-weight: 500; }
+.lineup-name:focus { outline: none; }
+/* a guest is looking at the leader's lineup, not editing it */
+.lineup-name[readonly], .lineup-row .detail-field[readonly] { color: var(--text-dim); }
+
+.lineup-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  transition: transform 0.25s var(--spring), color 0.15s;
+}
+.lineup-icon:active { transform: scale(0.85); }
+.lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--accent); }
+.lineup-icon.remove:active { color: var(--red); }
+.lineup-row.has-meta .lineup-icon.chev { color: var(--accent); }
+
+/* the rows borrow the details-card collapse, so they need its open state */
+.lineup-row.open .details-collapse { grid-template-rows: 1fr; }
+.lineup-row.open .details-collapse-inner { visibility: visible; transition: visibility 0s 0s; }
+.lineup-row .details-grid { padding: 2px 14px 14px; }
+
+.lineup-add { width: 100%; margin-top: 12px; }
+.lineup-add:disabled { opacity: 0.4; }
+
+.lineup-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+.lineup-actions .btn { flex: 1; }
+
+/* ============================================================
+   PRESENT SCREEN — the leader walks the table coffee by coffee
+   ============================================================ */
+
+.present-intro {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  padding: 4px 2px 14px;
+}
+
+.present-list { display: flex; flex-direction: column; gap: 12px; }
+
+.present-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 15px;
+  transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+.present-card.sealed { border-style: dashed; background: var(--bg-raise); }
+.present-card.scored { box-shadow: inset 3px 0 0 var(--accent); }
+
+.present-top { display: flex; align-items: center; gap: 12px; }
+
+.present-num {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.present-card.sealed .present-num { background: var(--bg-card); color: var(--text-faint); }
+
+.present-id { flex: 1; min-width: 0; }
+.present-name { font-size: 16.5px; font-weight: 700; line-height: 1.2; }
+.present-card.sealed .present-name { color: var(--text-faint); }
+.present-meta {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.present-score { flex: none; text-align: right; }
+.present-avg {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  line-height: 1;
+  animation: bump 0.35s var(--spring);
+}
+.present-grade {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.present-cuppers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.present-cupper {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.present-cupper strong {
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.present-cupper em { font-style: normal; font-size: 10.5px; color: var(--text-faint); }
+
+.present-action {
+  width: 100%;
+  margin-top: 13px;
+  padding: 11px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 700;
+  transition: transform 0.18s var(--spring);
+}
+.present-action:active { transform: scale(0.97); }
+
+.present-final {
+  margin-top: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  animation: rise 0.35s var(--ease) backwards;
+}
+.present-final h3 { font-size: 15.5px; margin-bottom: 4px; }
+.present-final .team-sub { margin-bottom: 12px; }
+.present-final-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.present-final-row:first-of-type { border-top: none; }
+.present-final-pos {
+  flex: none;
+  width: 20px;
+  color: var(--text-faint);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.present-final-name { flex: 1; min-width: 0; font-weight: 600; }
+.present-final-score {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}

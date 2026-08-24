@@ -96,8 +96,33 @@
           <button id="btn-join" class="btn btn-ghost">Join a cupping</button>
         </div>
         <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
-        <button id="btn-start" class="btn btn-primary">Start cupping</button>
+        <button id="btn-start" class="btn btn-primary">Set the lineup</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ LINEUP SCREEN ============ -->
+  <section id="screen-lineup" class="screen">
+    <header class="results-header">
+      <button id="btn-lineup-back" class="icon-btn" aria-label="Back to setup">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>The lineup</h2>
+      <button id="btn-lineup-paste" class="icon-btn" aria-label="Paste a list of coffees">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M18 10v8M14 14h8" stroke-width="2.2"/></svg>
+      </button>
+    </header>
+
+    <div class="results-scroll">
+      <p class="lineup-intro" id="lineup-intro">Name the coffees before you invite anyone — the table sees these names. Leave a card blank and it stays <strong>Coffee 1</strong>, <strong>Coffee 2</strong>, and you can fill in the rest later.</p>
+      <div class="lineup-list" id="lineup-list"></div>
+      <button id="btn-lineup-add" class="btn btn-ghost lineup-add">＋ Add a coffee</button>
+
+      <div class="lineup-actions">
+        <button id="btn-lineup-invite" class="btn btn-ghost">Invite cuppers</button>
+        <button id="btn-lineup-start" class="btn btn-primary">Start cupping</button>
+      </div>
+      <div class="results-footpad"></div>
     </div>
   </section>
 
@@ -172,6 +197,24 @@
     </div>
   </section>
 
+  <!-- ============ PRESENT SCREEN (the leader walks the table) ============ -->
+  <section id="screen-present" class="screen">
+    <header class="results-header">
+      <button id="btn-present-back" class="icon-btn" aria-label="Back to results">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Present</h2>
+      <button id="btn-present-all" class="finish-btn">Reveal all</button>
+    </header>
+
+    <div class="results-scroll">
+      <p class="present-intro" id="present-intro"></p>
+      <div class="present-list" id="present-list"></div>
+      <div class="present-final hidden" id="present-final"></div>
+      <div class="results-footpad"></div>
+    </div>
+  </section>
+
   <!-- ============ HISTORY SCREEN ============ -->
   <section id="screen-history" class="screen">
     <header class="results-header">
@@ -238,8 +281,9 @@
   <div id="wheel-modal" class="modal hidden">
     <div class="modal-sheet wheel-sheet">
       <h3>Flavor wheel</h3>
-      <p class="modal-hint">Inner ring ticks the CATA box on the descriptive form. Outer ring drops the word into your tasting notes.</p>
+      <p class="modal-hint">Inner ring ticks a descriptor on the Describe form — up to 5, as the standard allows. Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.</p>
       <div class="wheel-holder" id="wheel-holder"></div>
+      <div class="wheel-picked" id="wheel-picked"></div>
       <p class="wheel-status" id="wheel-status"></p>
       <div class="modal-actions">
         <button id="wheel-close" class="btn btn-primary">Done</button>

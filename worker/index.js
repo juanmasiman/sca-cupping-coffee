@@ -133,7 +133,10 @@ async function handleApi(request, env, path, cors) {
     if (!body || body.token !== record.token) return json({ error: 'Not allowed' }, 403);
     if (!validPayload(body.payload)) return json({ error: 'Invalid session payload' }, 400);
 
-    await env.CUPPINGS.put(`s:${code}`, JSON.stringify({ payload: body.payload, token: record.token }), { expirationTtl: TTL_SECONDS });
+    // keep `revealed` — a lineup update after the reveal (the leader sharing
+    // coffee details as they present) must not re-seal the table
+    record.payload = body.payload;
+    await env.CUPPINGS.put(`s:${code}`, JSON.stringify(record), { expirationTtl: TTL_SECONDS });
     return json({ ok: true });
   }
 

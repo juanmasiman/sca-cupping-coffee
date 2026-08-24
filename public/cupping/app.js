@@ -138,6 +138,10 @@ const HELP = {
     title: 'Cup deductions',
     body: 'Count cups, not severity. A non-uniform cup is one that clearly differs from its neighbours and costs 2 points. A defective cup carries a genuine fault — phenolic, ferment, mould, chemical — and costs 4. When a cup is defective, count it only as defective, not also as non-uniform.',
   },
+  describeVsScore: {
+    title: 'Describe vs Score',
+    body: 'These are two different SCA forms asking two different questions, and only one of them produces a number. Describe (Standard 103) records what the coffee is like: how intense each section is on a 0–15 scale, and which descriptors apply — no opinion about whether that is good. Score (Standard 104) records how good it is: your impression of quality for each of the eight sections on a 1–9 scale, and those eight are what add up to the score out of 100. Describing is optional and changes nothing about the score; a delicate coffee can be low intensity and still score highly. Fill the Describe card if you want the vocabulary and the history, and score every section either way.',
+  },
   descIntensity: {
     title: 'Intensity, not quality',
     body: 'This is the opposite of the scoring form: here you record how strong each section is, from 0 to 15, with no judgement about whether that is good. Rate the total intensity of the section, not of any one note — if a fragrance has a strong fruity note and a faint chocolate one, rate how strong the fragrance is overall. A delicate, elegant coffee can score highly for quality and still be low intensity.',
@@ -1449,6 +1453,176 @@ async function shareText(text, copiedMsg) {
 }
 
 /* ============================================================
+   LINEUP SCREEN
+   A step between "how many coffees" and scoring them. Entering
+   eight coffees one panel at a time, mid-cupping, was the part
+   of the first real session that dragged; here they are one
+   list, names are optional, and details fold away.
+   ============================================================ */
+
+// Someone who joined a table is cupping the leader's lineup. Scores are
+// submitted by position, so letting a guest add, remove or rename coffees
+// would quietly misalign their sheet against everyone else's.
+function lineupLocked() {
+  return Boolean(state && state.joinedCode);
+}
+
+function openLineup() {
+  buildLineup();
+  showScreen('#screen-lineup');
+}
+
+function buildLineup() {
+  const locked = lineupLocked();
+  const list = $('#lineup-list');
+  list.innerHTML = '';
+  state.coffees.forEach((coffee, i) => list.appendChild(buildLineupRow(coffee, i, locked)));
+
+  $('#lineup-intro').innerHTML = locked
+    ? 'This lineup comes from the cupping leader. Details appear here if they choose to share them.'
+    : 'Name the coffees before you invite anyone — the table sees these names. Leave a card blank and it stays <strong>Coffee 1</strong>, <strong>Coffee 2</strong>, and you can fill in the rest later.';
+
+  $('#btn-lineup-add').classList.toggle('hidden', locked);
+  $('#btn-lineup-paste').classList.toggle('hidden', locked);
+  $('#btn-lineup-invite').classList.toggle('hidden', locked);
+  $('#btn-lineup-add').disabled = state.coffees.length >= LIMITS.coffees[1];
+
+  // once there are scores on the sheet this screen is an edit, not a setup
+  const scored = state.coffees.length - sessionProgress().untouched;
+  $('#btn-lineup-start').textContent = scored > 0 ? 'Back to cupping' : 'Start cupping';
+}
+
+function buildLineupRow(coffee, index, locked) {
+  const row = el('div', 'lineup-row');
+  row.style.animationDelay = `${Math.min(index, 8) * 0.03}s`;
+  row.innerHTML = `
+    <div class="lineup-top">
+      <span class="lineup-num">${index + 1}</span>
+      <input class="lineup-name" type="text" maxlength="40" autocomplete="off" enterkeyhint="next">
+      <button class="lineup-icon remove" type="button" aria-label="Remove coffee ${index + 1}">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <button class="lineup-icon chev" type="button" aria-label="Details for coffee ${index + 1}">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="details-collapse"><div class="details-collapse-inner"><div class="details-grid"></div></div></div>
+  `;
+
+  const nameInput = row.querySelector('.lineup-name');
+  nameInput.placeholder = `Coffee ${index + 1} — name or lot…`;
+  nameInput.value = coffee.name;
+  nameInput.readOnly = locked;
+
+  const syncRow = () => {
+    row.classList.toggle('named', Boolean(coffee.name.trim()));
+    row.classList.toggle('has-meta', Boolean(metaSummary(coffee.meta)));
+  };
+
+  nameInput.addEventListener('input', () => {
+    coffee.name = nameInput.value;
+    syncRow();
+    save();
+  });
+  // Enter walks down the list, so a whole lineup can be typed in one go
+  nameInput.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const next = $('#lineup-list').children[index + 1];
+    if (next) next.querySelector('.lineup-name').focus();
+    else nameInput.blur();
+  });
+
+  const grid = row.querySelector('.details-grid');
+  META_FIELDS.forEach(f => {
+    const cell = el('div', 'detail-cell' + (f.wide ? ' wide' : ''));
+    const input = document.createElement('input');
+    input.className = 'detail-field';
+    input.type = 'text';
+    input.placeholder = f.placeholder;
+    input.value = coffee.meta[f.key] || '';
+    input.maxLength = 60;
+    input.readOnly = locked;
+    if (f.list) input.setAttribute('list', f.list);
+    if (f.inputmode) input.setAttribute('inputmode', f.inputmode);
+    input.addEventListener('input', () => {
+      coffee.meta[f.key] = input.value;
+      syncRow();
+      save();
+    });
+    cell.appendChild(el('span', 'detail-label', f.label));
+    cell.appendChild(input);
+    grid.appendChild(cell);
+  });
+
+  row.querySelector('.lineup-icon.chev').addEventListener('click', () => {
+    haptic();
+    row.classList.toggle('open');
+  });
+
+  const removeBtn = row.querySelector('.lineup-icon.remove');
+  removeBtn.classList.toggle('hidden', locked || state.coffees.length <= 1);
+  removeBtn.addEventListener('click', () => {
+    if (state.coffees.length <= 1) return;
+    const p = scoreProgress(coffee);
+    if (p.done > 0 && !confirm(`${coffeeName(coffee, index)} has ${p.done} section${p.done > 1 ? 's' : ''} scored. Remove it anyway?`)) return;
+    state.coffees.splice(index, 1);
+    state.activeIndex = Math.min(state.activeIndex, state.coffees.length - 1);
+    haptic();
+    save();
+    buildLineup();
+  });
+
+  syncRow();
+  return row;
+}
+
+function addLineupCoffee() {
+  if (lineupLocked() || state.coffees.length >= LIMITS.coffees[1]) return;
+  state.coffees.push(newCoffee(state.cupsPerCoffee));
+  haptic();
+  save();
+  buildLineup();
+  const rows = $('#lineup-list').children;
+  const last = rows[rows.length - 1];
+  if (last) {
+    last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    last.querySelector('.lineup-name').focus();
+  }
+}
+
+// Typing eight names into eight fields is the tedious part; a roaster
+// usually has the list somewhere already.
+function openLineupPaste() {
+  if (lineupLocked()) return;
+  openModal({
+    title: 'Paste the lineup',
+    hint: 'One coffee per line — just the names. The lineup grows or shrinks to match, up to ten.',
+    cta: 'Fill the lineup',
+    onSubmit: text => {
+      const names = String(text || '')
+        .split('\n')
+        .map(s => s.replace(/^\s*[-–—•*\d.)\]]+\s*/, '').trim())
+        .filter(Boolean)
+        .slice(0, LIMITS.coffees[1]);
+      if (!names.length) { toast('No names found'); return false; }
+
+      const scored = state.coffees.slice(names.length).filter(c => scoreProgress(c).done > 0).length;
+      if (scored > 0 && !confirm(`This shortens the lineup and drops ${scored} coffee${scored > 1 ? 's' : ''} that already ${scored > 1 ? 'have' : 'has'} scores. Continue?`)) return false;
+
+      while (state.coffees.length < names.length) state.coffees.push(newCoffee(state.cupsPerCoffee));
+      state.coffees.length = names.length;
+      names.forEach((n, i) => { state.coffees[i].name = n.slice(0, 40); });
+      state.activeIndex = Math.min(state.activeIndex, state.coffees.length - 1);
+      save();
+      buildLineup();
+      toast(`${names.length} coffee${names.length > 1 ? 's' : ''} in the lineup`);
+      return true;
+    },
+  });
+}
+
+/* ============================================================
    SETUP SCREEN
    ============================================================ */
 
@@ -1646,7 +1820,11 @@ function buildPanel(coffee, index) {
   panel.appendChild(buildDetailsCard(coffee));
 
   if (usingCVA()) {
+    // the two halves are different SCA forms asking different questions, and
+    // on one scrolling sheet they read as the same thing
+    panel.appendChild(panelHead('Describe', 'what you taste · no judgement', 'describeVsScore'));
     panel.appendChild(buildDescriptiveCard(coffee));
+    panel.appendChild(panelHead('Score', 'how good it is · 1–9 each', 'describeVsScore'));
     CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
     panel.appendChild(buildCvaDefectsCard(coffee));
   } else {
@@ -1664,6 +1842,16 @@ function buildPanel(coffee, index) {
   panel.appendChild(notes);
 
   return panel;
+}
+
+// A labelled divider inside a panel, with the guided-mode help attached.
+function panelHead(title, sub, helpId) {
+  const head = el('div', 'panel-head');
+  const label = el('span', 'panel-head-title', escapeHTML(title));
+  head.appendChild(label);
+  head.appendChild(el('span', 'panel-head-sub', escapeHTML(sub)));
+  if (helpId) addHelp(label, helpId);
+  return head;
 }
 
 /* ---------- details card (variety, process, altitude, …) ---------- */
@@ -1797,55 +1985,123 @@ function buildWheelSVG() {
   return svg;
 }
 
+// every outer-ring word, for spotting the ones already sitting in the notes
+const WHEEL_WORDS = WHEEL.flatMap(c => c.children);
+
+// notes the wheel writes are comma-separated items, so they can be matched
+// and removed exactly rather than by searching the taster's prose
+function noteItems(notes) {
+  return notes.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 function openFlavorWheel() {
   const modal = $('#wheel-modal');
   const holder = $('#wheel-holder');
   const status = $('#wheel-status');
+  const pickedWrap = $('#wheel-picked');
   if (!holder.dataset.built) {
     holder.innerHTML = buildWheelSVG();
     holder.dataset.built = '1';
   }
 
   const coffee = state && state.coffees[state.activeIndex];
-  status.textContent = coffee
-    ? `Tap a descriptor to add it to ${coffeeName(coffee, state.activeIndex)}`
-    : 'Tap a wedge to explore the wheel';
 
-  const sync = () => {
-    if (!coffee || !coffee.desc) return;
-    const picked = new Set([...coffee.desc.cata.aroma, ...coffee.desc.cata.flavor]);
-    holder.querySelectorAll('.wheel-cat').forEach(seg => {
-      seg.classList.toggle('picked', picked.has(wheelCataName(seg.dataset.cat)));
-    });
+  const cataList = () => coffee.desc.cata.flavor;
+  const notesFromWheel = () => {
+    const items = noteItems(coffee.notes).map(s => s.toLowerCase());
+    return WHEEL_WORDS.filter(w => items.includes(w.toLowerCase()));
   };
-  sync();
+
+  const dropNote = word => {
+    coffee.notes = noteItems(coffee.notes)
+      .filter(s => s.toLowerCase() !== word.toLowerCase())
+      .join(', ');
+  };
+
+  const sync = message => {
+    if (!coffee || !coffee.desc) return;
+    const cata = new Set([...coffee.desc.cata.aroma, ...coffee.desc.cata.flavor]);
+    const words = notesFromWheel();
+    const wordSet = new Set(words.map(w => w.toLowerCase()));
+
+    holder.querySelectorAll('.wheel-cat').forEach(seg => {
+      seg.classList.toggle('picked', cata.has(wheelCataName(seg.dataset.cat)));
+    });
+    holder.querySelectorAll('.wheel-child').forEach(seg => {
+      seg.classList.toggle('picked', wordSet.has(seg.dataset.desc.toLowerCase()));
+    });
+
+    // a running list of what has been taken from the wheel, each one tappable
+    // to take it back — the wheel was hard to read as a record on its own
+    pickedWrap.innerHTML = '';
+    [...cata].forEach(name => {
+      const chip = el('button', 'wheel-pick', `${escapeHTML(name)} <b>×</b>`);
+      chip.type = 'button';
+      chip.onclick = () => {
+        haptic();
+        ['aroma', 'flavor'].forEach(k => {
+          const at = coffee.desc.cata[k].indexOf(name);
+          if (at >= 0) coffee.desc.cata[k].splice(at, 1);
+        });
+        save();
+        sync(`${name} unchecked`);
+        refreshOpenPanel();
+      };
+      pickedWrap.appendChild(chip);
+    });
+    words.forEach(word => {
+      const chip = el('button', 'wheel-pick note', `${escapeHTML(word)} <b>×</b>`);
+      chip.type = 'button';
+      chip.onclick = () => {
+        haptic();
+        dropNote(word);
+        save();
+        sync(`“${word}” removed from your notes`);
+        refreshOpenPanel();
+      };
+      pickedWrap.appendChild(chip);
+    });
+
+    status.textContent = message
+      || `${cataList().length} of 5 descriptors checked${words.length ? ` · ${words.length} word${words.length > 1 ? 's' : ''} in your notes` : ''}`;
+  };
+
+  if (!coffee) {
+    pickedWrap.innerHTML = '';
+    status.textContent = 'Tap a wedge to explore the wheel';
+  } else {
+    sync();
+  }
 
   holder.onclick = e => {
     const seg = e.target.closest('.wheel-seg');
     if (!seg || !coffee) return;
     haptic();
+    let message;
 
     if (seg.classList.contains('wheel-cat')) {
       const name = wheelCataName(seg.dataset.cat);
-      if (!toggleCata(coffee.desc.cata.flavor, name, 5)) {
-        status.textContent = 'Flavor descriptors are full — up to 5';
+      // five is the cap the standard sets for this list, not a UI choice
+      if (!toggleCata(cataList(), name, 5)) {
+        sync('Five already checked — tap one below to free a slot');
         return;
       }
-      status.textContent = coffee.desc.cata.flavor.includes(name)
-        ? `${name} checked under flavor`
-        : `${name} unchecked`;
+      message = cataList().includes(name)
+        ? `${name} checked · ${cataList().length} of 5`
+        : `${name} unchecked · ${cataList().length} of 5`;
     } else {
       const word = seg.dataset.desc;
-      const existing = coffee.notes.trim();
-      if (existing.toLowerCase().includes(word.toLowerCase())) {
-        status.textContent = `${word} is already in your notes`;
+      if (notesFromWheel().some(w => w.toLowerCase() === word.toLowerCase())) {
+        dropNote(word);
+        message = `“${word}” removed from your notes`;
       } else {
-        coffee.notes = existing ? `${existing}, ${word.toLowerCase()}` : word;
-        status.textContent = `Added “${word}” to your notes`;
+        const existing = coffee.notes.trim();
+        coffee.notes = existing ? `${existing}, ${word}` : word;
+        message = `“${word}” added to your notes`;
       }
     }
     save();
-    sync();
+    sync(message);
     refreshOpenPanel();
   };
 
@@ -1861,7 +2117,7 @@ function refreshOpenPanel() {
   if (!panel) return;
   const notes = panel.querySelector('.notes-field');
   if (notes) notes.value = state.coffees[state.activeIndex].notes;
-  const descCard = panel.querySelectorAll('.details-card')[1];
+  const descCard = panel.querySelector('.describe-card');
   if (descCard && descCard.syncCata) descCard.syncCata();
 }
 
@@ -1897,10 +2153,10 @@ function toggleCata(list, option, max) {
 }
 
 function buildDescriptiveCard(coffee) {
-  const card = el('div', 'details-card');
+  const card = el('div', 'details-card describe-card');
   card.innerHTML = `
     <button class="details-toggle">
-      <span class="details-toggle-label">Describe</span>
+      <span class="details-toggle-label">Describe<span class="optional-pill">optional</span></span>
       <span class="details-summary"></span>
       <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
@@ -1911,11 +2167,15 @@ function buildDescriptiveCard(coffee) {
 
   const summaryEl = card.querySelector('.details-summary');
   const refreshSummary = () => {
-    summaryEl.textContent = descriptiveSummary(coffee.desc) || 'intensity · descriptors…';
+    summaryEl.textContent = descriptiveSummary(coffee.desc) || 'what you taste, not how good';
   };
 
   const body = card.querySelector('.desc-body');
   const d = coffee.desc;
+  addHelp(card.querySelector('.details-toggle-label'), 'describeVsScore');
+
+  body.appendChild(el('p', 'desc-intro',
+    'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections below the card do that.'));
 
   // roast level, recorded before tasting begins
   const roast = el('div', 'desc-field');
@@ -2124,7 +2384,10 @@ function buildCvaCard(coffee, section) {
         <div class="attr-sub">${section.sub}</div>
       </div>
       <div class="attr-head-right">
-        <div class="attr-value">${coffee.cva[section.key]}</div>
+        <div class="attr-value-row">
+          <div class="attr-value">${coffee.cva[section.key]}</div>
+          <button class="cva-clear" type="button" aria-label="Clear the ${section.label} rating">×</button>
+        </div>
         <div class="cva-desc"></div>
       </div>
     </div>
@@ -2140,6 +2403,7 @@ function buildCvaCard(coffee, section) {
     const v = coffee.cva[section.key];
     const rated = Boolean(coffee.touched[section.key]);
     card.classList.toggle('unrated', !rated);
+    card.classList.toggle('rated', rated);
     valueEl.textContent = rated ? v : '–';
     desc.textContent = rated ? CVA_LABELS[v - 1] : 'not rated yet';
     [...scale.children].forEach((btn, i) => btn.classList.toggle('selected', rated && i + 1 === v));
@@ -2149,6 +2413,19 @@ function buildCvaCard(coffee, section) {
       valueEl.classList.add('pop');
     }
   };
+
+  // A rating tapped by accident had no way back: the section stayed rated
+  // forever and quietly weighted the score.
+  card.querySelector('.cva-clear').addEventListener('click', () => {
+    if (!coffee.touched[section.key]) return;
+    delete coffee.touched[section.key];
+    coffee.cva[section.key] = 5;
+    haptic();
+    refresh(false);
+    refreshTabs();
+    updateScorebar();
+    save();
+  });
 
   for (let v = 1; v <= 9; v++) {
     const btn = el('button', 'cva-btn' + (v === 5 ? ' neutral' : ''), String(v));
@@ -2238,7 +2515,10 @@ function buildScaleCard(coffee, attr) {
         <div class="attr-title">${attr.label}</div>
         <div class="attr-sub">${attr.sub}</div>
       </div>
-      <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
+      <div class="attr-value-row">
+        <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
+        <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} rating">×</button>
+      </div>
     </div>
     <div class="slider">
       <div class="slider-track"><div class="slider-fill"></div></div>
@@ -2254,7 +2534,8 @@ function buildScaleCard(coffee, attr) {
   const thumb = card.querySelector('.slider-thumb');
   const ticks = card.querySelector('.slider-ticks');
   addHelp(card.querySelector('.attr-title'), 'legacy.scale');
-  if (!coffee.touched[attr.key]) card.classList.add('unrated');
+  card.classList.toggle('unrated', !coffee.touched[attr.key]);
+  card.classList.toggle('rated', Boolean(coffee.touched[attr.key]));
 
   // whole-point tick marks
   for (let v = 6; v <= 10; v++) {
@@ -2279,6 +2560,7 @@ function buildScaleCard(coffee, attr) {
     coffee.scores[attr.key] = v;
     coffee.touched[attr.key] = true;
     card.classList.remove('unrated');
+    card.classList.add('rated');
     valueEl.textContent = fmt(v);
     if (popIt) {
       valueEl.classList.remove('pop');
@@ -2310,6 +2592,20 @@ function buildScaleCard(coffee, attr) {
   const endDrag = () => slider.classList.remove('dragging');
   slider.addEventListener('pointerup', endDrag);
   slider.addEventListener('pointercancel', endDrag);
+
+  card.querySelector('.cva-clear').addEventListener('click', () => {
+    if (!coffee.touched[attr.key]) return;
+    delete coffee.touched[attr.key];
+    coffee.scores[attr.key] = 7.5;
+    card.classList.add('unrated');
+    card.classList.remove('rated');
+    valueEl.textContent = fmt(coffee.scores[attr.key]);
+    haptic();
+    position();
+    refreshTabs();
+    updateScorebar();
+    save();
+  });
 
   position();
   return card;
@@ -2527,15 +2823,21 @@ function tableCode() {
 
 function renderTeamCard() {
   const card = $('#team-card');
+  const live = Boolean(tableCode());
+  const leader = isTableLeader();
+
   card.innerHTML = `
-    <h3>Team scores</h3>
-    <p class="team-sub">Cupping with others? Share your scores as a code, and paste theirs to see how the table scored.</p>
+    <h3>${live ? 'The table' : 'Team scores'}</h3>
+    <p class="team-sub">${live
+      ? 'Everyone here scores on their own device. Nobody sees anyone else’s numbers until the leader opens the table — that independence is what the standard asks for.'
+      : 'Cupping with others? Share your scores as a code, and paste theirs to see how the table scored.'}</p>
     <div class="team-name-row">
       <span class="detail-label">Your name</span>
       <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
     </div>
     <div class="live-table hidden" id="live-table"></div>
-    <div class="team-actions">
+    ${leader ? '<button class="btn btn-primary present-cta" id="btn-present">Present to the table</button>' : ''}
+    <div class="team-actions${live ? ' hidden' : ''}">
       <button class="btn btn-ghost" id="btn-share-scores">Share my scores</button>
       <button class="btn btn-ghost" id="btn-add-scores">Add cupper’s scores</button>
     </div>
@@ -2543,7 +2845,8 @@ function renderTeamCard() {
     <div class="team-results" id="team-results"></div>
   `;
 
-  if (tableCode()) refreshLiveTable();
+  if (leader) card.querySelector('#btn-present').addEventListener('click', openPresent);
+  if (live) refreshLiveTable();
 
   const nameInput = card.querySelector('#cupper-name');
   nameInput.value = getCupperName();
@@ -2596,12 +2899,21 @@ async function refreshLiveTable() {
 
   if (!data.revealed) {
     const done = data.participants.filter(p => p.submitted).length;
-    html += `<p class="live-note">Scores stay sealed until the leader reveals them — the protocol asks every cupper to score independently first. <strong>${done} of ${data.participants.length}</strong> submitted.</p>`;
+    html += `<p class="live-note">Scores stay sealed until the leader opens the table — the protocol asks every cupper to score independently first. <strong>${done} of ${data.participants.length}</strong> submitted.</p>`;
+    // who is still out, so the leader knows what they are waiting on
+    if (data.participants.length) {
+      html += `<div class="live-roster">${data.participants
+        .map(p => `<span class="joined-chip${p.submitted ? ' done' : ''}">${escapeHTML(p.name)}</span>`)
+        .join('')}</div>`;
+    }
     if (canSubmit) {
       html += submittedMine
         ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
         : '';
       html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
+    }
+    if (isTableLeader()) {
+      html += `<p class="live-note">You are the leader: <strong>Present to the table</strong> below walks the lineup and opens the scores when you are ready.</p>`;
     }
     wrap.innerHTML = html;
   } else {
@@ -2670,6 +2982,171 @@ async function refreshLiveTable() {
       refreshLiveTable();
     };
   }
+}
+
+/* ============================================================
+   PRESENT SCREEN
+   The leader's half of the ceremony. Samples are cupped blind and
+   coded, and identities and scores are revealed afterwards — so
+   this walks the lineup in order, opening each coffee's identity
+   first and the table's scores second.
+   ============================================================ */
+
+let presentData = null;   // last roster read from the relay
+let presentStage = [];    // 0 sealed · 1 identity shown · 2 scores shown
+
+function isTableLeader() {
+  return Boolean(state && state.liveCode && state.liveToken);
+}
+
+async function openPresent() {
+  presentData = null;
+  presentStage = state.coffees.map(() => 0);
+  showScreen('#screen-present');
+  buildPresent();
+
+  const code = tableCode();
+  if (!code) return;
+
+  // the leader is a cupper too, and their sheet is finished by the time they
+  // are presenting — make sure it is in the panel average
+  if (state.participantId) {
+    const ok = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores());
+    if (ok) { state.submittedAt = Date.now(); save(); }
+  }
+
+  presentData = await relayListParticipants(code);
+  if (presentData) { state.revealed = presentData.revealed; save(); }
+  buildPresent();
+}
+
+// Panel averages per coffee, or null while the scores are still sealed.
+function presentPanel() {
+  if (!presentData || !presentData.revealed) return null;
+  const all = presentData.participants.filter(p => Array.isArray(p.scores));
+  if (!all.length) return null;
+  return state.coffees.map((c, i) => {
+    const cuppers = all
+      .map(p => ({ name: p.name, score: p.scores[i] }))
+      .filter(v => typeof v.score === 'number');
+    const avg = cuppers.reduce((a, v) => a + v.score, 0) / (cuppers.length || 1);
+    return { avg, cuppers: cuppers.sort((a, b) => b.score - a.score) };
+  });
+}
+
+// Opening the scores is one irreversible act for the whole table, so it is
+// asked for once and then applies to every coffee.
+async function ensureRevealed() {
+  if (state.revealed) return true;
+  if (!isTableLeader()) { toast('Only the cupping leader can reveal the table'); return false; }
+  if (!confirm('Open every cupper’s scores? The standard asks cuppers to score independently first — this ends that and cannot be undone.')) return false;
+
+  const ok = await relayReveal(state.liveCode, state.liveToken);
+  if (!ok) { toast('Could not reveal — check your connection'); return false; }
+  state.revealed = true;
+  // identities are on the table now, so guests' devices get them too
+  state.shareDetails = true;
+  save();
+  relayUpdateSession(state.liveCode, state.liveToken, buildSessionPayload());
+  presentData = await relayListParticipants(state.liveCode);
+  return true;
+}
+
+function buildPresent() {
+  const list = $('#present-list');
+  const intro = $('#present-intro');
+  const panel = presentPanel();
+  const solo = !tableCode();
+
+  intro.textContent = solo
+    ? 'No live table — this walks your own scores coffee by coffee.'
+    : state.revealed
+      ? 'Scores are open. Reveal each coffee in order: what it was, then how the table scored it.'
+      : 'Reveal each coffee in order. Identities first; the scores stay sealed until you open them, which you can do from any card.';
+
+  list.innerHTML = '';
+  state.coffees.forEach((coffee, i) => {
+    const stage = presentStage[i] || 0;
+    const card = el('div', 'present-card ' + ['sealed', 'named', 'scored'][stage]);
+    card.style.animationDelay = `${Math.min(i, 8) * 0.04}s`;
+
+    const meta = metaSummary(coffee.meta);
+    const row = panel ? panel[i] : null;
+    const mine = coffeeScore(coffee);
+    const shown = row ? row.avg : mine;
+
+    card.innerHTML = `
+      <div class="present-top">
+        <span class="present-num">${i + 1}</span>
+        <div class="present-id">
+          <div class="present-name">${stage ? escapeHTML(coffeeName(coffee, i)) : `Coffee ${i + 1}`}</div>
+          ${stage && meta ? `<div class="present-meta">${escapeHTML(meta)}</div>` : ''}
+          ${stage && !meta ? '<div class="present-meta">no details recorded</div>' : ''}
+        </div>
+        ${stage === 2 ? `<div class="present-score">
+          <span class="present-avg">${fmt(shown)}</span>
+          <span class="present-grade">${row ? `panel · ${row.cuppers.length}` : 'your score'}</span>
+        </div>` : ''}
+      </div>
+      ${stage === 2 && row ? `<div class="present-cuppers">${row.cuppers.map(c => {
+        const d = c.score - row.avg;
+        return `<span class="present-cupper">${escapeHTML(c.name)} <strong>${fmt(c.score)}</strong> <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em></span>`;
+      }).join('')}</div>` : ''}
+    `;
+
+    if (stage < 2) {
+      const action = el('button', 'present-action',
+        stage === 0 ? 'Reveal the coffee' : 'Show the table’s scores');
+      action.type = 'button';
+      action.onclick = async () => {
+        haptic();
+        if (stage === 1 && !solo && !state.revealed) {
+          if (!(await ensureRevealed())) return;
+        }
+        presentStage[i] = stage + 1;
+        buildPresent();
+      };
+      card.appendChild(action);
+    }
+
+    list.appendChild(card);
+  });
+
+  buildPresentFinal(panel);
+}
+
+// The ranking lands only once every coffee has been walked through — the
+// point of the screen is that it arrives last.
+function buildPresentFinal(panel) {
+  const wrap = $('#present-final');
+  const done = state.coffees.every((c, i) => presentStage[i] === 2);
+  wrap.classList.toggle('hidden', !done);
+  if (!done) return;
+
+  const rows = state.coffees
+    .map((c, i) => ({ name: coffeeName(c, i), score: panel ? panel[i].avg : coffeeScore(c) }))
+    .sort((a, b) => b.score - a.score);
+  const n = panel ? Math.max(...panel.map(p => p.cuppers.length)) : 0;
+
+  wrap.innerHTML = `
+    <h3>The table’s ranking</h3>
+    <p class="team-sub">${panel
+      ? `Panel scores — the average of ${n} independent cupper${n > 1 ? 's' : ''}, as the standard prescribes.`
+      : 'Your own scores — no other cuppers have submitted.'}</p>
+    ${rows.map((r, pos) => `
+      <div class="present-final-row">
+        <span class="present-final-pos">${pos + 1}</span>
+        <span class="present-final-name">${escapeHTML(r.name)}</span>
+        <span class="present-final-score">${fmt(r.score)}</span>
+      </div>`).join('')}
+  `;
+}
+
+async function revealAllPresent() {
+  if (tableCode() && !state.revealed && !(await ensureRevealed())) return;
+  presentStage = state.coffees.map(() => 2);
+  haptic();
+  buildPresent();
 }
 
 function renderTeamTable() {
@@ -3164,6 +3641,9 @@ function refreshResumeButton() {
 function startCupping() {
   buildCuppingUI();
   showScreen('#screen-cupping');
+  // names and details may have changed on the lineup screen; the table is
+  // looking at whatever the relay last heard
+  if (isTableLeader()) relayUpdateSession(state.liveCode, state.liveToken, buildSessionPayload());
   requestAnimationFrame(() => scrollToPanel(state.activeIndex, false));
 }
 
@@ -3201,13 +3681,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     newSession(setup.coffees, setup.cups, setup.form);
     refreshResumeButton();
-    startCupping();
+    openLineup();
   });
 
+  // setup → lineup → cupping, so backing out of the sheet lands where the
+  // coffees are named rather than dumping you at the start
   $('#btn-back-setup').addEventListener('click', () => {
+    refreshResumeButton();
+    if (state && state.coffees.length) openLineup();
+    else showScreen('#screen-setup');
+  });
+
+  $('#btn-lineup-back').addEventListener('click', () => {
     refreshResumeButton();
     showScreen('#screen-setup');
   });
+  $('#btn-lineup-add').addEventListener('click', addLineupCoffee);
+  $('#btn-lineup-paste').addEventListener('click', openLineupPaste);
+  $('#btn-lineup-invite').addEventListener('click', openInviteSheet);
+  $('#btn-lineup-start').addEventListener('click', startCupping);
+
+  $('#btn-present-back').addEventListener('click', () => showScreen('#screen-results'));
+  $('#btn-present-all').addEventListener('click', revealAllPresent);
 
   $('#btn-join').addEventListener('click', openJoinSheet);
 
