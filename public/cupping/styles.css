@@ -506,6 +506,24 @@ input, textarea, select { font: inherit; }
   border-color: var(--accent);
   color: var(--on-accent);
 }
+.invite-btn .invite-label { font-variant-numeric: tabular-nums; }
+
+/* how many are at the table, kept current by the background poll */
+.invite-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  animation: bump 0.35s var(--spring);
+}
+.invite-count.all-in { background: var(--green); color: var(--on-accent); }
 
 /* horizontally swipeable panels */
 .panels {
@@ -747,23 +765,88 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* ---------- flavor wheel ---------- */
 
+/* An unlabelled disc of spokes read as decoration — people did not know
+   the flavor wheel was in there. It says what it is now. */
 .wheel-fab {
   position: fixed;
   right: 14px;
   bottom: calc(var(--sab) + 108px);
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
+  height: 46px;
+  padding: 0 15px 0 12px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: var(--bg-card);
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent);
   color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
   box-shadow: var(--shadow);
   z-index: 7;
   transition: transform 0.2s var(--spring);
 }
-.wheel-fab:active { transform: scale(0.88); }
+.wheel-fab:active { transform: scale(0.92); }
+
+/* until it has been opened once, it breathes */
+.wheel-fab.unused::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  animation: wheelPing 2.4s var(--ease) infinite;
+  pointer-events: none;
+}
+@keyframes wheelPing {
+  0%   { opacity: 0.65; transform: scale(1); }
+  70%  { opacity: 0; transform: scale(1.22); }
+  100% { opacity: 0; transform: scale(1.22); }
+}
+
+/* one-time coach mark, pointing at the button */
+.wheel-coach {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--sab) + 162px);
+  max-width: 232px;
+  z-index: 7;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+  animation: rise 0.4s var(--spring) backwards;
+  animation-delay: 0.1s;
+}
+.wheel-coach strong { display: block; font-weight: 800; font-size: 13px; }
+.wheel-coach::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+.wheel-coach.leaving { opacity: 0; transform: translateY(6px); transition: all 0.3s var(--ease); }
+
+/* the same door, offered where the words are actually needed */
+.cata-cap-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wheel-link {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 0.15s var(--spring);
+}
+.wheel-link:active { transform: scale(0.93); }
 
 .wheel-sheet { max-height: 92dvh; overflow-y: auto; }
 .wheel-holder { margin: 10px 0 4px; }

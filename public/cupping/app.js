@@ -233,6 +233,8 @@ function newSession(nCoffees, nCups, form) {
     shareDetails: false, // blind by default: guests get names, not origin details
   };
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
+  tableCounts = null;
+  seenCuppers = null;
   save();
 }
 
@@ -841,6 +843,12 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
   $('#scorebar').classList.toggle('visible', id === '#screen-cupping');
+  syncPolling();
+}
+
+function activeScreenId() {
+  const el = document.querySelector('.screen.active');
+  return el ? '#' + el.id : null;
 }
 
 function escapeHTML(s) {
@@ -1049,6 +1057,113 @@ async function relayListParticipants(code) {
   if (!proof) return null;
   const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants?${proof}`, { method: 'GET' });
   return data && Array.isArray(data.participants) ? data : null;
+}
+
+/* ---------- live polling ----------
+   A cupping is a room of people watching each other's phones, so the table
+   has to feel live: someone joining, or the leader opening the scores,
+   should land in a second or two, not on the next time you happen to
+   navigate. One poller runs at a time and belongs to whichever screen is
+   open. It starts fast, stretches out while nothing changes, and pauses
+   entirely when the tab is hidden — a two-hour session must not spend the
+   day's KV reads on a phone sitting in someone's apron.                */
+
+const POLL_DEFAULTS = { fast: 1400, max: 8000, growth: 1.5 };
+
+let poller = null;
+
+// tick() returns a signature string: a change resets the cadence, and
+// returning null retires the poller for good.
+function startPolling(tick, opts) {
+  stopPolling();
+  const { fast, max, growth } = { ...POLL_DEFAULTS, ...opts };
+  const self = { last: undefined, delay: fast, timer: null, busy: false, dead: false };
+
+  const run = async () => {
+    if (self.dead || self.busy) return;
+    if (document.hidden) return; // visibilitychange wakes it again
+    self.busy = true;
+    let sig;
+    try { sig = await tick(); } catch (e) { sig = 'error'; }
+    self.busy = false;
+    if (self.dead) return;
+    if (sig === null) { self.dead = true; return; }
+    if (sig !== self.last) { self.last = sig; self.delay = fast; }
+    else self.delay = Math.min(max, Math.round(self.delay * growth));
+    self.timer = setTimeout(run, self.delay);
+  };
+
+  // back to the front of the queue — used when the tab wakes or the
+  // connection returns, where something has almost certainly changed
+  self.wake = () => {
+    if (self.dead) return;
+    self.delay = fast;
+    clearTimeout(self.timer);
+    run();
+  };
+
+  poller = self;
+  run();
+  return self;
+}
+
+function stopPolling() {
+  if (poller) {
+    poller.dead = true;
+    clearTimeout(poller.timer);
+  }
+  poller = null;
+}
+
+// What the table looks like right now, as one comparable string.
+function rosterSig(data) {
+  if (!data) return 'offline';
+  return (data.revealed ? 'R:' : 'S:') + data.participants
+    .map(p => `${p.name}${p.submitted ? '+' : '-'}${p.scores ? p.scores.join('.') : ''}`)
+    .join('|');
+}
+
+// Whichever screen is open owns the poll; the invite sheet takes it over
+// while it is up, because that is where the leader is watching people
+// arrive, and hands it back on close.
+function syncPolling() {
+  stopPolling();
+  if (!state) return;
+  const id = $('#share-modal').classList.contains('hidden') ? activeScreenId() : '#share-modal';
+  if (id === '#share-modal' && state.liveCode && pollInvite) startPolling(pollInvite, { fast: 1200, max: 5000 });
+  else if (id === '#screen-cupping' && isTableLeader()) startPolling(pollCuppingRoster, { fast: 2500, max: 12000 });
+  else if (id === '#screen-results' && tableCode()) startPolling(pollResults);
+  else if (id === '#screen-present' && tableCode()) startPolling(pollPresent);
+}
+
+// The leader is scoring, not staring at the roster — so arrivals come to
+// them: a count on the invite pill and one toast naming who turned up.
+let tableCounts = null;
+let seenCuppers = null;
+// set by the invite sheet while it is open, so syncPolling can hand it the poll
+let pollInvite = null;
+
+async function pollCuppingRoster() {
+  const code = tableCode();
+  if (!code) return null;
+  const data = await relayListParticipants(code);
+  if (!data) return 'offline';
+
+  const names = data.participants.map(p => p.name);
+  if (seenCuppers) {
+    const fresh = names.filter(n => !seenCuppers.includes(n));
+    if (fresh.length) {
+      haptic();
+      toast(fresh.length === 1 ? `${fresh[0]} joined` : `${fresh.length} more joined`);
+    }
+  }
+  seenCuppers = names;
+
+  tableCounts = { joined: names.length, submitted: data.participants.filter(p => p.submitted).length };
+  state.revealed = data.revealed;
+  save();
+  refreshTabs();
+  return rosterSig(data);
 }
 
 function myScores() {
@@ -1290,8 +1405,6 @@ function joinURL(code) {
   return `${APP_URL}#join=${code}`;
 }
 
-let inviteTimer = null;
-
 function renderQR(url) {
   const qrBox = $('#share-qr');
   qrBox.innerHTML = '';
@@ -1326,8 +1439,7 @@ async function openInviteSheet() {
 
   const close = () => {
     modal.classList.add('hidden');
-    clearInterval(inviteTimer);
-    inviteTimer = null;
+    syncPolling(); // hand the poll back to the screen underneath
     $('#share-close').onclick = null;
     $('#share-link').onclick = null;
     toggle.onchange = null;
@@ -1341,13 +1453,11 @@ async function openInviteSheet() {
   );
 
   const refreshJoined = async () => {
-    if (!state.liveCode) return;
+    if (!state.liveCode) return null;
     const data = await relayListParticipants(state.liveCode);
-    if (!data) return;
+    if (!data) return 'offline';
     const people = data.participants;
     const done = people.filter(p => p.submitted).length;
-    state.revealed = data.revealed;
-    save();
 
     joinedWrap.classList.remove('hidden');
     $('#joined-title').textContent = people.length
@@ -1376,7 +1486,15 @@ async function openInviteSheet() {
         ? `Reveal scores now (${people.length - done} still cupping)`
         : 'Reveal scores to the table';
     }
+
+    // keep the header pill in step while the sheet is the one polling
+    tableCounts = { joined: people.length, submitted: done };
+    seenCuppers = people.map(p => p.name);
+    state.revealed = data.revealed;
+    save();
+    return rosterSig(data);
   };
+  pollInvite = refreshJoined;
 
   const revealBtn = $('#btn-reveal');
   revealBtn.onclick = async () => {
@@ -1430,9 +1548,7 @@ async function openInviteSheet() {
     // point the QR at the code so joiners are counted and can get late updates
     shareUrl = `${APP_URL}#code=${live.code}`;
     renderQR(shareUrl);
-    refreshJoined();
-    clearInterval(inviteTimer);
-    inviteTimer = setInterval(refreshJoined, 4000);
+    syncPolling(); // the sheet is up, so it takes the poll at its fastest
   } else {
     pinWrap.classList.add('hidden');
   }
@@ -1743,9 +1859,20 @@ function refreshTabs() {
   const invite = $('#btn-share-session');
   const live = Boolean(state.liveCode);
   invite.classList.toggle('live', live);
-  invite.querySelector('span').textContent = live ? state.liveCode : 'Invite';
+  invite.querySelector('.invite-label').textContent = live ? state.liveCode : 'Invite';
+
+  // who is at the table, on the button the leader can already see — the
+  // roster is polled in the background while they score
+  const badge = invite.querySelector('.invite-count');
+  const counts = live ? tableCounts : null;
+  badge.classList.toggle('hidden', !counts || !counts.joined);
+  if (counts && counts.joined) {
+    badge.textContent = counts.submitted ? `${counts.submitted}/${counts.joined}` : String(counts.joined);
+    badge.classList.toggle('all-in', counts.submitted === counts.joined);
+  }
+
   invite.setAttribute('aria-label', live
-    ? `Cupping code ${state.liveCode.split('').join(' ')} — open invite`
+    ? `Cupping code ${state.liveCode.split('').join(' ')}${counts && counts.joined ? `, ${counts.joined} at the table` : ''} — open invite`
     : 'Invite cuppers to this session');
 
   const progress = scoreProgress(active);
@@ -1994,7 +2121,48 @@ function noteItems(notes) {
   return notes.split(',').map(s => s.trim()).filter(Boolean);
 }
 
+/* The wheel used to be an unlabelled disc of spokes in the corner, and
+   people simply did not know it was there. It is labelled now, it pulses
+   until it has been opened once, a coach mark points at it on the first
+   cupping, and the Describe card offers the same door where the words are
+   actually being hunted for.                                          */
+
+const WHEEL_SEEN_KEY = 'sca-cupping-wheel-seen-v1';
+let coachTimer = null;
+
+function wheelSeen() {
+  try { return localStorage.getItem(WHEEL_SEEN_KEY) === '1'; } catch (e) { return true; }
+}
+
+function markWheelSeen() {
+  try { localStorage.setItem(WHEEL_SEEN_KEY, '1'); } catch (e) { /* private mode */ }
+  $('#btn-wheel').classList.remove('unused');
+  hideWheelCoach();
+}
+
+function hideWheelCoach() {
+  clearTimeout(coachTimer);
+  const coach = $('#wheel-coach');
+  if (coach.classList.contains('hidden')) return;
+  coach.classList.add('leaving');
+  setTimeout(() => { coach.classList.add('hidden'); coach.classList.remove('leaving'); }, 320);
+}
+
+function maybeShowWheelCoach() {
+  const fab = $('#btn-wheel');
+  fab.classList.toggle('unused', !wheelSeen());
+  if (wheelSeen()) return;
+  const coach = $('#wheel-coach');
+  clearTimeout(coachTimer);
+  coachTimer = setTimeout(() => {
+    if (activeScreenId() !== '#screen-cupping' || wheelSeen()) return;
+    coach.classList.remove('hidden');
+    coachTimer = setTimeout(hideWheelCoach, 9000);
+  }, 1400);
+}
+
 function openFlavorWheel() {
+  markWheelSeen();
   const modal = $('#wheel-modal');
   const holder = $('#wheel-holder');
   const status = $('#wheel-status');
@@ -2172,7 +2340,9 @@ function buildDescriptiveCard(coffee) {
 
   const body = card.querySelector('.desc-body');
   const d = coffee.desc;
-  addHelp(card.querySelector('.details-toggle-label'), 'describeVsScore');
+  // no help button on this row: the "Describe" section head directly above
+  // already carries one, and a second widened the label until it sat under
+  // the middle of the row, swallowing the tap that should open the card
 
   body.appendChild(el('p', 'desc-intro',
     'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections below the card do that.'));
@@ -2318,12 +2488,24 @@ function buildDescriptiveCard(coffee) {
     return s;
   };
 
+  // The wheel is the vocabulary for exactly these lists, so it is offered
+  // right where someone is stuck for a word rather than only in the corner.
+  const capRow = text => {
+    const row = el('div', 'cata-cap-row');
+    row.appendChild(el('span', 'cata-cap', text));
+    const link = el('button', 'wheel-link', 'Flavor wheel');
+    link.type = 'button';
+    link.addEventListener('click', e => { e.stopPropagation(); openFlavorWheel(); });
+    row.appendChild(link);
+    return row;
+  };
+
   // --- fragrance + aroma share one olfactory CATA box ---
   const fa = section('Fragrance & aroma', 'descIntensity');
   fa.appendChild(intensityRow(DESC_ATTRS[0]));
   fa.appendChild(intensityRow(DESC_ATTRS[1]));
   const aromaTree = olfactoryChips('aroma', 5);
-  fa.appendChild(el('span', 'cata-cap', 'Orthonasal descriptors · up to 5'));
+  fa.appendChild(capRow('Orthonasal descriptors · up to 5'));
   fa.appendChild(aromaTree.wrap);
   fa.appendChild(noteField('fragrance', 'freely elicited notes…'));
   body.appendChild(fa);
@@ -2333,7 +2515,7 @@ function buildDescriptiveCard(coffee) {
   fl.appendChild(intensityRow(DESC_ATTRS[2]));
   fl.appendChild(intensityRow(DESC_ATTRS[3]));
   const flavorTree = olfactoryChips('flavor', 5);
-  fl.appendChild(el('span', 'cata-cap', 'Retronasal descriptors · up to 5'));
+  fl.appendChild(capRow('Retronasal descriptors · up to 5'));
   fl.appendChild(flavorTree.wrap);
   fl.appendChild(el('span', 'cata-cap', 'Main tastes · up to 2'));
   fl.appendChild(flatChips('tastes', CATA_TASTES, 2));
@@ -2846,7 +3028,9 @@ function renderTeamCard() {
   `;
 
   if (leader) card.querySelector('#btn-present').addEventListener('click', openPresent);
-  if (live) refreshLiveTable();
+  // the card is fresh, so the live table has nothing rendered yet — the
+  // Results poller fills it in on its first tick, immediately
+  liveSig = null;
 
   const nameInput = card.querySelector('#cupper-name');
   nameInput.value = getCupperName();
@@ -2880,12 +3064,29 @@ function renderTeamCard() {
 
 /* ---------- live table: submit, then read the panel result ---------- */
 
-async function refreshLiveTable() {
+// what the table looked like the last time it was drawn
+let liveSig = null;
+
+// The Results screen's poller. Redrawing the block on every tick would
+// throw away the reveal animation and fight the buttons under a finger,
+// so it only rebuilds when something actually moved.
+async function pollResults() {
+  const code = tableCode();
+  if (!code) return null;
+  const data = await relayListParticipants(code);
+  const sig = rosterSig(data);
+  if (sig !== liveSig) {
+    liveSig = sig;
+    refreshLiveTable(data);
+  }
+  return sig;
+}
+
+function refreshLiveTable(data) {
   const code = tableCode();
   const wrap = $('#live-table');
   if (!code || !wrap) return;
 
-  const data = await relayListParticipants(code);
   if (!data) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
   state.revealed = data.revealed;
@@ -2896,6 +3097,18 @@ async function refreshLiveTable() {
   const submittedMine = Boolean(state.submittedAt);
 
   let html = `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>`;
+
+  // Someone who joined late, or who never got as far as Results before the
+  // leader opened the table, still has to be able to put their scores in —
+  // otherwise their sheet silently never counts. The table is open by then,
+  // so say what that means rather than pretending it is the same act.
+  const lateSubmit = () => {
+    if (!canSubmit) return '';
+    return (submittedMine
+      ? `<p class="live-note">Your scores are in the panel above.</p>`
+      : `<p class="live-note">Your scores are <strong>not in this panel</strong>. The table is already open, so submit only what you scored on your own.</p>`)
+      + `<button class="btn btn-ghost" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
+  };
 
   if (!data.revealed) {
     const done = data.participants.filter(p => p.submitted).length;
@@ -2925,7 +3138,7 @@ async function refreshLiveTable() {
       .map(p => ({ ...p, me: p.name === myName }));
 
     if (!all.length) {
-      wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>`;
+      wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>` + lateSubmit();
     } else {
       const perCoffee = state.coffees.map((c, i) => {
         const vals = all.map(p => p.scores[i]).filter(v => typeof v === 'number');
@@ -2960,7 +3173,7 @@ async function refreshLiveTable() {
         ${calib.map(c => `<div class="calib-row${c.me ? ' me' : ''}"><span>${escapeHTML(c.name)}</span>
           <span class="calib-val ${c.mean >= 0 ? 'high' : 'low'}">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span></div>`).join('')}
       </div>`;
-      wrap.innerHTML = html;
+      wrap.innerHTML = html + lateSubmit();
     }
   }
 
@@ -2979,7 +3192,7 @@ async function refreshLiveTable() {
       state.submittedAt = Date.now();
       save();
       toast('Scores submitted');
-      refreshLiveTable();
+      if (poller) poller.wake(); // redraw from the server, straight away
     };
   }
 }
@@ -3001,7 +3214,10 @@ function isTableLeader() {
 
 async function openPresent() {
   presentData = null;
+  presentSig = null;
   presentStage = state.coffees.map(() => 0);
+  // the sealed cards go up at once; showScreen starts the poller, which
+  // fetches the roster in the background
   showScreen('#screen-present');
   buildPresent();
 
@@ -3013,11 +3229,29 @@ async function openPresent() {
   if (state.participantId) {
     const ok = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores());
     if (ok) { state.submittedAt = Date.now(); save(); }
+    if (poller) poller.wake();
   }
+}
 
-  presentData = await relayListParticipants(code);
-  if (presentData) { state.revealed = presentData.revealed; save(); }
-  buildPresent();
+// Late submissions land on the screen the leader is presenting from, so a
+// coffee opened before someone finished still lands on the right average.
+let presentSig = null;
+
+async function pollPresent() {
+  const code = tableCode();
+  if (!code) return null;
+  const data = await relayListParticipants(code);
+  const sig = rosterSig(data);
+  if (sig !== presentSig) {
+    presentSig = sig;
+    if (data) {
+      presentData = data;
+      state.revealed = data.revealed;
+      save();
+      buildPresent();
+    }
+  }
+  return sig;
 }
 
 // Panel averages per coffee, or null while the scores are still sealed.
@@ -3049,6 +3283,7 @@ async function ensureRevealed() {
   save();
   relayUpdateSession(state.liveCode, state.liveToken, buildSessionPayload());
   presentData = await relayListParticipants(state.liveCode);
+  presentSig = rosterSig(presentData);
   return true;
 }
 
@@ -3620,9 +3855,16 @@ function registerServiceWorker() {
 function watchConnection() {
   const badge = $('#offline-badge');
   const sync = () => badge.classList.toggle('hidden', navigator.onLine);
-  window.addEventListener('online', sync);
+  window.addEventListener('online', () => { sync(); if (poller) poller.wake(); });
   window.addEventListener('offline', sync);
   sync();
+
+  // A phone that has been in a pocket, or a tab that was in the background,
+  // is exactly where the table has moved on without you. Polling pauses
+  // while hidden and catches up the moment it is looked at again.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && poller) poller.wake();
+  });
 }
 
 // Offered whenever a session exists, not only at page load — leaving the
@@ -3645,6 +3887,7 @@ function startCupping() {
   // looking at whatever the relay last heard
   if (isTableLeader()) relayUpdateSession(state.liveCode, state.liveToken, buildSessionPayload());
   requestAnimationFrame(() => scrollToPanel(state.activeIndex, false));
+  maybeShowWheelCoach();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -3708,6 +3951,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
   $('#btn-wheel').addEventListener('click', openFlavorWheel);
+  $('#wheel-coach').addEventListener('click', () => { markWheelSeen(); openFlavorWheel(); });
+  // scoring means they are busy — the coach mark has said its piece
+  $('#panels').addEventListener('pointerdown', hideWheelCoach, { passive: true });
 
   // account: OAuth return, profile button, quiet background sync
   $('#btn-account').addEventListener('click', openAccountSheet);
