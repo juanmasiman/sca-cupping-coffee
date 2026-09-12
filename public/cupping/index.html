@@ -153,19 +153,19 @@
       <span>Tap the wheel for the flavor vocabulary.</span>
     </div>
 
-    <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
-      <svg viewBox="0 0 40 40" width="26" height="26" aria-hidden="true">
-        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
-        <circle cx="20" cy="20" r="6.5" fill="currentColor"/>
-        <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M20 2v11M20 27v11M2 20h11M27 20h11"/>
-          <path d="M7.3 7.3l7.8 7.8M24.9 24.9l7.8 7.8M32.7 7.3l-7.8 7.8M15.1 24.9l-7.8 7.8"/>
-        </g>
-      </svg>
-      <span>Flavors</span>
-    </button>
 
     <footer class="scorebar" id="scorebar">
+      <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
+        <svg viewBox="0 0 40 40" width="24" height="24" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
+          <circle cx="20" cy="20" r="6.5" fill="currentColor"/>
+          <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M20 2v11M20 27v11M2 20h11M27 20h11"/>
+            <path d="M7.3 7.3l7.8 7.8M24.9 24.9l7.8 7.8M32.7 7.3l-7.8 7.8M15.1 24.9l-7.8 7.8"/>
+          </g>
+        </svg>
+        <span>Flavors</span>
+      </button>
       <div class="scorebar-info">
         <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
         <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
@@ -356,7 +356,7 @@
     <div class="modal-sheet">
       <h3 id="share-title">Invite cuppers</h3>
       <div class="share-pin-wrap" id="share-pin-wrap">
-        <span class="detail-label">Live code</span>
+        <span class="detail-label" id="share-pin-label">Live code</span>
         <div class="share-pin" id="share-pin"></div>
       </div>
       <div class="share-qr-wrap">
@@ -367,7 +367,7 @@
       <label class="switch-row" for="toggle-details">
         <span class="switch-label">
           <span class="switch-title">Share coffee details</span>
-          <span class="switch-sub">Off keeps the cupping blind — cuppers see names only</span>
+          <span class="switch-sub">Off keeps the cupping blind — the table sees Coffee 1, 2, 3</span>
         </span>
         <span class="switch">
           <input type="checkbox" id="toggle-details">

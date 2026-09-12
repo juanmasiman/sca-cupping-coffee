@@ -235,6 +235,7 @@ function newSession(nCoffees, nCups, form) {
   for (let i = 0; i < nCoffees; i++) state.coffees.push(newCoffee(nCups));
   tableCounts = null;
   seenCuppers = null;
+  identitiesAdopted = false;
   save();
 }
 
@@ -950,9 +951,14 @@ function buildSessionPayload() {
     v: 1,
     f: state.form,
     c: state.cupsPerCoffee,
+    // the table this lineup belongs to, so a long code or share link joins
+    // the same table the live code does instead of starting a rival one
+    ...(state.liveCode ? { lc: state.liveCode } : {}),
     k: state.coffees.map((c, i) => {
-      const entry = { n: coffeeName(c, i) };
-      // origin details only travel when the leader chooses to share them
+      // Blind means blind: the standard has cuppers work from coded samples,
+      // and a name is the identity the leader reveals at the end. Until they
+      // share details the table sees Coffee 1, 2, 3.
+      const entry = state.shareDetails ? { n: coffeeName(c, i) } : {};
       if (state.shareDetails) {
         entry.m = Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim()));
       }
@@ -982,12 +988,20 @@ function applySessionPayload(obj) {
     });
     state.coffees[i].meta = meta;
   });
+  // This sheet belongs to someone else's table. Scores are submitted by
+  // position, so it must not be renamed or reordered here even when there is
+  // no live code to bind to — an offline long-code join is still a guest.
+  state.joinedLineup = true;
   save();
   return true;
 }
 
+// Returns the live code the lineup belongs to, if it carried one, so the
+// joiner registers at the leader's table rather than becoming a second one.
 async function joinSessionFromCode(text) {
-  return applySessionPayload(await decodeCode('CUP', text));
+  const payload = await decodeCode('CUP', text);
+  if (!applySessionPayload(payload)) return null;
+  return { code: payload.lc && /^\d{4,6}$/.test(String(payload.lc)) ? String(payload.lc) : null };
 }
 
 /* ---------- live-code relay (optional backend) ---------- */
@@ -1397,8 +1411,11 @@ function openJoinSheet() {
       hint: 'Paste the message the leader shared — the app will find the code inside it.',
       cta: 'Join',
       onSubmit: async text => {
-        const ok = await joinSessionFromCode(text);
-        if (!ok) { toast('That doesn’t look like a cupping code'); return false; }
+        const joined = await joinSessionFromCode(text);
+        if (!joined) { toast('That doesn’t look like a cupping code'); return false; }
+        // the long code names its table when the leader had one, so this
+        // joiner takes a seat there rather than starting a rival table
+        if (joined.code) await takeSeat(joined.code);
         startCupping();
         toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
         return true;
@@ -1409,23 +1426,28 @@ function openJoinSheet() {
 
 /* ---------- name prompt, then join ---------- */
 
+// Register at a live table. A seat that never arrives used to leave the
+// cupper with no way to submit at all; submitting can claim one later, so a
+// failure here is survivable — but it should not pass unmentioned.
+async function takeSeat(code) {
+  if (!state || !code) return;
+  state.joinedCode = code;
+  save();
+  const id = await relayJoinSession(code, getCupperName() || 'Cupper');
+  if (!state) return;
+  if (id) state.participantId = id;
+  else toast('Joined, but the table did not confirm your seat — it will retry when you submit');
+  save();
+}
+
 function askNameThenJoin(payload, code) {
   const finish = async name => {
-    if (name) setCupperName(name);
+    // register under the name they gave, and keep the roster and the
+    // submitted scores agreeing on it
+    setCupperName(name || getCupperName() || 'Cupper');
     applySessionPayload(payload);
-    if (code) {
-      state.joinedCode = code;
-      save();
-      // A seat that never arrived used to leave the cupper with no way to
-      // submit at all; submitting can claim one later, so a failure here is
-      // survivable — but it should not pass unmentioned.
-      const id = await relayJoinSession(code, name || 'Cupper');
-      if (state) {
-        if (id) state.participantId = id;
-        else toast('Joined, but the table did not confirm your seat — it will retry when you submit');
-        save();
-      }
-    }
+    // a link made before the leader's code existed carries the lineup only
+    await takeSeat(code || (payload && payload.lc) || null);
     startCupping();
     toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
   };
@@ -1480,7 +1502,7 @@ async function openInviteSheet() {
   // a leader of an empty session, split the room across two codes, and left
   // their seat pointing at a table they were no longer on — which is what
   // the failed submissions were.
-  const guest = !state.liveCode && Boolean(state.joinedCode);
+  const guest = !state.liveCode && Boolean(state.joinedCode || state.joinedLineup);
 
   modal.classList.toggle('guest-view', guest);
   $('#share-title').textContent = guest ? 'Cupping code' : 'Invite cuppers';
@@ -1488,14 +1510,30 @@ async function openInviteSheet() {
     ? 'Anyone else joining scans this or enters the code in “Join a cupping”. Only the leader can reveal the scores.'
     : 'Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.';
 
-  // link that carries the lineup itself — works with no relay at all
-  let shareUrl = guest ? `${APP_URL}#code=${state.joinedCode}` : joinURL(await buildSessionCode());
-  renderQR(shareUrl);
+  // A link built before the live code exists carries the lineup but names no
+  // table, so anyone opening it would start a second one. The share control
+  // waits for the code rather than handing out a link that splits the room.
+  const link = $('#share-link');
+  let shareUrl = guest && state.joinedCode ? `${APP_URL}#code=${state.joinedCode}` : null;
+  const setShareUrl = url => {
+    shareUrl = url;
+    link.disabled = !url;
+    link.textContent = url ? 'Share link' : 'Getting code…';
+    if (url) renderQR(url);
+  };
+
+  if (guest && !state.joinedCode) {
+    // an offline join: no table to point at, but the lineup itself travels
+    setShareUrl(joinURL(await buildSessionCode()));
+  } else {
+    setShareUrl(shareUrl);
+  }
 
   toggle.checked = state.shareDetails;
-  pin.textContent = guest ? state.joinedCode : 'Getting live code…';
+  $('#share-pin-label').textContent = guest ? 'Cupping code' : 'Live code';
+  pin.textContent = guest ? (state.joinedCode || '—') : 'Getting live code…';
   pin.classList.toggle('pending', !guest);
-  pinWrap.classList.remove('hidden');
+  pinWrap.classList.toggle('hidden', guest && !state.joinedCode);
   joinedWrap.classList.add('hidden');
   modal.classList.remove('hidden');
 
@@ -1503,13 +1541,13 @@ async function openInviteSheet() {
     modal.classList.add('hidden');
     syncPolling(); // hand the poll back to the screen underneath
     $('#share-close').onclick = null;
-    $('#share-link').onclick = null;
+    link.onclick = null;
     toggle.onchange = null;
     modal.onclick = null;
   };
   $('#share-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
-  $('#share-link').onclick = () => shareText(
+  link.onclick = () => shareUrl && shareText(
     `☕️ Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
     'Join link copied'
   );
@@ -1616,9 +1654,9 @@ async function openInviteSheet() {
     }
     pin.classList.remove('pending');
     pin.textContent = live.code;
-    // point the QR at the code so joiners are counted and can get late updates
-    shareUrl = `${APP_URL}#code=${live.code}`;
-    renderQR(shareUrl);
+    // point the QR and the link at the code, so joiners are counted, get
+    // late lineup updates, and land at this table rather than a new one
+    setShareUrl(`${APP_URL}#code=${live.code}`);
     syncPolling(); // the sheet is up, so it takes the poll at its fastest
   } else {
     pinWrap.classList.add('hidden');
@@ -1651,7 +1689,7 @@ async function shareText(text, copiedMsg) {
 // submitted by position, so letting a guest add, remove or rename coffees
 // would quietly misalign their sheet against everyone else's.
 function lineupLocked() {
-  return Boolean(state && state.joinedCode);
+  return Boolean(state && (state.joinedCode || state.joinedLineup));
 }
 
 function openLineup() {
@@ -1666,7 +1704,7 @@ function buildLineup() {
   state.coffees.forEach((coffee, i) => list.appendChild(buildLineupRow(coffee, i, locked)));
 
   $('#lineup-intro').innerHTML = locked
-    ? 'This lineup comes from the cupping leader. Details appear here if they choose to share them.'
+    ? 'This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.'
     : 'Name the coffees before you invite anyone — the table sees these names. Leave a card blank and it stays <strong>Coffee 1</strong>, <strong>Coffee 2</strong>, and you can fill in the rest later.';
 
   $('#btn-lineup-add').classList.toggle('hidden', locked);
@@ -3144,10 +3182,50 @@ let liveSig = null;
 // The Results screen's poller. Redrawing the block on every tick would
 // throw away the reveal animation and fight the buttons under a finger,
 // so it only rebuilds when something actually moved.
+// Now that a blind cupping really is blind, the names only exist on the
+// leader's device until they open the table. This folds the revealed lineup
+// into a guest's sheet without touching anything they scored.
+let identitiesAdopted = false;
+
+async function adoptRevealedLineup(code) {
+  const payload = await relayFetchSession(code);
+  if (!payload || !Array.isArray(payload.k)) return false;
+  let changed = false;
+  payload.k.slice(0, state.coffees.length).forEach((k, i) => {
+    const name = String((k && k.n) || '').slice(0, 40);
+    if (name && name !== state.coffees[i].name) {
+      state.coffees[i].name = name;
+      changed = true;
+    }
+    if (k && k.m) {
+      const meta = emptyMeta();
+      META_FIELDS.forEach(f => {
+        const v = k.m[f.key];
+        if (typeof v === 'string' || typeof v === 'number') meta[f.key] = String(v).slice(0, 60);
+      });
+      state.coffees[i].meta = meta;
+      changed = true;
+    }
+  });
+  if (changed) save();
+  return changed;
+}
+
 async function pollResults() {
   const code = tableCode();
   if (!code) return null;
   const data = await relayListParticipants(code);
+
+  // the leader has opened the table: the coffees have names now
+  if (data && data.revealed && !identitiesAdopted && !isTableLeader()) {
+    identitiesAdopted = true;
+    if (await adoptRevealedLineup(code)) {
+      buildResults();     // podium, ranking and radar all carry the names
+      buildCuppingUI();   // and so does the sheet they came from
+      liveSig = null;
+    }
+  }
+
   const sig = rosterSig(data);
   if (sig !== liveSig) {
     liveSig = sig;
@@ -3160,13 +3238,28 @@ function refreshLiveTable(data) {
   const code = tableCode();
   const wrap = $('#live-table');
   if (!code || !wrap) return;
-
-  if (!data) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
+
+  // No roster came back. That is either a seat this device never got — the
+  // join POST dropped — or the table being out of reach. Hiding the block
+  // here stranded the cupper completely: no roster meant no submit button,
+  // and the submit is what claims a missing seat. So the block stays, says
+  // which of the two it is, and keeps the button.
+  if (!data) {
+    wrap.innerHTML = `
+      <div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>
+      <p class="live-note">${state.participantId
+        ? 'Can’t reach the table right now. Your scores are saved on this device — submitting will retry.'
+        : 'Your seat at this table was never confirmed. Submitting will claim one.'}</p>
+      <button class="btn btn-primary" id="btn-submit-scores">Submit my scores</button>`;
+    wireSubmitButton(wrap);
+    return;
+  }
+
   state.revealed = data.revealed;
   save();
 
-  const myName = getCupperName() || (state.liveCode ? 'Host' : 'You');
+  const myName = getCupperName() || (state.liveCode ? 'Host' : state.joinedCode ? 'Cupper' : 'You');
   const submittedMine = Boolean(state.submittedAt);
 
   let html = `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>`;
@@ -3249,24 +3342,35 @@ function refreshLiveTable(data) {
     }
   }
 
-  const submitBtn = wrap.querySelector('#btn-submit-scores');
-  if (submitBtn) {
-    submitBtn.onclick = async () => {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting…';
-      const res = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
-      if (!res.ok) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Try again';
-        toast(res.reason);
-        return;
-      }
-      state.submittedAt = Date.now();
-      save();
-      toast('Scores submitted');
-      if (poller) poller.wake(); // redraw from the server, straight away
-    };
-  }
+  wireSubmitButton(wrap, myName);
+}
+
+// The success path used to leave the button reading "Submitting…" and wait
+// for the poller to redraw it — but resubmitting unchanged scores leaves the
+// roster signature identical, so no redraw ever came and the button stayed
+// dead. It restores itself now, and the redraw is a bonus rather than the
+// only way out.
+function wireSubmitButton(wrap, name) {
+  const btn = wrap.querySelector('#btn-submit-scores');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const myName = name || getCupperName() || (state.liveCode ? 'Host' : state.joinedCode ? 'Cupper' : 'You');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    const res = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
+    btn.disabled = false;
+    if (!res.ok) {
+      btn.textContent = 'Try again';
+      toast(res.reason);
+      return;
+    }
+    state.submittedAt = Date.now();
+    save();
+    btn.textContent = 'Update my scores';
+    toast('Scores submitted');
+    liveSig = null;           // the block is stale even if the roster is not
+    if (poller) poller.wake();
+  };
 }
 
 /* ============================================================
@@ -4058,7 +4162,10 @@ document.addEventListener('DOMContentLoaded', () => {
   } else if (joinMatch) {
     history.replaceState(null, '', location.pathname + location.search);
     decodeCode('CUP', decodeURIComponent(joinMatch[1])).then(payload => {
+      // the lineup names its own table when the leader had one by then, so
+      // a share link joins that table instead of starting a second one
       if (payload) askNameThenJoin(payload, null);
+      else toast('That cupping link has expired or was not readable');
     });
   }
 

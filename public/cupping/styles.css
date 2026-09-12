@@ -545,8 +545,8 @@ input, textarea, select { font: inherit; }
   scroll-snap-stop: always;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* clears the floating score bar and the wheel button above it */
-  padding: 16px 16px calc(var(--sab) + 172px);
+  /* clears the floating score bar */
+  padding: 16px 16px calc(var(--sab) + 116px);
   overscroll-behavior-y: contain;
 }
 
@@ -765,28 +765,34 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* ---------- flavor wheel ---------- */
 
-/* An unlabelled disc of spokes read as decoration — people did not know
-   the flavor wheel was in there. It says what it is now. */
+/* An unlabelled disc of spokes read as decoration — people did not know the
+   flavor wheel was in there, so it says what it is. It lives in the score bar
+   rather than floating over the sheet: as a floating button it sat exactly on
+   the right-hand end of whichever 1–9 row it happened to overlap and swallowed
+   taps on 7, 8 and 9 — the scores a cupper reaches for on a good coffee. */
 .wheel-fab {
-  position: fixed;
-  right: 14px;
-  bottom: calc(var(--sab) + 108px);
-  height: 46px;
-  padding: 0 15px 0 12px;
+  flex: none;
+  height: 38px;
+  padding: 0 12px 0 9px;
   border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--bg-card);
   border: 1px solid var(--accent);
   color: var(--accent);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  box-shadow: var(--shadow);
-  z-index: 7;
+  position: relative;
   transition: transform 0.2s var(--spring);
 }
 .wheel-fab:active { transform: scale(0.92); }
+
+/* on the narrowest phones the score has to win the space */
+@media (max-width: 359px) {
+  .wheel-fab { padding: 0 9px; }
+  .wheel-fab span { display: none; }
+}
 
 /* until it has been opened once, it breathes */
 .wheel-fab.unused::after {
@@ -804,13 +810,13 @@ body.plain .cva-scale { margin-top: 9px; }
   100% { opacity: 0; transform: scale(1.22); }
 }
 
-/* one-time coach mark, pointing at the button */
+/* one-time coach mark, pointing down at the button in the score bar */
 .wheel-coach {
   position: fixed;
-  right: 14px;
-  bottom: calc(var(--sab) + 162px);
-  max-width: 232px;
-  z-index: 7;
+  left: 12px;
+  bottom: calc(var(--sab) + 78px);
+  max-width: 250px;
+  z-index: 8;
   padding: 11px 14px;
   border-radius: 14px;
   background: var(--accent);
@@ -825,7 +831,7 @@ body.plain .cva-scale { margin-top: 9px; }
 .wheel-coach::after {
   content: '';
   position: absolute;
-  right: 28px;
+  left: 30px;
   bottom: -6px;
   width: 12px;
   height: 12px;
@@ -1222,6 +1228,7 @@ body.plain .cva-scale { margin-top: 9px; }
 
 .scorebar {
   position: fixed;
+  gap: 10px;
   left: 12px; right: 12px;
   bottom: calc(var(--sab) + 12px);
   align-items: center;
@@ -1238,11 +1245,19 @@ body.plain .cva-scale { margin-top: 9px; }
 }
 .scorebar.visible { display: flex; }
 
-.scorebar-info { display: flex; flex-direction: column; gap: 2px; }
-.scorebar-label { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.scorebar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.scorebar-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .scorebar-grade { font-size: 12px; font-weight: 600; color: var(--accent); }
 
 .scorebar-score {
+  flex: none;
   font-size: 30px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -2391,10 +2406,14 @@ body.plain .cva-scale { margin-top: 9px; }
     width: min(var(--page), calc(100vw - 24px));
   }
 
-  .wheel-fab,
-  .wheel-coach { right: calc(var(--gut) + 4px); }
+  .wheel-coach { left: calc(var(--gut) + 4px); }
 
   .toast { bottom: calc(var(--sab) + 96px); }
+
+  /* a 1–9 row stretched across the column put 67px buttons on screen, more
+     than twice their size on a phone — the column is for reading width, not
+     for making the controls bigger */
+  .cva-scale { max-width: 430px; }
 
   /* two origin fields per row is right on a phone; on a laptop the cells
      were absurdly wide */
