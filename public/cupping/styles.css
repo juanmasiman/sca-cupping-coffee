@@ -1841,10 +1841,15 @@ body.plain .cva-scale { margin-top: 9px; }
 .switch-title { font-size: 14.5px; font-weight: 700; }
 .switch-sub { font-size: 11.5px; color: var(--text-faint); line-height: 1.35; }
 
-.switch { flex: none; position: relative; }
-.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+/* The knob was laid out with a margin, so its travel had to be guessed and
+   any rounding left it riding the edge of the track. It is positioned
+   against the track now: same inset top and bottom by construction, and
+   the "on" position is measured from the right rather than translated. */
+.switch { flex: none; position: relative; display: block; line-height: 0; }
+.switch input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
 .switch-track {
   display: block;
+  position: relative;
   width: 50px;
   height: 30px;
   border-radius: 999px;
@@ -1852,16 +1857,18 @@ body.plain .cva-scale { margin-top: 9px; }
   transition: background 0.25s var(--ease);
 }
 .switch-knob {
-  display: block;
-  width: 26px; height: 26px;
-  margin: 2px;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
-  transition: transform 0.25s var(--spring);
+  transition: left 0.25s var(--spring);
 }
 .switch input:checked + .switch-track { background: var(--accent); }
-.switch input:checked + .switch-track .switch-knob { transform: translateX(20px); }
+.switch input:checked + .switch-track .switch-knob { left: 23px; }
 
 /* ---- who has joined ---- */
 
@@ -2340,3 +2347,70 @@ body.plain .cva-scale { margin-top: 9px; }
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
+
+/* ============================================================
+   WIDER SCREENS
+   The app is built for a phone, and on a laptop every phone-width
+   rule simply stretched: a 320px radar drawn across 1400px, cards
+   a full monitor wide, text lines nobody can track. Nothing is
+   rescaled here — the content is held to a readable column and
+   centred, so a desktop shows the same layout at the same size.
+   ============================================================ */
+
+@media (min-width: 680px) {
+  :root { --page: 620px; }
+  /* the gutter that centres a --page-wide column in the window */
+  :root { --gut: max(12px, calc((100vw - var(--page)) / 2)); }
+
+  /* Chrome keeps spanning the window so its borders and blur still read as
+     bars; only what sits inside them is pulled into the column. */
+  .cupping-header,
+  .results-header,
+  .coffee-rail { padding-left: var(--gut); padding-right: var(--gut); }
+
+  .results-scroll {
+    max-width: var(--page);
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+
+  /* A panel has to stay exactly one viewport wide or the swipe stops
+     snapping to a coffee, so the column is made with padding instead of a
+     max-width — same result on screen, scroll geometry untouched. */
+  .panel { padding-left: var(--gut); padding-right: var(--gut); }
+
+  /* the radar is a fixed 320px drawing — letting it fill the column blew
+     it up to poster size */
+  #radar-wrap { max-width: 360px; margin: 0 auto; }
+
+  .scorebar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(var(--page), calc(100vw - 24px));
+  }
+
+  .wheel-fab,
+  .wheel-coach { right: calc(var(--gut) + 4px); }
+
+  .toast { bottom: calc(var(--sab) + 96px); }
+
+  /* two origin fields per row is right on a phone; on a laptop the cells
+     were absurdly wide */
+  .details-grid { grid-template-columns: repeat(3, 1fr); }
+  .detail-cell.wide { grid-column: span 3; }
+
+  /* the setup column can breathe a little too */
+  .setup-inner { max-width: 520px; }
+}
+
+/* a genuinely large window: keep the column, add breathing room */
+@media (min-width: 1100px) {
+  :root { --page: 680px; }
+}
+
+/* A guest's share sheet passes on the leader's code. The blind-details
+   switch is the leader's call over the whole table, so it is not theirs
+   to flip. */
+.modal.guest-view .switch-row { display: none; }

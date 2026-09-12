@@ -305,6 +305,17 @@ function load() {
     if (!Array.isArray(s.team)) s.team = [];
     if (typeof s.shareDetails !== 'boolean') s.shareDetails = false;
     if (!s.form) s.form = 'legacy'; // sessions saved before CVA support
+
+    // Repair a device that hit the guest-minted-code bug: opening the invite
+    // sheet after joining someone else's table created a second session and
+    // made this phone its leader, which split the room across two codes and
+    // pointed the cupper's seat at a table they were not sitting at — every
+    // submission after that failed. Having joined always wins.
+    if (s.joinedCode && s.liveCode) {
+      delete s.liveCode;
+      delete s.liveToken;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* private mode */ }
+    }
     s.coffees.forEach(c => {
       c.meta = Object.assign(emptyMeta(), c.meta || {});
       if (!c.cva) { c.cva = {}; CVA_SECTIONS.forEach(a => { c.cva[a.key] = 5; }); }
@@ -981,18 +992,38 @@ async function joinSessionFromCode(text) {
 
 /* ---------- live-code relay (optional backend) ---------- */
 
-async function relayRequest(path, options) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  try {
-    const res = await fetch(`${RELAY_URL}${path}`, { ...options, signal: ctrl.signal });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  } finally {
-    clearTimeout(timer);
+/* Cupping rooms have bad signal, and "check your connection" is a lie when
+   the server answered with a refusal. relayFetch keeps the status so callers
+   can say something true, and retries only where a repeat is harmless: a
+   dropped GET or PUT can be sent again, but a second POST would join the
+   table twice or mint a second code. */
+async function relayFetch(path, options = {}, opts = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const retries = opts.retries != null ? opts.retries : (method === 'POST' ? 0 : 1);
+  const timeout = opts.timeout || 9000;
+
+  for (let attempt = 0; ; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeout);
+    try {
+      const res = await fetch(`${RELAY_URL}${path}`, { ...options, signal: ctrl.signal });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* no body, or not JSON */ }
+      // a 5xx is worth one more go; a 4xx is an answer, not a hiccup
+      if (!res.ok && res.status >= 500 && attempt < retries) { clearTimeout(timer); continue; }
+      return { ok: res.ok, status: res.status, data };
+    } catch (e) {
+      if (attempt < retries) { clearTimeout(timer); await new Promise(r => setTimeout(r, 700)); continue; }
+      return { ok: false, status: 0, data: null }; // status 0 = never reached the server
+    } finally {
+      clearTimeout(timer);
+    }
   }
+}
+
+async function relayRequest(path, options) {
+  const res = await relayFetch(path, options);
+  return res.ok ? res.data : null;
 }
 
 // Returns { code, token } or null when the relay is unreachable.
@@ -1029,13 +1060,27 @@ async function relayJoinSession(code, name) {
   return data && data.id ? data.id : null;
 }
 
+// Returns { ok } or { ok: false, reason } — the caller has to be able to tell
+// a dead connection from a seat the table no longer recognises.
 async function relaySubmitScores(code, id, name, scores) {
-  const data = await relayRequest(`/sessions/${encodeURIComponent(code)}/participants/${encodeURIComponent(id)}`, {
+  // no seat yet (the join never landed): take one before submitting
+  if (!id) {
+    const fresh = await relayJoinSession(code, name);
+    if (!fresh) return { ok: false, reason: 'No connection — your scores are saved here, try again' };
+    state.participantId = id = fresh;
+    save();
+  }
+
+  const res = await relayFetch(`/sessions/${encodeURIComponent(code)}/participants/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, scores }),
   });
-  return Boolean(data && data.ok);
+  if (res.ok && res.data && res.data.ok) return { ok: true };
+
+  if (res.status === 0) return { ok: false, reason: 'No connection — your scores are saved here, try again' };
+  if (res.status === 404) return { ok: false, reason: 'This table has ended or your seat expired — rejoin with the code' };
+  return { ok: false, reason: (res.data && res.data.error) || 'The table refused that — try again' };
 }
 
 async function relayReveal(code, token) {
@@ -1371,11 +1416,15 @@ function askNameThenJoin(payload, code) {
     if (code) {
       state.joinedCode = code;
       save();
-      relayJoinSession(code, name || 'Cupper').then(id => {
-        if (!id || !state) return;
-        state.participantId = id;
+      // A seat that never arrived used to leave the cupper with no way to
+      // submit at all; submitting can claim one later, so a failure here is
+      // survivable — but it should not pass unmentioned.
+      const id = await relayJoinSession(code, name || 'Cupper');
+      if (state) {
+        if (id) state.participantId = id;
+        else toast('Joined, but the table did not confirm your seat — it will retry when you submit');
         save();
-      });
+      }
     }
     startCupping();
     toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
@@ -1426,13 +1475,26 @@ async function openInviteSheet() {
   const joinedWrap = $('#joined-wrap');
   const joinedList = $('#joined-list');
 
+  // A cupper who joined someone else's table is passing on THEIR code, not
+  // starting a table of their own. Minting a fresh one here made the guest
+  // a leader of an empty session, split the room across two codes, and left
+  // their seat pointing at a table they were no longer on — which is what
+  // the failed submissions were.
+  const guest = !state.liveCode && Boolean(state.joinedCode);
+
+  modal.classList.toggle('guest-view', guest);
+  $('#share-title').textContent = guest ? 'Cupping code' : 'Invite cuppers';
+  $('#share-hint').textContent = guest
+    ? 'Anyone else joining scans this or enters the code in “Join a cupping”. Only the leader can reveal the scores.'
+    : 'Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.';
+
   // link that carries the lineup itself — works with no relay at all
-  let shareUrl = joinURL(await buildSessionCode());
+  let shareUrl = guest ? `${APP_URL}#code=${state.joinedCode}` : joinURL(await buildSessionCode());
   renderQR(shareUrl);
 
   toggle.checked = state.shareDetails;
-  pin.textContent = 'Getting live code…';
-  pin.classList.add('pending');
+  pin.textContent = guest ? state.joinedCode : 'Getting live code…';
+  pin.classList.toggle('pending', !guest);
   pinWrap.classList.remove('hidden');
   joinedWrap.classList.add('hidden');
   modal.classList.remove('hidden');
@@ -1453,8 +1515,9 @@ async function openInviteSheet() {
   );
 
   const refreshJoined = async () => {
-    if (!state.liveCode) return null;
-    const data = await relayListParticipants(state.liveCode);
+    const code = tableCode();
+    if (!code) return null;
+    const data = await relayListParticipants(code);
     if (!data) return 'offline';
     const people = data.participants;
     const done = people.filter(p => p.submitted).length;
@@ -1475,8 +1538,9 @@ async function openInviteSheet() {
       });
     }
 
-    // reveal control: sealed scores are the protocol, so this is deliberate
-    revealBtn.classList.toggle('hidden', !people.length);
+    // reveal control: sealed scores are the protocol, so this is deliberate —
+    // and it belongs to the leader alone
+    revealBtn.classList.toggle('hidden', guest || !people.length);
     if (data.revealed) {
       revealBtn.textContent = 'Scores revealed — see Results';
       revealBtn.disabled = true;
@@ -1521,6 +1585,13 @@ async function openInviteSheet() {
     }
     toast(state.shareDetails ? 'Coffee details shared' : 'Cupping is blind again');
   };
+
+  // A guest's sheet is done: it shows the table's own code and nothing that
+  // belongs to the leader. It never reaches the code-minting path below.
+  if (guest) {
+    syncPolling();
+    return;
+  }
 
   // Reuse the code this session already has — reopening the sheet must not
   // mint a new one, or everyone who already joined is orphaned.
@@ -1600,8 +1671,9 @@ function buildLineup() {
 
   $('#btn-lineup-add').classList.toggle('hidden', locked);
   $('#btn-lineup-paste').classList.toggle('hidden', locked);
-  $('#btn-lineup-invite').classList.toggle('hidden', locked);
   $('#btn-lineup-add').disabled = state.coffees.length >= LIMITS.coffees[1];
+  // a guest cannot change the lineup, but they can still pass the code on
+  $('#btn-lineup-invite').textContent = locked ? 'Show the code' : 'Invite cuppers';
 
   // once there are scores on the sheet this screen is an edit, not a setup
   const scored = state.coffees.length - sessionProgress().untouched;
@@ -1857,9 +1929,11 @@ function refreshTabs() {
   // once a table is live the button carries the code, so the leader can
   // read it out without opening the sheet
   const invite = $('#btn-share-session');
-  const live = Boolean(state.liveCode);
+  // a guest carries the leader's code, not one of their own
+  const code = tableCode();
+  const live = Boolean(code);
   invite.classList.toggle('live', live);
-  invite.querySelector('.invite-label').textContent = live ? state.liveCode : 'Invite';
+  invite.querySelector('.invite-label').textContent = live ? code : 'Invite';
 
   // who is at the table, on the button the leader can already see — the
   // roster is polled in the background while they score
@@ -1872,7 +1946,7 @@ function refreshTabs() {
   }
 
   invite.setAttribute('aria-label', live
-    ? `Cupping code ${state.liveCode.split('').join(' ')}${counts && counts.joined ? `, ${counts.joined} at the table` : ''} — open invite`
+    ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined ? `, ${counts.joined} at the table` : ''} — open the code`
     : 'Invite cuppers to this session');
 
   const progress = scoreProgress(active);
@@ -3092,7 +3166,6 @@ function refreshLiveTable(data) {
   state.revealed = data.revealed;
   save();
 
-  const canSubmit = Boolean(state.participantId);
   const myName = getCupperName() || (state.liveCode ? 'Host' : 'You');
   const submittedMine = Boolean(state.submittedAt);
 
@@ -3103,7 +3176,6 @@ function refreshLiveTable(data) {
   // otherwise their sheet silently never counts. The table is open by then,
   // so say what that means rather than pretending it is the same act.
   const lateSubmit = () => {
-    if (!canSubmit) return '';
     return (submittedMine
       ? `<p class="live-note">Your scores are in the panel above.</p>`
       : `<p class="live-note">Your scores are <strong>not in this panel</strong>. The table is already open, so submit only what you scored on your own.</p>`)
@@ -3119,12 +3191,12 @@ function refreshLiveTable(data) {
         .map(p => `<span class="joined-chip${p.submitted ? ' done' : ''}">${escapeHTML(p.name)}</span>`)
         .join('')}</div>`;
     }
-    if (canSubmit) {
-      html += submittedMine
-        ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
-        : '';
-      html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
-    }
+    // Anyone at a live table can submit: a seat that never arrived is claimed
+    // at submit time rather than hiding the button and stranding their scores.
+    html += submittedMine
+      ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
+      : '';
+    html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
     if (isTableLeader()) {
       html += `<p class="live-note">You are the leader: <strong>Present to the table</strong> below walks the lineup and opens the scores when you are ready.</p>`;
     }
@@ -3182,11 +3254,11 @@ function refreshLiveTable(data) {
     submitBtn.onclick = async () => {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting…';
-      const ok = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
-      if (!ok) {
+      const res = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
+      if (!res.ok) {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit my scores';
-        toast('Could not submit — check your connection');
+        submitBtn.textContent = 'Try again';
+        toast(res.reason);
         return;
       }
       state.submittedAt = Date.now();
@@ -3226,11 +3298,10 @@ async function openPresent() {
 
   // the leader is a cupper too, and their sheet is finished by the time they
   // are presenting — make sure it is in the panel average
-  if (state.participantId) {
-    const ok = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores());
-    if (ok) { state.submittedAt = Date.now(); save(); }
-    if (poller) poller.wake();
-  }
+  const res = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores());
+  if (res.ok) { state.submittedAt = Date.now(); save(); }
+  else toast(res.reason);
+  if (poller) poller.wake();
 }
 
 // Late submissions land on the screen the leader is presenting from, so a
@@ -3430,8 +3501,22 @@ function renderTeamTable() {
 
 /* ---------- radar chart (SVG) ---------- */
 
+/* Axes for the sensory profile.
+   Overall is left off deliberately: it is a holistic judgement of the whole
+   cup, not a sensory dimension alongside the others, so it moves with all
+   seven at once and pulls the shape toward a circle — it adds a spoke that
+   says nothing the rest have not already said. The legacy form's Balance is
+   the same kind of summary judgement and goes with it, as do the three
+   per-cup checks, which are pass/fail counts rather than intensities and sat
+   pinned at 10 on almost every plot. What is left on both forms is what the
+   cupper actually judged cup by cup. */
+const RADAR_SKIP = ['overall', 'balance', 'uniformity', 'cleanCup', 'sweetness'];
+
 function radarAttrs() {
-  return usingCVA() ? CVA_SECTIONS : RADAR_ATTRS;
+  const all = usingCVA() ? CVA_SECTIONS : RADAR_ATTRS;
+  // sweetness is a real 1–9 section on the CVA form, but a pass/fail cup
+  // count on the 2004 one — keep it only where it is scored
+  return all.filter(a => !RADAR_SKIP.includes(a.key) || (usingCVA() && a.key === 'sweetness'));
 }
 
 // radar floors: enough headroom that differences read, without clipping
