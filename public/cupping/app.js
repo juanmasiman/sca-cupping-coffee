@@ -1659,7 +1659,14 @@ async function openInviteSheet() {
     setShareUrl(`${APP_URL}#code=${live.code}`);
     syncPolling(); // the sheet is up, so it takes the poll at its fastest
   } else {
+    // No relay reached, so there is no live code still on its way. The reason
+    // the link waited — that a lineup-only link would send people to a second
+    // table — cannot happen now, so the offline path is the right one to take:
+    // the code carries the whole lineup on its own.
     pinWrap.classList.add('hidden');
+    setShareUrl(joinURL(await buildSessionCode()));
+    $('#share-hint').textContent =
+      'No signal for a live code. The QR and link still carry the whole lineup — cuppers scan or open it, score on their own device, then share their scores back to you from their Results screen.';
   }
 }
 
