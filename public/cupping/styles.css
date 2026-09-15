@@ -529,12 +529,16 @@ input, textarea, select { font: inherit; }
 
 /* the way into every shared-cupping feature, so it carries a label
    rather than sitting there as a lone glyph */
+/* The word "Invite" left the header to make room for the score. The icon
+   keeps its 44px target and the live count rides on it as a badge, which is
+   the part a leader actually watches — the label was never the information. */
 .invite-btn {
+  position: relative;
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 13px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: var(--bg-card);
   border: 1px solid var(--accent);
@@ -549,17 +553,19 @@ input, textarea, select { font: inherit; }
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.invite-btn .invite-label { font-variant-numeric: tabular-nums; }
-
 /* how many are at the table, kept current by the background poll */
 .invite-count {
+  position: absolute;
+  top: -1px;
+  right: -1px;
   display: grid;
   place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--bg-card);
+  border: 1px solid var(--accent);
   color: var(--accent);
   font-size: 11px;
   font-weight: 800;
@@ -1224,8 +1230,8 @@ body.plain .scale { margin-top: 9px; }
 .attr-card.unrated .attr-value { color: var(--text-faint); }
 
 
-.scorebar.provisional .scorebar-score { opacity: 0.5; }
-.scorebar.provisional .scorebar-grade { color: var(--text-dim); }
+.scorebar.provisional .scorebar-score { color: var(--text-dim); }
+.scorebar.provisional .scorebar-sub { color: var(--text-faint); font-weight: 500; }
 
 .form-tag {
   display: inline-block;
@@ -1331,50 +1337,34 @@ body.plain .scale { margin-top: 9px; }
 
 /* ---------- score bar ---------- */
 
-/* Sticky at the top, as the document says. It stopped being a floating
-   card in the same move: a card needs a blur, a border and a shadow to
-   separate itself from what it covers, and a band that covers nothing
-   needs a rule. */
+/* The live score, in the header rather than in a band of its own. Two
+   right-aligned lines: the number, and what it currently means. */
 .scorebar {
-  gap: 10px;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 9px 16px 10px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-  z-index: 6;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   display: none;
 }
 .scorebar.visible { display: flex; }
 
-.scorebar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.scorebar-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.scorebar-score {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
 }
-/* One line, always. The bar is fixed to the bottom of the screen, so a
-   wrap here pushes it taller over the sheet rather than making room. */
-.scorebar-grade {
-  font-size: 13px;
+/* One line, always — this sits in a header row whose height everything
+   below depends on, so a wrap here moves the whole sheet. */
+.scorebar-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scorebar-score {
-  flex: none;
-  font-size: 30px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
+  letter-spacing: 0.01em;
 }
 .scorebar-score.pulse { animation: bump 0.3s var(--settle); }
 
