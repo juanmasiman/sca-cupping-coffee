@@ -1,0 +1,195 @@
+---
+name: lento cupping — Anchored Scale
+description: Sensory-science notation for a scoresheet held over a cupping table in unpredictable light.
+colors:
+  paper: "#fbfaf7"
+  panel: "#ffffff"
+  ink: "#16181c"
+  ink-dim: "#565b63"
+  line: "#d9dad4"
+  data: "#0b5f4f"
+  data-soft: "#e4efec"
+  alert: "#9a3412"
+  paper-dark: "#0f1113"
+  panel-dark: "#171a1d"
+  ink-dark: "#e9ecef"
+  ink-dim-dark: "#98a0a8"
+  line-dark: "#2a2e33"
+  data-dark: "#46c5a8"
+  data-soft-dark: "#16302b"
+  alert-dark: "#f0a077"
+typography:
+  score:
+    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontSize: "46px"
+    fontWeight: 600
+    lineHeight: 0.92
+    letterSpacing: "-0.035em"
+  section:
+    fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13.5px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "normal"
+  body:
+    fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "normal"
+  value:
+    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontSize: "11px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "0.01em"
+  engraved:
+    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontSize: "9px"
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: "0.05em"
+rounded:
+  none: "0px"
+  sm: "3px"
+  knob: "50%"
+spacing:
+  xs: "5px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  xl: "24px"
+components:
+  scale-track:
+    height: "48px"
+    backgroundColor: "{colors.paper}"
+  scale-knob:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.data}"
+    rounded: "{rounded.knob}"
+    size: "32px"
+    typography: "{typography.value}"
+  scale-knob-empty:
+    backgroundColor: "transparent"
+    textColor: "transparent"
+    rounded: "{rounded.knob}"
+    size: "32px"
+  section-clear:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-dim}"
+    rounded: "{rounded.knob}"
+    size: "24px"
+  score-readout:
+    textColor: "{colors.ink}"
+    typography: "{typography.score}"
+  score-readout-provisional:
+    textColor: "{colors.ink-dim}"
+    typography: "{typography.score}"
+---
+
+## Overview
+
+A cupping score is not a button you press. It is a **position on a scale with anchors at both ends and at the middle**, and SCA 104-2024 says so explicitly. This world takes the notation sensory science already uses for exactly that — the anchored line scale, the reference standard, the intensity ruler — and makes it the interface rather than a decoration on top of one.
+
+The consequence that matters: because meaning is carried by *position*, colour is freed to do exactly one job. It encodes value. Nothing else on the surface is coloured. A page where only the data is coloured reads instantly in bad light, because everything competing for attention has been removed rather than balanced.
+
+This **replaces** the previous cream-and-copper world. That world was the first idea the category has — dark-roast brown on cream, a gradient wordmark, a trophy on the results screen — and it read as a café brand rather than the instrument a grader uses to make a claim about a lot. The old look is evidence of what this product is, not authority over what it becomes. Product truth, content, terminology and every SCA constraint carry over untouched; only the visual world is replaced.
+
+The surface this world was designed against is the scoresheet mid-session: eight sections, a thumb on glass, coffee cooling on a timer. Anything that cannot survive that scene does not belong here.
+
+## Colors
+
+Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.
+
+Ratios below are measured, and each is the **worst case across both surfaces** — ground and raised — so no usage of a token falls below its stated figure.
+
+| Role | Light | Dark | Light ratio | Dark ratio |
+|---|---|---|---|---|
+| Ground | `#fbfaf7` | `#0f1113` | — | — |
+| Raised surface | `#ffffff` | `#171a1d` | — | — |
+| Ink | `#16181c` | `#e9ecef` | 17.03:1 | 14.73:1 |
+| Secondary ink | `#565b63` | `#98a0a8` | 6.55:1 | 6.60:1 |
+| Rule | `#d9dad4` | `#2a2e33` | structural only, never text | |
+| Data ink | `#0b5f4f` | `#46c5a8` | 7.28:1 | 8.16:1 |
+| Data wash | `#e4efec` | `#16302b` | fills only, never text | |
+| Alert | `#9a3412` | `#f0a077` | 7.00:1 | 8.32:1 |
+
+**Every text pair clears 4.5:1 with room to spare.** That is not a nicety here: the audit measured 62 failing pairs in the outgoing world, including the *selected score value* at 3.45:1 — the single most important piece of state feedback in the app.
+
+There is **one** data ink and it has one meaning: this is a value a cupper set. It is never used for emphasis, never for a heading, never for a decorative accent, and never for a brand moment. If something needs to stand out and is not a value, it earns that with weight, size, or position instead.
+
+The greys are warm in light and cool in dark, each biased a few degrees toward its own ground so neither reads as a stock neutral dropped in.
+
+## Typography
+
+**IBM Plex Sans** for language, **IBM Plex Mono** for anything measured. One superfamily, two jobs, drawn for technical documentation — which is what a scoresheet is.
+
+The split is semantic and absolute: if a reader could compare it to another number, it is Mono with `font-variant-numeric: tabular-nums`. Scores, scale values, the anchor phrase, counts, coffee positions. If it is a name or a sentence, it is Sans. This is why a column of scores lines up on the decimal without any layout work — the numerals are the same width by construction.
+
+Scale, small end upward: engraved 9px, value 11px, body 13px, section 13.5px, score 46px. The score is the only display-sized element in the app, and it earns that by being the thing the whole screen exists to produce.
+
+**Both faces must be self-hosted and precached by the service worker.** Offline capability is binding in `PRODUCT.md`, and a webfont fetched from a CDN is a webfont that disappears in a roastery basement. A font that only loads with signal is a broken font.
+
+## Layout
+
+One column, always. The sheet is a vertical run of sections separated by hairline rules — not cards, not panels, not tiles. A rule says "next section" more quietly than a border does, and eight bordered cards stacked on a phone reads as eight objects competing rather than one instrument.
+
+Three fixed bands:
+
+- **The score, sticky at the top.** It never scrolls away, because the number is the reason the screen exists.
+- **The sheet, scrolling between them.** 16–18px side padding; content never touches the edge even when the app runs full-bleed.
+- **Navigation, pinned at the bottom.** The bottom strip is the only thumb-comfortable band on a phone and it must hold something you can touch. The outgoing world spent it on a read-only number; here it carries movement between coffees, each with its own progress.
+
+Below 560px the app runs edge to edge with its chrome removed. On a phone there is no frame, because the phone is the frame.
+
+## Elevation & Depth
+
+Almost none, deliberately. This is a document and an instrument, not a stack of floating objects. Separation comes from rules and space.
+
+Exactly one element is allowed to lift: **the knob while it is being dragged**, which takes `0 3px 12px rgba(0,0,0,.2)` and a 1.22× scale. That shadow is functional — it says *this is in your hand right now* — and it is the only one in the system. No card shadows, no glass, no glow.
+
+The outgoing world's `1px border + 30px shadow blur` card signature does not come across.
+
+## Shapes
+
+Square by default. Radius is spent only where something is genuinely round: the knob and the clear button are circles because they are grabbable objects, not because rounding is the house style.
+
+Rules are 1px hairlines in the line token. The scale rail is 2px. Ticks are 1px and 10px tall, except the midpoint tick, which is 20px because the neutral anchor is structurally different from the other eight positions.
+
+## Components
+
+**The anchored scale** is the system's one signature component, and everything else in the product derives from it.
+
+- Nine positions, 1 to 9, ticked on a 2px rail. The midpoint tick is double height.
+- Press anywhere on the 48px track and the knob comes to the finger — never require grabbing the knob itself.
+- The knob follows the pointer freely while dragging, then **settles to the exact detent on release** over 220ms on `cubic-bezier(.22,1.1,.36,1)`. Free while held, precise when let go.
+- The value changes as detents are crossed, with a haptic tick on each crossing where the platform supports one.
+- **An unrated section shows a dashed empty knob parked at the midpoint.** Visibly *not* a 5. This preserves the `touched` discipline already in the codebase, which is the strongest decision in the product: a default 5 and a chosen 5 are the same number and only one is evidence.
+- The anchor phrase sits on its own line between the end anchors, fixed height, never wrapping. It is readable *while* dragging — you choose "moderately high", you are not told afterwards.
+- Every scale is a real `role="slider"` with `aria-valuenow`, `aria-valuetext` and arrow-key support.
+
+**Clearing** is offered only once there is something to clear, keeps its space when hidden so no row ever changes height, and returns the section to genuinely empty — never to 5. Its 44px target grows upward, never down: a destructive control must not occupy the pixels someone overshoots when aiming at the top of a track.
+
+**The score readout** is grey while provisional and full ink once every section is rated. The number reports its own status; the count beneath it confirms rather than carries the message.
+
+**Touch targets are 44px minimum.** Where a control must stay visually small — the clear, a help mark — the visual stays small and only the hit area grows, via a transparent pseudo-element. Expanded areas must never overlap each other or a neighbouring control.
+
+## Do's and Don'ts
+
+**Do**
+
+- Let position carry meaning and keep colour for values alone.
+- Preserve the distinction between unrated and 5, everywhere, forever — including in exports, history and print.
+- Derive every downstream surface from the scale grammar: the results radar, the printed sheet, and the calibration bar are all the same object at different scales.
+- Make the calibration bar **symmetric around zero**. In a calibration exercise only magnitude means anything; direction is a habit, not a verdict. The outgoing world highlighted high runners and greyed out low ones, which told a novice in front of the room that they had scored the wrong way.
+- Keep both themes complete and switchable, and never hard-code one.
+
+**Don't**
+
+- No gradient text, anywhere. Gradient-clipped type also has no measurable contrast, which is a real accessibility failure and not only a taste one.
+- No trophy, podium, crown, or gold/silver/bronze medal. A cupping grades samples against a standard; it does not crown a winner, and `PRODUCT.md` names calibration as the point.
+- No cards inside cards, and no accent stripe on the left edge of a card.
+- No colour used decoratively. If it is not a value, it is not the data ink.
+- No text below 11px anywhere a cupper needs to read it. The outgoing world rendered flavour-wheel descriptors at 5.53px.
+- Never ship `user-scalable=no`. Someone in bad light must be allowed to zoom.
+- No motion beyond the knob settle and the score's own state change. This is an instrument; it should feel precise, not springy.
