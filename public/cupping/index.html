@@ -136,7 +136,9 @@
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="cupping-title">
-        <span class="cupping-title-name" id="cupping-name">Coffee 1</span>
+        <!-- the name is rewritten per coffee, so the help mark sits beside
+             it in a row of its own rather than inside it -->
+        <span class="cupping-title-row"><span class="cupping-title-name" id="cupping-name">Coffee 1</span></span>
         <span class="cupping-title-sub" id="cupping-position"></span>
       </div>
       <button id="btn-share-session" class="invite-btn" aria-label="Invite cuppers to this session">

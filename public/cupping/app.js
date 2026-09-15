@@ -251,6 +251,21 @@ function usingCVA() {
 
 /* ---------- guided mode ---------- */
 
+/* Has this device ever run or joined a cupping? Used to decide whether a
+   first-time joiner gets the orientation they would otherwise never be
+   offered. Existing history counts, so someone who has been using the app
+   is never shown it. */
+const CUPPED_KEY = 'sca-cupping-cupped-before-v1';
+function hasCuppedBefore() {
+  try {
+    if (localStorage.getItem(CUPPED_KEY)) return true;
+    return loadArchive().length > 0;
+  } catch (e) { return true; }   // can't tell: don't interrupt
+}
+function markCuppedBefore() {
+  try { localStorage.setItem(CUPPED_KEY, '1'); } catch (e) {}
+}
+
 function guidedOn() {
   try { return localStorage.getItem(GUIDED_KEY) !== 'off'; } catch (e) { return true; }
 }
@@ -273,7 +288,10 @@ function applyGuided() {
 // The mark goes on .scorebar-score and not on #scorebar-grade because the
 // grade's textContent is rewritten on every rating and would delete it.
 function syncStaticHelp() {
-  [['.subtitle', 'intro'], ['.scorebar-score', 'score']].forEach(([selector, id]) => {
+  // "How a cupping works" needs to be reachable from the cupping screen as
+  // well as from setup: someone who arrived by QR never passes setup, and a
+  // one-time prompt on joining is no use to them an hour later.
+  [['.subtitle', 'intro'], ['.cupping-title-row', 'intro'], ['.scorebar-score', 'score']].forEach(([selector, id]) => {
     const host = document.querySelector(selector);
     if (!host) return;
     const existing = host.querySelector(':scope > .help-btn');
@@ -1482,6 +1500,15 @@ function askNameThenJoin(payload, code) {
     await takeSeat(code || (payload && payload.lc) || null);
     startCupping();
     toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+    // Someone arriving by QR never passes the setup screen, so they land on
+    // eight sections of a form they may never have seen, with no idea what a
+    // cupping is or why they score alone first. "How a cupping works" was
+    // written for exactly this person and had nowhere to appear. Once per
+    // device, and only for a device with no history of its own.
+    if (!hasCuppedBefore()) {
+      markCuppedBefore();
+      setTimeout(() => openHelp('intro'), 400);
+    }
   };
 
   const known = getCupperName();
@@ -1499,7 +1526,11 @@ function askNameThenJoin(payload, code) {
   $('#name-submit').onclick = () => go(input.value.trim());
   $('#name-skip').onclick = () => go('');
   input.onkeydown = e => { if (e.key === 'Enter') go(input.value.trim()); };
-  modal.onclick = e => { if (e.target === modal) go(''); };
+  // Tapping the backdrop used to join the table silently as "Cupper", so a
+  // stray touch seated someone anonymously and the leader's roster filled
+  // with names nobody could match to a face. Taking a seat is a decision;
+  // it needs one of the two buttons, and "Skip" is there for anyone who
+  // would rather not give a name.
 }
 
 /* ---------- invite sheet: QR + live code ---------- */
