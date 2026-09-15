@@ -20,31 +20,31 @@ colors:
   alert-dark: "#f0a077"
 typography:
   score:
-    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "46px"
     fontWeight: 600
     lineHeight: 0.92
     letterSpacing: "-0.035em"
   section:
-    fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "13.5px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "normal"
   body:
-    fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   value:
-    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "11px"
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: "0.01em"
   engraved:
-    fontFamily: "IBM Plex Mono, ui-monospace, Menlo, monospace"
+    fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "9px"
     fontWeight: 400
     lineHeight: 1.4
@@ -52,6 +52,8 @@ typography:
 rounded:
   none: "0px"
   sm: "3px"
+  md: "4px"
+  pill: "999px"
   knob: "50%"
 spacing:
   xs: "5px"
@@ -128,7 +130,9 @@ The split is semantic and absolute: if a reader could compare it to another numb
 
 Scale, small end upward: engraved 9px, value 11px, body 13px, section 13.5px, score 46px. The score is the only display-sized element in the app, and it earns that by being the thing the whole screen exists to produce.
 
-**Both faces must be self-hosted and precached by the service worker.** Offline capability is binding in `PRODUCT.md`, and a webfont fetched from a CDN is a webfont that disappears in a roastery basement. A font that only loads with signal is a broken font.
+**Both faces are self-hosted and precached by the service worker** (`fonts/plex-sans-var.woff2`, `fonts/plex-mono-400.woff2`, `fonts/plex-mono-600.woff2` — latin subset, 60 KB for the set; Sans is one variable file covering every weight). Offline capability is binding in `PRODUCT.md`, and a webfont fetched from a CDN is a webfont that disappears in a roastery basement. A font that only loads with signal is a broken font.
+
+**Radius is square by default** — `md` at 4px for panels, `pill` only for chips and segmented controls that are genuinely capsule-shaped, `knob` for the two circular grab targets. The outgoing world stamped 18px on everything, which is what made eight stacked sections read as eight floating objects.
 
 ## Layout
 
