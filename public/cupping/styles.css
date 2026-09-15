@@ -675,12 +675,16 @@ input, textarea, select { font: inherit; }
 
 /* ---------- attribute card / slider ---------- */
 
+/* A rule says "next section" more quietly than a border does. Eight
+   bordered cards stacked on a phone read as eight objects competing;
+   the sheet should read as one instrument. */
 .attr-card {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px 16px 14px;
-  margin-bottom: 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 15px 0 13px;
+  margin-bottom: 0;
 }
 
 .attr-head {
@@ -705,8 +709,7 @@ body.plain .attr-head-right {
   gap: 7px;
   max-width: 62%;
 }
-body.plain .cva-desc { margin-top: 0; }
-body.plain .cva-scale { margin-top: 9px; }
+body.plain .scale { margin-top: 9px; }
 
 .attr-title { font-size: 15.5px; font-weight: 700; }
 .attr-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
@@ -989,54 +992,88 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* ---------- CVA 1–9 impression-of-quality scale ---------- */
 
-/* Nine across never fit a thumb: at 390px the row has ~323px to spend, and
-   nine 44px targets need 396px before gaps. The row breaks into five and
-   four so each cell clears 44px in both directions — and the break lands on
-   5, the protocol's "neither high nor low", so the second row is the half
-   that is above neutral rather than an arbitrary split.
-   minmax(0,…) so a cell can never be pushed wider than the row. */
-.cva-scale {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
+/* ---------- the anchored scale ----------
+   Nine targets will not fit across a phone: at 390px the row has ~323px
+   and nine 44px cells need 396px before gaps. So the rating stops being
+   nine objects and becomes one — a track you press anywhere and drag. */
+.scale { margin-top: 12px; }
+
+.scale-track {
+  position: relative;
+  height: 48px;
+  touch-action: none;          /* the page must not scroll out from under a drag */
+  cursor: grab;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.scale-track:active { cursor: grabbing; }
+.scale-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+.scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--line); }
+.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--accent); opacity: 0.45; width: 0; }
+.scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--line); transform: translateX(-0.5px); }
+/* The neutral anchor is structurally different from the other eight
+   positions, so its tick is drawn differently. */
+.scale-tick.mid { top: 14px; height: 20px; background: var(--text-dim); opacity: 0.55; }
+.scale-num {
+  position: absolute; top: 33px; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.cva-btn {
-  min-width: 0;
-  min-height: 46px;
-  padding: 0;
-  overflow: hidden;
-  border-radius: 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  font-size: clamp(15px, 4.4vw, 18px);
-  line-height: 1;
-  font-weight: 700;
+.scale-knob {
+  position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -16px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--accent);
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+/* The only lift in the system, and it is functional: this thing is in
+   your hand right now. */
+.scale-track:active .scale-knob { transform: scale(1.22); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2); }
+.scale-knob.settle { transition: left 0.22s var(--spring), transform 0.22s var(--spring); }
+/* Visibly not a five: a default and a judgement are the same number and
+   only one of them is evidence. */
+.scale-knob.empty {
+  border-style: dashed;
+  border-color: var(--line);
+  background: transparent;
+  color: transparent;
+  box-shadow: none;
+}
+
+/* The anchor wording is the longest string here and it changes on every
+   detent, so it gets a reserved line that cannot wrap. It sits between the
+   ends because that is where it belongs: the middle of an anchored scale
+   is literally "neither high nor low". */
+.scale-anchors {
   display: grid;
-  place-items: center;
-  transition: background 0.15s, color 0.15s, transform 0.18s var(--spring), border-color 0.15s;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 5px;
+  min-height: 17px;
 }
-.cva-btn.neutral { border-style: dashed; }
-.cva-btn:active { transform: scale(0.88); }
-/* The selected button used to sit at a permanent scale(1.08), which painted
-   it over its neighbours and read as a number escaping its box. The pop is
-   now an animation that lands back at 1. */
-.cva-btn.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  border-style: solid;
-  color: var(--on-accent);
-  animation: cva-pop 0.28s var(--spring);
+.scale-end {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-faint);
 }
+.scale-live {
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.scale-live.none { color: var(--text-faint); font-weight: 400; font-style: italic; }
+
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 
-@keyframes cva-pop {
-  0% { transform: scale(0.84); }
-  55% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .scale-knob.settle { transition: none; }
+  .scale-track:active .scale-knob { transform: none; }
 }
 
 /* clearing a rating: only offered once there is one to clear */
@@ -1070,25 +1107,17 @@ body.plain .cva-scale { margin-top: 9px; }
 .attr-card.rated .cva-clear { display: grid; }
 .cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }
 
-.cva-desc {
-  margin-top: 1px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--text-faint);
-}
-
 /* a rated section is tinted and carries an accent edge, so what is finished
    is legible at a glance while scrolling a sheet of eight */
-.attr-card.rated {
-  background: var(--bg-card-2);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
+/* The rated state used to need a tint and an accent stripe down the edge
+   to be legible while scrolling eight of them. The scale now says it
+   directly — a solid knob carrying a number, a filled rail, and the
+   anchor word — so the card says nothing, and the one accent on the row
+   stays attached to the value that earned it. */
+.attr-card.rated { background: transparent; }
 
 /* a section nobody has rated yet should not look like a considered 5 */
-.attr-card.unrated { border-style: dashed; }
 .attr-card.unrated .attr-value { color: var(--text-faint); }
-.attr-card.unrated .cva-desc { font-style: italic; opacity: 0.8; }
 .attr-card.unrated .slider-fill { opacity: 0.35; }
 .attr-card.unrated .slider-thumb { filter: grayscale(0.7); opacity: 0.6; }
 
@@ -2166,9 +2195,10 @@ body.plain .cva-scale { margin-top: 9px; }
   white-space: nowrap;
 }
 
-/* the Describe card is the same shape as the coffee-details card, so it
-   gets its own edge to keep the two apart at a glance */
-.details-card.describe-card { box-shadow: inset 3px 0 0 var(--accent-soft); }
+/* The Describe card is the same shape as the coffee-details card. It used
+   an accent edge to keep the two apart; the panel head above it already
+   names which half of the form you are in, so the edge is redundant. */
+.details-card.describe-card { background: var(--bg-card-2); }
 .describe-card .details-toggle-label { color: var(--accent); }
 
 .optional-pill {
@@ -2291,7 +2321,8 @@ body.plain .cva-scale { margin-top: 9px; }
   transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
 }
 .present-card.sealed { border-style: dashed; background: var(--bg-raise); }
-.present-card.scored { box-shadow: inset 3px 0 0 var(--accent); }
+/* Scored reads from the number the card carries, not from a stripe. */
+.present-card.scored { border-color: var(--accent); }
 
 .present-top { display: flex; align-items: center; gap: 12px; }
 
@@ -2458,10 +2489,9 @@ body.plain .cva-scale { margin-top: 9px; }
 
   .toast { bottom: calc(var(--sab) + 96px); }
 
-  /* a 1–9 row stretched across the column put 67px buttons on screen, more
-     than twice their size on a phone — the column is for reading width, not
-     for making the controls bigger */
-  .cva-scale { max-width: 430px; }
+  /* the column is for reading width, not for stretching the control: a
+     track twice as wide makes every detent twice as far apart */
+  .scale { max-width: 430px; }
 
   /* two origin fields per row is right on a phone; on a laptop the cells
      were absurdly wide */
