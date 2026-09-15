@@ -66,9 +66,16 @@
   --radius-sm: 3px;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
-  /* Overshoot pulled from 1.4 to 1.1: an instrument settles, it does
-     not bounce. One token, every animation in the sheet. */
-  --spring: cubic-bezier(0.22, 1.1, 0.36, 1);
+  /* DESIGN.md: "This is an instrument; it should feel precise, not
+     springy." The overshoot went 1.4 -> 1.1 and stopped one step short of
+     what that sentence asks for — 1.1 still carries the knob past the
+     detent and back, which on a scale means briefly showing a number the
+     cupper did not choose. At y1 = 1 this is an ease-out-quint: the same
+     decisive deceleration, arriving without a bounce. It was called
+     --spring while it bounced; a knob coming to rest on a detent settles,
+     so that is what it is called now. One token, every animation in the
+     sheet. */
+  --settle: cubic-bezier(0.22, 1, 0.36, 1);
   --ease: cubic-bezier(0.25, 0.8, 0.3, 1);
 }
 
@@ -236,13 +243,15 @@ input, textarea, select { font: inherit; }
   color: var(--text);
 }
 
+/* Uppercase is a label treatment. This is a sentence naming the standard
+   the app implements, and at 37 characters it was the longest uppercase run
+   in the product — set as a line to read rather than a tag to scan. */
 .subtitle {
   margin-top: 3px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .setup-cards { display: flex; flex-direction: column; gap: 11px; }
@@ -297,7 +306,7 @@ input, textarea, select { font: inherit; }
   color: var(--accent);
   display: grid;
   place-items: center;
-  transition: background 0.15s, transform 0.15s var(--spring);
+  transition: background 0.15s, transform 0.15s var(--settle);
 }
 .stepper-btn:active { background: var(--accent-soft); transform: scale(0.88); }
 .stepper-btn:disabled { color: var(--text-faint); opacity: 0.4; }
@@ -309,7 +318,7 @@ input, textarea, select { font: inherit; }
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.stepper-value.bump { animation: bump 0.3s var(--spring); }
+.stepper-value.bump { animation: bump 0.3s var(--settle); }
 @keyframes bump { 50% { transform: scale(1.25); color: var(--accent); } }
 
 /* animated table preview */
@@ -336,7 +345,7 @@ input, textarea, select { font: inherit; }
   border-radius: 50% 50% 42% 42%;
   background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
   border: 1.5px solid var(--accent-deep);
-  animation: cupPop 0.4s var(--spring) backwards;
+  animation: cupPop 0.4s var(--settle) backwards;
 }
 
 @keyframes cupPop { from { transform: scale(0); } }
@@ -360,7 +369,7 @@ input, textarea, select { font: inherit; }
   font-size: 17px;
   font-weight: 700;
   text-align: center;
-  transition: transform 0.18s var(--spring), filter 0.18s;
+  transition: transform 0.18s var(--settle), filter 0.18s;
 }
 .btn:active { transform: scale(0.965); filter: brightness(1.08); }
 
@@ -409,7 +418,7 @@ input, textarea, select { font: inherit; }
   display: grid;
   place-items: center;
   color: var(--accent);
-  transition: background 0.15s, transform 0.15s var(--spring);
+  transition: background 0.15s, transform 0.15s var(--settle);
 }
 .icon-btn:active { background: var(--accent-soft); transform: scale(0.88); }
 
@@ -457,7 +466,7 @@ input, textarea, select { font: inherit; }
   background: var(--bg-card);
   border: 1px solid var(--line);
   overflow: hidden;
-  transition: transform 0.18s var(--spring), border-color 0.2s;
+  transition: transform 0.18s var(--settle), border-color 0.2s;
 }
 .rail-seg:active { transform: scale(0.94); }
 
@@ -498,7 +507,7 @@ input, textarea, select { font: inherit; }
   color: var(--accent);
   font-size: 15px;
   font-weight: 700;
-  transition: transform 0.15s var(--spring);
+  transition: transform 0.15s var(--settle);
 }
 .finish-btn:active { transform: scale(0.92); }
 
@@ -516,7 +525,7 @@ input, textarea, select { font: inherit; }
   color: var(--accent);
   font-size: 15px;
   font-weight: 700;
-  transition: transform 0.15s var(--spring), background 0.15s;
+  transition: transform 0.15s var(--settle), background 0.15s;
 }
 .invite-btn:active { transform: scale(0.92); background: var(--accent-soft); }
 .invite-btn.live {
@@ -539,7 +548,7 @@ input, textarea, select { font: inherit; }
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  animation: bump 0.35s var(--spring);
+  animation: bump 0.35s var(--settle);
 }
 .invite-count.all-in { background: var(--green); color: var(--on-accent); }
 
@@ -620,7 +629,7 @@ input, textarea, select { font: inherit; }
 .details-chevron {
   flex: none;
   color: var(--accent);
-  transition: transform 0.3s var(--spring);
+  transition: transform 0.3s var(--settle);
 }
 .details-card.open .details-chevron { transform: rotate(180deg); }
 
@@ -720,9 +729,9 @@ body.plain .scale { margin-top: 9px; }
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
-  transition: transform 0.2s var(--spring);
+  transition: transform 0.2s var(--settle);
 }
-.attr-value.pop { animation: bump 0.25s var(--spring); }
+.attr-value.pop { animation: bump 0.25s var(--settle); }
 
 /* ---------- guided mode help ---------- */
 
@@ -741,7 +750,7 @@ body.plain .scale { margin-top: 9px; }
   line-height: 1;
   vertical-align: middle;
   flex: none;
-  transition: transform 0.15s var(--spring), background 0.15s;
+  transition: transform 0.15s var(--settle), background 0.15s;
 }
 /* A 44px "?" would outweigh the title it sits beside, so the mark stays
    19px and only the thumb target grows around it. There are up to a dozen
@@ -816,7 +825,7 @@ body.plain .scale { margin-top: 9px; }
   font-size: 13px;
   font-weight: 700;
   position: relative;
-  transition: transform 0.2s var(--spring);
+  transition: transform 0.2s var(--settle);
 }
 .wheel-fab:active { transform: scale(0.92); }
 
@@ -856,7 +865,7 @@ body.plain .scale { margin-top: 9px; }
   font-size: 13px;
   line-height: 1.4;
   box-shadow: var(--shadow);
-  animation: rise 0.4s var(--spring) backwards;
+  animation: rise 0.4s var(--settle) backwards;
   animation-delay: 0.1s;
 }
 .wheel-coach strong { display: block; font-weight: 800; font-size: 13px; }
@@ -882,7 +891,7 @@ body.plain .scale { margin-top: 9px; }
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
-  transition: transform 0.15s var(--spring);
+  transition: transform 0.15s var(--settle);
 }
 .wheel-link:active { transform: scale(0.93); }
 
@@ -964,7 +973,7 @@ body.plain .scale { margin-top: 9px; }
   color: var(--on-accent);
   font-size: 13px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring);
+  transition: transform 0.18s var(--settle);
 }
 .wheel-pick.note { background: var(--accent-soft); color: var(--accent); }
 .wheel-pick:active { transform: scale(0.93); }
@@ -1003,9 +1012,10 @@ body.plain .scale { margin-top: 9px; }
   color: var(--accent);
 }
 
-.slider.slim { height: 34px; margin-top: 2px; }
-.slider.slim .slider-thumb { width: 22px; height: 22px; }
-.slider.slim + .slider-labels { font-size: 11px; padding-bottom: 2px; }
+/* an intensity nobody has recorded should not read as a deliberate 5 */
+.desc-row.unrated .desc-row-value { color: var(--text-faint); }
+.desc-row .cva-clear { visibility: hidden; }
+.desc-row:not(.unrated) .cva-clear { visibility: visible; }
 
 .desc-catas { display: flex; flex-direction: column; gap: 14px; }
 .cata-group { display: flex; flex-direction: column; gap: 8px; }
@@ -1020,7 +1030,7 @@ body.plain .scale { margin-top: 9px; }
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
-  transition: all 0.18s var(--spring);
+  transition: all 0.18s var(--settle);
 }
 .cata-chip:active { transform: scale(0.93); }
 .cata-chip.on {
@@ -1051,6 +1061,13 @@ body.plain .scale { margin-top: 9px; }
 .scale-track {
   position: relative;
   height: 48px;
+  /* The knob is 32px wide and centres on its detent, so at position 1 and at
+     position N half of it would sit outside the line. Inset the track by the
+     knob's radius and the extremes land flush with the row instead of being
+     clipped by the panel — which matters most on the 2004 form, where the
+     knob carries "10.00" rather than a single digit. The press target keeps
+     its full 48px height across the inset width. */
+  margin: 0 16px;
   touch-action: none;          /* the page must not scroll out from under a drag */
   cursor: grab;
   user-select: none;
@@ -1062,6 +1079,11 @@ body.plain .scale { margin-top: 9px; }
 .scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--line); }
 .scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--accent); opacity: 0.45; width: 0; }
 .scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--line); transform: translateX(-0.5px); }
+/* A detent with no numeral under it — the quarter points on the 2004 form,
+   the unlabelled intensities. Still a place the knob lands and still a
+   haptic crossing, so it is drawn, just shorter: the line has to show that
+   seventeen stops exist without printing seventeen numbers. */
+.scale-tick.minor { top: 22px; height: 5px; opacity: 0.7; }
 /* The neutral anchor is structurally different from the other eight
    positions, so its tick is drawn differently. */
 .scale-tick.mid { top: 14px; height: 20px; background: var(--text-dim); opacity: 0.55; }
@@ -1073,6 +1095,10 @@ body.plain .scale { margin-top: 9px; }
   font-family: var(--mono); font-size: 9px; color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
+/* the one the knob is standing on — see the comment in buildAnchoredScale */
+.scale-num.under { visibility: hidden; }
+.scale-num.at-start { transform: translateX(0); }
+.scale-num.at-end { transform: translateX(-100%); }
 
 .scale-knob {
   position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -16px;
@@ -1088,7 +1114,9 @@ body.plain .scale { margin-top: 9px; }
 /* The only lift in the system, and it is functional: this thing is in
    your hand right now. */
 .scale-track:active .scale-knob { transform: scale(1.22); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2); }
-.scale-knob.settle { transition: left 0.22s var(--spring), transform 0.22s var(--spring); }
+/* "7.75" will not fit a 32px knob at the single-digit size */
+.scale-knob.wide { font-size: 9px; letter-spacing: -0.02em; }
+.scale-knob.settle { transition: left 0.22s var(--settle), transform 0.22s var(--settle); }
 /* Visibly not a five: a default and a judgement are the same number and
    only one of them is evidence. */
 .scale-knob.empty {
@@ -1149,7 +1177,7 @@ body.plain .scale { margin-top: 9px; }
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  transition: transform 0.18s var(--spring), color 0.15s, border-color 0.15s;
+  transition: transform 0.18s var(--settle), color 0.15s, border-color 0.15s;
 }
 .cva-clear::after {
   content: '';
@@ -1171,8 +1199,6 @@ body.plain .scale { margin-top: 9px; }
 
 /* a section nobody has rated yet should not look like a considered 5 */
 .attr-card.unrated .attr-value { color: var(--text-faint); }
-.attr-card.unrated .slider-fill { opacity: 0.35; }
-.attr-card.unrated .slider-thumb { filter: grayscale(0.7); opacity: 0.6; }
 
 
 .scorebar.provisional .scorebar-score { opacity: 0.5; }
@@ -1191,74 +1217,6 @@ body.plain .scale { margin-top: 9px; }
   vertical-align: middle;
 }
 
-/* custom slider */
-.slider {
-  position: relative;
-  height: 48px;
-  margin-top: 6px;
-  touch-action: none;
-}
-
-.slider-track {
-  position: absolute;
-  left: 0; right: 0;
-  top: 50%;
-  height: 6px;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: var(--bg);
-  overflow: hidden;
-}
-
-.slider-fill {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 50%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-}
-
-.slider-ticks {
-  position: absolute;
-  left: 0; right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 6px;
-  pointer-events: none;
-}
-.slider-tick {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 10px;
-  transform: translate(-50%, -50%);
-  background: var(--line);
-  border-radius: var(--radius-sm);
-}
-
-.slider-thumb {
-  position: absolute;
-  top: 50%;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 32% 30%, var(--hi), var(--accent) 60%, var(--accent-deep));
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), 0 0 0 5px var(--accent-soft);
-  transition: box-shadow 0.2s;
-}
-.slider.dragging .slider-thumb {
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4), 0 0 0 10px var(--accent-soft);
-}
-
-.slider-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-  padding: 0 4px;
-}
 
 /* ---------- per-cup attribute (uniformity / clean / sweetness) ---------- */
 
@@ -1278,7 +1236,7 @@ body.plain .scale { margin-top: 9px; }
   display: grid;
   place-items: center;
   position: relative;
-  transition: all 0.22s var(--spring);
+  transition: all 0.22s var(--settle);
 }
 .cup-check svg { width: 24px; height: 24px; }
 .cup-check .cup-outline { stroke: var(--text-faint); transition: stroke 0.2s; }
@@ -1398,7 +1356,7 @@ body.plain .scale { margin-top: 9px; }
   align-items: baseline;
   gap: 3px;
 }
-.scorebar-score.pulse { animation: bump 0.3s var(--spring); }
+.scorebar-score.pulse { animation: bump 0.3s var(--settle); }
 
 /* ============================================================
    RESULTS
@@ -1794,7 +1752,7 @@ body.plain .scale { margin-top: 9px; }
   border: 1px solid var(--line);
   border-radius: var(--radius) var(--radius) 0 0;
   padding: 22px 20px calc(var(--sab) + 20px);
-  animation: sheetUp 0.35s var(--spring);
+  animation: sheetUp 0.35s var(--settle);
 }
 @keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } }
 
@@ -1834,7 +1792,7 @@ body.plain .scale { margin-top: 9px; }
   border-radius: var(--radius);
   font-size: 17px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring), filter 0.18s;
+  transition: transform 0.18s var(--settle), filter 0.18s;
 }
 .auth-btn:active { transform: scale(0.97); filter: brightness(1.06); }
 .auth-btn svg { flex: none; }
@@ -1928,11 +1886,11 @@ body.plain .scale { margin-top: 9px; }
   font-size: 30px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  transition: border-color 0.2s, transform 0.2s var(--spring), background 0.2s;
+  transition: border-color 0.2s, transform 0.2s var(--settle), background 0.2s;
 }
 .pin-box.filled { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .pin-box.next { border-color: var(--accent-deep); }
-.pin-box.pop { animation: bump 0.22s var(--spring); }
+.pin-box.pop { animation: bump 0.22s var(--settle); }
 
 .pin-boxes.shake { animation: shake 0.4s var(--ease); }
 @keyframes shake {
@@ -1968,7 +1926,7 @@ body.plain .scale { margin-top: 9px; }
   font-variant-numeric: tabular-nums;
   display: grid;
   place-items: center;
-  transition: background 0.12s, transform 0.12s var(--spring);
+  transition: background 0.12s, transform 0.12s var(--settle);
 }
 .key:active { background: var(--accent-soft); transform: scale(0.93); }
 .key.blank { background: none; border: none; pointer-events: none; }
@@ -2027,7 +1985,7 @@ body.plain .scale { margin-top: 9px; }
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
-  transition: left 0.25s var(--spring);
+  transition: left 0.25s var(--settle);
 }
 .switch input:checked + .switch-track { background: var(--accent); }
 .switch input:checked + .switch-track .switch-knob { left: 23px; }
@@ -2111,7 +2069,7 @@ body.plain .scale { margin-top: 9px; }
 .present-cupper i,
 .rank-grade i {
   font-style: normal;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.02em;
   color: var(--text-faint);
   font-family: var(--mono);
@@ -2290,7 +2248,7 @@ body.plain .scale { margin-top: 9px; }
   border-radius: 999px;
   opacity: 0;
   pointer-events: none;
-  transition: all 0.3s var(--spring);
+  transition: all 0.3s var(--settle);
   z-index: 50;
   box-shadow: var(--shadow);
 }
@@ -2410,7 +2368,7 @@ body.plain .scale { margin-top: 9px; }
   display: grid;
   place-items: center;
   color: var(--text-faint);
-  transition: transform 0.25s var(--spring), color 0.15s;
+  transition: transform 0.25s var(--settle), color 0.15s;
 }
 .lineup-icon:active { transform: scale(0.85); }
 .lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--accent); }
@@ -2491,7 +2449,7 @@ body.plain .scale { margin-top: 9px; }
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   line-height: 1;
-  animation: bump 0.35s var(--spring);
+  animation: bump 0.35s var(--settle);
 }
 .present-grade {
   display: block;
@@ -2537,7 +2495,7 @@ body.plain .scale { margin-top: 9px; }
   color: var(--accent);
   font-size: 13px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring);
+  transition: transform 0.18s var(--settle);
 }
 .present-action:active { transform: scale(0.97); }
 
@@ -2669,8 +2627,4 @@ body.plain .scale { margin-top: 9px; }
   border-color: var(--accent-deep);
 }
 
-.slider:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: var(--radius-sm);
-}
+
