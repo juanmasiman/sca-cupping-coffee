@@ -447,21 +447,34 @@ input, textarea, select { font: inherit; }
 }
 
 /* one segment per coffee: position, progress and jump target in one row */
+/* The navigation band, pinned at the bottom where a thumb reaches it. It
+   sits in the flex column rather than floating, so the sheet above it is
+   never scrolled under anything and the safe-area inset is padding rather
+   than a guess at how tall the home indicator is. */
+.coffee-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px calc(var(--sab) + 8px);
+  background: var(--bg-raise);
+  border-top: 1px solid var(--line);
+  z-index: 4;
+}
 .coffee-rail {
   display: flex;
   gap: 4px;
-  padding: 8px 12px 9px;
-  background: var(--glass-h);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--line);
-  z-index: 4;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.coffee-rail::-webkit-scrollbar { display: none; }
 
 .rail-seg {
   position: relative;
   flex: 1;
-  height: 32px;
+  min-width: 34px;
+  height: 44px;
   border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--line);
@@ -495,8 +508,11 @@ input, textarea, select { font: inherit; }
 .rail-seg.active .rail-num { color: var(--accent); }
 
 /* ten segments still need to be tappable, so trade padding for count */
+/* Ten coffees at 44px do not fit across a phone, so a dense lineup keeps
+   the height — it is still a target under a thumb — and scrolls sideways
+   inside the band instead of shrinking below the floor. */
 .coffee-rail.dense { gap: 3px; }
-.coffee-rail.dense .rail-seg { height: 30px; border-radius: var(--radius); }
+.coffee-rail.dense .rail-seg { min-width: 40px; border-radius: var(--radius); }
 .coffee-rail.dense .rail-num { font-size: 11px; }
 
 .finish-btn {
@@ -572,8 +588,9 @@ input, textarea, select { font: inherit; }
   scroll-snap-stop: always;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* clears the floating score bar */
-  padding: 16px 16px calc(var(--sab) + 116px);
+  /* every band is in the flex column now, so the sheet only has to clear
+     its own last row rather than guess at what is floating over it */
+  padding: 16px 16px 28px;
   overscroll-behavior-y: contain;
 }
 
@@ -811,9 +828,11 @@ body.plain .scale { margin-top: 9px; }
    rather than floating over the sheet: as a floating button it sat exactly on
    the right-hand end of whichever 1–9 row it happened to overlap and swallowed
    taps on 7, 8 and 9 — the scores a cupper reaches for on a good coffee. */
+/* it sits in the navigation band beside the rail now, so it is held to the
+   same height as the segments next to it */
 .wheel-fab {
   flex: none;
-  height: 38px;
+  height: 44px;
   padding: 0 12px 0 9px;
   border-radius: 999px;
   display: flex;
@@ -842,7 +861,11 @@ body.plain .scale { margin-top: 9px; }
   inset: -1px;
   border-radius: 999px;
   border: 2px solid var(--accent);
-  animation: wheelPing 2.4s var(--ease) infinite;
+  /* Three passes, not forever. DESIGN.md allows no motion beyond the knob
+     settle and the score's own change; a ring pulsing on the scoring screen
+     until someone finally taps it is the opposite of an instrument. Three
+     is enough to be noticed and it then leaves the cupper alone. */
+  animation: wheelPing 2.4s var(--ease) 3;
   pointer-events: none;
 }
 @keyframes wheelPing {
@@ -854,8 +877,8 @@ body.plain .scale { margin-top: 9px; }
 /* one-time coach mark, pointing down at the button in the score bar */
 .wheel-coach {
   position: fixed;
-  left: 12px;
-  bottom: calc(var(--sab) + 78px);
+  right: 12px;
+  bottom: calc(var(--sab) + 66px);
   max-width: 250px;
   z-index: 8;
   padding: 11px 14px;
@@ -872,7 +895,7 @@ body.plain .scale { margin-top: 9px; }
 .wheel-coach::after {
   content: '';
   position: absolute;
-  left: 30px;
+  right: 30px;
   bottom: -6px;
   width: 12px;
   height: 12px;
@@ -1308,20 +1331,17 @@ body.plain .scale { margin-top: 9px; }
 
 /* ---------- score bar ---------- */
 
+/* Sticky at the top, as the document says. It stopped being a floating
+   card in the same move: a card needs a blur, a border and a shadow to
+   separate itself from what it covers, and a band that covers nothing
+   needs a rule. */
 .scorebar {
-  position: fixed;
   gap: 10px;
-  left: 12px; right: 12px;
-  bottom: calc(var(--sab) + 12px);
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-radius: var(--radius);
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  padding: 9px 16px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
   z-index: 6;
   display: none;
 }
@@ -2235,10 +2255,13 @@ body.plain .scale { margin-top: 9px; }
 }
 
 /* toast */
+/* Arrival toasts used to land directly on top of the live score. The score
+   is at the top of the screen now, but the navigation band is where the
+   toast used to sit, so it clears that instead. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--sab) + 30px);
+  bottom: calc(var(--sab) + 72px);
   transform: translate(-50%, 20px);
   background: var(--accent);
   color: var(--on-accent);
@@ -2571,16 +2594,10 @@ body.plain .scale { margin-top: 9px; }
      it up to poster size */
   #radar-wrap { max-width: 360px; margin: 0 auto; }
 
-  .scorebar {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: min(var(--page), calc(100vw - 24px));
-  }
 
-  .wheel-coach { left: calc(var(--gut) + 4px); }
+  .wheel-coach { right: calc(var(--gut) + 4px); }
 
-  .toast { bottom: calc(var(--sab) + 96px); }
+  .toast { bottom: calc(var(--sab) + 78px); }
 
   /* the column is for reading width, not for stretching the control: a
      track twice as wide makes every detent twice as far apart */

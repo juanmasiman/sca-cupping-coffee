@@ -149,28 +149,12 @@
       <button id="btn-finish" class="finish-btn">Results</button>
     </header>
 
-    <nav class="coffee-rail" id="coffee-rail" aria-label="Coffees"></nav>
-
-    <div class="panels" id="panels"></div>
-
-    <div class="wheel-coach hidden" id="wheel-coach" role="status">
-      <strong>Lost for words?</strong>
-      <span>Tap the wheel for the flavor vocabulary.</span>
-    </div>
-
-
+    <!-- DESIGN.md, Layout: "the score, sticky at the top ... navigation
+         pinned at the bottom". The score is read and never touched; the
+         rail is the only thing a cupper presses between coffees, and on a
+         390px phone the bottom strip is the only band a thumb reaches
+         without regripping. They were the wrong way round. -->
     <footer class="scorebar" id="scorebar">
-      <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
-        <svg viewBox="0 0 40 40" width="24" height="24" aria-hidden="true">
-          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
-          <circle cx="20" cy="20" r="6.5" fill="currentColor"/>
-          <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M20 2v11M20 27v11M2 20h11M27 20h11"/>
-            <path d="M7.3 7.3l7.8 7.8M24.9 24.9l7.8 7.8M32.7 7.3l-7.8 7.8M15.1 24.9l-7.8 7.8"/>
-          </g>
-        </svg>
-        <span>Flavors</span>
-      </button>
       <div class="scorebar-info">
         <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
         <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
@@ -183,6 +167,30 @@
         <span id="scorebar-value">82.50</span>
       </div>
     </footer>
+
+    <div class="panels" id="panels"></div>
+
+    <nav class="coffee-bar" aria-label="Coffees">
+      <div class="coffee-rail" id="coffee-rail"></div>
+      <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
+        <svg viewBox="0 0 40 40" width="24" height="24" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
+          <circle cx="20" cy="20" r="6.5" fill="currentColor"/>
+          <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M20 2v11M20 27v11M2 20h11M27 20h11"/>
+            <path d="M7.3 7.3l7.8 7.8M24.9 24.9l7.8 7.8M32.7 7.3l-7.8 7.8M15.1 24.9l-7.8 7.8"/>
+          </g>
+        </svg>
+        <span>Flavors</span>
+      </button>
+    </nav>
+
+    <div class="wheel-coach hidden" id="wheel-coach" role="status">
+      <strong>Lost for words?</strong>
+      <span>Tap the wheel for the flavor vocabulary.</span>
+    </div>
+
+
   </section>
 
   <!-- ============ RESULTS SCREEN ============ -->
