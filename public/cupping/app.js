@@ -55,6 +55,52 @@ const CVA_LABELS = [
   'slightly high', 'moderately high', 'very high', 'extremely high',
 ];
 
+/* The three domains the anchored scale is asked to draw.
+
+   Each says how many detents it has, how a position maps onto the number
+   the sheet stores, which positions carry a numeral, and what to call the
+   place a cupper has landed on. Everything else about the control — the
+   gesture, the settle, the empty knob — is the same for all three. */
+
+// CVA 104-2024: nine integer positions, an anchor phrase on every one, and
+// a structural midpoint, because "neither high nor low" is a different kind
+// of answer from the eight around it rather than just a smaller number.
+const CVA_SCALE = {
+  words: CVA_LABELS,
+  lowWord: 'low',
+  highWord: 'high',
+};
+
+// The 2004 form: 6.00 to 10.00 in quarter points. Seventeen detents, a
+// numeral on the five whole points, and the form's own quality bands as the
+// phrase — a 7.75 is still "very good", which is what the cupper is deciding.
+const LEGACY_QUALITY = ['good', 'very good', 'excellent', 'outstanding'];
+const LEGACY_SCALE = {
+  steps: 17,
+  valueAt: i => 6 + (i - 1) * 0.25,
+  positionOf: v => Math.round((v - 6) / 0.25) + 1,
+  numeralAt: i => ((i - 1) % 4 === 0 ? String(6 + (i - 1) / 4) : ''),
+  wordAt: i => LEGACY_QUALITY[Math.min(3, Math.floor((i - 1) / 4))],
+  format: v => fmt(v),
+  midAt: 0,
+  lowWord: '6.00',
+  highWord: '10.00',
+};
+
+// SCA 103-2024 descriptive intensities: 0 to 15, sixteen detents, numerals
+// every fifth. No phrases and no midpoint — this scale records how much of
+// something is there, not how good it is, so there is no "neither" to mark.
+const INTENSITY_SCALE = {
+  steps: 16,
+  valueAt: i => i - 1,
+  positionOf: v => v + 1,
+  numeralAt: i => ((i - 1) % 5 === 0 ? String(i - 1) : ''),
+  wordAt: () => '',
+  midAt: 0,
+  lowWord: 'none',
+  highWord: 'very high',
+};
+
 const CVA_DEFECTS = [
   { key: 'nonUniform', label: 'Non-uniform cups', sub: 'cups that differ from the rest · −2 each' },
   { key: 'defective', label: 'Defective cups', sub: 'cups with a fault · −4 each' },
@@ -375,6 +421,15 @@ function load() {
       else {
         c.desc.roast = c.desc.roast || '';
         c.desc.intensity = Object.assign(base.intensity, c.desc.intensity || {});
+        // the old card had no way to record an intensity as unrated, but it
+        // also had no way to change one except by dragging it — so anything
+        // that is not still sitting on the parking 5 was put there on purpose
+        if (!c.desc.touched) {
+          c.desc.touched = {};
+          DESC_ATTRS.forEach(a => {
+            if (c.desc.intensity[a.key] !== 5) c.desc.touched[a.key] = true;
+          });
+        }
         c.desc.notes = Object.assign(base.notes, c.desc.notes || {});
         c.desc.cata = Object.assign(base.cata, c.desc.cata);
       }
@@ -2624,12 +2679,18 @@ function refreshOpenPanel() {
 
 function emptyDescriptive() {
   const intensity = {};
-  DESC_ATTRS.forEach(a => { intensity[a.key] = 5; }); // 5 = MEDIUM anchor
+  // A parking value, not an answer. Every intensity used to start at 5 with
+  // nothing to say it had never been touched, so seven sliders sat at a
+  // filled, deliberate-looking 5 on every coffee forever and exported that
+  // way. `touched` is the same distinction the score sections make, and
+  // DESIGN.md asks for it everywhere.
+  DESC_ATTRS.forEach(a => { intensity[a.key] = 5; });
   const notes = {};
   DESC_NOTE_FIELDS.forEach(k => { notes[k] = ''; });
   return {
     roast: '',
     intensity,
+    touched: {},
     notes,
     cata: { aroma: [], flavor: [], tastes: [], mouthfeel: [] },
   };
@@ -2669,6 +2730,8 @@ function buildDescriptiveCard(coffee) {
 
   const body = card.querySelector('.desc-body');
   const d = coffee.desc;
+  // a descriptive block restored from an archive written before this build
+  if (!d.touched) d.touched = {};
   // no help button on this row: the "Describe" section head directly above
   // already carries one, and a second widened the label until it sat under
   // the middle of the row, swallowing the tap that should open the card
@@ -2690,67 +2753,41 @@ function buildDescriptiveCard(coffee) {
     row.innerHTML = `
       <div class="desc-row-head">
         <span class="desc-row-name">${attr.label}${attr.sub ? ` <span class="desc-note">${attr.sub}</span>` : ''}</span>
-        <span class="desc-row-value"></span>
+        <div class="attr-value-row">
+          <span class="desc-row-value"></span>
+          <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} intensity">×</button>
+        </div>
       </div>
-      <div class="slider slim">
-        <div class="slider-track"><div class="slider-fill"></div></div>
-        <div class="slider-ticks"></div>
-        <div class="slider-thumb"></div>
-      </div>
-      <div class="slider-labels"><span>0 LOW</span><span>5</span><span>10 MEDIUM</span><span>15 HIGH</span></div>
     `;
     const valueEl = row.querySelector('.desc-row-value');
-    const slider = row.querySelector('.slider');
-    const fill = row.querySelector('.slider-fill');
-    const thumb = row.querySelector('.slider-thumb');
-    const ticks = row.querySelector('.slider-ticks');
-    [0, 5, 10, 15].forEach(v => {
-      const tick = el('span', 'slider-tick');
-      tick.style.left = `${(v / 15) * 100}%`;
-      ticks.appendChild(tick);
-    });
 
-    let announce = () => {};
-    const position = () => {
-      const pct = (d.intensity[attr.key] / 15) * 100;
-      fill.style.width = `${pct}%`;
-      thumb.style.left = `${pct}%`;
-      valueEl.textContent = d.intensity[attr.key];
-      announce();
-    };
-    const setValue = v => {
-      v = Math.min(15, Math.max(0, Math.round(v)));
-      if (v === d.intensity[attr.key]) return;
-      d.intensity[attr.key] = v;
-      haptic();
-      position();
-      save();
-    };
-    const fromEvent = e => {
-      const rect = slider.getBoundingClientRect();
-      const x = Math.min(rect.right, Math.max(rect.left, e.clientX));
-      return ((x - rect.left) / rect.width) * 15;
-    };
-    slider.addEventListener('pointerdown', e => {
-      slider.setPointerCapture(e.pointerId);
-      slider.classList.add('dragging');
-      setValue(fromEvent(e));
-    });
-    slider.addEventListener('pointermove', e => {
-      if (slider.classList.contains('dragging')) setValue(fromEvent(e));
-    });
-    const end = () => slider.classList.remove('dragging');
-    slider.addEventListener('pointerup', end);
-    slider.addEventListener('pointercancel', end);
-
-    announce = makeSliderAccessible(slider, {
+    const scale = buildAnchoredScale({
       label: `${attr.label} — intensity, 0 to 15`,
-      min: 0, max: 15, step: 1,
+      ...INTENSITY_SCALE,
       read: () => d.intensity[attr.key],
-      write: v => setValue(v),
+      isSet: () => Boolean(d.touched && d.touched[attr.key]),
+      write: v => { d.intensity[attr.key] = v; d.touched[attr.key] = true; },
+      onCommit: () => { refresh(); save(); },
+    });
+    row.appendChild(scale.el);
+
+    const refresh = () => {
+      const rated = Boolean(d.touched && d.touched[attr.key]);
+      row.classList.toggle('unrated', !rated);
+      valueEl.textContent = rated ? d.intensity[attr.key] : '–';
+      scale.refresh(true);
+    };
+
+    row.querySelector('.cva-clear').addEventListener('click', () => {
+      if (!d.touched || !d.touched[attr.key]) return;
+      delete d.touched[attr.key];
+      d.intensity[attr.key] = 5;
+      haptic();
+      refresh();
+      save();
     });
 
-    position();
+    refresh();
     return row;
   };
 
@@ -2891,71 +2928,56 @@ function buildDescriptiveCard(coffee) {
   return card;
 }
 
-/* ---------- CVA section card: 1–9 impression of quality ---------- */
-
 /* ---------- the anchored scale ----------
-   A CVA rating is a position on a scale carrying anchors at both ends and
-   at the middle — the standard says so — so it is drawn as one instead of
-   as a row of buttons. Nine 44px targets will not fit across a phone at
-   any gap, and the anchor wording belongs where it can be read before the
-   choice rather than after it. DESIGN.md owns the rules; this builds them.
+   A rating is a position on a scale carrying anchors at its ends — the
+   standard says so — so it is drawn as one instead of as a row of buttons.
+   Nine 44px targets will not fit across a phone at any gap, and the anchor
+   wording belongs where it can be read before the choice rather than after
+   it. DESIGN.md owns the rules; this builds them. */
 
-   `read` returns the current value, `write` commits one, `isSet` reports
-   whether a human ever chose. Nothing here assumes CVA, so the legacy
-   sheet's pointer-only sliders can move onto it next. */
-/* The two continuous sliders — the legacy 6–10 attributes and every
-   describe intensity — are plain divs driven by pointer events, which
-   means a keyboard could not reach them at all: the entire legacy
-   scoresheet and all seven intensities were mouse-or-finger only. This
-   makes an existing one into a real slider without changing how it looks
-   or how it drags. Returns the announcer, so pointer drags keep the
-   announced value in step with the visible one. */
-function makeSliderAccessible(slider, opts) {
-  slider.tabIndex = 0;
-  slider.setAttribute('role', 'slider');
-  slider.setAttribute('aria-label', opts.label);
-  slider.setAttribute('aria-valuemin', String(opts.min));
-  slider.setAttribute('aria-valuemax', String(opts.max));
+/* The anchored line scale, as SCA 104-2024 draws it.
 
-  const announce = () => {
-    const v = opts.read();
-    slider.setAttribute('aria-valuenow', String(v));
-    slider.setAttribute('aria-valuetext', opts.text ? opts.text(v) : String(v));
-  };
+   It is written against positions rather than against CVA's 1–9, because
+   three different sheets in this app ask the same question — where on this
+   line does the cup sit — with three different numbers underneath. CVA has
+   nine integer detents with an anchor phrase on each. The 2004 form has
+   seventeen, 6.00 to 10.00 in quarters, with a quality band every fourth.
+   The descriptive intensities have sixteen, 0 to 15, with no phrases at all.
 
-  slider.addEventListener('keydown', e => {
-    const v = opts.read();
-    let next = null;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = v + opts.step;
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = v - opts.step;
-    else if (e.key === 'PageUp') next = v + opts.step * 4;
-    else if (e.key === 'PageDown') next = v - opts.step * 4;
-    else if (e.key === 'Home') next = opts.min;
-    else if (e.key === 'End') next = opts.max;
-    if (next === null) return;
-    e.preventDefault();
-    opts.write(Math.min(opts.max, Math.max(opts.min, next)));
-    announce();
-  });
-
-  announce();
-  return announce;
-}
-
+   So the component knows only that there are `steps` detents, how to turn a
+   position into the number the sheet stores, and what to draw at each. The
+   gesture, the settle, the haptic per crossing, the dashed empty knob and
+   the keyboard handling are then the same everywhere, which is the point:
+   a cupper who learns the scale on one form has learned it on all of them. */
 function buildAnchoredScale(opts) {
-  const steps = opts.words.length;
-  const pct = v => ((v - 1) / (steps - 1)) * 100;
+  const steps = opts.steps || opts.words.length;
+  const valueAt = opts.valueAt || (i => i);
+  const positionOf = opts.positionOf || (v => v);
+  const wordAt = opts.wordAt || (i => (opts.words ? opts.words[i - 1] : ''));
+  const format = opts.format || (v => String(v));
+  // a numeral under every one of seventeen detents is unreadable, so each
+  // scale says which of its positions are worth labelling
+  const numeralAt = opts.numeralAt || (i => format(valueAt(i)));
+  // 0 means no structural midpoint: only CVA has a position that is
+  // different in kind from its neighbours rather than just further along
+  const midAt = opts.midAt === undefined ? Math.ceil(steps / 2) : opts.midAt;
+  const pct = i => ((i - 1) / (steps - 1)) * 100;
 
   const wrap = el('div', 'scale');
   let ticks = '';
   for (let i = 1; i <= steps; i++) {
-    const mid = i === Math.ceil(steps / 2) ? ' mid' : '';
-    ticks += `<i class="scale-tick${mid}" style="left:${pct(i)}%"></i>`
-           + `<span class="scale-num" style="left:${pct(i)}%">${i}</span>`;
+    const numeral = numeralAt(i);
+    ticks += `<i class="scale-tick${i === midAt ? ' mid' : ''}${numeral ? '' : ' minor'}" style="left:${pct(i)}%"></i>`;
+    if (numeral) {
+      // the numerals at the two ends anchor to their tick rather than
+      // centring on it, or half of "10" hangs off the end of the line
+      const edge = i === 1 ? ' at-start' : i === steps ? ' at-end' : '';
+      ticks += `<span class="scale-num${edge}" data-i="${i}" style="left:${pct(i)}%">${escapeHTML(numeral)}</span>`;
+    }
   }
   wrap.innerHTML = `
     <div class="scale-track" tabindex="0" role="slider"
-         aria-valuemin="1" aria-valuemax="${steps}"
+         aria-valuemin="${valueAt(1)}" aria-valuemax="${valueAt(steps)}"
          aria-label="${escapeHTML(opts.label)}">
       <div class="scale-rail"></div><div class="scale-fill"></div>${ticks}
       <div class="scale-knob"></div>
@@ -2971,21 +2993,49 @@ function buildAnchoredScale(opts) {
   const fill = wrap.querySelector('.scale-fill');
   const live = wrap.querySelector('.scale-live');
 
+  // The knob sits on top of one numeral at all times. When it is set, that
+  // numeral is the number the knob is already carrying; when it is empty, it
+  // is a "5" parked under a dashed ring that exists to say no value has been
+  // chosen. Either way the numeral underneath is at best a duplicate and at
+  // worst a contradiction, so it steps out of the way. Visibility rather
+  // than display, so the tick row cannot shift as the knob passes over it.
+  const nums = {};
+  wrap.querySelectorAll('.scale-num').forEach(n => { nums[n.dataset.i] = n; });
+  const cover = i => {
+    Object.keys(nums).forEach(k => nums[k].classList.toggle('under', Number(k) === i));
+  };
+
+  const say = i => {
+    const word = wordAt(i);
+    return format(valueAt(i)) + (word ? ` · ${word}` : '');
+  };
+  const sayAria = i => {
+    const word = wordAt(i);
+    return format(valueAt(i)) + (word ? `, ${word}` : '');
+  };
+  const paintKnob = i => {
+    const text = format(valueAt(i));
+    knob.textContent = text;
+    // "7.75" does not fit a 32px knob at the single-digit size
+    knob.classList.toggle('wide', text.length > 2);
+  };
+
   // settle=true springs the knob home; during a drag it must not animate,
   // or it lags the finger by the length of the transition
   const refresh = settle => {
     const set = opts.isSet();
-    const v = opts.read();
+    const i = set ? positionOf(opts.read()) : Math.ceil(steps / 2);
     knob.classList.toggle('settle', Boolean(settle));
     knob.classList.toggle('empty', !set);
-    knob.style.left = (set ? pct(v) : pct(Math.ceil(steps / 2))) + '%';
-    knob.textContent = set ? v : '';
-    fill.style.width = set ? pct(v) + '%' : '0';
-    live.textContent = set ? `${v} · ${opts.words[v - 1]}` : 'not rated yet';
+    knob.style.left = pct(i) + '%';
+    if (set) paintKnob(i); else { knob.textContent = ''; knob.classList.remove('wide'); }
+    cover(i);
+    fill.style.width = set ? pct(i) + '%' : '0';
+    live.textContent = set ? say(i) : 'not rated yet';
     live.classList.toggle('none', !set);
     if (set) {
-      track.setAttribute('aria-valuenow', String(v));
-      track.setAttribute('aria-valuetext', `${v}, ${opts.words[v - 1]}`);
+      track.setAttribute('aria-valuenow', String(valueAt(i)));
+      track.setAttribute('aria-valuetext', sayAria(i));
     } else {
       track.removeAttribute('aria-valuenow');
       track.setAttribute('aria-valuetext', 'not rated yet');
@@ -2993,7 +3043,7 @@ function buildAnchoredScale(opts) {
   };
 
   let dragging = false;
-  let lastV = null;
+  let lastI = null;
 
   const at = e => {
     const r = track.getBoundingClientRect();
@@ -3005,22 +3055,23 @@ function buildAnchoredScale(opts) {
     knob.classList.remove('settle', 'empty');
     knob.style.left = ratio * 100 + '%';   // free under the finger
     fill.style.width = ratio * 100 + '%';
-    const v = Math.round(ratio * (steps - 1)) + 1;
-    if (v !== lastV) {
-      lastV = v;
+    const i = Math.round(ratio * (steps - 1)) + 1;
+    if (i !== lastI) {
+      lastI = i;
       haptic();
-      opts.write(v);
-      knob.textContent = v;
-      live.textContent = `${v} · ${opts.words[v - 1]}`;
+      opts.write(valueAt(i));
+      paintKnob(i);
+      cover(i);
+      live.textContent = say(i);
       live.classList.remove('none');
-      track.setAttribute('aria-valuenow', String(v));
-      track.setAttribute('aria-valuetext', `${v}, ${opts.words[v - 1]}`);
+      track.setAttribute('aria-valuenow', String(valueAt(i)));
+      track.setAttribute('aria-valuetext', sayAria(i));
     }
   };
 
   track.addEventListener('pointerdown', e => {
     dragging = true;
-    lastV = null;
+    lastI = null;
     track.setPointerCapture(e.pointerId);
     move(e);
     e.preventDefault();
@@ -3036,15 +3087,20 @@ function buildAnchoredScale(opts) {
   track.addEventListener('pointercancel', end);
 
   track.addEventListener('keydown', e => {
-    const cur = opts.isSet() ? opts.read() : Math.ceil(steps / 2);
-    let v = null;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = Math.min(steps, cur + 1);
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = Math.max(1, cur - 1);
-    else if (e.key === 'Home') v = 1;
-    else if (e.key === 'End') v = steps;
-    if (v === null) return;
+    const cur = opts.isSet() ? positionOf(opts.read()) : Math.ceil(steps / 2);
+    // one detent per arrow press however many there are, and a page jump
+    // that is a tenth of the line rather than a fixed four
+    const page = Math.max(2, Math.round(steps / 10));
+    let i = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') i = Math.min(steps, cur + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') i = Math.max(1, cur - 1);
+    else if (e.key === 'PageUp') i = Math.min(steps, cur + page);
+    else if (e.key === 'PageDown') i = Math.max(1, cur - page);
+    else if (e.key === 'Home') i = 1;
+    else if (e.key === 'End') i = steps;
+    if (i === null) return;
     e.preventDefault();
-    opts.write(v);
+    opts.write(valueAt(i));
     haptic();
     refresh(true);
     if (opts.onCommit) opts.onCommit();
@@ -3082,7 +3138,7 @@ function buildCvaCard(coffee, section) {
 
   const scale = buildAnchoredScale({
     label: `${section.label} — impression of quality`,
-    words: CVA_LABELS,
+    ...CVA_SCALE,
     read: () => coffee.cva[section.key],
     isSet: () => Boolean(coffee.touched[section.key]),
     write: v => { coffee.cva[section.key] = v; coffee.touched[section.key] = true; },
@@ -3185,113 +3241,64 @@ function buildScaleCard(coffee, attr) {
   const card = el('div', 'attr-card');
   card.innerHTML = `
     <div class="attr-head">
-      <div>
+      <div class="attr-head-left">
         <div class="attr-title">${attr.label}</div>
         <div class="attr-sub">${attr.sub}</div>
       </div>
-      <div class="attr-value-row">
-        <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
-        <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} rating">×</button>
+      <div class="attr-head-right">
+        <div class="attr-value-row">
+          <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
+          <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} rating">×</button>
+        </div>
       </div>
     </div>
-    <div class="slider">
-      <div class="slider-track"><div class="slider-fill"></div></div>
-      <div class="slider-ticks"></div>
-      <div class="slider-thumb"></div>
-    </div>
-    <div class="slider-labels"><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div>
   `;
 
   const valueEl = card.querySelector('.attr-value');
-  const slider = card.querySelector('.slider');
-  const fill = card.querySelector('.slider-fill');
-  const thumb = card.querySelector('.slider-thumb');
-  const ticks = card.querySelector('.slider-ticks');
   addHelp(card.querySelector('.attr-title'), 'legacy.scale');
-  card.classList.toggle('unrated', !coffee.touched[attr.key]);
-  card.classList.toggle('rated', Boolean(coffee.touched[attr.key]));
 
-  // whole-point tick marks
-  for (let v = 6; v <= 10; v++) {
-    const tick = el('span', 'slider-tick');
-    tick.style.left = `${((v - 6) / 4) * 100}%`;
-    ticks.appendChild(tick);
-  }
-
-  const MIN = 6, MAX = 10, STEP = 0.25;
-
-  let announce = () => {};
-  const position = () => {
-    const pct = ((coffee.scores[attr.key] - MIN) / (MAX - MIN)) * 100;
-    fill.style.width = `${pct}%`;
-    thumb.style.left = `${pct}%`;
-    announce();
-  };
-
-  const setValue = (v, popIt) => {
-    v = Math.round(v / STEP) * STEP;
-    v = Math.min(MAX, Math.max(MIN, v));
-    const firstTouch = !coffee.touched[attr.key];
-    if (v === coffee.scores[attr.key] && !firstTouch) return;
-    coffee.scores[attr.key] = v;
-    coffee.touched[attr.key] = true;
-    card.classList.remove('unrated');
-    card.classList.add('rated');
-    valueEl.textContent = fmt(v);
-    if (popIt) {
-      valueEl.classList.remove('pop');
-      void valueEl.offsetWidth;
-      valueEl.classList.add('pop');
-      haptic();
-    }
-    position();
+  const commit = () => {
+    refresh(false);
     refreshTabs();
     updateScorebar();
     save();
   };
 
-  const valueFromEvent = e => {
-    const rect = slider.getBoundingClientRect();
-    const x = Math.min(rect.right, Math.max(rect.left, e.clientX));
-    return MIN + ((x - rect.left) / rect.width) * (MAX - MIN);
-  };
-
-  slider.addEventListener('pointerdown', e => {
-    slider.setPointerCapture(e.pointerId);
-    slider.classList.add('dragging');
-    setValue(valueFromEvent(e), true);
-  });
-  slider.addEventListener('pointermove', e => {
-    if (!slider.classList.contains('dragging')) return;
-    setValue(valueFromEvent(e), true);
-  });
-  const endDrag = () => slider.classList.remove('dragging');
-  slider.addEventListener('pointerup', endDrag);
-  slider.addEventListener('pointercancel', endDrag);
-
-  announce = makeSliderAccessible(slider, {
-    label: `${attr.label} — quality, 6 to 10`,
-    min: MIN, max: MAX, step: STEP,
+  const scale = buildAnchoredScale({
+    label: `${attr.label} — quality, 6.00 to 10.00`,
+    ...LEGACY_SCALE,
     read: () => coffee.scores[attr.key],
-    write: v => setValue(v, true),
-    text: v => fmt(v),
+    isSet: () => Boolean(coffee.touched[attr.key]),
+    write: v => { coffee.scores[attr.key] = v; coffee.touched[attr.key] = true; },
+    onCommit: commit,
   });
+  card.appendChild(scale.el);
+
+  const refresh = popIt => {
+    const rated = Boolean(coffee.touched[attr.key]);
+    card.classList.toggle('unrated', !rated);
+    card.classList.toggle('rated', rated);
+    valueEl.textContent = rated ? fmt(coffee.scores[attr.key]) : '–';
+    scale.refresh(true);
+    if (popIt) {
+      valueEl.classList.remove('pop');
+      void valueEl.offsetWidth;
+      valueEl.classList.add('pop');
+    }
+  };
 
   card.querySelector('.cva-clear').addEventListener('click', () => {
     if (!coffee.touched[attr.key]) return;
     delete coffee.touched[attr.key];
     coffee.scores[attr.key] = 7.5;
-    card.classList.add('unrated');
-    card.classList.remove('rated');
-    valueEl.textContent = fmt(coffee.scores[attr.key]);
     haptic();
-    position();
+    refresh(false);
     refreshTabs();
     updateScorebar();
     save();
   });
 
-  position();
+  refresh(false);
   return card;
 }
 
