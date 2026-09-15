@@ -2519,11 +2519,13 @@ function buildDescriptiveCard(coffee) {
       ticks.appendChild(tick);
     });
 
+    let announce = () => {};
     const position = () => {
       const pct = (d.intensity[attr.key] / 15) * 100;
       fill.style.width = `${pct}%`;
       thumb.style.left = `${pct}%`;
       valueEl.textContent = d.intensity[attr.key];
+      announce();
     };
     const setValue = v => {
       v = Math.min(15, Math.max(0, Math.round(v)));
@@ -2549,6 +2551,13 @@ function buildDescriptiveCard(coffee) {
     const end = () => slider.classList.remove('dragging');
     slider.addEventListener('pointerup', end);
     slider.addEventListener('pointercancel', end);
+
+    announce = makeSliderAccessible(slider, {
+      label: `${attr.label} — intensity, 0 to 15`,
+      min: 0, max: 15, step: 1,
+      read: () => d.intensity[attr.key],
+      write: v => setValue(v),
+    });
 
     position();
     return row;
@@ -2703,6 +2712,45 @@ function buildDescriptiveCard(coffee) {
    `read` returns the current value, `write` commits one, `isSet` reports
    whether a human ever chose. Nothing here assumes CVA, so the legacy
    sheet's pointer-only sliders can move onto it next. */
+/* The two continuous sliders — the legacy 6–10 attributes and every
+   describe intensity — are plain divs driven by pointer events, which
+   means a keyboard could not reach them at all: the entire legacy
+   scoresheet and all seven intensities were mouse-or-finger only. This
+   makes an existing one into a real slider without changing how it looks
+   or how it drags. Returns the announcer, so pointer drags keep the
+   announced value in step with the visible one. */
+function makeSliderAccessible(slider, opts) {
+  slider.tabIndex = 0;
+  slider.setAttribute('role', 'slider');
+  slider.setAttribute('aria-label', opts.label);
+  slider.setAttribute('aria-valuemin', String(opts.min));
+  slider.setAttribute('aria-valuemax', String(opts.max));
+
+  const announce = () => {
+    const v = opts.read();
+    slider.setAttribute('aria-valuenow', String(v));
+    slider.setAttribute('aria-valuetext', opts.text ? opts.text(v) : String(v));
+  };
+
+  slider.addEventListener('keydown', e => {
+    const v = opts.read();
+    let next = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = v + opts.step;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = v - opts.step;
+    else if (e.key === 'PageUp') next = v + opts.step * 4;
+    else if (e.key === 'PageDown') next = v - opts.step * 4;
+    else if (e.key === 'Home') next = opts.min;
+    else if (e.key === 'End') next = opts.max;
+    if (next === null) return;
+    e.preventDefault();
+    opts.write(Math.min(opts.max, Math.max(opts.min, next)));
+    announce();
+  });
+
+  announce();
+  return announce;
+}
+
 function buildAnchoredScale(opts) {
   const steps = opts.words.length;
   const pct = v => ((v - 1) / (steps - 1)) * 100;
@@ -2981,10 +3029,12 @@ function buildScaleCard(coffee, attr) {
 
   const MIN = 6, MAX = 10, STEP = 0.25;
 
+  let announce = () => {};
   const position = () => {
     const pct = ((coffee.scores[attr.key] - MIN) / (MAX - MIN)) * 100;
     fill.style.width = `${pct}%`;
     thumb.style.left = `${pct}%`;
+    announce();
   };
 
   const setValue = (v, popIt) => {
@@ -3027,6 +3077,14 @@ function buildScaleCard(coffee, attr) {
   const endDrag = () => slider.classList.remove('dragging');
   slider.addEventListener('pointerup', endDrag);
   slider.addEventListener('pointercancel', endDrag);
+
+  announce = makeSliderAccessible(slider, {
+    label: `${attr.label} — quality, 6 to 10`,
+    min: MIN, max: MAX, step: STEP,
+    read: () => coffee.scores[attr.key],
+    write: v => setValue(v, true),
+    text: v => fmt(v),
+  });
 
   card.querySelector('.cva-clear').addEventListener('click', () => {
     if (!coffee.touched[attr.key]) return;
