@@ -175,9 +175,12 @@
         <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
         <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
       </div>
+      <!-- No "/100". The scale floors at 58, so the denominator overstated
+           the headroom, and a cupping score is quoted as a bare number
+           anyway. The room it freed goes to the grade beside it, which was
+           being truncated to "Outstan…". -->
       <div class="scorebar-score">
         <span id="scorebar-value">82.50</span>
-        <span class="scorebar-max">/100</span>
       </div>
     </footer>
   </section>
