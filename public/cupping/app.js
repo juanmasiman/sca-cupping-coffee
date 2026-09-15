@@ -222,7 +222,14 @@ const CUP_ATTRS = [
 
 const RADAR_ATTRS = [...SCALE_ATTRS, ...CUP_ATTRS];
 
-const RADAR_COLORS = ['#e8b06b', '#8fc98a', '#7fb3d5', '#e07a5f', '#c39bd3', '#f4d35e', '#76d7c4', '#f1948a', '#aab7f0', '#d4a373'];
+// The series palette lives in CSS as --series-1..10 so it can differ by
+// theme and be measured like every other colour in the system. These were
+// hardcoded hex, tuned against a dark ground and shipped onto a near-white
+// page, where they ran 1.47:1 to 2.95:1 against a 3:1 requirement — and
+// because they were not tokens, the "62 contrast failures to 0" sweep never
+// looked at them.
+const SERIES_COUNT = 10;
+const seriesVar = index => `var(--series-${(index % SERIES_COUNT) + 1})`;
 
 // Ten coffees told apart by hue alone is ten coffees a colour-blind cupper
 // cannot tell apart at all. Each series carries a stroke pattern as well,
@@ -4140,14 +4147,20 @@ function buildRadar(ranked) {
 
   // one polygon per coffee (ranked order so winner draws last, on top)
   [...ranked].reverse().forEach(r => {
-    const color = RADAR_COLORS[r.index % RADAR_COLORS.length];
     const pts = ATTRS.map((attr, i) => {
       const v = Math.max(MIN, attrValue(r.coffee, attr));
       const rr = (R * (v - MIN)) / (MAX - MIN);
       return point(i, rr).map(n => n.toFixed(1)).join(',');
     }).join(' ');
     const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
-    svg += `<polygon points="${pts}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-dasharray="${dash}" data-coffee="${r.index}"/>`;
+    // No area fill by default. Ten translucent fills stack into mud at the
+    // centre, and chasing 3:1 against that stack is what forced the old
+    // palette to the ends of the luminance range in the first place: the
+    // only colours that survive nine fills underneath them are ten
+    // near-identical pastels. The fill comes back for one series at a time,
+    // when the legend solos it and there is nothing under it but the card.
+    svg += `<polygon points="${pts}" class="radar-series" style="--c:${seriesVar(r.index)}"`
+      + ` stroke-width="2" stroke-linejoin="round" stroke-dasharray="${dash}" data-coffee="${r.index}"/>`;
   });
 
   svg += '</svg>';
@@ -4157,24 +4170,29 @@ function buildRadar(ranked) {
   const legend = $('#radar-legend');
   legend.innerHTML = '';
   ranked.forEach(r => {
-    const color = RADAR_COLORS[r.index % RADAR_COLORS.length];
     const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
     const item = el('button', 'legend-item');
     // the swatch is the series' own line, so the legend carries both
     // channels the chart uses rather than only the colour
     item.innerHTML = `<svg class="legend-swatch" viewBox="0 0 24 8" aria-hidden="true">`
-      + `<line x1="1.5" y1="4" x2="22.5" y2="4" stroke="${color}" stroke-width="2.5"`
-      + ` stroke-dasharray="${dash}" stroke-linecap="round"/></svg>`
+      + `<line class="legend-line" x1="1.5" y1="4" x2="22.5" y2="4" style="--c:${seriesVar(r.index)}"`
+      + ` stroke-width="2.5" stroke-dasharray="${dash}" stroke-linecap="round"/></svg>`
       + escapeHTML(coffeeName(r.coffee, r.index));
     item.addEventListener('click', () => {
       const muting = !item.classList.contains('solo');
       legend.querySelectorAll('.legend-item').forEach(li => li.classList.remove('solo', 'muted'));
-      $('#radar-wrap').querySelectorAll('polygon[data-coffee]').forEach(p => (p.style.opacity = ''));
+      $('#radar-wrap').querySelectorAll('polygon[data-coffee]').forEach(p => {
+        p.style.opacity = '';
+        p.classList.remove('solo');
+      });
       if (muting) {
         item.classList.add('solo');
         legend.querySelectorAll('.legend-item').forEach(li => { if (li !== item) li.classList.add('muted'); });
         $('#radar-wrap').querySelectorAll('polygon[data-coffee]').forEach(p => {
-          p.style.opacity = p.dataset.coffee === String(r.index) ? '1' : '0.08';
+          const mine = p.dataset.coffee === String(r.index);
+          p.style.opacity = mine ? '1' : '0.08';
+          // only the soloed shape gets a body, and only while it is alone
+          p.classList.toggle('solo', mine);
         });
       }
     });

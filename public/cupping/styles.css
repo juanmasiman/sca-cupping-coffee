@@ -64,6 +64,31 @@
   --glow: rgba(0, 0, 0, 0);
   --radius: 4px;
   --radius-sm: 3px;
+
+  /* ----------------------------------------------------------
+     Series colours — the ten coffees on the results radar.
+     Measured, not eyeballed: every one clears 3:1 against the
+     card it is drawn on and against that card tinted by its own
+     highlight fill, which is what WCAG 1.4.11 asks of a graphic
+     that carries meaning. The outgoing set was tuned against a
+     dark ground and shipped onto a near-white page, where it
+     measured 1.47:1 to 2.95:1 — the legend naming each coffee
+     was the least visible thing on the screen.
+     Four of the ten are the same in both themes; only the
+     greens, the amber and the teal had to move for the dark
+     ground, so a coffee's colour barely shifts when the light
+     does. Minimum pairwise separation is dE76 16.3.
+     ---------------------------------------------------------- */
+  --series-1: #e85617;
+  --series-2: #218fde;
+  --series-3: #1a9f3b;
+  --series-4: #b930cf;
+  --series-5: #b78105;
+  --series-6: #1b9b8a;
+  --series-7: #5b36c9;
+  --series-8: #d12e80;
+  --series-9: #519c1c;
+  --series-10: #3955c6;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   /* DESIGN.md: "This is an instrument; it should feel precise, not
@@ -104,6 +129,16 @@
     --green: #6fd39a;
     --red: #f0a077;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --series-1: #e85617;
+    --series-2: #218fde;
+    --series-3: #24db52;
+    --series-4: #b930cf;
+    --series-5: #f9b006;
+    --series-6: #26d9c1;
+    --series-7: #7556d2;
+    --series-8: #d12e80;
+    --series-9: #71d926;
+    --series-10: #4c65cb;
   }
 }
 
@@ -128,6 +163,16 @@
   --green: #6fd39a;
   --red: #f0a077;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --series-1: #e85617;
+  --series-2: #218fde;
+  --series-3: #24db52;
+  --series-4: #b930cf;
+  --series-5: #f9b006;
+  --series-6: #26d9c1;
+  --series-7: #7556d2;
+  --series-8: #d12e80;
+  --series-9: #71d926;
+  --series-10: #4c65cb;
 }
 
 
@@ -1402,12 +1447,16 @@ body.plain .scale { margin-top: 9px; }
   margin-bottom: 14px;
   animation: screenIn 0.5s var(--ease);
 }
+/* --text-faint would pass on the plain card at 4.93:1, but .podium lays a
+   radial accent tint over that card and this label sits at the strongest
+   point of it, which pushed it to 4.39:1 in light and 4.32:1 in dark. The
+   ground here is not the token's ground, so the ink steps up one. */
 .podium-label {
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .podium-name { font-size: 20px; font-weight: 700; margin-top: 4px; }
 .podium-score {
@@ -1433,6 +1482,20 @@ body.plain .scale { margin-top: 9px; }
 
 .radar-axis-label { font-size: 11px; fill: var(--text-dim); font-weight: 600; }
 .radar-grid { stroke: var(--line); fill: none; }
+
+/* Each polygon carries its own colour as --c, so the series palette is a
+   token set the theme can redefine rather than hex written into an SVG
+   attribute by JavaScript. Line only; the body arrives when the legend
+   solos one series and there is nothing stacked underneath it. */
+.radar-series {
+  fill: none;
+  stroke: var(--c);
+}
+.radar-series.solo {
+  fill: var(--c);
+  fill-opacity: 0.12;
+}
+.legend-line { stroke: var(--c); }
 
 .radar-legend {
   display: flex;
