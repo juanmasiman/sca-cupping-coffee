@@ -7,7 +7,7 @@
    needs to reach the internet, and it fails softly when it can't.
    ============================================================ */
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `lento-cupping-shell-${VERSION}`;
 
 const SHELL = [
@@ -21,6 +21,11 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
+  // The faces ship with the app for the same reason everything else does:
+  // a font that only arrives with signal is a font the basement never sees.
+  './fonts/plex-sans-var.woff2',
+  './fonts/plex-mono-400.woff2',
+  './fonts/plex-mono-600.woff2',
 ];
 
 self.addEventListener('install', event => {

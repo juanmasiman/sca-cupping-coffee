@@ -3064,7 +3064,7 @@ function updateScorebar() {
   // that looks authoritative but is mostly untouched defaults
   $('#scorebar-grade').textContent = progress.complete
     ? gradeFor(score)
-    : `${progress.done} of ${progress.total} sections rated`;
+    : `${progress.done} of ${progress.total} rated`;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
   const valueEl = $('#scorebar-value');
   if (valueEl.textContent !== fmt(score)) {

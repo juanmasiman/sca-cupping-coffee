@@ -1,113 +1,130 @@
 /* ============================================================
    SCA Cupping — styles
-   Warm, dark, iOS-native feel. Mobile-first (iPhone).
-   Themeable via data-theme on <html>.
+   Anchored Scale: sensory notation, read over a table in
+   unpredictable light. See DESIGN.md for the rules these
+   tokens serve. Mobile-first (iPhone).
+
+   Light is the base. Dark follows the device unless the reader
+   has said otherwise, because the recorded operating light is
+   variable and neither one gets to be the afterthought.
    ============================================================ */
 
+/* Self-hosted, latin subset, 60 KB for the set, precached by the service
+   worker. A webfont fetched from a CDN is a webfont that disappears in a
+   basement with one bar of signal, and offline is a binding constraint.
+   Sans ships as one variable file covering every weight; Mono is static
+   per weight, which is how upstream draws them. */
+@font-face {
+  font-family: 'Plex Sans';
+  src: url('fonts/plex-sans-var.woff2') format('woff2-variations');
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('fonts/plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('fonts/plex-mono-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #14100d;
-  --bg-raise: #1e1813;
-  --bg-card: #241c15;
-  --bg-card-2: #2c2219;
-  --line: #3a2e22;
-  --text: #f3e9dc;
-  --text-dim: #a89579;
-  --text-faint: #6f6151;
-  --accent: #e8b06b;
-  --accent-deep: #b5793a;
-  --accent-soft: rgba(232, 176, 107, 0.14);
-  --on-accent: #1c1207;
-  --hi: #f7dfb8;
-  --glass-h: rgba(20, 16, 13, 0.86);
-  --glass: rgba(36, 28, 21, 0.82);
-  --cup-a: #4a3721;
-  --cup-b: #33261a;
-  --green: #8fc98a;
-  --red: #e07a5f;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  --glow: rgba(232, 176, 107, 0.28);
-  --radius: 18px;
-  --radius-sm: 12px;
+  --sans: 'Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg: #fbfaf7;
+  --bg-raise: #f4f3ef;
+  --bg-card: #ffffff;
+  --bg-card-2: #f2f6f4;
+  --line: #d9dad4;
+  --text: #16181c;
+  --text-dim: #565b63;
+  --text-faint: #6b7178;
+  --accent: #0b5f4f;
+  --accent-deep: #084739;
+  --accent-soft: rgba(11, 95, 79, 0.10);
+  --on-accent: #fbfaf7;
+  --hi: #12806a;
+  --glass-h: rgba(251, 250, 247, 0.88);
+  --glass: rgba(255, 255, 255, 0.88);
+  --cup-a: #e7e9e6;
+  --cup-b: #d4d8d4;
+  --green: #1f6b3a;
+  --red: #9a3412;
+  /* Depth is spent on exactly one thing: the control in your hand.
+     Everything else separates with a rule and with space. */
+  --shadow: 0 1px 3px rgba(20, 24, 28, 0.08);
+  --glow: rgba(0, 0, 0, 0);
+  --radius: 4px;
+  --radius-sm: 3px;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
-  --spring: cubic-bezier(0.32, 1.4, 0.45, 1);
+  /* Overshoot pulled from 1.4 to 1.1: an instrument settles, it does
+     not bounce. One token, every animation in the sheet. */
+  --spring: cubic-bezier(0.22, 1.1, 0.36, 1);
   --ease: cubic-bezier(0.25, 0.8, 0.3, 1);
 }
 
-/* ---- Crema: light, café con leche ---- */
-:root[data-theme="crema"] {
-  --bg: #f5efe6;
-  --bg-raise: #efe7da;
-  --bg-card: #fffdf8;
-  --bg-card-2: #f7f0e4;
-  --line: #e4d8c4;
-  --text: #2b2117;
-  --text-dim: #7a6a55;
-  --text-faint: #ab9a81;
-  --accent: #b5793a;
-  --accent-deep: #8a5526;
-  --accent-soft: rgba(181, 121, 58, 0.13);
-  --on-accent: #fff8ec;
-  --hi: #e8b06b;
-  --glass-h: rgba(245, 239, 230, 0.86);
-  --glass: rgba(255, 253, 248, 0.85);
-  --cup-a: #e9ddc9;
-  --cup-b: #dccbae;
-  --green: #5f9e58;
-  --red: #c25438;
-  --shadow: 0 8px 30px rgba(95, 65, 25, 0.13);
-  --glow: rgba(181, 121, 58, 0.3);
+/* Dark tokens live in one block, applied from either direction: the
+   device's own setting unless an explicit light choice overrides it,
+   or an explicit dark choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1113;
+    --bg-raise: #14171a;
+    --bg-card: #171a1d;
+    --bg-card-2: #1b2320;
+    --line: #2a2e33;
+    --text: #e9ecef;
+    --text-dim: #98a0a8;
+    --text-faint: #868d94;
+    --accent: #46c5a8;
+    --accent-deep: #6fd9c0;
+    --accent-soft: rgba(70, 197, 168, 0.14);
+    --on-accent: #0f1113;
+    --hi: #7fe0c8;
+    --glass-h: rgba(15, 17, 19, 0.88);
+    --glass: rgba(23, 26, 29, 0.88);
+    --cup-a: #262b2e;
+    --cup-b: #1b1f22;
+    --green: #6fd39a;
+    --red: #f0a077;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
 }
 
-/* ---- Midnight: cool slate + copper ---- */
-:root[data-theme="midnight"] {
-  --bg: #0e1116;
-  --bg-raise: #141922;
-  --bg-card: #161c26;
-  --bg-card-2: #1c2430;
-  --line: #26303e;
-  --text: #e8edf4;
-  --text-dim: #8fa0b5;
-  --text-faint: #5b697c;
-  --accent: #e0956a;
-  --accent-deep: #a45f38;
-  --accent-soft: rgba(224, 149, 106, 0.14);
-  --on-accent: #160e08;
-  --hi: #ffd9b8;
-  --glass-h: rgba(14, 17, 22, 0.86);
-  --glass: rgba(22, 28, 38, 0.82);
-  --cup-a: #26303e;
-  --cup-b: #1a222c;
-  --green: #85c98f;
-  --red: #e07a6a;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-  --glow: rgba(224, 149, 106, 0.26);
+:root[data-theme="dark"] {
+  --bg: #0f1113;
+  --bg-raise: #14171a;
+  --bg-card: #171a1d;
+  --bg-card-2: #1b2320;
+  --line: #2a2e33;
+  --text: #e9ecef;
+  --text-dim: #98a0a8;
+  --text-faint: #868d94;
+  --accent: #46c5a8;
+  --accent-deep: #6fd9c0;
+  --accent-soft: rgba(70, 197, 168, 0.14);
+  --on-accent: #0f1113;
+  --hi: #7fe0c8;
+  --glass-h: rgba(15, 17, 19, 0.88);
+  --glass: rgba(23, 26, 29, 0.88);
+  --cup-a: #262b2e;
+  --cup-b: #1b1f22;
+  --green: #6fd39a;
+  --red: #f0a077;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* ---- Berry: natural-process plum + hibiscus ---- */
-:root[data-theme="berry"] {
-  --bg: #170f16;
-  --bg-raise: #1f1420;
-  --bg-card: #231624;
-  --bg-card-2: #2c1c2c;
-  --line: #3c2a3b;
-  --text: #f6e9f2;
-  --text-dim: #b394a8;
-  --text-faint: #7a6173;
-  --accent: #e8829e;
-  --accent-deep: #b04f72;
-  --accent-soft: rgba(232, 130, 158, 0.14);
-  --on-accent: #230a13;
-  --hi: #ffd3e0;
-  --glass-h: rgba(23, 15, 22, 0.86);
-  --glass: rgba(35, 22, 36, 0.82);
-  --cup-a: #45304a;
-  --cup-b: #2e1f30;
-  --green: #93cb9a;
-  --red: #e07a5f;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  --glow: rgba(232, 130, 158, 0.26);
-}
+
+
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -118,7 +135,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
@@ -208,15 +225,15 @@ input, textarea, select { font: inherit; }
   100% { opacity: 0; transform: translateY(-7px); }
 }
 
+/* Solid, not gradient-clipped. Emphasis comes from weight and size;
+   clipped type reports no foreground colour at all, so its contrast
+   cannot be measured or guaranteed. */
 .setup-hero h1 {
   font-size: 40px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -1.4px;
   line-height: 1.05;
-  background: linear-gradient(120deg, var(--hi), var(--accent) 55%, var(--accent-deep));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
 
 .subtitle {
@@ -1279,7 +1296,16 @@ body.plain .cva-scale { margin-top: 9px; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.scorebar-grade { font-size: 12px; font-weight: 600; color: var(--accent); }
+/* One line, always. The bar is fixed to the bottom of the screen, so a
+   wrap here pushes it taller over the sheet rather than making room. */
+.scorebar-grade {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .scorebar-score {
   flex: none;
@@ -1331,12 +1357,9 @@ body.plain .cva-scale { margin-top: 9px; }
 .podium-name { font-size: 21px; font-weight: 800; margin-top: 4px; }
 .podium-score {
   font-size: 46px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(120deg, var(--hi), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text);
   line-height: 1.15;
 }
 .podium-grade { font-size: 13.5px; font-weight: 700; color: var(--text-dim); }
@@ -1687,7 +1710,7 @@ body.plain .cva-scale { margin-top: 9px; }
   border-radius: var(--radius-sm);
   color: var(--text);
   padding: 12px 14px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 12.5px;
   line-height: 1.5;
   word-break: break-all;
@@ -2058,7 +2081,7 @@ body.plain .cva-scale { margin-top: 9px; }
     position: static;
     padding: 0;
     color: #000;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--sans);
   }
   #print-sheet .p-head {
     display: flex;
