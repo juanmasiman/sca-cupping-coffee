@@ -337,7 +337,7 @@ function syncStaticHelp() {
   // "How a cupping works" needs to be reachable from the cupping screen as
   // well as from setup: someone who arrived by QR never passes setup, and a
   // one-time prompt on joining is no use to them an hour later.
-  [['.subtitle', 'intro'], ['.cupping-title-row', 'intro'], ['.scorebar-score', 'score']].forEach(([selector, id]) => {
+  [['.subtitle', 'intro'], ['.cupping-title-row', 'intro'], ['.scorebar-sub', 'score']].forEach(([selector, id]) => {
     const host = document.querySelector(selector);
     if (!host) return;
     const existing = host.querySelector(':scope > .help-btn');
@@ -969,6 +969,17 @@ function defectPenalty(c) {
   return usingCVA()
     ? c.nonUniform * 2 + c.defective * 4
     : c.taintCups * 2 + c.faultCups * 4;
+}
+
+// The grade as the header can carry it: the qualifier that says whether a
+// coffee cleared the specialty line needs room this row does not have, and
+// it is not news you need mid-drag — it is what Results opens on.
+function shortGrade(score) {
+  if (score >= 90) return 'Outstanding';
+  if (score >= 85) return 'Excellent';
+  if (score >= 80) return 'Very good';
+  if (score >= 70) return 'Good';
+  return 'Below grade';
 }
 
 function gradeFor(score) {
@@ -2172,7 +2183,6 @@ function refreshTabs() {
   const code = tableCode();
   const live = Boolean(code);
   invite.classList.toggle('live', live);
-  invite.querySelector('.invite-label').textContent = live ? code : 'Invite';
 
   // who is at the table, on the button the leader can already see — the
   // roster is polled in the background while they score
@@ -2188,11 +2198,17 @@ function refreshTabs() {
     ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined ? `, ${counts.joined} at the table` : ''} — open the code`
     : 'Invite cuppers to this session');
 
-  const progress = scoreProgress(active);
+  // The score and the progress moved into the header's own score block, so
+  // this line stops repeating them. What it says instead is the thing that
+  // used to be the invite button's label and is now nowhere else on the
+  // screen: the live code. A latecomer asks for it mid-section, and reading
+  // it off the header beats leaving the sheet to open a sheet to read four
+  // digits and find your place again.
+  const parts = [];
+  if (state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
+  if (live) parts.push(`code ${code}`);
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
-  $('#cupping-position').textContent = state.coffees.length > 1
-    ? `${state.activeIndex + 1} of ${state.coffees.length} · ${progress.complete ? fmt(coffeeScore(active)) : `${progress.done}/${progress.total} rated`}`
-    : (progress.complete ? fmt(coffeeScore(active)) : `${progress.done} of ${progress.total} rated`);
+  $('#cupping-position').textContent = parts.join(' · ');
 
   state.coffees.forEach((c, i) => {
     const seg = rail.children[i];
@@ -3430,11 +3446,12 @@ function updateScorebar() {
   if (!c) return;
   const score = coffeeScore(c);
   const progress = scoreProgress(c);
-  $('#scorebar-name').textContent = coffeeName(c, state.activeIndex);
   // an unfinished sheet reports how far along it is rather than a number
-  // that looks authoritative but is mostly untouched defaults
+  // that looks authoritative but is mostly untouched defaults. The header
+  // has room for a short grade only; the qualified one ("Very Good ·
+  // Specialty") is what Results and the printed sheet carry.
   $('#scorebar-grade').textContent = progress.complete
-    ? gradeFor(score)
+    ? shortGrade(score)
     : `${progress.done} of ${progress.total} rated`;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
   const valueEl = $('#scorebar-value');

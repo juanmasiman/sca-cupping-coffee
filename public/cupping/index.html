@@ -142,31 +142,23 @@
         <span class="cupping-title-sub" id="cupping-position"></span>
       </div>
       <button id="btn-share-session" class="invite-btn" aria-label="Invite cuppers to this session">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
-        <span class="invite-label">Invite</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
         <span class="invite-count hidden"></span>
       </button>
-      <button id="btn-finish" class="finish-btn">Results</button>
+      <!-- The live score, folded into the header rather than given a band
+           of its own. The band under it said "Coffee 1 / 3 of 8 rated" —
+           both of which the header already carried two lines above. All it
+           held that was not already here was this number.
+           No "/100": the scale floors at 58, so the denominator overstated
+           the headroom, and a cupping score is quoted bare. -->
+      <div class="scorebar" id="scorebar">
+        <span class="scorebar-score"><span id="scorebar-value">82.50</span></span>
+        <!-- the help mark hangs off this line rather than the number, so the
+             score reads as one figure and the explanation sits with the
+             words that need explaining -->
+        <span class="scorebar-sub"><span id="scorebar-grade">Excellent</span></span>
+      </div>
     </header>
-
-    <!-- DESIGN.md, Layout: "the score, sticky at the top ... navigation
-         pinned at the bottom". The score is read and never touched; the
-         rail is the only thing a cupper presses between coffees, and on a
-         390px phone the bottom strip is the only band a thumb reaches
-         without regripping. They were the wrong way round. -->
-    <footer class="scorebar" id="scorebar">
-      <div class="scorebar-info">
-        <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
-        <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
-      </div>
-      <!-- No "/100". The scale floors at 58, so the denominator overstated
-           the headroom, and a cupping score is quoted as a bare number
-           anyway. The room it freed goes to the grade beside it, which was
-           being truncated to "Outstan…". -->
-      <div class="scorebar-score">
-        <span id="scorebar-value">82.50</span>
-      </div>
-    </footer>
 
     <div class="panels" id="panels"></div>
 
@@ -183,6 +175,7 @@
         </svg>
         <span>Flavors</span>
       </button>
+      <button id="btn-finish" class="finish-btn">Results</button>
     </nav>
 
     <div class="wheel-coach hidden" id="wheel-coach" role="status">
