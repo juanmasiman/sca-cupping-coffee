@@ -1424,17 +1424,27 @@ body.plain .scale { margin-top: 9px; }
   justify-content: center;
   margin-top: 8px;
 }
+/* These toggle a series on the chart, so they are controls: the row was
+   14px tall, which is a third of a thumb. */
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-dim);
   transition: opacity 0.2s;
+  cursor: pointer;
 }
 .legend-item.muted { opacity: 0.3; }
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.legend-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* the series' own line, so the legend carries the pattern as well as the
+   hue and the chart does not depend on colour alone */
+.legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
 
 /* ranking list */
 .ranking { display: flex; flex-direction: column; gap: 10px; }

@@ -178,6 +178,12 @@ const RADAR_ATTRS = [...SCALE_ATTRS, ...CUP_ATTRS];
 
 const RADAR_COLORS = ['#e8b06b', '#8fc98a', '#7fb3d5', '#e07a5f', '#c39bd3', '#f4d35e', '#76d7c4', '#f1948a', '#aab7f0', '#d4a373'];
 
+// Ten coffees told apart by hue alone is ten coffees a colour-blind cupper
+// cannot tell apart at all. Each series carries a stroke pattern as well,
+// and the legend shows the same line rather than a coloured dot, so the
+// chart survives with the colour taken out of it.
+const RADAR_DASHES = ['0', '7 4', '2 3', '11 3 2 3', '15 4', '1 4', '9 3 1 3 1 3', '5 3 1 3', '3 2 9 2', '13 3 3 3'];
+
 const LIMITS = { coffees: [1, 10], cups: [1, 5] };
 
 // Coffee details (origin metadata)
@@ -3903,7 +3909,8 @@ function buildRadar(ranked) {
       const rr = (R * (v - MIN)) / (MAX - MIN);
       return point(i, rr).map(n => n.toFixed(1)).join(',');
     }).join(' ');
-    svg += `<polygon points="${pts}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="2" stroke-linejoin="round" data-coffee="${r.index}"/>`;
+    const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
+    svg += `<polygon points="${pts}" fill="${color}" fill-opacity="0.13" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-dasharray="${dash}" data-coffee="${r.index}"/>`;
   });
 
   svg += '</svg>';
@@ -3914,8 +3921,14 @@ function buildRadar(ranked) {
   legend.innerHTML = '';
   ranked.forEach(r => {
     const color = RADAR_COLORS[r.index % RADAR_COLORS.length];
+    const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
     const item = el('button', 'legend-item');
-    item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${escapeHTML(coffeeName(r.coffee, r.index))}`;
+    // the swatch is the series' own line, so the legend carries both
+    // channels the chart uses rather than only the colour
+    item.innerHTML = `<svg class="legend-swatch" viewBox="0 0 24 8" aria-hidden="true">`
+      + `<line x1="1.5" y1="4" x2="22.5" y2="4" stroke="${color}" stroke-width="2.5"`
+      + ` stroke-dasharray="${dash}" stroke-linecap="round"/></svg>`
+      + escapeHTML(coffeeName(r.coffee, r.index));
     item.addEventListener('click', () => {
       const muting = !item.classList.contains('solo');
       legend.querySelectorAll('.legend-item').forEach(li => li.classList.remove('solo', 'muted'));
