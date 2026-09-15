@@ -3200,12 +3200,14 @@ function buildResults() {
     .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
     .sort((a, b) => b.score - a.score);
 
-  // podium
+  // The top of the table, stated rather than crowned. A cupping grades
+  // samples against a standard; it does not run a contest, and a trophy
+  // told the table the wrong thing about what they had just done.
   const winner = ranked[0];
   const winnerMeta = metaSummary(winner.coffee.meta);
   const podium = $('#podium');
   podium.innerHTML = `
-    <div class="podium-crown">🏆</div>
+    <div class="podium-label">Highest score on the table</div>
     <div class="podium-name">${escapeHTML(coffeeName(winner.coffee, winner.index))}</div>
     <div class="podium-score">${fmt(winner.score)}</div>
     <div class="podium-grade">${gradeFor(winner.score)}</div>
@@ -3220,14 +3222,13 @@ function buildResults() {
   ranked.forEach((r, pos) => {
     const card = el('div', 'rank-card');
     card.style.animationDelay = `${pos * 0.07}s`;
-    const medalCls = pos < 3 ? ` m${pos + 1}` : '';
     const meta = metaSummary(r.coffee.meta);
     const descriptors = usingCVA() && r.coffee.desc
       ? [...new Set([...r.coffee.desc.cata.aroma, ...r.coffee.desc.cata.flavor])]
       : null;
     card.innerHTML = `
       <div class="rank-top">
-        <div class="rank-medal${medalCls}">${pos + 1}</div>
+        <div class="rank-medal">${pos + 1}</div>
         <div class="rank-info">
           <div class="rank-name">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
           <div class="rank-grade">${gradeFor(r.score)}</div>
@@ -3476,9 +3477,32 @@ function refreshLiveTable(data) {
         return { name: p.name, mean, me: p.me };
       }).sort((a, b) => b.mean - a.mean);
 
+      // Only magnitude means anything in a calibration exercise: running
+      // high is not better than running low, and the old list said
+      // otherwise by painting one accent and greying the other. The bar is
+      // symmetric about zero, both directions carry the same weight, and
+      // the band behind it shows the range a calibrated panel usually sits
+      // in, so a number can be read against something other than the room.
+      const NORMAL = 1.5;
+      const span = Math.max(3, Math.ceil(Math.max(...calib.map(c => Math.abs(c.mean)), 0)));
+      const bandLeft = 50 - (NORMAL / span) * 50;
+      const bandWidth = (NORMAL / span) * 100;
+
       html += `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
-        ${calib.map(c => `<div class="calib-row${c.me ? ' me' : ''}"><span>${escapeHTML(c.name)}</span>
-          <span class="calib-val ${c.mean >= 0 ? 'high' : 'low'}">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span></div>`).join('')}
+        ${calib.map(c => {
+          const frac = Math.max(-1, Math.min(1, c.mean / span));
+          const w = Math.abs(frac) * 50;
+          const left = c.mean >= 0 ? 50 : 50 - w;
+          return `<div class="calib-row${c.me ? ' me' : ''}">
+            <span class="calib-name">${escapeHTML(c.name)}</span>
+            <span class="calib-bar">
+              <b class="calib-band" style="left:${bandLeft}%;width:${bandWidth}%"></b>
+              <i style="left:${left}%;width:${w}%"></i>
+            </span>
+            <span class="calib-val">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span>
+          </div>`;
+        }).join('')}
+        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict.</p>
       </div>`;
       wrap.innerHTML = html + lateSubmit();
     }

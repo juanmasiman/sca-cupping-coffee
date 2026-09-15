@@ -1382,8 +1382,14 @@ body.plain .scale { margin-top: 9px; }
   margin-bottom: 14px;
   animation: screenIn 0.5s var(--ease);
 }
-.podium-crown { font-size: 30px; }
-.podium-name { font-size: 21px; font-weight: 800; margin-top: 4px; }
+.podium-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.podium-name { font-size: 21px; font-weight: 700; margin-top: 4px; }
 .podium-score {
   font-size: 46px;
   font-weight: 700;
@@ -1456,9 +1462,8 @@ body.plain .scale { margin-top: 9px; }
   color: var(--text-dim);
   border: 1px solid var(--line);
 }
-.rank-medal.m1 { background: linear-gradient(135deg, var(--hi), var(--accent)); color: var(--on-accent); border: none; }
-.rank-medal.m2 { background: linear-gradient(135deg, #d8d8d8, #9aa0a6); color: #17191c; border: none; }
-.rank-medal.m3 { background: linear-gradient(135deg, #dda06c, #a05f33); color: #1c1207; border: none; }
+/* Gold, silver and bronze are prizes. These are positions in a ranked
+   list, so they are numbers and they all look the same. */
 
 .rank-info { flex: 1; min-width: 0; }
 .rank-name { font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2028,16 +2033,50 @@ body.plain .scale { margin-top: 9px; }
 .calib-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   font-size: 13px;
   padding: 7px 11px;
   background: var(--bg-card);
-  border-radius: 9px;
+  border-radius: var(--radius);
 }
 .calib-row.me { border: 1px solid var(--accent); }
-.calib-val { font-weight: 800; font-variant-numeric: tabular-nums; }
-.calib-val.high { color: var(--accent); }
-.calib-val.low { color: var(--text-dim); }
+.calib-name { flex: 0 0 auto; min-width: 0; max-width: 34%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Symmetric about zero. A bar to the left and a bar to the right of the
+   centre carry identical weight and identical colour, because in a
+   calibration exercise only the magnitude means anything. */
+.calib-bar { position: relative; flex: 1 1 auto; height: 10px; min-width: 40px; }
+.calib-bar::before {
+  content: '';
+  position: absolute; left: 50%; top: 0; bottom: 0;
+  width: 1px; background: var(--text-dim); opacity: 0.55;
+}
+/* the range a calibrated panel usually sits inside, so a reader has
+   something to judge their own number against besides the room */
+.calib-band {
+  position: absolute; top: 0; bottom: 0;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+.calib-bar i {
+  position: absolute; top: 2px; height: 6px;
+  background: var(--accent);
+  opacity: 0.85;
+  border-radius: var(--radius-sm);
+}
+.calib-val {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.calib-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
 
 /* invite sheet: live PIN + QR */
 .share-pin-wrap {
