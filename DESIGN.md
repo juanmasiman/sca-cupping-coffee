@@ -194,6 +194,7 @@ Rules are 1px hairlines in the line token. The scale rail is 2px. Ticks are 1px 
 - No trophy, podium, crown, or gold/silver/bronze medal. A cupping grades samples against a standard; it does not crown a winner, and `PRODUCT.md` names calibration as the point.
 - No cards inside cards, and no accent stripe on the left edge of a card.
 - No colour used decoratively. If it is not a value, it is not the data ink.
-- No text below 11px anywhere a cupper needs to read it. The outgoing world rendered flavour-wheel descriptors at 5.53px.
+- No text below 11px anywhere a cupper needs to read it. **One exception, and it is the only one:** the 1–9 tick numbers under a scale track sit at 9px, because they duplicate the number already inside the knob — they are tick furniture, not something anyone has to read. Anything carrying meaning of its own clears 11px.
+- The flavour wheel is the outstanding breach: 68 descriptor labels at 5.53px and nine categories at 7.16px, rendered at roughly 1:1 on a phone. Raising them to the floor means the outer ring can no longer be 66 simultaneous wedges, so that ring needs a different form — a tap-to-expand list — rather than a larger font.
 - Never ship `user-scalable=no`. Someone in bad light must be allowed to zoom.
 - No motion beyond the knob settle and the score's own state change. This is an instrument; it should feel precise, not springy.
