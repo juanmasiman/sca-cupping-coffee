@@ -1694,7 +1694,7 @@ body.plain .scale { margin-top: 9px; }
 .hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
 /* A score from a part-scored sheet is mostly untouched defaults, so it
    does not get to wear the data ink that a finished one earns. */
-.hist-item-score.partial { color: var(--text-faint); font-weight: 600; }
+/* the partial treatment is shared — see .partial below */
 .hist-item-date { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
 
 /* ============================================================
@@ -2094,6 +2094,30 @@ body.plain .scale { margin-top: 9px; }
 .cupper-score em { font-style: normal; color: var(--text-faint); font-size: 11px; }
 .cupper-score.me { color: var(--accent); font-weight: 700; }
 
+/* ------------------------------------------------------------
+   Part-scored sheets
+   A number from a sheet that stopped at three sections is not the
+   same kind of thing as a number from a finished one, and the table
+   has to be able to see which it is looking at. One treatment,
+   everywhere a score is shown to somebody else: the figure drops to
+   secondary ink, and the count that qualifies it sits beside it.
+   Greying is the whole signal — it never becomes a second accent,
+   because a partial sheet is incomplete, not wrong.
+   ------------------------------------------------------------ */
+.partial,
+.cupper-score.me.partial,
+.hist-item-score.partial { color: var(--text-dim); font-weight: 600; }
+.cupper-score i,
+.present-cupper i,
+.rank-grade i {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+.present-cupper.partial strong { color: var(--text-dim); }
+
 .calib { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .calib-row {
   display: flex;
@@ -2241,6 +2265,10 @@ body.plain .scale { margin-top: 9px; }
   #print-sheet td { padding: 9px 6px; border-bottom: 1px solid #ddd; vertical-align: top; }
   #print-sheet .num { text-align: right; white-space: nowrap; }
   #print-sheet .num strong { font-size: 13pt; }
+  /* on paper the greying has to survive a photocopier, so a part-scored
+     score is also set lighter rather than only a shade down */
+  #print-sheet .num.partial { color: #555; }
+  #print-sheet .num.partial strong { font-weight: 500; }
   #print-sheet .p-grade { font-size: 7.5pt; color: #555; }
   #print-sheet .p-notes { font-size: 8.5pt; color: #444; margin-top: 3px; }
   #print-sheet .p-foot { margin-top: 20px; font-size: 8pt; color: #666; }
@@ -2545,6 +2573,9 @@ body.plain .scale { margin-top: 9px; }
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
+/* declared after the base rule, so a part-scored panel score in the
+   ceremony greys the same way it does everywhere else */
+.present-final-score.partial { color: var(--text-dim); font-weight: 600; }
 
 /* ============================================================
    WIDER SCREENS

@@ -844,6 +844,72 @@ function sessionProgress() {
   };
 }
 
+function sectionCount() {
+  return (usingCVA() ? CVA_SECTIONS : SCALE_ATTRS).length;
+}
+
+/* ---------- honest panel math ----------
+   A cupping score is only evidence for the sections someone actually
+   rated. cvaScore has to return a number for every coffee, so it adds the
+   untouched sections at their 5 — and a sheet that stopped after three
+   sections comes out looking exactly like a finished one. That number then
+   went into the shared average under the words "the average of N
+   independent cuppers, as the standard prescribes", and nobody at the
+   table could tell.
+
+   Submissions now carry a parallel `rated` array, so every device can tell
+   the two apart: a sheet with nothing rated is not a score and leaves the
+   average; a part-scored sheet still counts, but it says so.           */
+
+function myRated() {
+  return state.coffees.map(c => scoreProgress(c).done);
+}
+
+// The count of rated sections in participant p's sheet for coffee i.
+//   n     how much of it is real
+//   null  an older submission with no `rated` array. Treated as complete:
+//         dropping a cupper who is sitting at the table is worse than
+//         trusting a number this build can no longer interrogate.
+function ratedAt(p, i) {
+  if (!Array.isArray(p.rated)) return null;
+  const n = p.rated[i];
+  return typeof n === 'number' ? n : null;
+}
+
+// The scores that may enter a panel average for coffee i: wholly unrated
+// sheets removed, part-scored ones kept and flagged.
+function panelEntries(participants, i) {
+  const total = sectionCount();
+  return participants.map(p => {
+    const score = Array.isArray(p.scores) ? p.scores[i] : undefined;
+    if (typeof score !== 'number') return null;
+    const rated = ratedAt(p, i);
+    if (rated === 0) return null;
+    return {
+      name: p.name,
+      score,
+      rated,
+      total,
+      partial: rated !== null && rated < total,
+      me: Boolean(p.me),
+    };
+  }).filter(Boolean);
+}
+
+// "2 of 8" for a part-scored sheet, empty for a finished one.
+function ratedNote(entry) {
+  return entry.partial ? `${entry.rated} of ${entry.total}` : '';
+}
+
+// The lineup in score order, each coffee carrying how much of its sheet is
+// real. A coffee with nothing rated sorts to the bottom whatever cvaScore
+// says about it, because what cvaScore says about it is eight defaults.
+function rankedCoffees() {
+  return state.coffees
+    .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c), prog: scoreProgress(c) }))
+    .sort((a, b) => (a.prog.done === 0) - (b.prog.done === 0) || b.score - a.score);
+}
+
 function defectPenalty(c) {
   return usingCVA()
     ? c.nonUniform * 2 + c.defective * 4
@@ -1126,7 +1192,7 @@ async function relayJoinSession(code, name) {
 
 // Returns { ok } or { ok: false, reason } — the caller has to be able to tell
 // a dead connection from a seat the table no longer recognises.
-async function relaySubmitScores(code, id, name, scores) {
+async function relaySubmitScores(code, id, name, scores, rated) {
   // no seat yet (the join never landed): take one before submitting
   if (!id) {
     const fresh = await relayJoinSession(code, name);
@@ -1138,7 +1204,10 @@ async function relaySubmitScores(code, id, name, scores) {
   const res = await relayFetch(`/sessions/${encodeURIComponent(code)}/participants/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, scores }),
+    // `rated` rides alongside the scores so the table can tell a finished
+    // sheet from one that stopped early. A relay that drops the field
+    // degrades to the old behaviour rather than failing the submission.
+    body: JSON.stringify({ name, scores, rated }),
   });
   if (res.ok && res.data && res.data.ok) return { ok: true };
 
@@ -1228,7 +1297,7 @@ function stopPolling() {
 function rosterSig(data) {
   if (!data) return 'offline';
   return (data.revealed ? 'R:' : 'S:') + data.participants
-    .map(p => `${p.name}${p.submitted ? '+' : '-'}${p.scores ? p.scores.join('.') : ''}`)
+    .map(p => `${p.name}${p.submitted ? '+' : '-'}${p.scores ? p.scores.join('.') : ''}${p.rated ? '/' + p.rated.join('.') : ''}`)
     .join('|');
 }
 
@@ -1292,6 +1361,8 @@ async function buildScoreCode() {
     v: 1,
     n: getCupperName() || 'Cupper',
     s: state.coffees.map(c => Math.round(coffeeScore(c) * 100) / 100),
+    // how much of each sheet is real, so the receiving table can weigh it
+    r: myRated(),
     t: state.coffees.map((c, i) => coffeeName(c, i)),
   });
 }
@@ -1303,7 +1374,12 @@ async function addTeamScoresFromCode(text) {
     return { ok: false, error: `That code has ${obj.s.length} coffee${obj.s.length > 1 ? 's' : ''}, this session has ${state.coffees.length}.` };
   }
   const scores = obj.s.map(v => Math.max(0, Math.min(100, Number(v) || 0)));
-  state.team.push({ name: String(obj.n || 'Cupper').slice(0, 24), scores });
+  // a code from an older build has no `r`; leaving it undefined makes
+  // ratedAt return null, which reads as complete rather than as zero
+  const rated = Array.isArray(obj.r) && obj.r.length === scores.length
+    ? obj.r.map(v => Math.max(0, Number(v) || 0))
+    : undefined;
+  state.team.push({ name: String(obj.n || 'Cupper').slice(0, 24), scores, rated });
   save();
   return { ok: true };
 }
@@ -3369,9 +3445,7 @@ function updateScorebar() {
    ============================================================ */
 
 function buildResults() {
-  const ranked = state.coffees
-    .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
-    .sort((a, b) => b.score - a.score);
+  const ranked = rankedCoffees();
 
   // The top of the table, stated rather than crowned. A cupping grades
   // samples against a standard; it does not run a contest, and a trophy
@@ -3382,8 +3456,12 @@ function buildResults() {
   podium.innerHTML = `
     <div class="podium-label">Highest score on the table</div>
     <div class="podium-name">${escapeHTML(coffeeName(winner.coffee, winner.index))}</div>
-    <div class="podium-score">${fmt(winner.score)}</div>
-    <div class="podium-grade">${gradeFor(winner.score)}</div>
+    <div class="podium-score${winner.prog.complete ? '' : ' partial'}">${winner.prog.done === 0 ? '—' : fmt(winner.score)}</div>
+    <div class="podium-grade">${winner.prog.done === 0
+      ? 'no sections rated'
+      : winner.prog.complete
+        ? gradeFor(winner.score)
+        : `${gradeFor(winner.score)} · ${winner.prog.done} of ${winner.prog.total} rated`}</div>
     ${winnerMeta ? `<div class="podium-meta">${escapeHTML(winnerMeta)}</div>` : ''}
   `;
 
@@ -3404,9 +3482,13 @@ function buildResults() {
         <div class="rank-medal">${pos + 1}</div>
         <div class="rank-info">
           <div class="rank-name">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
-          <div class="rank-grade">${gradeFor(r.score)}</div>
+          <div class="rank-grade">${r.prog.done === 0
+            ? 'not rated'
+            : r.prog.complete
+              ? gradeFor(r.score)
+              : `${gradeFor(r.score)} · ${r.prog.done} of ${r.prog.total} rated`}</div>
         </div>
-        <div class="rank-score">${fmt(r.score)}</div>
+        <div class="rank-score${r.prog.complete ? '' : ' partial'}">${r.prog.done === 0 ? '—' : fmt(r.score)}</div>
       </div>
       <div class="rank-bar"><div class="rank-bar-fill"></div></div>
       ${meta ? `<div class="rank-meta">${escapeHTML(meta)}</div>` : ''}
@@ -3415,7 +3497,12 @@ function buildResults() {
     `;
     ranking.appendChild(card);
     requestAnimationFrame(() => {
-      card.querySelector('.rank-bar-fill').style.width = `${r.score}%`;
+      // CVA floors at 58, so a raw percentage wastes the left 58% of every
+      // bar and compresses the differences that matter into the right third
+      const floor = usingCVA() ? 58 : 0;
+      const pct = r.prog.done === 0 ? 0
+        : Math.max(0, Math.min(100, ((r.score - floor) / (100 - floor)) * 100));
+      card.querySelector('.rank-bar-fill').style.width = `${pct}%`;
     });
   });
 
@@ -3618,36 +3705,49 @@ function refreshLiveTable(data) {
       .filter(p => Array.isArray(p.scores))
       .map(p => ({ ...p, me: p.name === myName }));
 
-    if (!all.length) {
+    // Each coffee is averaged over the cuppers who actually rated it, so a
+    // sheet nobody touched cannot lend the table a number made of defaults.
+    const perCoffee = state.coffees.map((c, i) => {
+      const entries = panelEntries(all, i);
+      const avg = entries.reduce((a, e) => a + e.score, 0) / (entries.length || 1);
+      return { name: coffeeName(c, i), avg, index: i, entries };
+    }).sort((a, b) => b.avg - a.avg);
+
+    const counted = new Set();
+    perCoffee.forEach(r => r.entries.forEach(e => counted.add(e.name)));
+    const dropped = all.filter(p => !counted.has(p.name));
+
+    if (!counted.size) {
       wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>` + lateSubmit();
     } else {
-      const perCoffee = state.coffees.map((c, i) => {
-        const vals = all.map(p => p.scores[i]).filter(v => typeof v === 'number');
-        const avg = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
-        return { name: coffeeName(c, i), avg, index: i };
-      }).sort((a, b) => b.avg - a.avg);
-
-      html += `<p class="live-note">Panel score is the average of ${all.length} independent cupper${all.length > 1 ? 's' : ''}.</p>`;
+      html += `<p class="live-note">Panel score is the average of ${counted.size} independent cupper${counted.size > 1 ? 's' : ''}.</p>`;
+      if (dropped.length) {
+        html += `<p class="live-note">${dropped.map(p => escapeHTML(p.name)).join(', ')} ${dropped.length > 1 ? 'have' : 'has'} not rated any section yet, so ${dropped.length > 1 ? 'their sheets are' : 'their sheet is'} not in the average.</p>`;
+      }
       html += perCoffee.map(row => `
         <div class="team-coffee-row">
           <div class="team-coffee-top">
             <span class="team-coffee-name">${escapeHTML(row.name)}</span>
-            <span class="team-coffee-avg">${fmt(row.avg)}<small>PANEL</small></span>
+            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>PANEL</small></span>
           </div>
-          <div class="team-coffee-cuppers">${all.map(p => {
-            const v = p.scores[row.index];
-            if (typeof v !== 'number') return '';
-            const d = v - row.avg;
+          <div class="team-coffee-cuppers">${row.entries.map(e => {
+            const d = e.score - row.avg;
             const sign = d >= 0 ? '+' : '−';
-            return `<span class="cupper-score${p.me ? ' me' : ''}">${escapeHTML(p.name)} ${fmt(v)} <em>${sign}${fmt(Math.abs(d))}</em></span>`;
-          }).filter(Boolean).join('')}</div>
+            const note = ratedNote(e);
+            return `<span class="cupper-score${e.me ? ' me' : ''}${e.partial ? ' partial' : ''}">${escapeHTML(e.name)} ${fmt(e.score)}${note ? ` <i>${note}</i>` : ''} <em>${sign}${fmt(Math.abs(d))}</em></span>`;
+          }).join('') || '<span class="cupper-score">nobody has rated this one</span>'}</div>
         </div>`).join('');
 
       // calibration: who consistently runs high or low against the table
-      const calib = all.map(p => {
-        const diffs = perCoffee.map(r => p.scores[r.index] - r.avg).filter(v => typeof v === 'number' && !isNaN(v));
+      const calib = [...counted].map(name => {
+        const diffs = perCoffee
+          .map(r => {
+            const e = r.entries.find(x => x.name === name);
+            return e ? e.score - r.avg : null;
+          })
+          .filter(v => typeof v === 'number' && !isNaN(v));
         const mean = diffs.reduce((a, b) => a + b, 0) / (diffs.length || 1);
-        return { name: p.name, mean, me: p.me };
+        return { name, mean, me: name === myName };
       }).sort((a, b) => b.mean - a.mean);
 
       // Only magnitude means anything in a calibration exercise: running
@@ -3696,7 +3796,7 @@ function wireSubmitButton(wrap, name) {
     const myName = name || getCupperName() || (state.liveCode ? 'Host' : state.joinedCode ? 'Cupper' : 'You');
     btn.disabled = true;
     btn.textContent = 'Submitting…';
-    const res = await relaySubmitScores(tableCode(), state.participantId, myName, myScores());
+    const res = await relaySubmitScores(tableCode(), state.participantId, myName, myScores(), myRated());
     btn.disabled = false;
     if (!res.ok) {
       btn.textContent = 'Try again';
@@ -3741,7 +3841,7 @@ async function openPresent() {
 
   // the leader is a cupper too, and their sheet is finished by the time they
   // are presenting — make sure it is in the panel average
-  const res = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores());
+  const res = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores(), myRated());
   if (res.ok) { state.submittedAt = Date.now(); save(); }
   else toast(res.reason);
   if (poller) poller.wake();
@@ -3774,9 +3874,7 @@ function presentPanel() {
   const all = presentData.participants.filter(p => Array.isArray(p.scores));
   if (!all.length) return null;
   return state.coffees.map((c, i) => {
-    const cuppers = all
-      .map(p => ({ name: p.name, score: p.scores[i] }))
-      .filter(v => typeof v.score === 'number');
+    const cuppers = panelEntries(all, i);
     const avg = cuppers.reduce((a, v) => a + v.score, 0) / (cuppers.length || 1);
     return { avg, cuppers: cuppers.sort((a, b) => b.score - a.score) };
   });
@@ -3839,7 +3937,8 @@ function buildPresent() {
       </div>
       ${stage === 2 && row ? `<div class="present-cuppers">${row.cuppers.map(c => {
         const d = c.score - row.avg;
-        return `<span class="present-cupper">${escapeHTML(c.name)} <strong>${fmt(c.score)}</strong> <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em></span>`;
+        const note = ratedNote(c);
+        return `<span class="present-cupper${c.partial ? ' partial' : ''}">${escapeHTML(c.name)} <strong>${fmt(c.score)}</strong>${note ? ` <i>${note}</i>` : ''} <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em></span>`;
       }).join('')}</div>` : ''}
     `;
 
@@ -3872,9 +3971,18 @@ function buildPresentFinal(panel) {
   wrap.classList.toggle('hidden', !done);
   if (!done) return;
 
+  const own = state.coffees.map(scoreProgress);
   const rows = state.coffees
-    .map((c, i) => ({ name: coffeeName(c, i), score: panel ? panel[i].avg : coffeeScore(c) }))
-    .sort((a, b) => b.score - a.score);
+    .map((c, i) => ({
+      name: coffeeName(c, i),
+      score: panel ? panel[i].avg : coffeeScore(c),
+      // no cupper rated a section of this one, so there is no score to show
+      empty: panel ? !panel[i].cuppers.length : own[i].done === 0,
+      partial: panel
+        ? panel[i].cuppers.some(e => e.partial)
+        : own[i].done > 0 && !own[i].complete,
+    }))
+    .sort((a, b) => (a.empty - b.empty) || (b.score - a.score));
   const n = panel ? Math.max(...panel.map(p => p.cuppers.length)) : 0;
 
   wrap.innerHTML = `
@@ -3886,7 +3994,7 @@ function buildPresentFinal(panel) {
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score">${fmt(r.score)}</span>
+        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}</span>
       </div>`).join('')}
   `;
 }
@@ -3920,23 +4028,28 @@ function renderTeamTable() {
     chips.appendChild(chip);
   });
 
+  // My own sheet is a participant like any other here, and it is held to
+  // the same rule: rate nothing and it does not get to move the average.
+  const mine = { name: myName, scores: myScores(), rated: myRated(), me: true };
   const rows = state.coffees.map((c, i) => {
-    const values = [
-      { name: myName, score: coffeeScore(c) },
-      ...state.team.map(t => ({ name: t.name, score: t.scores[i] })),
-    ];
-    const avg = values.reduce((a, v) => a + v.score, 0) / values.length;
+    const values = panelEntries([mine, ...state.team], i);
+    const avg = values.reduce((a, v) => a + v.score, 0) / (values.length || 1);
     return { name: coffeeName(c, i), avg, values };
-  }).sort((a, b) => b.avg - a.avg);
+  }).sort((a, b) => (a.values.length ? 0 : 1) - (b.values.length ? 0 : 1) || b.avg - a.avg);
 
   rows.forEach(r => {
     const row = el('div', 'team-coffee-row');
     row.innerHTML = `
       <div class="team-coffee-top">
         <span class="team-coffee-name">${escapeHTML(r.name)}</span>
-        <span class="team-coffee-avg">${fmt(r.avg)}<small>AVG</small></span>
+        <span class="team-coffee-avg">${r.values.length ? fmt(r.avg) : '—'}<small>AVG</small></span>
       </div>
-      <div class="team-coffee-cuppers">${r.values.map(v => `${escapeHTML(v.name)} ${fmt(v.score)}`).join(' · ')}</div>
+      <div class="team-coffee-cuppers">${r.values.length
+        ? r.values.map(v => {
+            const note = ratedNote(v);
+            return `<span class="cupper-score${v.me ? ' me' : ''}${v.partial ? ' partial' : ''}">${escapeHTML(v.name)} ${fmt(v.score)}${note ? ` <i>${note}</i>` : ''}</span>`;
+          }).join('')
+        : '<span class="cupper-score">nobody has rated this one</span>'}</div>
     `;
     results.appendChild(row);
   });
@@ -4048,13 +4161,13 @@ function buildRadar(ranked) {
 /* ---------- share ---------- */
 
 function buildShareText() {
-  const ranked = state.coffees
-    .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
-    .sort((a, b) => b.score - a.score);
+  const ranked = rankedCoffees();
 
   const lines = [`☕️ SCA Cupping Results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
   ranked.forEach((r, pos) => {
-    lines.push(`${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})`);
+    lines.push(r.prog.done === 0
+      ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
+      : `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})${r.prog.complete ? '' : ` · ${r.prog.done} of ${r.prog.total} rated`}`);
     const meta = metaSummary(r.coffee.meta);
     if (meta) lines.push(`   ${meta}`);
     if (r.coffee.notes.trim()) lines.push(`   ${r.coffee.notes.trim()}`);
@@ -4321,7 +4434,7 @@ function csvCell(v) {
 function historyCSV() {
   const archive = loadArchive().sort((a, b) => b.date - a.date);
   const head = [
-    'date', 'form', 'cups per coffee', 'coffee', 'score', 'grade',
+    'date', 'form', 'cups per coffee', 'coffee', 'sections rated', 'sections total', 'score', 'grade',
     'variety', 'process', 'roast profile', 'altitude', 'origin', 'farm', 'producer',
     'descriptors', 'notes',
   ];
@@ -4334,8 +4447,12 @@ function historyCSV() {
         (session.form || 'legacy') === 'cva' ? 'CVA (SCA 104-2024)' : 'Legacy 2004',
         session.cupsPerCoffee,
         c.name,
-        fmt(c.score),
-        gradeFor(c.score),
+        // older archive rows carry no counts; an empty cell is honest about
+        // not knowing, where a fabricated "8 of 8" would not be
+        typeof c.rated === 'number' ? c.rated : '',
+        typeof c.sections === 'number' ? c.sections : '',
+        c.complete === false && c.rated === 0 ? '' : fmt(c.score),
+        c.complete === false && c.rated === 0 ? '' : gradeFor(c.score),
         m.variety, m.process, m.roast, m.altitude, m.country, m.farm, m.producer,
         (c.descriptors || []).join('; '),
         c.notes,
@@ -4373,9 +4490,7 @@ function exportHistoryCSV() {
 
 // A clean printed scoresheet — Safari's print dialog saves it as a PDF.
 function printResults() {
-  const ranked = state.coffees
-    .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c) }))
-    .sort((a, b) => b.score - a.score);
+  const ranked = rankedCoffees();
 
   const sheet = document.createElement('div');
   sheet.id = 'print-sheet';
@@ -4391,7 +4506,7 @@ function printResults() {
       <div class="p-mark">lento.cafe</div>
     </div>
     <table>
-      <thead><tr><th>#</th><th>Coffee</th><th>Origin details</th><th>Descriptors</th><th class="num">Score</th></tr></thead>
+      <thead><tr><th>#</th><th>Coffee</th><th>Origin details</th><th>Descriptors</th><th class="num">Rated</th><th class="num">Score</th></tr></thead>
       <tbody>
         ${ranked.map((r, pos) => {
           const d = usingCVA() && r.coffee.desc
@@ -4403,11 +4518,17 @@ function printResults() {
               ${r.coffee.notes.trim() ? `<div class="p-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}</td>
             <td>${escapeHTML(metaSummary(r.coffee.meta))}</td>
             <td>${escapeHTML(d)}</td>
-            <td class="num"><strong>${fmt(r.score)}</strong><div class="p-grade">${gradeFor(r.score)}</div></td>
+            <td class="num">${r.prog.done} of ${r.prog.total}</td>
+            <td class="num ${r.prog.complete ? '' : 'partial'}">${r.prog.done === 0
+              ? '—'
+              : `<strong>${fmt(r.score)}</strong><div class="p-grade">${gradeFor(r.score)}</div>`}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
+    ${ranked.some(r => !r.prog.complete)
+      ? `<p class="p-foot">A score is shown only for the sections that were rated. Where the Rated column is short of ${sectionCount()}, the sheet was not finished and the score is not a complete assessment.</p>`
+      : ''}
     <p class="p-foot">Scores recorded with lento.cafe/cupping</p>
   `;
 
