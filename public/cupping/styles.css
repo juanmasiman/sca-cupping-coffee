@@ -887,8 +887,57 @@ body.plain .scale { margin-top: 9px; }
 .wheel-link:active { transform: scale(0.93); }
 
 .wheel-sheet { max-height: 92dvh; overflow-y: auto; }
-.wheel-holder { margin: 10px 0 4px; }
-.wheel-holder svg { width: 100%; height: auto; display: block; }
+/* The wheel is 68 descriptors around one circle. Fit to a phone it reads
+   at about 5.5px — fine for taking the whole vocabulary in, too small to
+   read a word or land a thumb on one. So the reader gets to choose the
+   scale rather than the layout choosing for them: it opens whole and
+   scrolls when enlarged, and the wheel itself is never redrawn. */
+.wheel-holder {
+  margin: 6px 0 4px;
+  overflow: auto;
+  max-height: 46dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.wheel-holder svg {
+  width: calc(100% * var(--wheel-zoom, 1));
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.wheel-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.wheel-zoom-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wheel-zoom-btn:disabled { opacity: 0.4; cursor: default; }
+.wheel-zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wheel-zoom-level {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
 
 .wheel-seg { cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
 .wheel-seg:active { opacity: 0.7; }
