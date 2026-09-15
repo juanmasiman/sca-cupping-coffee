@@ -2197,7 +2197,24 @@ body.plain .scale { margin-top: 9px; }
 
 #print-sheet { display: none; }
 
+/* ------------------------------------------------------------
+   Print
+   Ink on paper, so it does not use the screen palette and should
+   not: the data ink is a dark teal that prints as a muddy grey,
+   and a paper-coloured ground on paper is nothing at all. The set
+   is declared here rather than written as literals down the block,
+   because DESIGN.md says so and because six greys scattered
+   through forty lines is how a seventh gets added.
+   ------------------------------------------------------------ */
 @media print {
+  :root {
+    --print-ink: #000000;
+    --print-ink-dim: #444444;
+    --print-ink-faint: #555555;
+    --print-foot: #666666;
+    --print-rule: #999999;
+    --print-rule-light: #dddddd;
+  }
   body { overflow: visible; height: auto; background: #fff; }
   .screen, .toast, .wheel-fab, .offline-badge, .modal { display: none !important; }
 
@@ -2205,19 +2222,19 @@ body.plain .scale { margin-top: 9px; }
     display: block;
     position: static;
     padding: 0;
-    color: #000;
+    color: var(--print-ink);
     font-family: var(--sans);
   }
   #print-sheet .p-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    border-bottom: 2px solid #000;
+    border-bottom: 2px solid var(--print-ink);
     padding-bottom: 10px;
     margin-bottom: 16px;
   }
   #print-sheet h1 { font-size: 20pt; margin: 0; }
-  #print-sheet .p-head p { font-size: 9pt; color: #444; margin-top: 3px; }
+  #print-sheet .p-head p { font-size: 9pt; color: var(--print-ink-dim); margin-top: 3px; }
   #print-sheet .p-mark { font-size: 11pt; font-weight: 800; letter-spacing: -0.3px; }
 
   #print-sheet table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
@@ -2226,20 +2243,20 @@ body.plain .scale { margin-top: 9px; }
     font-size: 7.5pt;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #444;
-    border-bottom: 1px solid #999;
+    color: var(--print-ink-dim);
+    border-bottom: 1px solid var(--print-rule);
     padding: 0 6px 5px;
   }
-  #print-sheet td { padding: 9px 6px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  #print-sheet td { padding: 9px 6px; border-bottom: 1px solid var(--print-rule-light); vertical-align: top; }
   #print-sheet .num { text-align: right; white-space: nowrap; }
   #print-sheet .num strong { font-size: 13pt; }
   /* on paper the greying has to survive a photocopier, so a part-scored
      score is also set lighter rather than only a shade down */
-  #print-sheet .num.partial { color: #555; }
+  #print-sheet .num.partial { color: var(--print-ink-faint); }
   #print-sheet .num.partial strong { font-weight: 500; }
-  #print-sheet .p-grade { font-size: 7.5pt; color: #555; }
-  #print-sheet .p-notes { font-size: 8.5pt; color: #444; margin-top: 3px; }
-  #print-sheet .p-foot { margin-top: 20px; font-size: 8pt; color: #666; }
+  #print-sheet .p-grade { font-size: 7.5pt; color: var(--print-ink-faint); }
+  #print-sheet .p-notes { font-size: 8.5pt; color: var(--print-ink-dim); margin-top: 3px; }
+  #print-sheet .p-foot { margin-top: 20px; font-size: 8pt; color: var(--print-foot); }
 
   #print-sheet tr { break-inside: avoid; }
 }
