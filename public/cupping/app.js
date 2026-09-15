@@ -389,11 +389,20 @@ function archiveSession() {
     updated: Date.now(),
     form: state.form,
     cupsPerCoffee: state.cupsPerCoffee,
+    // Every visit to Results rewrites this record, including a visit to a
+    // sheet that is barely started — so how finished it was travels with
+    // it. Inside a session the app is careful never to let an untouched
+    // section pass as a chosen 5; the archive used to drop that the moment
+    // the record was written, and the history average quietly mixed
+    // finished sheets with abandoned ones.
     coffees: state.coffees.map((c, i) => ({
       name: coffeeName(c, i),
       meta: { ...c.meta },
       notes: c.notes,
       score: coffeeScore(c),
+      rated: scoreProgress(c).done,
+      sections: scoreProgress(c).total,
+      complete: scoreProgress(c).complete,
       // descriptors travel with the record so history stays searchable
       descriptors: usingCVA() && c.desc
         ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor, ...c.desc.cata.tastes, ...c.desc.cata.mouthfeel])]
@@ -3983,6 +3992,40 @@ function matchesQuery(c, q) {
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(term => hay.includes(term));
 }
 
+/* "Roast" is a free-text profile: the field's own placeholder suggests
+   "Light · 9:30 total · 1:45 dev · drop 203°C", which is unique to one
+   coffee. Grouping on the exact string therefore gave every roast a group
+   of one, and "average score by roast" averaged a single number every
+   time. So the level gets pulled out of whatever was written, the way
+   altitude already is. Anything unreadable groups as nothing rather than
+   inventing a bucket. */
+function roastBucket(raw) {
+  const s = String(raw).toLowerCase();
+  if (!s.trim()) return null;
+  // an Agtron reading is the most precise thing anyone writes here, and
+  // on the gourmet scale a higher number is a lighter roast
+  // The gourmet scale's levels sit at roughly 75, 65, 55, 45 and 35, so
+  // the boundaries belong at the midpoints between them — cutting at the
+  // centres instead put 63 in "medium" when it is nearer medium-light.
+  const ag = s.match(/agtron\D{0,4}(\d{2,3})/);
+  if (ag) {
+    const n = parseInt(ag[1], 10);
+    if (n >= 70) return 'Light';
+    if (n >= 60) return 'Medium-light';
+    if (n >= 50) return 'Medium';
+    if (n >= 40) return 'Medium-dark';
+    return 'Dark';
+  }
+  // compound levels first, or "medium-dark" matches on "medium"
+  if (/medium[\s-]*light|light[\s-]*medium/.test(s)) return 'Medium-light';
+  if (/medium[\s-]*dark|dark[\s-]*medium/.test(s)) return 'Medium-dark';
+  if (/full[\s-]*city/.test(s)) return 'Medium-dark';
+  if (/\bfrench\b|\bitalian\b|\bvienna\b|\bdark\b/.test(s)) return 'Dark';
+  if (/\bcity\b|\bmedium\b/.test(s)) return 'Medium';
+  if (/\bcinnamon\b|\bblonde\b|\blight\b/.test(s)) return 'Light';
+  return null;
+}
+
 function altitudeBucket(raw) {
   const m = String(raw).match(/\d{3,4}/);
   if (!m) return null;
@@ -4019,6 +4062,7 @@ function aggregateBy(coffees, dimKey) {
     }
     let value = (c.meta && c.meta[dimKey] || '').trim();
     if (dimKey === 'altitude') value = altitudeBucket(value) || '';
+    if (dimKey === 'roast') value = roastBucket(value) || '';
     if (!value) return;
     add(value, c.score);
   });
@@ -4041,7 +4085,13 @@ function buildHistory() {
 
   const allCoffees = flatCoffees(archive);
   const coffees = allCoffees.filter(c => matchesQuery(c, historyQuery));
-  const allScores = coffees.map(c => c.score);
+  // An average over part-scored sheets is an average of guesses. Records
+  // written before completeness was tracked have no flag, so they are
+  // treated as finished rather than silently dropped from the history
+  // someone already has.
+  const scored = coffees.filter(c => c.complete !== false);
+  const partial = coffees.length - scored.length;
+  const allScores = scored.map(c => c.score);
   const avg = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
   const sessionCount = historyQuery
     ? new Set(coffees.map(c => c.sessionId)).size
@@ -4051,7 +4101,9 @@ function buildHistory() {
   $('#stats-row').innerHTML = `
     <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">Cuppings</div></div>
     <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">Coffees</div></div>
-    <div class="stat-tile"><div class="stat-value">${fmt(avg)}</div><div class="stat-label">Avg score</div></div>
+    <div class="stat-tile"><div class="stat-value">${allScores.length ? fmt(avg) : '–'}</div><div class="stat-label">${
+      partial ? `Avg of ${allScores.length} finished` : 'Avg score'
+    }</div></div>
   `;
 
   // search
@@ -4101,8 +4153,10 @@ function buildHistory() {
           ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="hist-item-right">
-          <div class="hist-item-score">${fmt(c.score)}</div>
-          <div class="hist-item-date">${date}</div>
+          <div class="hist-item-score${c.complete === false ? ' partial' : ''}">${fmt(c.score)}</div>
+          <div class="hist-item-date">${c.complete === false
+            ? `${c.rated} of ${c.sections} rated`
+            : date}</div>
         </div>
       `;
       list.appendChild(item);
