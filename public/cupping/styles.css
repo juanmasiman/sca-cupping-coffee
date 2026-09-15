@@ -706,6 +706,7 @@ body.plain .cva-scale { margin-top: 9px; }
 /* ---------- guided mode help ---------- */
 
 .help-btn {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 19px;
@@ -720,6 +721,16 @@ body.plain .cva-scale { margin-top: 9px; }
   vertical-align: middle;
   flex: none;
   transition: transform 0.15s var(--spring), background 0.15s;
+}
+/* A 44px "?" would outweigh the title it sits beside, so the mark stays
+   19px and only the thumb target grows around it. There are up to a dozen
+   of these on a sheet and they never sit within 26px of each other, so the
+   grown areas do not overlap. */
+.help-btn::after {
+  content: '';
+  position: absolute;
+  inset: -13px;
+  border-radius: 50%;
 }
 .help-btn:active { transform: scale(0.82); background: var(--accent); color: var(--on-accent); }
 
@@ -961,24 +972,28 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* ---------- CVA 1–9 impression-of-quality scale ---------- */
 
-/* minmax(0,…) so nine cells can never be pushed wider than the row, and the
-   digit is sized off the viewport so it still fits a 320px phone */
+/* Nine across never fit a thumb: at 390px the row has ~323px to spend, and
+   nine 44px targets need 396px before gaps. The row breaks into five and
+   four so each cell clears 44px in both directions — and the break lands on
+   5, the protocol's "neither high nor low", so the second row is the half
+   that is above neutral rather than an arbitrary split.
+   minmax(0,…) so a cell can never be pushed wider than the row. */
 .cva-scale {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
   margin-top: 12px;
 }
 
 .cva-btn {
-  aspect-ratio: 1;
   min-width: 0;
+  min-height: 46px;
   padding: 0;
   overflow: hidden;
   border-radius: 10px;
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: clamp(11px, 3.6vw, 15px);
+  font-size: clamp(15px, 4.4vw, 18px);
   line-height: 1;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1010,7 +1025,11 @@ body.plain .cva-scale { margin-top: 9px; }
 /* clearing a rating: only offered once there is one to clear */
 .attr-value-row { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 
+/* The control that undoes a mis-tap was itself smaller than the thing it
+   fixes. Same treatment as the help mark: the circle stays 22px, the thumb
+   target around it reaches 44px. */
 .cva-clear {
+  position: relative;
   width: 22px;
   height: 22px;
   flex: none;
@@ -1024,6 +1043,12 @@ body.plain .cva-scale { margin-top: 9px; }
   font-weight: 700;
   line-height: 1;
   transition: transform 0.18s var(--spring), color 0.15s, border-color 0.15s;
+}
+.cva-clear::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
 }
 .attr-card.rated .cva-clear { display: grid; }
 .cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }

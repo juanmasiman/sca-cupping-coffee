@@ -257,6 +257,23 @@ function setGuided(on) {
 // Off means a denser sheet, not just missing help buttons.
 function applyGuided() {
   document.body.classList.toggle('plain', !guidedOn());
+  syncStaticHelp();
+}
+
+// Two help marks live in the markup rather than in a panel that gets rebuilt:
+// what a cupping is, on setup, and what a score out of 100 means, on the bar
+// that shows one. A panel gets its marks when it is built; these outlive every
+// rebuild, so they are synced here instead, in both directions.
+// The mark goes on .scorebar-score and not on #scorebar-grade because the
+// grade's textContent is rewritten on every rating and would delete it.
+function syncStaticHelp() {
+  [['.subtitle', 'intro'], ['.scorebar-score', 'score']].forEach(([selector, id]) => {
+    const host = document.querySelector(selector);
+    if (!host) return;
+    const existing = host.querySelector(':scope > .help-btn');
+    if (existing) existing.remove();
+    addHelp(host, id);
+  });
 }
 
 // Small "?" button; returns null when guided mode is off so callers can
@@ -1659,7 +1676,14 @@ async function openInviteSheet() {
     setShareUrl(`${APP_URL}#code=${live.code}`);
     syncPolling(); // the sheet is up, so it takes the poll at its fastest
   } else {
+    // No relay reached, so there is no live code still on its way. The reason
+    // the link waited — that a lineup-only link would send people to a second
+    // table — cannot happen now, so the offline path is the right one to take:
+    // the code carries the whole lineup on its own.
     pinWrap.classList.add('hidden');
+    setShareUrl(joinURL(await buildSessionCode()));
+    $('#share-hint').textContent =
+      'No signal for a live code. The QR and link still carry the whole lineup — cuppers scan or open it, score on their own device, then share their scores back to you from their Results screen.';
   }
 }
 
@@ -2063,7 +2087,9 @@ function buildPanel(coffee, index) {
     // on one scrolling sheet they read as the same thing
     panel.appendChild(panelHead('Describe', 'what you taste · no judgement', 'describeVsScore'));
     panel.appendChild(buildDescriptiveCard(coffee));
-    panel.appendChild(panelHead('Score', 'how good it is · 1–9 each', 'describeVsScore'));
+    // Describe's mark explains the split; Score's explains the scale itself,
+    // which is the question actually being asked below it.
+    panel.appendChild(panelHead('Score', 'how good it is · 1–9 each', 'cvaScale'));
     CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
     panel.appendChild(buildCvaDefectsCard(coffee));
   } else {
@@ -3021,6 +3047,7 @@ function buildDefectsCard(coffee) {
   });
 
   refresh();
+  addHelp(card.querySelector('.attr-title'), 'legacyDefects');
   return card;
 }
 
