@@ -198,6 +198,16 @@ The score at 46px is the only display-sized element, and it earns that by being 
 
 The printed scoresheet is ink on paper, so it does not use the screen palette and should not: the data ink is a dark teal that prints as a muddy grey, and a paper-coloured ground on paper is nothing at all. Print gets black text, grey rules and point sizes, declared as its own token set (`print-*`) rather than smuggled in as undocumented literals.
 
+## Series colours
+
+The results radar carries up to ten coffees. They are `--series-1` … `--series-10`, a token set like any other, redefined for the dark ground — and they are measured, which is the whole point of them being tokens: the outgoing set was hardcoded hex, tuned against a dark ground and shipped onto a near-white page, where it ran **1.47:1 to 2.95:1**. The legend naming each coffee was the least visible thing on the screen, and because the colours were not tokens, the sweep that took this app's text contrast to zero failures never looked at them.
+
+Every series now clears **3:1** against the card it is drawn on and against that card tinted by its own highlight fill, which is what WCAG 1.4.11 asks of a graphic that carries meaning. Measured in the browser: worst line 3.41:1 light, 3.34:1 dark. Minimum pairwise separation is ΔE76 16.3. Four of the ten are identical in both themes — only the greens, the amber and the teal had to move for the dark ground — so a coffee's colour barely shifts when the light does.
+
+**Colour is never the only channel.** Each series also carries a `stroke-dasharray`, and the legend swatch is the series' own line rather than a coloured dot, so the chart survives with the hue removed entirely. That is what lets the hues be chosen for contrast rather than for maximum separation: ten hues cannot be told apart reliably anyway, and the dash pattern is doing the identifying.
+
+**No area fills when there is more than one series.** Ten translucent polygons stack into mud at the centre, and a palette solved against nine fills underneath it converges on ten near-identical pastels — satisfying the contrast rule by destroying the hue identity it was meant to protect. The fill returns for one series at a time, when the legend solos it and there is nothing under it but the card.
+
 ## Part-scored sheets
 
 A score built from sections nobody rated is not the same kind of number as a score built from eight judgements, and anywhere the first is shown to somebody else it has to say so. One treatment, everywhere: the figure drops to secondary ink and the count that qualifies it — "3 of 8" — sits beside it in mono. A sheet with nothing rated shows no number at all, an em dash, and does not enter a panel average. Greying is the whole signal; a part-scored sheet is incomplete, not wrong, so it never takes the alert colour.
