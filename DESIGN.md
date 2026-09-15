@@ -18,6 +18,21 @@ colors:
   data-dark: "#46c5a8"
   data-soft-dark: "#16302b"
   alert-dark: "#f0a077"
+  wheel-floral: "#e87fa8"
+  wheel-fruity: "#e0464b"
+  wheel-sour-fermented: "#e5c650"
+  wheel-green-vegetative: "#5fa855"
+  wheel-other: "#9aa3ab"
+  wheel-roasted: "#8a4a2b"
+  wheel-spices: "#b8452f"
+  wheel-nutty-cocoa: "#c08a4e"
+  wheel-sweet: "#e8963f"
+  print-ink: "#000000"
+  print-ink-dim: "#444444"
+  print-ink-faint: "#555555"
+  print-foot: "#666666"
+  print-rule: "#999999"
+  print-rule-light: "#dddddd"
 typography:
   score:
     fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -27,7 +42,7 @@ typography:
     letterSpacing: "-0.035em"
   section:
     fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "13.5px"
+    fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "normal"
@@ -45,16 +60,59 @@ typography:
     letterSpacing: "0.01em"
   engraved:
     fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
-    fontSize: "9px"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "0.05em"
+  tick:
+    fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "9px"
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: "normal"
+  ui:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "15px"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "normal"
+  title:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "-0.01em"
+  heading:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "20px"
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: "-0.015em"
+  reading:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "24px"
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: "-0.015em"
+  display-lg:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "40px"
+    fontWeight: 700
+    lineHeight: 1.05
+    letterSpacing: "-0.03em"
+  display:
+    fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontSize: "30px"
+    fontWeight: 700
+    lineHeight: 1.15
+    letterSpacing: "-0.02em"
 rounded:
   none: "0px"
   sm: "3px"
   md: "4px"
   pill: "999px"
   knob: "50%"
+type-ramp: ["9px", "11px", "13px", "15px", "17px", "20px", "24px", "30px", "40px", "46px"]
 spacing:
   xs: "5px"
   sm: "8px"
@@ -128,11 +186,17 @@ The greys are warm in light and cool in dark, each biased a few degrees toward i
 
 The split is semantic and absolute: if a reader could compare it to another number, it is Mono with `font-variant-numeric: tabular-nums`. Scores, scale values, the anchor phrase, counts, coffee positions. If it is a name or a sentence, it is Sans. This is why a column of scores lines up on the decimal without any layout work — the numerals are the same width by construction.
 
-Scale, small end upward: engraved 9px, value 11px, body 13px, section 13.5px, score 46px. The score is the only display-sized element in the app, and it earns that by being the thing the whole screen exists to produce.
+**The ramp is nine steps and everything sits on one of them:** 11, 13, 15, 17, 20, 24, 30, 40, 46, with a single 9px tick below it for the scale numbers. The sheet used to carry **twenty-eight** different sizes — 11.5 next to 12 next to 12.5 next to 13 — which is not a hierarchy, it is an accumulation. Collapsing it moved eighty declarations by at most 2px each, so the system arrived without the app being redrawn.
+
+The score at 46px is the only display-sized element, and it earns that by being the thing the whole screen exists to produce.
 
 **Both faces are self-hosted and precached by the service worker** (`fonts/plex-sans-var.woff2`, `fonts/plex-mono-400.woff2`, `fonts/plex-mono-600.woff2` — latin subset, 60 KB for the set; Sans is one variable file covering every weight). Offline capability is binding in `PRODUCT.md`, and a webfont fetched from a CDN is a webfont that disappears in a roastery basement. A font that only loads with signal is a broken font.
 
-**Radius is square by default** — `md` at 4px for panels, `pill` only for chips and segmented controls that are genuinely capsule-shaped, `knob` for the two circular grab targets. The outgoing world stamped 18px on everything, which is what made eight stacked sections read as eight floating objects.
+**Radius is square by default.** There were fifteen different radii in the sheet — 22, 20, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 5, 2 and the pill — so nothing was shaped deliberately, everything was just rounded. Every literal is now a token: `md` at 4px for panels, `pill` only for chips and segmented controls that are genuinely capsule-shaped, `knob` for the two circular grab targets. The outgoing world stamped 18px on everything, which is what made eight stacked sections read as eight floating objects.
+
+### Printing is a different medium
+
+The printed scoresheet is ink on paper, so it does not use the screen palette and should not: the data ink is a dark teal that prints as a muddy grey, and a paper-coloured ground on paper is nothing at all. Print gets black text, grey rules and point sizes, declared as its own token set (`print-*`) rather than smuggled in as undocumented literals.
 
 ## Layout
 
