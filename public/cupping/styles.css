@@ -421,6 +421,7 @@ input, textarea, select { font: inherit; }
   gap: 1px;
   padding: 0 4px;
 }
+.cupping-title-row { display: flex; align-items: center; min-width: 0; }
 .cupping-title-name {
   font-size: 16px;
   font-weight: 800;
