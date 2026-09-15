@@ -2693,10 +2693,129 @@ function buildDescriptiveCard(coffee) {
 
 /* ---------- CVA section card: 1–9 impression of quality ---------- */
 
+/* ---------- the anchored scale ----------
+   A CVA rating is a position on a scale carrying anchors at both ends and
+   at the middle — the standard says so — so it is drawn as one instead of
+   as a row of buttons. Nine 44px targets will not fit across a phone at
+   any gap, and the anchor wording belongs where it can be read before the
+   choice rather than after it. DESIGN.md owns the rules; this builds them.
+
+   `read` returns the current value, `write` commits one, `isSet` reports
+   whether a human ever chose. Nothing here assumes CVA, so the legacy
+   sheet's pointer-only sliders can move onto it next. */
+function buildAnchoredScale(opts) {
+  const steps = opts.words.length;
+  const pct = v => ((v - 1) / (steps - 1)) * 100;
+
+  const wrap = el('div', 'scale');
+  let ticks = '';
+  for (let i = 1; i <= steps; i++) {
+    const mid = i === Math.ceil(steps / 2) ? ' mid' : '';
+    ticks += `<i class="scale-tick${mid}" style="left:${pct(i)}%"></i>`
+           + `<span class="scale-num" style="left:${pct(i)}%">${i}</span>`;
+  }
+  wrap.innerHTML = `
+    <div class="scale-track" tabindex="0" role="slider"
+         aria-valuemin="1" aria-valuemax="${steps}"
+         aria-label="${escapeHTML(opts.label)}">
+      <div class="scale-rail"></div><div class="scale-fill"></div>${ticks}
+      <div class="scale-knob"></div>
+    </div>
+    <div class="scale-anchors">
+      <span class="scale-end">${escapeHTML(opts.lowWord || 'low')}</span>
+      <span class="scale-live"></span>
+      <span class="scale-end">${escapeHTML(opts.highWord || 'high')}</span>
+    </div>`;
+
+  const track = wrap.querySelector('.scale-track');
+  const knob = wrap.querySelector('.scale-knob');
+  const fill = wrap.querySelector('.scale-fill');
+  const live = wrap.querySelector('.scale-live');
+
+  // settle=true springs the knob home; during a drag it must not animate,
+  // or it lags the finger by the length of the transition
+  const refresh = settle => {
+    const set = opts.isSet();
+    const v = opts.read();
+    knob.classList.toggle('settle', Boolean(settle));
+    knob.classList.toggle('empty', !set);
+    knob.style.left = (set ? pct(v) : pct(Math.ceil(steps / 2))) + '%';
+    knob.textContent = set ? v : '';
+    fill.style.width = set ? pct(v) + '%' : '0';
+    live.textContent = set ? `${v} · ${opts.words[v - 1]}` : 'not rated yet';
+    live.classList.toggle('none', !set);
+    if (set) {
+      track.setAttribute('aria-valuenow', String(v));
+      track.setAttribute('aria-valuetext', `${v}, ${opts.words[v - 1]}`);
+    } else {
+      track.removeAttribute('aria-valuenow');
+      track.setAttribute('aria-valuetext', 'not rated yet');
+    }
+  };
+
+  let dragging = false;
+  let lastV = null;
+
+  const at = e => {
+    const r = track.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  };
+
+  const move = e => {
+    const ratio = at(e);
+    knob.classList.remove('settle', 'empty');
+    knob.style.left = ratio * 100 + '%';   // free under the finger
+    fill.style.width = ratio * 100 + '%';
+    const v = Math.round(ratio * (steps - 1)) + 1;
+    if (v !== lastV) {
+      lastV = v;
+      haptic();
+      opts.write(v);
+      knob.textContent = v;
+      live.textContent = `${v} · ${opts.words[v - 1]}`;
+      live.classList.remove('none');
+      track.setAttribute('aria-valuenow', String(v));
+      track.setAttribute('aria-valuetext', `${v}, ${opts.words[v - 1]}`);
+    }
+  };
+
+  track.addEventListener('pointerdown', e => {
+    dragging = true;
+    lastV = null;
+    track.setPointerCapture(e.pointerId);
+    move(e);
+    e.preventDefault();
+  });
+  track.addEventListener('pointermove', e => { if (dragging) move(e); });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    refresh(true);                          // snap onto the detent
+    if (opts.onCommit) opts.onCommit();
+  };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
+
+  track.addEventListener('keydown', e => {
+    const cur = opts.isSet() ? opts.read() : Math.ceil(steps / 2);
+    let v = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = Math.min(steps, cur + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = Math.max(1, cur - 1);
+    else if (e.key === 'Home') v = 1;
+    else if (e.key === 'End') v = steps;
+    if (v === null) return;
+    e.preventDefault();
+    opts.write(v);
+    haptic();
+    refresh(true);
+    if (opts.onCommit) opts.onCommit();
+  });
+
+  return { el: wrap, refresh: refresh, track: track };
+}
+
 function buildCvaCard(coffee, section) {
   const card = el('div', 'attr-card');
-  // the chosen wording sits beside the number rather than on its own line
-  // below the buttons — eight sections of that added up to a screenful
   card.innerHTML = `
     <div class="attr-head">
       <div class="attr-head-left">
@@ -2708,16 +2827,29 @@ function buildCvaCard(coffee, section) {
           <div class="attr-value">${coffee.cva[section.key]}</div>
           <button class="cva-clear" type="button" aria-label="Clear the ${section.label} rating">×</button>
         </div>
-        <div class="cva-desc"></div>
       </div>
     </div>
-    <div class="cva-scale"></div>
   `;
 
   const valueEl = card.querySelector('.attr-value');
-  const scale = card.querySelector('.cva-scale');
-  const desc = card.querySelector('.cva-desc');
   addHelp(card.querySelector('.attr-title'), `cva.${section.key}`);
+
+  const commit = () => {
+    refresh(false);
+    refreshTabs();
+    updateScorebar();
+    save();
+  };
+
+  const scale = buildAnchoredScale({
+    label: `${section.label} — impression of quality`,
+    words: CVA_LABELS,
+    read: () => coffee.cva[section.key],
+    isSet: () => Boolean(coffee.touched[section.key]),
+    write: v => { coffee.cva[section.key] = v; coffee.touched[section.key] = true; },
+    onCommit: commit,
+  });
+  card.appendChild(scale.el);
 
   const refresh = popIt => {
     const v = coffee.cva[section.key];
@@ -2725,8 +2857,7 @@ function buildCvaCard(coffee, section) {
     card.classList.toggle('unrated', !rated);
     card.classList.toggle('rated', rated);
     valueEl.textContent = rated ? v : '–';
-    desc.textContent = rated ? CVA_LABELS[v - 1] : 'not rated yet';
-    [...scale.children].forEach((btn, i) => btn.classList.toggle('selected', rated && i + 1 === v));
+    scale.refresh(true);
     if (popIt) {
       valueEl.classList.remove('pop');
       void valueEl.offsetWidth;
@@ -2746,22 +2877,6 @@ function buildCvaCard(coffee, section) {
     updateScorebar();
     save();
   });
-
-  for (let v = 1; v <= 9; v++) {
-    const btn = el('button', 'cva-btn' + (v === 5 ? ' neutral' : ''), String(v));
-    btn.type = 'button';
-    btn.setAttribute('aria-label', `${section.label}: ${v}, ${CVA_LABELS[v - 1]}`);
-    btn.addEventListener('click', () => {
-      coffee.cva[section.key] = v;
-      coffee.touched[section.key] = true;
-      haptic();
-      refresh(true);
-      refreshTabs();
-      updateScorebar();
-      save();
-    });
-    scale.appendChild(btn);
-  }
 
   refresh(false);
   return card;
