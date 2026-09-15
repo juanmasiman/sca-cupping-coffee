@@ -198,15 +198,23 @@ The score at 46px is the only display-sized element, and it earns that by being 
 
 The printed scoresheet is ink on paper, so it does not use the screen palette and should not: the data ink is a dark teal that prints as a muddy grey, and a paper-coloured ground on paper is nothing at all. Print gets black text, grey rules and point sizes, declared as its own token set (`print-*`) rather than smuggled in as undocumented literals.
 
+## Part-scored sheets
+
+A score built from sections nobody rated is not the same kind of number as a score built from eight judgements, and anywhere the first is shown to somebody else it has to say so. One treatment, everywhere: the figure drops to secondary ink and the count that qualifies it — "3 of 8" — sits beside it in mono. A sheet with nothing rated shows no number at all, an em dash, and does not enter a panel average. Greying is the whole signal; a part-scored sheet is incomplete, not wrong, so it never takes the alert colour.
+
+This reaches the live team card, the Present ceremony, the Results podium and ranking, History, the printed sheet, the share text and the CSV. If a surface can show a score to a second person, it can show this.
+
 ## Layout
 
 One column, always. The sheet is a vertical run of sections separated by hairline rules — not cards, not panels, not tiles. A rule says "next section" more quietly than a border does, and eight bordered cards stacked on a phone reads as eight objects competing rather than one instrument.
 
-Three fixed bands:
+Three fixed bands, and three is the count:
 
-- **The score, sticky at the top.** It never scrolls away, because the number is the reason the screen exists.
+- **The header, carrying the score.** The coffee's name, its position in the lineup, the live table code when there is one — and, right-aligned, the number with its grade or its progress under it. The score never scrolls away, because it is the reason the screen exists, but it does not get a band to itself: a strip reading "Coffee 1 / 3 of 8 rated" above a number repeats two lines that are already two lines higher. What it uniquely holds is the figure. On a 390×844 phone the fold is worth about 70px of sheet, which is a whole section.
 - **The sheet, scrolling between them.** 16–18px side padding; content never touches the edge even when the app runs full-bleed.
-- **Navigation, pinned at the bottom.** The bottom strip is the only thumb-comfortable band on a phone and it must hold something you can touch. The outgoing world spent it on a read-only number; here it carries movement between coffees, each with its own progress.
+- **Navigation, pinned at the bottom.** The bottom strip is the only thumb-comfortable band on a phone and it must hold something you can touch. The outgoing world spent it on a read-only number; here it carries movement between coffees — each segment 44px tall and scrolling sideways inside the band rather than shrinking below that when the lineup is long — plus the flavour wheel and the way to Results.
+
+Nothing in the cupping screen floats. Every band is in the flex column, so the sheet clears its own last row instead of guessing how tall something hovering over it is, and the safe-area inset is padding on the band that touches the edge rather than an offset applied to a fixed element.
 
 Below 560px the app runs edge to edge with its chrome removed. On a phone there is no frame, because the phone is the frame.
 
@@ -267,4 +275,5 @@ Category labels read along the radius, and that ring is 56 units deep, so a comp
 - No text below 11px anywhere a cupper needs to read it. **One exception, and it is the only one:** the 1–9 tick numbers under a scale track sit at 9px, because they duplicate the number already inside the knob — they are tick furniture, not something anyone has to read. Anything carrying meaning of its own clears 11px.
 - The flavour wheel is the one exemption, and it is granted rather than overlooked: see Components. It carries its own zoom because the reader, not the layout, should decide how large 68 descriptors need to be.
 - Never ship `user-scalable=no`. Someone in bad light must be allowed to zoom.
-- No motion beyond the knob settle and the score's own state change. This is an instrument; it should feel precise, not springy.
+- No motion beyond the knob settle and the score's own state change. This is an instrument; it should feel precise, not springy. One easing token, `--settle`, an ease-out-quint at `cubic-bezier(0.22, 1, 0.36, 1)`: decisive deceleration, zero overshoot. It was called `--spring` while it had some, and on a detented scale even a 10% overshoot means briefly showing a number the cupper did not choose.
+- Nothing loops. An attract animation runs a fixed number of times and then leaves the cupper alone.
