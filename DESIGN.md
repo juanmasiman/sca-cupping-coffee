@@ -242,6 +242,12 @@ Rules are 1px hairlines in the line token. The scale rail is 2px. Ticks are 1px 
 
 **Touch targets are 44px minimum.** Where a control must stay visually small — the clear, a help mark — the visual stays small and only the hit area grows, via a transparent pseudo-element. Expanded areas must never overlap each other or a neighbouring control.
 
+**The flavour wheel is the one drawing the type floor cannot govern, and it keeps its exemption.** Sixty-eight descriptors around one circle render at 5.53px fit to a phone. That is too small to read a word or land a thumb — and it is also the only view that answers the question a first-timer actually has, which is *which words exist at all*. Shrinking the wheel's job to fix its type would trade the thing it is for.
+
+So the reader sets the scale instead of the layout setting it for them. It opens whole, and two steps enlarge it inside a scrolling viewport: **Readable** (2.05×, descriptors at 11.3px, clearing the floor) and **Close** (2.8×, 15.4px). The wheel itself is never redrawn — same geometry, same colours, same two-level meaning. The first zoom scrolls to the top of the wheel rather than holding centre, because the centre is the hub and the hub has nothing to read.
+
+Category labels read along the radius, and that ring is 56 units deep, so a compound name breaks at its slash into two lines rather than running out of its own wedge. "Green / Vegetative" is 63.8 units on one line and 36.3 on two.
+
 ## Do's and Don'ts
 
 **Do**
@@ -259,6 +265,6 @@ Rules are 1px hairlines in the line token. The scale rail is 2px. Ticks are 1px 
 - No cards inside cards, and no accent stripe on the left edge of a card.
 - No colour used decoratively. If it is not a value, it is not the data ink.
 - No text below 11px anywhere a cupper needs to read it. **One exception, and it is the only one:** the 1–9 tick numbers under a scale track sit at 9px, because they duplicate the number already inside the knob — they are tick furniture, not something anyone has to read. Anything carrying meaning of its own clears 11px.
-- The flavour wheel is the outstanding breach: 68 descriptor labels at 5.53px and nine categories at 7.16px, rendered at roughly 1:1 on a phone. Raising them to the floor means the outer ring can no longer be 66 simultaneous wedges, so that ring needs a different form — a tap-to-expand list — rather than a larger font.
+- The flavour wheel is the one exemption, and it is granted rather than overlooked: see Components. It carries its own zoom because the reader, not the layout, should decide how large 68 descriptors need to be.
 - Never ship `user-scalable=no`. Someone in bad light must be allowed to zoom.
 - No motion beyond the knob settle and the score's own state change. This is an instrument; it should feel precise, not springy.

@@ -297,6 +297,14 @@
     <div class="modal-sheet wheel-sheet">
       <h3>Flavor wheel</h3>
       <p class="modal-hint">Inner ring ticks a descriptor on the Describe form — up to 5, as the standard allows. Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.</p>
+      <!-- The wheel opens whole, the way a paper one is read: take it all
+           in, then lean closer. Zoom scrolls rather than reflows, so the
+           wheel itself never changes. -->
+      <div class="wheel-zoom-bar">
+        <button type="button" id="wheel-zoom-out" class="wheel-zoom-btn" aria-label="Zoom out">−</button>
+        <span class="wheel-zoom-level" id="wheel-zoom-level" aria-live="polite">Whole wheel</span>
+        <button type="button" id="wheel-zoom-in" class="wheel-zoom-btn" aria-label="Zoom in">+</button>
+      </div>
       <div class="wheel-holder" id="wheel-holder"></div>
       <div class="wheel-picked" id="wheel-picked"></div>
       <p class="wheel-status" id="wheel-status"></p>

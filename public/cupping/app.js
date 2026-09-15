@@ -2271,7 +2271,17 @@ function buildWheelSVG() {
     const ly = C + ((R_IN + R_MID) / 2) * Math.sin(mid);
     let deg = (mid * 180) / Math.PI;
     if (deg > 90 || deg < -90) deg += 180;
-    svg += `<text class="wheel-cat-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${escapeHTML(cat.name.replace('/', ' / '))}</text>`;
+    // The category ring is 56 units deep and the label reads along the
+    // radius, so "Green / Vegetative" — 63.8 units on one line — ran out
+    // of its own wedge and into the descriptors. The compound names break
+    // at their slash instead, which is where they already read as two
+    // things: no line exceeds about 40 units.
+    const parts = cat.name.split('/');
+    const label = parts.length > 1
+      ? parts.map((t, i) =>
+          `<tspan x="${lx.toFixed(1)}" dy="${i === 0 ? '-0.55em' : '1.1em'}">${escapeHTML(t.trim())}</tspan>`).join('')
+      : escapeHTML(cat.name);
+    svg += `<text class="wheel-cat-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${label}</text>`;
 
     cat.children.forEach(child => {
       const cSpan = (1 / total) * Math.PI * 2;
@@ -2345,6 +2355,64 @@ function maybeShowWheelCoach() {
   }, 1400);
 }
 
+/* Zoom for the wheel. Whole-wheel is where it opens and where it belongs
+   — a first-timer is looking for which words exist at all, and that is a
+   question only the whole vocabulary answers. Past that, reading a word
+   and landing a thumb on it need scale, so the reader picks it.
+
+   The steps are labelled by what they are for rather than by a number,
+   because "1.8×" tells a cupper nothing and "readable" tells them
+   exactly what they are asking for. Zooming keeps the middle of what you
+   were looking at in the middle. */
+// The middle step is not a round number chosen for tidiness. Descriptors
+// render at 5.53px with the wheel fit to a phone and the floor is 11px,
+// so "readable" has to clear 2.002x or the label on the button is a lie.
+const WHEEL_ZOOMS = [
+  { z: 1, label: 'Whole wheel' },
+  { z: 2.05, label: 'Readable' },
+  { z: 2.8, label: 'Close' },
+];
+
+function wireWheelZoom(holder) {
+  const out = $('#wheel-zoom-out');
+  const inn = $('#wheel-zoom-in');
+  const level = $('#wheel-zoom-level');
+  if (!out || !inn || !level) return;
+  let step = 0;
+
+  const apply = (move, fromWhole) => {
+    // where was the middle of the view, as a fraction of the whole wheel?
+    const fx = holder.scrollWidth ? (holder.scrollLeft + holder.clientWidth / 2) / holder.scrollWidth : 0.5;
+    const fy = holder.scrollHeight ? (holder.scrollTop + holder.clientHeight / 2) / holder.scrollHeight : 0.5;
+    holder.style.setProperty('--wheel-zoom', WHEEL_ZOOMS[step].z);
+    level.textContent = WHEEL_ZOOMS[step].label;
+    out.disabled = step === 0;
+    inn.disabled = step === WHEEL_ZOOMS.length - 1;
+    if (!move) return;
+    requestAnimationFrame(() => {
+      // Zooming about the centre is right once you are exploring, but the
+      // first zoom out of whole-wheel would land on the hub — the one part
+      // of this drawing with nothing to read. So that step goes to the top
+      // of the wheel, where the words are; every step after keeps centre.
+      holder.scrollLeft = fx * holder.scrollWidth - holder.clientWidth / 2;
+      holder.scrollTop = fromWhole ? 0 : fy * holder.scrollHeight - holder.clientHeight / 2;
+    });
+  };
+
+  const go = delta => {
+    const next = Math.min(WHEEL_ZOOMS.length - 1, Math.max(0, step + delta));
+    if (next === step) return;
+    const fromWhole = step === 0 && delta > 0;
+    step = next;
+    haptic();
+    apply(true, fromWhole);
+  };
+
+  out.addEventListener('click', () => go(-1));
+  inn.addEventListener('click', () => go(1));
+  apply(false, false);
+}
+
 function openFlavorWheel() {
   markWheelSeen();
   const modal = $('#wheel-modal');
@@ -2354,6 +2422,7 @@ function openFlavorWheel() {
   if (!holder.dataset.built) {
     holder.innerHTML = buildWheelSVG();
     holder.dataset.built = '1';
+    wireWheelZoom(holder);
   }
 
   const coffee = state && state.coffees[state.activeIndex];
