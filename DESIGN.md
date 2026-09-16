@@ -6,17 +6,21 @@ colors:
   panel: "#ffffff"
   ink: "#16181c"
   ink-dim: "#565b63"
+  ink-faint: "#6a6f75"
   line: "#d9dad4"
+  rail: "#8c8d89"
   data: "#1d4f73"
-  data-soft: "#e7eef3"
+  data-soft: "rgba(29, 79, 115, 0.10)"
   alert: "#9a3412"
   paper-dark: "#0f1113"
   panel-dark: "#171a1d"
   ink-dark: "#e9ecef"
   ink-dim-dark: "#98a0a8"
+  ink-faint-dark: "#848a91"
   line-dark: "#2a2e33"
+  rail-dark: "#6a6d70"
   data-dark: "#6fb6de"
-  data-soft-dark: "#16262f"
+  data-soft-dark: "rgba(111, 182, 222, 0.14)"
   alert-dark: "#f0a077"
   wheel-floral: "#e87fa8"
   wheel-fruity: "#e0464b"
@@ -164,20 +168,28 @@ The surface this world was designed against is the scoresheet mid-session: eight
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.
 
-Ratios below are measured, and each is the **worst case across both surfaces** — ground and raised — so no usage of a token falls below its stated figure.
+There are **four** grounds a token can land on, not two, and the ratios below are the worst case across all four: the page, the raised chrome band, a card, and the Describe card. This section previously said "worst case across both surfaces — ground and raised" and then printed the *ground* figure for every row, which made every number in the table optimistic by a quarter to a full point. Secondary ink was published at 6.55:1 and is 6.16:1 where it actually sits worst. These are measured, and they are the real worst case.
 
-| Role | Light | Dark | Light ratio | Dark ratio |
-|---|---|---|---|---|
-| Ground | `#fbfaf7` | `#0f1113` | — | — |
-| Raised surface | `#ffffff` | `#171a1d` | — | — |
-| Ink | `#16181c` | `#e9ecef` | 17.03:1 | 14.73:1 |
-| Secondary ink | `#565b63` | `#98a0a8` | 6.55:1 | 6.60:1 |
-| Rule | `#d9dad4` | `#2a2e33` | structural only, never text | |
-| Data ink | `#1d4f73` | `#6fb6de` | 8.32:1 | 7.84:1 |
-| Data wash | `#e4efec` | `#16302b` | fills only, never text | |
-| Alert | `#9a3412` | `#f0a077` | 7.00:1 | 8.32:1 |
+| Role | Token | Light | Dark | Light worst | Dark worst |
+|---|---|---|---|---|---|
+| Ground | `--bg` | `#fbfaf7` | `#0f1113` | — | — |
+| Raised chrome | `--bg-raise` | `#f4f3ef` | `#14171a` | — | — |
+| Card | `--bg-card` | `#ffffff` | `#171a1d` | — | — |
+| Describe card | `--bg-card-2` | `#f2f6f4` | `#1b2320` | — | — |
+| Ink | `--text` | `#16181c` | `#e9ecef` | 16.01:1 | 13.54:1 |
+| Secondary ink | `--text-dim` | `#565b63` | `#98a0a8` | 6.16:1 | 6.06:1 |
+| Tertiary ink | `--text-faint` | `#6a6f75` | `#848a91` | 4.56:1 | 4.61:1 |
+| Data ink | `--data` | `#1d4f73` | `#6fb6de` | 7.82:1 | 7.20:1 |
+| Alert | `--red` | `#9a3412` | `#f0a077` | 6.58:1 | 7.65:1 |
+| Rule | `--line` | `#d9dad4` | `#2a2e33` | 1.27:1 — structural only, never text and never a control | |
+| Scale track | `--rail` | `#8c8d89` | `#6a6d70` | 3.01:1 | 3.08:1 |
+| Data wash | `--data-soft` | `--data` at 10% | `--data` at 14% | fills only, never text | |
 
-**Every text pair clears 4.5:1 with room to spare.** That is not a nicety here: the audit measured 62 failing pairs in the outgoing world, including the *selected score value* at 3.45:1 — the single most important piece of state feedback in the app.
+**Tertiary ink was a third grey nobody wrote down.** It carries the sub-labels, the placeholder text, the anchor phrases and the two status lines in the cupping header, and at `#6b7178` it measured **4.44:1** on the raised band — the app's only real text failure, in the one band that never scrolls away. The values above are the lightest that clear 4.5:1 on all four grounds.
+
+**The data wash is an alpha, not a hex.** It was listed here twice with two different green-tinted values left over from before the data ink went slate — `#e7eef3` in the frontmatter and `#e4efec` in this table — and neither could have been right, because a 10% ink composites to a different colour on each of the four grounds (`#e5e9ea` on the page, `#e8edf1` on a card). It is stated as what it is.
+
+**Every text pair clears 4.5:1**, and that is not a nicety here: the audit measured 62 failing pairs in the outgoing world, including the *selected score value* at 3.45:1 — the single most important piece of state feedback in the app. The phrase "with room to spare" used to follow, and it was doing no work except making the claim harder to check.
 
 There is **one** data ink and it has one meaning: this is a value a cupper set. It is never used for emphasis, never for a heading, never for a decorative accent, and never for a brand moment. If something needs to stand out and is not a value, it earns that with weight, size, or position instead.
 
@@ -276,6 +288,10 @@ Rules are 1px hairlines in the line token. The scale rail is 2px. Ticks are 1px 
 **The score readout** is grey while provisional and full ink once every section is rated. The number reports its own status; the count beneath it confirms rather than carries the message.
 
 **Touch targets are 44px minimum.** Where a control must stay visually small — the clear, a help mark — the visual stays small and only the hit area grows, via a transparent pseudo-element. Expanded areas must never overlap each other or a neighbouring control.
+
+**One exemption, and it is granted rather than overlooked: the CATA chips at 35px.** This rule was stated as absolute and 174 chips have never met it, which made the rule the thing that was wrong. A chip is a word in a wrapped list, and the two ways to reach 44 both cost more than they buy: growing the chips adds roughly 90px to the longest card in the product, and growing only the hit area makes each chip's target wider than the 5px gutter between it and its neighbour — so a tap near an edge silently records a descriptor the cupper did not choose. On a checklist, a wrong word entered invisibly is a worse failure than a small target. 35px clears the 24×24 of WCAG 2.5.8 AA with room; it does not meet 2.5.5 AAA, and that is the trade being made. Measured real reach: 35.9px.
+
+**Anything that is not text still needs 3:1.** WCAG 1.4.11 covers the parts of a control that say what and where it is, and the parts of a graphic you need in order to read it. On this sheet that means the scale's track, its ticks, the fill that shows how far along the value sits, and the dashed ring of a knob nobody has moved — all of which were drawn in the rule token at 1.18–1.29:1, because a hairline between two blocks and the track of a control had been treated as the same thing. They are not: `--line` separates, `--rail` is part of an instrument, and only the second has a floor. The mid tick is the one tick carrying a meaning of its own, so it sits above the others at 3.29–4.06:1 rather than below them at 2.44:1.
 
 **The flavour wheel is the one drawing the type floor cannot govern, and it keeps its exemption.** Sixty-eight descriptors around one circle render at 5.53px fit to a phone. That is too small to read a word or land a thumb — and it is also the only view that answers the question a first-timer actually has, which is *which words exist at all*. Shrinking the wheel's job to fix its type would trade the thing it is for.
 
