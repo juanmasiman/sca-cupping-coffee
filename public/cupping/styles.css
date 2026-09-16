@@ -53,7 +53,6 @@
   --on-accent: #fbfaf7;
   --hi: #12806a;
   --glass-h: rgba(251, 250, 247, 0.88);
-  --glass: rgba(255, 255, 255, 0.88);
   --cup-a: #e7e9e6;
   --cup-b: #d4d8d4;
   --green: #1f6b3a;
@@ -123,7 +122,6 @@
     --on-accent: #0f1113;
     --hi: #7fe0c8;
     --glass-h: rgba(15, 17, 19, 0.88);
-    --glass: rgba(23, 26, 29, 0.88);
     --cup-a: #262b2e;
     --cup-b: #1b1f22;
     --green: #6fd39a;
@@ -157,7 +155,6 @@
   --on-accent: #0f1113;
   --hi: #7fe0c8;
   --glass-h: rgba(15, 17, 19, 0.88);
-  --glass: rgba(23, 26, 29, 0.88);
   --cup-a: #262b2e;
   --cup-b: #1b1f22;
   --green: #6fd39a;
@@ -430,6 +427,8 @@ input, textarea, select { font: inherit; }
   color: var(--accent);
 }
 
+/* No opacity dimmer. It was costing contrast on exactly the two controls
+   whose text should be clearest — the ones that delete things. */
 .btn-danger-ghost {
   background: none;
   border: 1px solid var(--red);
@@ -801,6 +800,25 @@ body.plain .attr-head-right {
   max-width: 62%;
 }
 body.plain .scale { margin-top: 9px; }
+
+/* ------------------------------------------------------------
+   Guided mode off is the expert's mode, and it was only hiding
+   the sub-labels. Before the lead cupper reached Fragrance they
+   still scrolled a name field, a Details card, and two section
+   heads — on every one of up to ten coffees, at a table where
+   the coffee is cooling. The name field in particular was asking
+   again for something the lineup screen exists to collect.
+
+   :not(:placeholder-shown) is doing real work here: the field
+   disappears only once the coffee HAS a name, so an unnamed
+   coffee keeps somewhere to type one.
+   ------------------------------------------------------------ */
+body.plain .name-field:not(:placeholder-shown) { display: none; }
+body.plain .details-card:not(.open) .details-toggle { padding: 9px 14px; }
+body.plain .details-card:not(.open) .details-toggle-label { font-size: 13px; }
+body.plain .panel-head { padding: 2px 4px 4px; margin-top: 0; }
+body.plain .panel-head-sub { display: none; }
+body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 
 .attr-title { font-size: 15px; font-weight: 700; }
 .attr-sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }

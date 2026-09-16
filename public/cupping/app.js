@@ -252,7 +252,10 @@ const seriesVar = index => `var(--series-${(index % SERIES_COUNT) + 1})`;
 // chart survives with the colour taken out of it.
 const RADAR_DASHES = ['0', '7 4', '2 3', '11 3 2 3', '15 4', '1 4', '9 3 1 3 1 3', '5 3 1 3', '3 2 9 2', '13 3 3 3'];
 
-const LIMITS = { coffees: [1, 10], cups: [1, 5] };
+// The SCA standard is five cups per sample, which is what the stepper opens
+// on and what the caption names. It is not a ceiling: labs that cup six or
+// eight could not record what they had actually done.
+const LIMITS = { coffees: [1, 10], cups: [1, 8] };
 
 // Coffee details (origin metadata)
 const META_FIELDS = [
@@ -1085,20 +1088,30 @@ function defectPenalty(c) {
 // The grade as the header can carry it: the qualifier that says whether a
 // coffee cleared the specialty line needs room this row does not have, and
 // it is not news you need mid-drag — it is what Results opens on.
+/* One vocabulary, two lengths. The header used to say "Below grade" for the
+   coffee Results called "Below cupping quality" — two names for one fact, in
+   front of a table. The name is the same everywhere now; only the qualifier
+   that says whether it cleared the specialty line is dropped where there is
+   no room for it. */
+const GRADES = [
+  { at: 90, name: 'Outstanding', note: '' },
+  { at: 85, name: 'Excellent', note: '' },
+  { at: 80, name: 'Very good', note: 'specialty' },
+  { at: 70, name: 'Good', note: 'below specialty' },
+  { at: -Infinity, name: 'Below cupping quality', note: '' },
+];
+
+function gradeEntry(score) {
+  return GRADES.find(g => score >= g.at) || GRADES[GRADES.length - 1];
+}
+
 function shortGrade(score) {
-  if (score >= 90) return 'Outstanding';
-  if (score >= 85) return 'Excellent';
-  if (score >= 80) return 'Very good';
-  if (score >= 70) return 'Good';
-  return 'Below grade';
+  return gradeEntry(score).name;
 }
 
 function gradeFor(score) {
-  if (score >= 90) return 'Outstanding';
-  if (score >= 85) return 'Excellent';
-  if (score >= 80) return 'Very Good · Specialty';
-  if (score >= 70) return 'Good · Below specialty';
-  return 'Below cupping quality';
+  const g = gradeEntry(score);
+  return g.note ? `${g.name} · ${g.note}` : g.name;
 }
 
 function coffeeName(c, i) {
@@ -2405,7 +2418,7 @@ const cupIconSVG = `
 function buildCuppingUI() {
   buildTabs();
   buildPanels();
-  syncActivePanel(false);
+  syncActivePanel();
   updateScorebar();
 }
 
@@ -2423,7 +2436,7 @@ function buildTabs() {
       state.activeIndex = i;
       haptic();
       scrollToPanel(i, true);
-      syncActivePanel(true);
+      syncActivePanel();
       save();
     });
     rail.appendChild(seg);
@@ -2515,7 +2528,7 @@ function buildPanels() {
       const idx = Math.round(panels.scrollLeft / panels.clientWidth);
       if (idx !== state.activeIndex && idx >= 0 && idx < state.coffees.length) {
         state.activeIndex = idx;
-        syncActivePanel(true);
+        syncActivePanel();
         save();
       }
     }, 80);
@@ -2527,7 +2540,7 @@ function scrollToPanel(i, smooth) {
   panels.scrollTo({ left: i * panels.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
 }
 
-function syncActivePanel(animated) {
+function syncActivePanel() {
   refreshTabs();
   updateScorebar();
 }
