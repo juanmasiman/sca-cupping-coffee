@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="crema">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- No maximum-scale and no user-scalable=no: someone reading this at
+       arm's length in bad light has to be allowed to zoom. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Cupping">
-  <meta name="theme-color" content="#f5efe6">
+  <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
   <title>SCA Cupping</title>
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -24,19 +27,16 @@
       </button>
       <header class="setup-hero">
         <div class="hero-cup">
+          <!-- Flat ink, no gradient. Nothing on this screen represents a
+               measurement yet, so nothing on it is coloured — and a
+               two-stop gradient was decorative colour twice over. -->
           <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="cupGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="var(--accent)"/>
-                <stop offset="1" stop-color="var(--accent-deep)"/>
-              </linearGradient>
-            </defs>
             <path class="steam steam-1" d="M48 30 C44 22, 52 18, 48 10" fill="none"/>
             <path class="steam steam-2" d="M60 28 C56 20, 64 16, 60 8" fill="none"/>
             <path class="steam steam-3" d="M72 30 C68 22, 76 18, 72 10" fill="none"/>
-            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="url(#cupGrad)"/>
+            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="var(--chrome)"/>
             <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="var(--bg)" opacity=".35"/>
-            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--accent-deep)" opacity=".55"/>
+            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--bg)" opacity=".28"/>
           </svg>
         </div>
         <h1>lento</h1>
@@ -133,28 +133,34 @@
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="cupping-title">
-        <span class="cupping-title-name" id="cupping-name">Coffee 1</span>
+        <!-- the name is rewritten per coffee, so the help mark sits beside
+             it in a row of its own rather than inside it -->
+        <span class="cupping-title-row"><h1 class="cupping-title-name" id="cupping-name">Coffee 1</h1></span>
         <span class="cupping-title-sub" id="cupping-position"></span>
       </div>
       <button id="btn-share-session" class="invite-btn" aria-label="Invite cuppers to this session">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
-        <span class="invite-label">Invite</span>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
         <span class="invite-count hidden"></span>
       </button>
-      <button id="btn-finish" class="finish-btn">Results</button>
+      <!-- The live score, folded into the header rather than given a band
+           of its own. The band under it said "Coffee 1 / 3 of 8 rated" —
+           both of which the header already carried two lines above. All it
+           held that was not already here was this number.
+           No "/100": the scale floors at 58, so the denominator overstated
+           the headroom, and a cupping score is quoted bare. -->
+      <div class="scorebar" id="scorebar" role="status" aria-live="polite" aria-atomic="true">
+        <span class="scorebar-score"><span id="scorebar-value">82.50</span></span>
+        <!-- the help mark hangs off this line rather than the number, so the
+             score reads as one figure and the explanation sits with the
+             words that need explaining -->
+        <span class="scorebar-sub"><span id="scorebar-grade">Excellent</span></span>
+      </div>
     </header>
-
-    <nav class="coffee-rail" id="coffee-rail" aria-label="Coffees"></nav>
 
     <div class="panels" id="panels"></div>
 
-    <div class="wheel-coach hidden" id="wheel-coach" role="status">
-      <strong>Lost for words?</strong>
-      <span>Tap the wheel for the flavor vocabulary.</span>
-    </div>
-
-
-    <footer class="scorebar" id="scorebar">
+    <nav class="coffee-bar" aria-label="Coffees">
+      <div class="coffee-rail" id="coffee-rail"></div>
       <button id="btn-wheel" class="wheel-fab" aria-label="Open the flavor wheel">
         <svg viewBox="0 0 40 40" width="24" height="24" aria-hidden="true">
           <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/>
@@ -166,15 +172,15 @@
         </svg>
         <span>Flavors</span>
       </button>
-      <div class="scorebar-info">
-        <span class="scorebar-label" id="scorebar-name">Coffee 1</span>
-        <span class="scorebar-grade" id="scorebar-grade">Excellent</span>
-      </div>
-      <div class="scorebar-score">
-        <span id="scorebar-value">82.50</span>
-        <span class="scorebar-max">/100</span>
-      </div>
-    </footer>
+      <button id="btn-finish" class="finish-btn">Results</button>
+    </nav>
+
+    <div class="wheel-coach hidden" id="wheel-coach" role="status">
+      <strong>Lost for words?</strong>
+      <span>Tap the wheel for the flavor vocabulary.</span>
+    </div>
+
+
   </section>
 
   <!-- ============ RESULTS SCREEN ============ -->
@@ -190,16 +196,33 @@
     </header>
 
     <div class="results-scroll">
-      <div class="podium" id="podium"></div>
+      <!-- Results used to open on "Highest score on the table" — a winner
+           card with the trophy taken off it. A cupping grades samples
+           against a standard; the first thing the table sees is now where
+           this lineup fell on that standard, and the ranking follows. -->
+      <div class="summary" id="summary"></div>
+      <!-- The table comes before the chart. Submitting is the participant's
+           terminal act in the protocol and it lives in this card; it used to
+           sit third, below a radar, on a screen reached by a button that says
+           "Results". -->
+      <div class="team-card" id="team-card"></div>
       <div class="radar-card">
         <h3>Sensory profile</h3>
         <div id="radar-wrap"></div>
         <div class="radar-legend" id="radar-legend"></div>
       </div>
-      <div class="team-card" id="team-card"></div>
       <div class="ranking" id="ranking"></div>
-      <button id="btn-print" class="btn btn-ghost export-btn">Print / save as PDF</button>
-      <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
+      <!-- One stack, one measure. These two used to be loose siblings: the
+           first carried .export-btn (its own margins and width) and the
+           second carried nothing, so it rendered inline-block at its text
+           width, 20px further left, flush against the button above it. -->
+      <div class="page-actions">
+        <button id="btn-print" class="btn btn-ghost">Print / save as PDF</button>
+        <!-- Not danger-styled: reaching Results archives the cupping, so this
+             destroys nothing. Red that cries wolf teaches people to ignore it
+             on the controls where it means something. -->
+        <button id="btn-new-session" class="btn btn-ghost">Start new session</button>
+      </div>
       <div class="results-footpad"></div>
     </div>
   </section>
@@ -234,7 +257,6 @@
 
     <div class="results-scroll" id="history-scroll">
       <div class="history-empty hidden" id="history-empty">
-        <div class="history-empty-icon">☕️</div>
         <p>No cuppings yet.<br>Finish a session and it will be archived here automatically.</p>
       </div>
 
@@ -257,8 +279,10 @@
           <div class="hist-list" id="hist-list"></div>
         </div>
 
-        <button id="btn-export-csv" class="btn btn-ghost export-btn">Export all cuppings as CSV</button>
-        <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+        <div class="page-actions">
+          <button id="btn-export-csv" class="btn btn-ghost">Export all cuppings as CSV</button>
+          <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+        </div>
       </div>
       <div class="results-footpad"></div>
     </div>
@@ -289,6 +313,15 @@
     <div class="modal-sheet wheel-sheet">
       <h3>Flavor wheel</h3>
       <p class="modal-hint">Inner ring ticks a descriptor on the Describe form — up to 5, as the standard allows. Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.</p>
+      <!-- The wheel opens whole, the way a paper one is read: take it all
+           in, then lean closer. Zoom scrolls rather than reflows, so the
+           wheel itself never changes. -->
+      <!-- Two states, so one button that names the state it goes to, rather
+           than a −/+ pair with one end permanently disabled. -->
+      <div class="wheel-zoom-bar">
+        <span class="wheel-zoom-level" id="wheel-zoom-level" aria-live="polite">Whole wheel</span>
+        <button type="button" id="wheel-zoom-toggle" class="wheel-zoom-btn" aria-pressed="false">Zoom in to read</button>
+      </div>
       <div class="wheel-holder" id="wheel-holder"></div>
       <div class="wheel-picked" id="wheel-picked"></div>
       <p class="wheel-status" id="wheel-status"></p>
@@ -302,6 +335,22 @@
     <div class="modal-sheet">
       <h3 id="help-title"></h3>
       <p class="help-body" id="help-body"></p>
+      <!-- The guided-mode switch used to exist only on the setup screen —
+           which a cupper who joined by scanning a QR code never passes
+           through. The one person who most needs to turn guidance ON, or a
+           visiting expert who wants it off, could not reach it. It rides
+           with the explanations instead, so anyone who can open a help mark
+           can decide whether to keep getting them. -->
+      <label class="switch-row help-switch" for="toggle-guided-help">
+        <span class="switch-label">
+          <span class="switch-title">Guided mode</span>
+          <span class="switch-sub">Explain each part of the scoresheet</span>
+        </span>
+        <span class="switch">
+          <input type="checkbox" id="toggle-guided-help" checked>
+          <span class="switch-track"><span class="switch-knob"></span></span>
+        </span>
+      </label>
       <div class="modal-actions">
         <button id="help-close" class="btn btn-primary">Got it</button>
       </div>
@@ -384,6 +433,22 @@
       <div class="modal-actions">
         <button id="share-close" class="btn btn-ghost">Done</button>
         <button id="share-link" class="btn btn-primary">Share link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- One sheet for every decision that used to be a window.confirm(). Eight
+       of those sat inside nine bespoke sheets, in the OS font, with "OK"
+       focused by default — including the reveal, which is the moment this
+       product exists for. -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3 id="confirm-title"></h3>
+      <p class="modal-hint" id="confirm-body"></p>
+      <ul class="confirm-effects" id="confirm-effects"></ul>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="confirm-go" class="btn btn-primary">Continue</button>
       </div>
     </div>
   </div>

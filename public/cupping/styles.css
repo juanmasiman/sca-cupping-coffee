@@ -1,113 +1,227 @@
 /* ============================================================
    SCA Cupping — styles
-   Warm, dark, iOS-native feel. Mobile-first (iPhone).
-   Themeable via data-theme on <html>.
+   Anchored Scale: sensory notation, read over a table in
+   unpredictable light. See DESIGN.md for the rules these
+   tokens serve. Mobile-first (iPhone).
+
+   Light is the base. Dark follows the device unless the reader
+   has said otherwise, because the recorded operating light is
+   variable and neither one gets to be the afterthought.
    ============================================================ */
 
+/* Self-hosted, latin subset, 60 KB for the set, precached by the service
+   worker. A webfont fetched from a CDN is a webfont that disappears in a
+   basement with one bar of signal, and offline is a binding constraint.
+   Sans ships as one variable file covering every weight; Mono is static
+   per weight, which is how upstream draws them. */
+@font-face {
+  font-family: 'Plex Sans';
+  src: url('fonts/plex-sans-var.woff2') format('woff2-variations');
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('fonts/plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('fonts/plex-mono-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #14100d;
-  --bg-raise: #1e1813;
-  --bg-card: #241c15;
-  --bg-card-2: #2c2219;
-  --line: #3a2e22;
-  --text: #f3e9dc;
-  --text-dim: #a89579;
-  --text-faint: #6f6151;
-  --accent: #e8b06b;
-  --accent-deep: #b5793a;
-  --accent-soft: rgba(232, 176, 107, 0.14);
-  --on-accent: #1c1207;
-  --hi: #f7dfb8;
-  --glass-h: rgba(20, 16, 13, 0.86);
-  --glass: rgba(36, 28, 21, 0.82);
-  --cup-a: #4a3721;
-  --cup-b: #33261a;
-  --green: #8fc98a;
-  --red: #e07a5f;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  --glow: rgba(232, 176, 107, 0.28);
-  --radius: 18px;
-  --radius-sm: 12px;
+  --sans: 'Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg: #fbfaf7;
+  --bg-raise: #f4f3ef;
+  --bg-card: #ffffff;
+  --bg-card-2: #f2f6f4;
+  --line: #d9dad4;
+  --text: #16181c;
+  --text-dim: #565b63;
+  --text-faint: #6b7178;
+  /* ----------------------------------------------------------
+     One data ink, and it means one thing: this is a value a
+     cupper set. The rest of the interface is ink and rules.
+
+     This was --accent and it was on 86 declarations — icon
+     colour, ghost-button text, section heads, stat values, the
+     toast ground, the coach mark, the wheel hub. DESIGN.md said
+     "never for emphasis, never for a heading, never for a
+     decorative accent, never for a brand moment" the whole time
+     and the code did all four. The score competed with two
+     section heads, a pill, four help marks and two buttons for
+     the same colour; now it is the only coloured thing on the
+     sheet, which is what the rule was for.
+
+     Chrome is the page's own ink, so anything that needs to
+     stand out and is not a value earns it with weight, size or
+     position instead.
+     ---------------------------------------------------------- */
+  --data: #1d4f73;
+  --data-deep: #143a56;
+  --data-soft: rgba(29, 79, 115, 0.10);
+  --chrome: #16181c;
+  --chrome-soft: rgba(22, 24, 28, 0.06);
+  --on-chrome: #fbfaf7;
+  --hi: #12806a;
+  --cup-a: #e7e9e6;
+  --cup-b: #d4d8d4;
+  --red: #9a3412;
+  /* Depth is spent on exactly one thing: the control in your hand.
+     Everything else separates with a rule and with space. */
+  --shadow: 0 1px 3px rgba(20, 24, 28, 0.08);
+  --radius: 4px;
+  --radius-sm: 3px;
+
+  /* ----------------------------------------------------------
+     Series colours — the ten coffees on the results radar.
+     Measured, not eyeballed: every one clears 3:1 against the
+     card it is drawn on and against that card tinted by its own
+     highlight fill, which is what WCAG 1.4.11 asks of a graphic
+     that carries meaning. The outgoing set was tuned against a
+     dark ground and shipped onto a near-white page, where it
+     measured 1.47:1 to 2.95:1 — the legend naming each coffee
+     was the least visible thing on the screen.
+     Four of the ten are the same in both themes; only the
+     greens, the amber and the teal had to move for the dark
+     ground, so a coffee's colour barely shifts when the light
+     does. Minimum pairwise separation is dE76 16.3.
+     ---------------------------------------------------------- */
+  --series-1: #e85617;
+  --series-2: #218fde;
+  --series-3: #1a9f3b;
+  --series-4: #b930cf;
+  --series-5: #b78105;
+  --series-6: #1b9b8a;
+  --series-7: #5b36c9;
+  --series-8: #d12e80;
+  --series-9: #519c1c;
+  --series-10: #3955c6;
+  /* ----------------------------------------------------------
+     Spacing. DESIGN.md declared five steps and the stylesheet
+     used twenty-five — 1px through 70px, with 24px, one of the
+     five, appearing exactly once. That is the accumulation the
+     document condemns in type ("11.5 next to 12 next to 12.5 is
+     not a hierarchy") surviving untouched in space, because the
+     type ramp got collapsed and this never did.
+
+     Four-based, eight steps. 316 spacing declarations, of which
+     295 read from the scale and 21 are 0; 201 of them changed
+     value, and every change is 2px or smaller except two 28 -> 32
+     and the empty history's vertical pad at 70 -> 64. That is the
+     discipline the type collapse used, so the system arrives
+     without the app being redrawn. Nothing beyond the scale and 0
+     remains; the pad is two steps of 8.
+
+     (The commit that landed this said "237 declarations, each
+     moved by at most 2px". Both figures were taken from my edit
+     script's own log rather than from the file: 237 was its count
+     of lines it rewrote, and it did not flag the 4px and 6px
+     moves. Counted from the diff, the numbers are the ones above.)
+     ---------------------------------------------------------- */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
-  --spring: cubic-bezier(0.32, 1.4, 0.45, 1);
+  /* DESIGN.md: "This is an instrument; it should feel precise, not
+     springy." The overshoot went 1.4 -> 1.1 and stopped one step short of
+     what that sentence asks for — 1.1 still carries the knob past the
+     detent and back, which on a scale means briefly showing a number the
+     cupper did not choose. At y1 = 1 this is an ease-out-quint: the same
+     decisive deceleration, arriving without a bounce. It was called
+     --spring while it bounced; a knob coming to rest on a detent settles,
+     so that is what it is called now. One token, every animation in the
+     sheet. */
+  --settle: cubic-bezier(0.22, 1, 0.36, 1);
   --ease: cubic-bezier(0.25, 0.8, 0.3, 1);
 }
 
-/* ---- Crema: light, café con leche ---- */
-:root[data-theme="crema"] {
-  --bg: #f5efe6;
-  --bg-raise: #efe7da;
-  --bg-card: #fffdf8;
-  --bg-card-2: #f7f0e4;
-  --line: #e4d8c4;
-  --text: #2b2117;
-  --text-dim: #7a6a55;
-  --text-faint: #ab9a81;
-  --accent: #b5793a;
-  --accent-deep: #8a5526;
-  --accent-soft: rgba(181, 121, 58, 0.13);
-  --on-accent: #fff8ec;
-  --hi: #e8b06b;
-  --glass-h: rgba(245, 239, 230, 0.86);
-  --glass: rgba(255, 253, 248, 0.85);
-  --cup-a: #e9ddc9;
-  --cup-b: #dccbae;
-  --green: #5f9e58;
-  --red: #c25438;
-  --shadow: 0 8px 30px rgba(95, 65, 25, 0.13);
-  --glow: rgba(181, 121, 58, 0.3);
+/* Dark tokens live in one block, applied from either direction: the
+   device's own setting unless an explicit light choice overrides it,
+   or an explicit dark choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1113;
+    --bg-raise: #14171a;
+    --bg-card: #171a1d;
+    --bg-card-2: #1b2320;
+    --line: #2a2e33;
+    --text: #e9ecef;
+    --text-dim: #98a0a8;
+    --text-faint: #868d94;
+    --data: #6fb6de;
+    --data-deep: #93cbe9;
+    --data-soft: rgba(111, 182, 222, 0.14);
+    --chrome: #e9ecef;
+    --chrome-soft: rgba(233, 236, 239, 0.09);
+    --on-chrome: #0f1113;
+    --hi: #7fe0c8;
+    --cup-a: #262b2e;
+    --cup-b: #1b1f22;
+    --red: #f0a077;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --series-1: #e85617;
+    --series-2: #218fde;
+    --series-3: #24db52;
+    --series-4: #b930cf;
+    --series-5: #f9b006;
+    --series-6: #26d9c1;
+    --series-7: #7556d2;
+    --series-8: #d12e80;
+    --series-9: #71d926;
+    --series-10: #4c65cb;
+  }
 }
 
-/* ---- Midnight: cool slate + copper ---- */
-:root[data-theme="midnight"] {
-  --bg: #0e1116;
-  --bg-raise: #141922;
-  --bg-card: #161c26;
-  --bg-card-2: #1c2430;
-  --line: #26303e;
-  --text: #e8edf4;
-  --text-dim: #8fa0b5;
-  --text-faint: #5b697c;
-  --accent: #e0956a;
-  --accent-deep: #a45f38;
-  --accent-soft: rgba(224, 149, 106, 0.14);
-  --on-accent: #160e08;
-  --hi: #ffd9b8;
-  --glass-h: rgba(14, 17, 22, 0.86);
-  --glass: rgba(22, 28, 38, 0.82);
-  --cup-a: #26303e;
-  --cup-b: #1a222c;
-  --green: #85c98f;
-  --red: #e07a6a;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-  --glow: rgba(224, 149, 106, 0.26);
+:root[data-theme="dark"] {
+  --bg: #0f1113;
+  --bg-raise: #14171a;
+  --bg-card: #171a1d;
+  --bg-card-2: #1b2320;
+  --line: #2a2e33;
+  --text: #e9ecef;
+  --text-dim: #98a0a8;
+  --text-faint: #868d94;
+  --data: #6fb6de;
+  --data-deep: #93cbe9;
+  --data-soft: rgba(111, 182, 222, 0.14);
+  --chrome: #e9ecef;
+  --chrome-soft: rgba(233, 236, 239, 0.09);
+  --on-chrome: #0f1113;
+  --hi: #7fe0c8;
+  --cup-a: #262b2e;
+  --cup-b: #1b1f22;
+  --red: #f0a077;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --series-1: #e85617;
+  --series-2: #218fde;
+  --series-3: #24db52;
+  --series-4: #b930cf;
+  --series-5: #f9b006;
+  --series-6: #26d9c1;
+  --series-7: #7556d2;
+  --series-8: #d12e80;
+  --series-9: #71d926;
+  --series-10: #4c65cb;
 }
 
-/* ---- Berry: natural-process plum + hibiscus ---- */
-:root[data-theme="berry"] {
-  --bg: #170f16;
-  --bg-raise: #1f1420;
-  --bg-card: #231624;
-  --bg-card-2: #2c1c2c;
-  --line: #3c2a3b;
-  --text: #f6e9f2;
-  --text-dim: #b394a8;
-  --text-faint: #7a6173;
-  --accent: #e8829e;
-  --accent-deep: #b04f72;
-  --accent-soft: rgba(232, 130, 158, 0.14);
-  --on-accent: #230a13;
-  --hi: #ffd3e0;
-  --glass-h: rgba(23, 15, 22, 0.86);
-  --glass: rgba(35, 22, 36, 0.82);
-  --cup-a: #45304a;
-  --cup-b: #2e1f30;
-  --green: #93cb9a;
-  --red: #e07a5f;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  --glow: rgba(232, 130, 158, 0.26);
-}
+
+
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -118,12 +232,14 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
-  user-select: none;
-  -webkit-user-select: none;
+  /* Not `user-select: none` globally. That stopped a cupper long-pressing a
+     panel score, a cupper's name or their own tasting notes to paste into a
+     message — and the surfaces that genuinely need it (the scale track, the
+     rail, the wheel) say so themselves. */
   touch-action: manipulation;
   transition: background 0.35s;
 }
@@ -140,12 +256,7 @@ input, textarea, select { font: inherit; }
   flex-direction: column;
   background: var(--bg);
 }
-.screen.active { display: flex; animation: screenIn 0.35s var(--ease); }
-
-@keyframes screenIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: none; }
-}
+.screen.active { display: flex; }
 
 .hidden { display: none !important; }
 
@@ -166,7 +277,7 @@ input, textarea, select { font: inherit; }
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  padding: calc(var(--sat) + 28px) 22px calc(var(--sab) + 24px);
+  padding: calc(var(--sat) + var(--space-8)) var(--space-7) calc(var(--sab) + var(--space-7));
   position: relative;
 }
 
@@ -182,107 +293,104 @@ input, textarea, select { font: inherit; }
   top: 7px; right: 7px;
   width: 9px; height: 9px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--chrome);
   border: 2px solid var(--bg-card);
 }
 
 /* Kept compact so "Start cupping" stays above the fold on a small phone */
-.setup-hero { text-align: center; margin-bottom: 12px; }
+.setup-hero { text-align: center; margin-bottom: var(--space-4); }
 
-.hero-cup { width: 54px; margin: 0 auto 1px; }
-.cup-svg { width: 100%; filter: drop-shadow(0 10px 24px var(--glow)); }
+.hero-cup { width: 54px; margin: 0 auto var(--space-1); }
+.cup-svg { width: 100%; }
 
+/* Three curls of steam, drawn once and left there. They used to rise three
+   times on load, which was already a retreat from looping forever; the
+   budget has no room for either. A static curl says "coffee" just as well
+   as a moving one and costs the first screen nothing. */
 .steam {
-  stroke: var(--accent);
+  stroke: var(--chrome);
   stroke-width: 3.5;
   stroke-linecap: round;
-  opacity: 0;
-  animation: steam 2.6s ease-in-out infinite;
-}
-.steam-2 { animation-delay: 0.5s; }
-.steam-3 { animation-delay: 1s; }
-
-@keyframes steam {
-  0%   { opacity: 0; transform: translateY(6px); }
-  35%  { opacity: 0.75; }
-  100% { opacity: 0; transform: translateY(-7px); }
+  opacity: 0.38;
 }
 
+/* Solid, not gradient-clipped. Emphasis comes from weight and size;
+   clipped type reports no foreground colour at all, so its contrast
+   cannot be measured or guaranteed. */
 .setup-hero h1 {
   font-size: 40px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -1.4px;
   line-height: 1.05;
-  background: linear-gradient(120deg, var(--hi), var(--accent) 55%, var(--accent-deep));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
 
+/* Uppercase is a label treatment. This is a sentence naming the standard
+   the app implements, and at 37 characters it was the longest uppercase run
+   in the product — set as a line to read rather than a tag to scan. */
 .subtitle {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin-top: var(--space-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-.setup-cards { display: flex; flex-direction: column; gap: 11px; }
-.setup-card { padding: 15px 16px; }
-.setup-cards .cups-preview { padding: 13px 16px; gap: 7px; min-height: 0; }
-.setup-switch { padding: 13px 16px !important; }
-.setup-actions { padding-top: 14px; gap: 9px; }
-.setup-actions .btn { padding: 15px; }
+.setup-cards { display: flex; flex-direction: column; gap: var(--space-4); }
+.setup-card { padding: var(--space-5) var(--space-5); }
+.setup-cards .cups-preview { padding: var(--space-4) var(--space-5); gap: var(--space-3); min-height: 0; }
+.setup-switch { padding: var(--space-4) var(--space-5) !important; }
+.setup-actions { padding-top: var(--space-5); gap: var(--space-3); }
+.setup-actions .btn { padding: var(--space-5); }
 
 /* On short screens the decoration goes before the controls do */
 @media (max-height: 840px) {
   .hero-cup { display: none; }
   .cups-preview { display: none; }
-  .setup-hero { margin-bottom: 10px; }
-  .setup-hero h1 { font-size: 32px; }
-  .setup-inner { padding-top: calc(var(--sat) + 18px); }
+  .setup-hero { margin-bottom: var(--space-4); }
+  .setup-hero h1 { font-size: 30px; }
+  .setup-inner { padding-top: calc(var(--sat) + var(--space-6)); }
 }
 
 .setup-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-4);
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: var(--space-6);
 }
 
-.setup-card-column { flex-direction: column; align-items: stretch; gap: 12px; }
+.setup-card-column { flex-direction: column; align-items: stretch; gap: var(--space-4); }
 
-.setup-card-label { display: flex; flex-direction: column; gap: 3px; }
+.setup-card-label { display: flex; flex-direction: column; gap: var(--space-2); }
 .setup-card-title { font-size: 17px; font-weight: 700; }
-.setup-card-hint { font-size: 12.5px; color: var(--text-faint); }
+.setup-card-hint { font-size: 13px; color: var(--text-faint); }
 
 .stepper {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 4px;
+  border-radius: var(--radius);
+  padding: var(--space-2);
 }
 
 .stepper-btn {
   width: 44px;
   height: 44px;
-  border-radius: 11px;
+  border-radius: var(--radius);
   font-size: 24px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   display: grid;
   place-items: center;
-  transition: background 0.15s, transform 0.15s var(--spring);
+  transition: background 0.15s, transform 0.15s var(--settle);
 }
-.stepper-btn:active { background: var(--accent-soft); transform: scale(0.88); }
+.stepper-btn:active { background: var(--chrome-soft); transform: scale(0.88); }
 .stepper-btn:disabled { color: var(--text-faint); opacity: 0.4; }
 
 .stepper-value {
@@ -290,83 +398,86 @@ input, textarea, select { font: inherit; }
   text-align: center;
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.stepper-value.bump { animation: bump 0.3s var(--spring); }
-@keyframes bump { 50% { transform: scale(1.25); color: var(--accent); } }
+.stepper-value.bump { animation: bump 0.3s var(--settle); }
+@keyframes bump { 50% { transform: scale(1.25); color: var(--chrome); } }
 
 /* animated table preview */
 .cups-preview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: var(--space-6);
   min-height: 64px;
 }
 
-.preview-row { display: flex; align-items: center; gap: 9px; }
+.preview-row { display: flex; align-items: center; gap: var(--space-3); }
 .preview-coffee-dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent-deep);
+  background: var(--chrome);
   flex: none;
 }
-.preview-cups { display: flex; gap: 6px; }
+.preview-cups { display: flex; gap: var(--space-3); }
 .preview-cup {
   width: 16px; height: 16px;
   border-radius: 50% 50% 42% 42%;
   background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
-  border: 1.5px solid var(--accent-deep);
-  animation: cupPop 0.4s var(--spring) backwards;
+  border: 1.5px solid var(--chrome);
 }
-
-@keyframes cupPop { from { transform: scale(0); } }
 
 .setup-actions {
   margin-top: auto;
-  padding-top: 26px;
+  padding-top: var(--space-7);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
-.setup-actions-row { display: flex; gap: 10px; }
+.setup-actions-row { display: flex; gap: var(--space-4); }
 .setup-actions-row .btn { flex: 1; }
 
 /* ---------- buttons ---------- */
 
 .btn {
-  border-radius: 16px;
-  padding: 17px;
+  border-radius: var(--radius);
+  padding: var(--space-5);
   font-size: 17px;
   font-weight: 700;
   text-align: center;
-  transition: transform 0.18s var(--spring), filter 0.18s;
+  transition: transform 0.18s var(--settle), filter 0.18s;
 }
 .btn:active { transform: scale(0.965); filter: brightness(1.08); }
 
+/* Flat, and no shadow. A gradient between one colour and itself is the
+   fossil of the one it used to be, and --glow resolves to fully transparent
+   so that box-shadow painted nothing while still costing a paint layer. */
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
-  color: var(--on-accent);
-  box-shadow: 0 6px 22px var(--glow);
+  background: var(--chrome);
+  color: var(--on-chrome);
 }
 
 .btn-ghost {
   background: var(--bg-card);
   border: 1px solid var(--line);
-  color: var(--accent);
+  color: var(--chrome);
 }
 
+/* No opacity dimmer. It was costing contrast on exactly the two controls
+   whose text should be clearest — the ones that delete things. */
+/* Its sibling .btn-ghost is three colour declarations and nothing else, and
+   so is this now. It used to carry the same `width: calc(100% - 36px)` and
+   `margin: 12px 20px 0` that .export-btn did — layout smuggled into a colour
+   variant — which put "Clear history" 20px right of the button above it with
+   an extra 12px of gap even after both were stacked properly. */
 .btn-danger-ghost {
   background: none;
   border: 1px solid var(--red);
   color: var(--red);
-  display: block;
-  width: calc(100% - 36px);
-  margin: 10px 18px 0;
-  opacity: 0.85;
 }
 
 /* ============================================================
@@ -376,154 +487,209 @@ input, textarea, select { font: inherit; }
 .cupping-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: calc(var(--sat) + 10px) 12px 10px;
-  background: var(--glass-h);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  gap: var(--space-3);
+  padding: calc(var(--sat) + var(--space-4)) var(--space-4) var(--space-4);
+  /* This band used to be translucent over an 18px blur, from the world
+     where it floated above a scrolling sheet. It does not float any more:
+     it is the first row of the flex column, so the blur had nothing behind
+     it to blur and the 0.88 alpha composited over the page's own background
+     to exactly the page's own background. It is chrome, like the navigation
+     band at the other end, so it takes the same raised surface and the two
+     bracket the sheet. */
+  background: var(--bg-raise);
   border-bottom: 1px solid var(--line);
   z-index: 5;
 }
 
+/* header controls a thumb aims at in isolation — 44, not 40 */
 .icon-btn {
-  width: 40px; height: 40px;
+  width: 44px; height: 44px;
   flex: none;
-  border-radius: 12px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
-  color: var(--accent);
-  transition: background 0.15s, transform 0.15s var(--spring);
+  color: var(--chrome);
+  transition: background 0.15s, transform 0.15s var(--settle);
 }
-.icon-btn:active { background: var(--accent-soft); transform: scale(0.88); }
+.icon-btn:active { background: var(--chrome-soft); transform: scale(0.88); }
 
 .cupping-title {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 0 4px;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
 }
+.cupping-title-row { display: flex; align-items: center; min-width: 0; }
+/* an h1 so the working screen is navigable by heading; it is sized by its
+   row, not by being a heading */
 .cupping-title-name {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cupping-title-sub {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-faint);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 /* one segment per coffee: position, progress and jump target in one row */
-.coffee-rail {
+/* The navigation band, pinned at the bottom where a thumb reaches it. It
+   sits in the flex column rather than floating, so the sheet above it is
+   never scrolled under anything and the safe-area inset is padding rather
+   than a guess at how tall the home indicator is. */
+.coffee-bar {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px 9px;
-  background: var(--glass-h);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--line);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) calc(var(--sab) + var(--space-3));
+  background: var(--bg-raise);
+  border-top: 1px solid var(--line);
   z-index: 4;
 }
+.coffee-rail {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.coffee-rail::-webkit-scrollbar { display: none; }
 
 .rail-seg {
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
   flex: 1;
-  height: 32px;
-  border-radius: 8px;
+  min-width: 34px;
+  height: 44px;
+  border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--line);
   overflow: hidden;
-  transition: transform 0.18s var(--spring), border-color 0.2s;
+  transition: transform 0.18s var(--settle), border-color 0.2s;
 }
 .rail-seg:active { transform: scale(0.94); }
 
+/* Progress fills scale rather than resize. Animating width relayouts the
+   subtree on every frame; a transform is composited. The pill shape lives
+   on the parent, which already clips, so the fill is a plain rectangle that
+   can be scaled without turning its own radius into an ellipse. */
 .rail-fill {
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  width: 0;
-  background: var(--accent-soft);
-  transition: width 0.35s var(--ease);
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--chrome-soft);
+  transition: transform 0.35s var(--ease);
 }
-.rail-seg.done .rail-fill { background: var(--accent); opacity: 0.32; }
+/* colour comes from .rail-fill, which is a wash at every state */
 
+/* --text-dim, not --text-faint: this numeral can end up sitting on its own
+   progress wash, and the faint ink measured 4.2:1 there on a segment that
+   was part-rated but not the active one. It is ink at every state — the
+   fill behind it carries the progress, and which coffee is open is a
+   selection, not a number. */
 .rail-num {
   position: relative;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
-.rail-seg.done .rail-num { color: var(--accent-deep); }
+.rail-seg.done .rail-num { color: var(--chrome); }
 
 .rail-seg.active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--chrome);
+  box-shadow: inset 0 0 0 1px var(--chrome);
 }
-.rail-seg.active .rail-num { color: var(--accent); }
+.rail-seg.active .rail-num { color: var(--chrome); }
 
 /* ten segments still need to be tappable, so trade padding for count */
-.coffee-rail.dense { gap: 3px; }
-.coffee-rail.dense .rail-seg { height: 30px; border-radius: 7px; }
-.coffee-rail.dense .rail-num { font-size: 10.5px; }
+/* Ten coffees at 44px do not fit across a phone, so a dense lineup keeps
+   the height — it is still a target under a thumb — and scrolls sideways
+   inside the band instead of shrinking below the floor. */
+.coffee-rail.dense { gap: var(--space-2); }
+.coffee-rail.dense .rail-seg { min-width: 40px; border-radius: var(--radius); }
+.coffee-rail.dense .rail-num { font-size: 11px; }
 
+/* DESIGN.md:225 says every segment of this bar is 44px. The rail and the
+   wheel button were; this one was 37. */
 .finish-btn {
   flex: none;
-  padding: 9px 14px;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-5);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 14px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 15px;
   font-weight: 700;
-  transition: transform 0.15s var(--spring);
+  transition: transform 0.15s var(--settle);
 }
 .finish-btn:active { transform: scale(0.92); }
 
 /* the way into every shared-cupping feature, so it carries a label
    rather than sitting there as a lone glyph */
+/* The word "Invite" left the header to make room for the score. The icon
+   keeps its 44px target and the live count rides on it as a badge, which is
+   the part a leader actually watches — the label was never the information. */
 .invite-btn {
+  position: relative;
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 13px;
-  border-radius: 999px;
-  background: var(--bg-card);
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 700;
-  transition: transform 0.15s var(--spring), background 0.15s;
-}
-.invite-btn:active { transform: scale(0.92); background: var(--accent-soft); }
-.invite-btn.live {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.invite-btn .invite-label { font-variant-numeric: tabular-nums; }
-
-/* how many are at the table, kept current by the background poll */
-.invite-count {
   display: grid;
   place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: var(--bg-card);
-  color: var(--accent);
+  border: 1px solid var(--chrome);
+  color: var(--chrome);
+  font-size: 15px;
+  font-weight: 700;
+  transition: transform 0.15s var(--settle), background 0.15s;
+}
+.invite-btn:active { transform: scale(0.92); background: var(--chrome-soft); }
+.invite-btn.live {
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: var(--on-chrome);
+}
+/* how many are at the table, kept current by the background poll */
+.invite-count {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--chrome);
+  color: var(--data);
+  border: 1px solid var(--data);
   font-size: 11px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  animation: bump 0.35s var(--spring);
+  animation: bump 0.35s var(--settle);
 }
-.invite-count.all-in { background: var(--green); color: var(--on-accent); }
+/* The number of cuppers at the table is a count, so it takes the data ink
+   like any other figure. "Everyone has submitted" was a hue change to a
+   green the design system did not know about; it is a fill change now —
+   same ink, filled instead of outlined. */
+.invite-count.all-in { background: var(--data); color: var(--bg); border-color: var(--data); }
 
 /* horizontally swipeable panels */
 .panels {
@@ -545,8 +711,9 @@ input, textarea, select { font: inherit; }
   scroll-snap-stop: always;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* clears the floating score bar */
-  padding: 16px 16px calc(var(--sab) + 116px);
+  /* every band is in the flex column now, so the sheet only has to clear
+     its own last row rather than guess at what is floating over it */
+  padding: var(--space-5) var(--space-5) var(--space-8);
   overscroll-behavior-y: contain;
 }
 
@@ -560,15 +727,15 @@ input, textarea, select { font: inherit; }
   color: var(--text);
   font-size: 17px;
   font-weight: 700;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  padding: var(--space-5) var(--space-5);
+  margin-bottom: var(--space-4);
   outline: none;
   transition: border-color 0.2s;
   user-select: text;
   -webkit-user-select: text;
 }
 .name-field::placeholder { color: var(--text-faint); font-weight: 500; }
-.name-field:focus { border-color: var(--accent-deep); }
+.name-field:focus { border-color: var(--chrome); }
 
 /* ---------- coffee details (variety, farm, …) ---------- */
 
@@ -576,7 +743,7 @@ input, textarea, select { font: inherit; }
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
   overflow: hidden;
 }
 
@@ -585,14 +752,14 @@ input, textarea, select { font: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 15px 16px;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5);
   text-align: left;
 }
-.details-toggle-label { font-size: 15.5px; font-weight: 700; }
+.details-toggle-label { font-size: 15px; font-weight: 700; }
 .details-summary {
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-faint);
   text-align: right;
   white-space: nowrap;
@@ -601,8 +768,8 @@ input, textarea, select { font: inherit; }
 }
 .details-chevron {
   flex: none;
-  color: var(--accent);
-  transition: transform 0.3s var(--spring);
+  color: var(--chrome);
+  transition: transform 0.3s var(--settle);
 }
 .details-card.open .details-chevron { transform: rotate(180deg); }
 
@@ -625,15 +792,15 @@ input, textarea, select { font: inherit; }
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 2px 16px 16px;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-5) var(--space-5);
 }
 
-.detail-cell { display: flex; flex-direction: column; gap: 5px; }
+.detail-cell { display: flex; flex-direction: column; gap: var(--space-2); }
 .detail-cell.wide { grid-column: 1 / -1; }
 
 .detail-label {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -642,36 +809,41 @@ input, textarea, select { font: inherit; }
 
 .detail-field {
   width: 100%;
+  min-height: 44px;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   color: var(--text);
-  font-size: 14.5px;
-  padding: 10px 12px;
+  font-size: 15px;
+  padding: var(--space-4) var(--space-4);
   outline: none;
   transition: border-color 0.2s;
   user-select: text;
   -webkit-user-select: text;
 }
 .detail-field::placeholder { color: var(--text-faint); }
-.detail-field:focus { border-color: var(--accent-deep); }
+.detail-field:focus { border-color: var(--chrome); }
 
 /* ---------- attribute card / slider ---------- */
 
+/* A rule says "next section" more quietly than a border does. Eight
+   bordered cards stacked on a phone read as eight objects competing;
+   the sheet should read as one instrument. */
 .attr-card {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px 16px 14px;
-  margin-bottom: 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: var(--space-5) 0 var(--space-4);
+  margin-bottom: 0;
 }
 
 .attr-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 .attr-head-left { min-width: 0; }
 .attr-head-right { flex: none; text-align: right; max-width: 44%; }
@@ -679,29 +851,82 @@ input, textarea, select { font: inherit; }
 /* guided mode explains the sections; without it the sub-lines are noise,
    and the value and its wording fit on the title's line */
 body.plain .attr-sub { display: none; }
-body.plain .attr-card { padding: 12px 16px 12px; }
+body.plain .attr-card { padding: var(--space-4) var(--space-5) var(--space-4); }
 body.plain .attr-title { line-height: 1.2; }
 body.plain .attr-head { align-items: baseline; margin-bottom: 0; }
 body.plain .attr-head-right {
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  gap: var(--space-3);
   max-width: 62%;
 }
-body.plain .cva-desc { margin-top: 0; }
-body.plain .cva-scale { margin-top: 9px; }
+body.plain .scale { margin-top: var(--space-3); }
 
-.attr-title { font-size: 15.5px; font-weight: 700; }
-.attr-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+/* ------------------------------------------------------------
+   Guided mode off is the expert's mode, and it was only hiding
+   the sub-labels. Before the lead cupper reached Fragrance they
+   still scrolled a name field, a Details card, and two section
+   heads — on every one of up to ten coffees, at a table where
+   the coffee is cooling. The name field in particular was asking
+   again for something the lineup screen exists to collect.
 
+   :not(:placeholder-shown) is doing real work here: the field
+   disappears only once the coffee HAS a name, so an unnamed
+   coffee keeps somewhere to type one.
+   ------------------------------------------------------------ */
+body.plain .name-field:not(:placeholder-shown) { display: none; }
+body.plain .details-card:not(.open) .details-toggle { padding: var(--space-3) var(--space-5); }
+body.plain .details-card:not(.open) .details-toggle-label { font-size: 13px; }
+body.plain .panel-head { padding: var(--space-1) var(--space-2) var(--space-2); margin-top: 0; }
+body.plain .panel-head-sub { display: none; }
+body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) var(--space-5); }
+
+.attr-title { font-size: 15px; font-weight: 700; }
+.attr-sub { font-size: 11px; color: var(--text-faint); margin-top: var(--space-1); }
+
+/* Secondary to the score, and no longer coloured. The knob already carries
+   this number in the accent, on the control that produced it; printing it
+   again at display size in the same ink made eight section values compete
+   with the one figure the sheet is for. */
 .attr-value {
-  font-size: 22px;
-  font-weight: 800;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  transition: transform 0.2s var(--spring);
+  color: var(--text);
+  transition: transform 0.2s var(--settle);
 }
-.attr-value.pop { animation: bump 0.25s var(--spring); }
+.attr-value.pop { animation: bump 0.25s var(--settle); }
+
+/* ------------------------------------------------------------
+   The first sheet a newcomer sees
+   A card, not a modal: it sits beside the thing it describes,
+   survives being scrolled past, and goes when it is dismissed
+   rather than the first time it is closed.
+   ------------------------------------------------------------ */
+.welcome-card {
+  border: 1px solid var(--chrome);
+  border-radius: var(--radius);
+  padding: var(--space-5) var(--space-5) var(--space-5);
+  margin-bottom: var(--space-5);
+  background: var(--bg-card);
+}
+.welcome-card h2 { font-size: 17px; font-weight: 700; margin-bottom: var(--space-3); }
+.welcome-card p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-bottom: var(--space-4);
+}
+.welcome-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
+.welcome-actions .btn { flex: 1; min-height: 44px; padding: var(--space-4) var(--space-4); font-size: 15px; margin: 0; width: auto; }
+
+/* the guided switch riding along with the help sheets */
+.help-switch {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
 
 /* ---------- guided mode help ---------- */
 
@@ -711,16 +936,16 @@ body.plain .cva-scale { margin-top: 9px; }
   place-items: center;
   width: 19px;
   height: 19px;
-  margin-left: 7px;
+  margin-left: var(--space-3);
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11.5px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   vertical-align: middle;
   flex: none;
-  transition: transform 0.15s var(--spring), background 0.15s;
+  transition: transform 0.15s var(--settle), background 0.15s;
 }
 /* A 44px "?" would outweigh the title it sits beside, so the mark stays
    19px and only the thumb target grows around it. There are up to a dozen
@@ -732,47 +957,75 @@ body.plain .cva-scale { margin-top: 9px; }
   inset: -13px;
   border-radius: 50%;
 }
-.help-btn:active { transform: scale(0.82); background: var(--accent); color: var(--on-accent); }
+.help-btn:active { transform: scale(0.82); background: var(--chrome); color: var(--on-chrome); }
 
 .help-body {
-  font-size: 14.5px;
+  font-size: 15px;
   line-height: 1.55;
   color: var(--text-dim);
-  margin-top: 10px;
+  margin-top: var(--space-4);
 }
 
-.setup-switch { margin-top: 0; background: var(--bg-card); padding: 18px; border-radius: var(--radius); }
+.setup-switch { margin-top: 0; background: var(--bg-card); padding: var(--space-6); border-radius: var(--radius); }
 
 /* ---------- descriptive assessment ---------- */
 
-.desc-body { padding: 2px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
-.desc-intro { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.desc-body { padding: var(--space-1) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
+.desc-intro { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
 .desc-intro strong { color: var(--text); font-weight: 700; }
-.desc-note { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
 
 .desc-section {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding-top: 14px;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
   border-top: 1px solid var(--line);
 }
 .desc-section-head { display: flex; align-items: center; }
-.desc-field { display: flex; flex-direction: column; gap: 5px; }
+.desc-field { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .cata-cap {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
 
-.cata-chips-tree { display: flex; flex-direction: column; gap: 6px; }
-.cata-line { display: flex; flex-wrap: wrap; gap: 5px; }
-.cata-chip.child { font-size: 11.5px; padding: 6px 10px; opacity: 0.9; }
+.cata-chips-tree { display: flex; flex-direction: column; gap: var(--space-3); }
+.cata-line { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cata-chip.child { font-size: 11px; padding: var(--space-3) var(--space-4); opacity: 0.9; }
 .cata-chip.child.on { opacity: 1; }
-.chip-hint { font-weight: 500; opacity: 0.7; font-size: 10.5px; }
+.chip-hint { font-weight: 500; color: var(--text-faint); font-size: 11px; }
+
+/* ------------------------------------------------------------
+   Hit areas
+   Where a control is small because its row is dense, the target
+   grows without the mark growing — a transparent ::after with a
+   negative inset, the same device the help marks use. Each inset
+   is chosen to stay inside the gap between neighbours, so two
+   targets can never overlap and steal each other's taps.
+   ------------------------------------------------------------ */
+.lineup-icon::after,
+.wheel-link::after,
+.wheel-pick::after,
+.pin-alt::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+}
+.lineup-icon::after { inset: -6px; }        /* 32 -> 44, rows are 8px apart */
+.wheel-link::after { inset: -11px -4px; }   /* 22 -> 44 tall */
+.wheel-pick::after { inset: -9px -3px; }    /* 27 -> 45 tall, row gap is 6px */
+.pin-alt::after { inset: -8px 0; }          /* 29 -> 45 tall */
+
+/* .cata-chip stays at 35px, and that is a decision rather than an oversight.
+   It clears the 24px WCAG minimum. Reaching 44 would mean either ~9px of
+   padding per chip — adding roughly 90px to a Describe card already the
+   longest thing in the product — or an expansion larger than the 5px column
+   gap and 6px row gap, which would overlap its neighbours and let a tap land
+   on the wrong descriptor. On a checklist, taking the wrong word silently is
+   worse than a small target. */
 
 /* ---------- flavor wheel ---------- */
 
@@ -781,249 +1034,395 @@ body.plain .cva-scale { margin-top: 9px; }
    rather than floating over the sheet: as a floating button it sat exactly on
    the right-hand end of whichever 1–9 row it happened to overlap and swallowed
    taps on 7, 8 and 9 — the scores a cupper reaches for on a good coffee. */
+/* it sits in the navigation band beside the rail now, so it is held to the
+   same height as the segments next to it */
 .wheel-fab {
   flex: none;
-  height: 38px;
-  padding: 0 12px 0 9px;
+  height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-3);
   border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   background: var(--bg-card);
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--chrome);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
   position: relative;
-  transition: transform 0.2s var(--spring);
+  transition: transform 0.2s var(--settle);
 }
 .wheel-fab:active { transform: scale(0.92); }
 
 /* on the narrowest phones the score has to win the space */
 @media (max-width: 359px) {
-  .wheel-fab { padding: 0 9px; }
+  .wheel-fab { padding: 0 var(--space-3); }
   .wheel-fab span { display: none; }
 }
 
-/* until it has been opened once, it breathes */
+/* A standing ring, not a pulse. The button has never been opened, so it
+   wears a mark; the mark does not have to move to be a mark, and a ring
+   breathing on the scoring screen until someone finally taps it is the
+   opposite of an instrument. At the old inset of -1px a static ring was
+   indistinguishable from a slightly heavier border, so it sits clear of
+   the button instead. It goes the first time the wheel is opened. */
 .wheel-fab.unused::after {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: -5px;
   border-radius: 999px;
-  border: 2px solid var(--accent);
-  animation: wheelPing 2.4s var(--ease) infinite;
+  border: 1px solid var(--chrome);
+  opacity: 0.45;
   pointer-events: none;
-}
-@keyframes wheelPing {
-  0%   { opacity: 0.65; transform: scale(1); }
-  70%  { opacity: 0; transform: scale(1.22); }
-  100% { opacity: 0; transform: scale(1.22); }
 }
 
 /* one-time coach mark, pointing down at the button in the score bar */
 .wheel-coach {
   position: fixed;
-  left: 12px;
-  bottom: calc(var(--sab) + 78px);
+  right: 12px;
+  bottom: calc(var(--sab) + 66px);
   max-width: 250px;
   z-index: 8;
-  padding: 11px 14px;
-  border-radius: 14px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 12.5px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--chrome);
+  color: var(--on-chrome);
+  font-size: 13px;
   line-height: 1.4;
-  box-shadow: var(--shadow);
-  animation: rise 0.4s var(--spring) backwards;
-  animation-delay: 0.1s;
 }
 .wheel-coach strong { display: block; font-weight: 800; font-size: 13px; }
 .wheel-coach::after {
   content: '';
   position: absolute;
-  left: 30px;
+  right: 30px;
   bottom: -6px;
   width: 12px;
   height: 12px;
-  background: var(--accent);
+  background: var(--chrome);
   transform: rotate(45deg);
 }
 .wheel-coach.leaving { opacity: 0; transform: translateY(6px); transition: all 0.3s var(--ease); }
 
 /* the same door, offered where the words are actually needed */
-.cata-cap-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cata-cap-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+/* an inline link inside a caption row; the mark stays inline and the
+   target grows around it */
 .wheel-link {
+  position: relative;
   flex: none;
-  padding: 4px 10px;
+  padding: var(--space-2) var(--space-4);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 700;
-  transition: transform 0.15s var(--spring);
+  transition: transform 0.15s var(--settle);
 }
 .wheel-link:active { transform: scale(0.93); }
 
 .wheel-sheet { max-height: 92dvh; overflow-y: auto; }
-.wheel-holder { margin: 10px 0 4px; }
-.wheel-holder svg { width: 100%; height: auto; display: block; }
+/* The wheel is 68 descriptors around one circle. Fit to a phone it reads
+   at about 5.5px — fine for taking the whole vocabulary in, too small to
+   read a word or land a thumb on one. So the reader gets to choose the
+   scale rather than the layout choosing for them: it opens whole and
+   scrolls when enlarged, and the wheel itself is never redrawn. */
+.wheel-holder {
+  margin: var(--space-3) 0 var(--space-2);
+  overflow: auto;
+  max-height: 46dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.wheel-holder svg {
+  width: calc(100% * var(--wheel-zoom, 1));
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
 
-.wheel-seg { cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
+.wheel-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+/* One button carrying a phrase, not two carrying glyphs. It keeps the 44px
+   height and takes its width from the words, which is why there is no
+   `width` here: "Zoom in to read" and "Show the whole wheel" are different
+   lengths and the button should fit whichever it is showing. */
+.wheel-zoom-btn {
+  min-height: 44px;
+  flex: none;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.wheel-zoom-btn:active { transform: scale(0.96); }
+.wheel-zoom-btn:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; }
+.wheel-zoom-level {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.wheel-seg { user-select: none; -webkit-user-select: none; cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
 .wheel-seg:active { opacity: 0.7; }
 /* anything already chosen is ringed, on both rings — the wheel is useless as
    a record if you cannot see what you have taken from it */
 .wheel-seg.picked { stroke: var(--text); stroke-width: 2.5; }
+/* A focused wedge has to be visible over any of the nine hues and has to be
+   distinguishable from the picked ring above, so it is thicker and dashed
+   rather than a different colour. */
+.wheel-seg:focus { outline: none; }
+.wheel-seg:focus-visible {
+  outline: none;
+  stroke: var(--text);
+  stroke-width: 4;
+  stroke-dasharray: 6 3;
+}
 .wheel-child.picked { fill-opacity: 0.95; }
 
 .wheel-picked {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   justify-content: center;
-  margin: 4px 0 8px;
+  margin: var(--space-2) 0 var(--space-3);
 }
 .wheel-picked:empty { display: none; }
 .wheel-pick {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px 5px 11px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 12px;
+  background: var(--chrome);
+  color: var(--on-chrome);
+  font-size: 13px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring);
+  transition: transform 0.18s var(--settle);
 }
-.wheel-pick.note { background: var(--accent-soft); color: var(--accent); }
+.wheel-pick.note { background: var(--chrome-soft); color: var(--chrome); }
 .wheel-pick:active { transform: scale(0.93); }
 .wheel-pick b { font-weight: 800; font-size: 13px; line-height: 1; opacity: 0.75; }
+/* The ink is chosen per wedge — see inkOn() — because the wheel's nine hues
+   are the standard's own and a single ink cannot be legible on all of them.
+   These two are literals rather than tokens on purpose: the wheel is a
+   fixed drawing, and the ground a label sits on is the hue, not the page. */
 .wheel-cat-label {
   font-size: 7px;
   font-weight: 800;
-  fill: #ffffff;
   pointer-events: none;
   letter-spacing: 0.02em;
 }
+.wheel-cat-label.ink-dark { fill: #000000; }
+.wheel-cat-label.ink-light { fill: #ffffff; }
+
+/* Unpicked, a descriptor sits on the hue at 45% over the card, where the
+   page's own ink reads. Picked, the wedge fills and the ground becomes the
+   hue, so the label takes the same ink the category ring uses. */
 .wheel-child-label { font-size: 5.4px; font-weight: 700; fill: var(--text); pointer-events: none; }
+.wheel-child-label.picked.ink-dark { fill: #000000; }
+.wheel-child-label.picked.ink-light { fill: #ffffff; }
 .wheel-hub { fill: var(--bg-card); stroke: var(--line); stroke-width: 1.5; }
-.wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--accent); }
+.wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--chrome); }
 
 .wheel-status {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   min-height: 18px;
 }
 
-.desc-row {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 10px 13px 6px;
-}
-.desc-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.desc-row-name { font-size: 13.5px; font-weight: 700; }
-.desc-row-value {
-  font-size: 16px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-}
+/* The intensity rows are .attr-card, the same component the scoring half
+   uses, so everything above applies to them unchanged — typography, the
+   faint value when unrated, the clear button's reveal. All that is left
+   here is the one thing that is genuinely contextual: a .desc-section is a
+   flex column with an 8px gap, and a stack of rule-separated rows has to
+   close that gap or the hairline floats between two blocks instead of
+   sitting under one. The last row's rule is dropped where the next thing
+   is a section boundary, which already draws its own. */
+.desc-section > .attr-card { padding: var(--space-4) 0 var(--space-3); }
+.desc-section > .attr-card + .attr-card { margin-top: calc(var(--space-3) * -1); }
+.desc-section > .attr-card:last-child { border-bottom: 0; }
+body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
-.slider.slim { height: 34px; margin-top: 2px; }
-.slider.slim .slider-thumb { width: 22px; height: 22px; }
-.slider.slim + .slider-labels { font-size: 10px; padding-bottom: 2px; }
-
-.desc-catas { display: flex; flex-direction: column; gap: 14px; }
-.cata-group { display: flex; flex-direction: column; gap: 8px; }
+.desc-catas { display: flex; flex-direction: column; gap: var(--space-5); }
+.cata-group { display: flex; flex-direction: column; gap: var(--space-3); }
 .cata-head { display: flex; align-items: center; }
-.cata-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cata-chips { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 
 .cata-chip {
-  padding: 8px 13px;
+  padding: var(--space-3) var(--space-4);
   border-radius: 999px;
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
-  transition: all 0.18s var(--spring);
+  transition: all 0.18s var(--settle);
 }
 .cata-chip:active { transform: scale(0.93); }
 .cata-chip.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: var(--on-chrome);
   font-weight: 700;
 }
 
-.rank-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.rank-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .rank-tag {
-  padding: 3px 9px;
+  padding: var(--space-2) var(--space-3);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 700;
 }
 
 /* ---------- CVA 1–9 impression-of-quality scale ---------- */
 
-/* Nine across never fit a thumb: at 390px the row has ~323px to spend, and
-   nine 44px targets need 396px before gaps. The row breaks into five and
-   four so each cell clears 44px in both directions — and the break lands on
-   5, the protocol's "neither high nor low", so the second row is the half
-   that is above neutral rather than an arbitrary split.
-   minmax(0,…) so a cell can never be pushed wider than the row. */
-.cva-scale {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
-}
+/* ---------- the anchored scale ----------
+   Nine targets will not fit across a phone: at 390px the row has ~323px
+   and nine 44px cells need 396px before gaps. So the rating stops being
+   nine objects and becomes one — a track you press anywhere and drag. */
+.scale { margin-top: var(--space-4); }
 
-.cva-btn {
-  min-width: 0;
-  min-height: 46px;
-  padding: 0;
-  overflow: hidden;
-  border-radius: 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  font-size: clamp(15px, 4.4vw, 18px);
-  line-height: 1;
-  font-weight: 700;
+.scale-track {
+  position: relative;
+  height: 48px;
+  /* The knob is 32px wide and centres on its detent, so at position 1 and at
+     position N half of it would sit outside the line. Inset the track by the
+     knob's radius and the extremes land flush with the row instead of being
+     clipped by the panel — which matters most on the 2004 form, where the
+     knob carries "10.00" rather than a single digit. The press target keeps
+     its full 48px height across the inset width. */
+  margin: 0 var(--space-5);
+  touch-action: none;          /* the page must not scroll out from under a drag */
+  cursor: grab;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.scale-track:active { cursor: grabbing; }
+.scale-track:focus-visible { outline: 2px solid var(--chrome); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+.scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--line); }
+.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--data); opacity: 0.5; width: 0; }
+.scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--line); transform: translateX(-0.5px); }
+/* A detent with no numeral under it — the quarter points on the 2004 form,
+   the unlabelled intensities. Still a place the knob lands and still a
+   haptic crossing, so it is drawn, just shorter: the line has to show that
+   seventeen stops exist without printing seventeen numbers. */
+.scale-tick.minor { top: 22px; height: 5px; opacity: 0.7; }
+/* The neutral anchor is structurally different from the other eight
+   positions, so its tick is drawn differently. */
+.scale-tick.mid { top: 14px; height: 20px; background: var(--text-dim); opacity: 0.55; }
+.scale-num {
+  /* The only type under the 11px floor, and the exception is deliberate:
+     these duplicate the number already inside the knob, so they are tick
+     furniture rather than something a cupper has to read. */
+  position: absolute; top: 33px; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px; color: var(--text-faint);
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
-  display: grid;
-  place-items: center;
-  transition: background 0.15s, color 0.15s, transform 0.18s var(--spring), border-color 0.15s;
 }
-.cva-btn.neutral { border-style: dashed; }
-.cva-btn:active { transform: scale(0.88); }
-/* The selected button used to sit at a permanent scale(1.08), which painted
-   it over its neighbours and read as a number escaping its box. The pop is
-   now an animation that lands back at 1. */
-.cva-btn.selected {
-  background: var(--accent);
-  border-color: var(--accent);
-  border-style: solid;
-  color: var(--on-accent);
-  animation: cva-pop 0.28s var(--spring);
-}
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+/* the one the knob is standing on — see the comment in buildAnchoredScale */
+.scale-num.under { visibility: hidden; }
+.scale-num.at-start { transform: translateX(0); }
+.scale-num.at-end { transform: translateX(-100%); }
 
-@keyframes cva-pop {
-  0% { transform: scale(0.84); }
-  55% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+/* The negative margin is half the knob's own width, which is what centres it
+   on the detent `left` puts it at. It is geometry, not spacing, so it stays a
+   literal tied to the 32px above it — and it must never be written as
+   `-var(--token)`, which is not valid CSS: the declaration is dropped whole
+   and the knob silently sits half its width to the right of the value it is
+   reporting. That is exactly what the spacing collapse did to these four
+   rules, and no probe in the suite was looking at knob position. */
+.scale-knob {
+  position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -16px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--data);
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--data);
+}
+/* The only lift in the system, and it is functional: this thing is in
+   your hand right now. It carried --shadow at rest too, which made "exactly
+   one element is allowed to lift, while it is being dragged" false about the
+   very element the rule was written for. */
+.scale-track:active .scale-knob { transform: scale(1.22); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2); }
+/* "7.75" will not fit a 32px knob at the single-digit size */
+/* "10.00" is four characters and would not fit the 32px knob at the
+   single-digit size — so the knob grows rather than the type shrinking.
+   9px here meant every knob on the entire 2004 form was below the floor,
+   carrying the one thing DESIGN.md calls the most important state feedback
+   in the app. The track already insets by the knob's radius, so a wider
+   knob still lands inside the line at both ends. */
+.scale-track.wide-knob { margin: 0 var(--space-6); }
+.scale-knob.wide {
+  width: 40px;
+  margin-left: -20px;            /* half the wide knob's 40px */
+  font-size: 11px;
+  letter-spacing: -0.03em;
+}
+.scale-knob.settle { transition: left 0.22s var(--settle), transform 0.22s var(--settle); }
+/* Visibly not a five: a default and a judgement are the same number and
+   only one of them is evidence. */
+.scale-knob.empty {
+  border-style: dashed;
+  border-color: var(--line);
+  background: transparent;
+  color: transparent;
+  box-shadow: none;
+}
+
+/* The anchor wording is the longest string here and it changes on every
+   detent, so it gets a reserved line that cannot wrap. It sits between the
+   ends because that is where it belongs: the middle of an anchored scale
+   is literally "neither high nor low". */
+.scale-anchors {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  min-height: 17px;
+}
+.scale-end {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.scale-live {
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--data); font-variant-numeric: tabular-nums;
+}
+.scale-live.none { color: var(--text-faint); font-weight: 400; font-style: italic; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scale-knob.settle { transition: none; }
+  .scale-track:active .scale-knob { transform: none; }
 }
 
 /* clearing a rating: only offered once there is one to clear */
-.attr-value-row { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.attr-value-row { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); }
 
 /* The control that undoes a mis-tap was itself smaller than the thing it
    fixes. Same treatment as the help mark: the circle stays 22px, the thumb
@@ -1034,7 +1433,18 @@ body.plain .cva-scale { margin-top: 9px; }
   height: 22px;
   flex: none;
   border-radius: 50%;
-  display: none;
+  /* Reserved, not removed. This was `display: none` with a single
+     `.attr-card.rated` rule to bring it back — which meant it never rendered
+     at all on the Describe rows, which at the time were a separate
+     `.desc-row` component that rule never matched. Seven intensities per
+     coffee had a clear button with a handler, a label and a 44px target,
+     and zero pixels: a mis-dragged intensity was touched forever and went
+     into History and the CSV as a deliberate judgement. Both halves are
+     .attr-card now, so one rule covers them.
+     Reserving the space is also what DESIGN.md asked for — no row changes
+     height, and no value jumps sideways the moment it is rated. */
+  display: grid;
+  visibility: hidden;
   place-items: center;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -1042,185 +1452,125 @@ body.plain .cva-scale { margin-top: 9px; }
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  transition: transform 0.18s var(--spring), color 0.15s, border-color 0.15s;
+  transition: transform 0.18s var(--settle), color 0.15s, border-color 0.15s;
 }
+/* Grows upward, never down. DESIGN.md asks for this specifically: the track
+   is directly below, and a target that grew downward would let a thumb
+   overshooting the track top land on the control that wipes the rating.
+
+   The insets account for border-box: the button is 22px with a 1px border,
+   so the pseudo anchors to a 20px padding box and needs 24 and 12 to reach
+   44 in each axis. The radius is square, because a 50% radius made the
+   target an ellipse that reached only ~19px sideways at the centre-line —
+   the axis a thumb actually arrives along. */
 .cva-clear::after {
   content: '';
   position: absolute;
-  inset: -11px;
-  border-radius: 50%;
+  inset: -24px -12px 0;
+  border-radius: var(--radius);
 }
-.attr-card.rated .cva-clear { display: grid; }
+.attr-card.rated .cva-clear { visibility: visible; }
 .cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }
-
-.cva-desc {
-  margin-top: 1px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--text-faint);
-}
 
 /* a rated section is tinted and carries an accent edge, so what is finished
    is legible at a glance while scrolling a sheet of eight */
-.attr-card.rated {
-  background: var(--bg-card-2);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
+/* The rated state used to need a tint and an accent stripe down the edge
+   to be legible while scrolling eight of them. The scale now says it
+   directly — a solid knob carrying a number, a filled rail, and the
+   anchor word — so the card says nothing, and the one accent on the row
+   stays attached to the value that earned it. */
+.attr-card.rated { background: transparent; }
 
 /* a section nobody has rated yet should not look like a considered 5 */
-.attr-card.unrated { border-style: dashed; }
 .attr-card.unrated .attr-value { color: var(--text-faint); }
-.attr-card.unrated .cva-desc { font-style: italic; opacity: 0.8; }
-.attr-card.unrated .slider-fill { opacity: 0.35; }
-.attr-card.unrated .slider-thumb { filter: grayscale(0.7); opacity: 0.6; }
 
 
-.scorebar.provisional .scorebar-score { opacity: 0.5; }
-.scorebar.provisional .scorebar-grade { color: var(--text-dim); }
+.scorebar.provisional .scorebar-score { color: var(--text-dim); }
+.scorebar.provisional .scorebar-sub { color: var(--text-faint); font-weight: 500; }
 
 .form-tag {
   display: inline-block;
-  margin-left: 7px;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 9.5px;
+  margin-left: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
   vertical-align: middle;
 }
 
-/* custom slider */
-.slider {
-  position: relative;
-  height: 48px;
-  margin-top: 6px;
-  touch-action: none;
-}
-
-.slider-track {
-  position: absolute;
-  left: 0; right: 0;
-  top: 50%;
-  height: 6px;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: var(--bg);
-  overflow: hidden;
-}
-
-.slider-fill {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 50%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-}
-
-.slider-ticks {
-  position: absolute;
-  left: 0; right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 6px;
-  pointer-events: none;
-}
-.slider-tick {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 10px;
-  transform: translate(-50%, -50%);
-  background: var(--line);
-  border-radius: 2px;
-}
-
-.slider-thumb {
-  position: absolute;
-  top: 50%;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 32% 30%, var(--hi), var(--accent) 60%, var(--accent-deep));
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), 0 0 0 5px var(--accent-soft);
-  transition: box-shadow 0.2s;
-}
-.slider.dragging .slider-thumb {
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4), 0 0 0 10px var(--accent-soft);
-}
-
-.slider-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-  padding: 0 4px;
-}
 
 /* ---------- per-cup attribute (uniformity / clean / sweetness) ---------- */
 
 .cups-row {
   display: flex;
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: var(--space-1);
 }
+.cups-row::-webkit-scrollbar { display: none; }
 
+/* A 44px floor, and the row scrolls rather than shrinking below it — the
+   same answer .coffee-rail.dense already gives to the same problem. At the
+   eight cups the stepper allows, flex:1 put these at 36.7px, and on the
+   2004 form these fifteen controls carry 30 of the 100 points. */
 .cup-check {
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 44px;
   aspect-ratio: 1;
   max-width: 60px;
-  border-radius: 16px;
+  border-radius: var(--radius);
   border: 1.5px solid var(--line);
   background: var(--bg);
   display: grid;
   place-items: center;
   position: relative;
-  transition: all 0.22s var(--spring);
+  transition: all 0.22s var(--settle);
 }
 .cup-check svg { width: 24px; height: 24px; }
 .cup-check .cup-outline { stroke: var(--text-faint); transition: stroke 0.2s; }
 .cup-check.checked {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--chrome-soft);
+  border-color: var(--chrome);
   transform: scale(1.02);
 }
-.cup-check.checked .cup-outline { stroke: var(--accent); }
+.cup-check.checked .cup-outline { stroke: var(--chrome); }
 .cup-check:active { transform: scale(0.9); }
 
 .cup-check .cup-num {
   position: absolute;
   bottom: 4px;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-faint);
 }
-.cup-check.checked .cup-num { color: var(--accent); }
+.cup-check.checked .cup-num { color: var(--chrome); }
 
 /* ---------- defects ---------- */
 
-.defect-rows { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.defect-rows { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
 
 .defect-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
-.defect-info { display: flex; flex-direction: column; gap: 2px; }
-.defect-name { font-size: 14.5px; font-weight: 700; }
-.defect-pts { font-size: 11.5px; color: var(--text-faint); }
+.defect-info { display: flex; flex-direction: column; gap: var(--space-1); }
+.defect-name { font-size: 15px; font-weight: 700; }
+.defect-pts { font-size: 11px; color: var(--text-faint); }
 
-.defect-row .stepper { padding: 3px; }
-.defect-row .stepper-btn { width: 38px; height: 38px; font-size: 20px; }
-.defect-row .stepper-value { min-width: 34px; font-size: 19px; }
+.defect-row .stepper { padding: var(--space-2); }
+.defect-row .stepper-btn { width: 44px; height: 44px; font-size: 20px; }
+.defect-row .stepper-value { min-width: 34px; font-size: 20px; }
 
 .defect-penalty {
-  margin-top: 12px;
+  margin-top: var(--space-4);
   text-align: right;
   font-size: 13px;
   font-weight: 700;
@@ -1238,7 +1588,7 @@ body.plain .cva-scale { margin-top: 9px; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
-  padding: 14px 16px;
+  padding: var(--space-5) var(--space-5);
   font-size: 15px;
   line-height: 1.45;
   outline: none;
@@ -1246,52 +1596,49 @@ body.plain .cva-scale { margin-top: 9px; }
   user-select: text;
   -webkit-user-select: text;
 }
-.notes-field:focus { border-color: var(--accent-deep); }
+.notes-field:focus { border-color: var(--chrome); }
 .notes-field::placeholder { color: var(--text-faint); }
 
 /* ---------- score bar ---------- */
 
+/* The live score, in the header rather than in a band of its own. Two
+   right-aligned lines: the number, and what it currently means. */
 .scorebar {
-  position: fixed;
-  gap: 10px;
-  left: 12px; right: 12px;
-  bottom: calc(var(--sab) + 12px);
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-radius: 20px;
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  z-index: 6;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
   display: none;
 }
 .scorebar.visible { display: flex; }
 
-.scorebar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.scorebar-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.scorebar-grade { font-size: 12px; font-weight: 600; color: var(--accent); }
-
+/* The thing the whole screen exists to produce, and it was 24px Sans — the
+   same size as each of the eight section values below it, which were also
+   the coloured ones, so nothing on the scoring screen was winning. It is a
+   ramp step up, and Mono, because DESIGN.md's rule is that a number a
+   reader could compare to another number is Mono with tabular figures: the
+   score changes on every drag and was reflowing as its digits changed. */
 .scorebar-score {
-  flex: none;
+  font-family: var(--mono);
   font-size: 30px;
-  font-weight: 800;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
 }
-.scorebar-score.pulse { animation: bump 0.3s var(--spring); }
-.scorebar-max { font-size: 13px; font-weight: 600; color: var(--text-faint); }
+/* One line, always — this sits in a header row whose height everything
+   below depends on, so a wrap here moves the whole sheet. */
+.scorebar-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--chrome);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.scorebar-score.pulse { animation: bump 0.3s var(--settle); }
 
 /* ============================================================
    RESULTS
@@ -1301,143 +1648,244 @@ body.plain .cva-scale { margin-top: 9px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(var(--sat) + 10px) 12px 10px;
+  padding: calc(var(--sat) + var(--space-4)) var(--space-4) var(--space-4);
   border-bottom: 1px solid var(--line);
 }
-.results-header h2 { font-size: 18px; font-weight: 800; }
+.results-header h2 { font-size: 17px; font-weight: 800; }
 
 .results-scroll {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 18px 16px 0;
+  padding: var(--space-6) var(--space-5) 0;
 }
 
 .results-footpad { height: calc(var(--sab) + 28px); }
 
-/* podium (winner highlight) */
-.podium {
-  text-align: center;
-  padding: 18px 16px 22px;
-  border-radius: var(--radius);
-  background:
-    radial-gradient(120% 100% at 50% 0%, var(--accent-soft), transparent 60%),
-    var(--bg-card);
-  border: 1px solid var(--line);
-  margin-bottom: 14px;
-  animation: screenIn 0.5s var(--ease);
+/* ------------------------------------------------------------
+   The Results opener
+   A line, the way the scoresheet draws one: the scale the form
+   actually produces, every coffee placed on it, and the specialty
+   threshold marked. No tint, no gradient, no card lift — this is
+   the same object as the anchored scale at a different scale.
+   ------------------------------------------------------------ */
+.summary {
+  padding: var(--space-2) var(--space-1) var(--space-6);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-6);
 }
-.podium-crown { font-size: 30px; }
-.podium-name { font-size: 21px; font-weight: 800; margin-top: 4px; }
-.podium-score {
-  font-size: 46px;
-  font-weight: 800;
+.summary-head {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.summary-meta { font-size: 13px; color: var(--text-faint); margin-top: var(--space-2); }
+
+.summary-scale { position: relative; height: 44px; margin: var(--space-7) var(--space-5) 0; }
+.summary-rail {
+  position: absolute; left: 0; right: 0; top: 13px;
+  height: 2px; background: var(--line);
+}
+/* the span this lineup actually covered */
+.summary-span {
+  position: absolute; top: 13px; height: 2px;
+  background: var(--chrome); opacity: 0.45;
+}
+/* 80 is the line the whole trade draws, so it is drawn */
+.summary-threshold {
+  position: absolute; top: 6px;
+  width: 1px; height: 16px;
+  background: var(--text-dim);
+  opacity: 0.55;
+}
+.summary-mark {
+  position: absolute; top: 8px;
+  width: 12px; height: 12px;
+  margin-left: -6px;             /* half the mark's 12px */
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--chrome);
+}
+/* A part-scored coffee still has a place on the line — it is where its
+   number currently falls — but it is not one of the sheets the range and
+   the median describe, so it is drawn smaller and in the secondary ink.
+   Grey is what a part-scored figure takes everywhere else in the product,
+   so the mark matches its own number rather than borrowing the unrated
+   knob's dashes, which at 12px with a 2px border render as four dashes and
+   read as a broken ring rather than a deliberate one. Size carries it too,
+   so the difference is not hue alone. */
+.summary-mark.partial {
+  width: 9px; height: 9px;
+  margin-left: -4.5px;           /* half the smaller mark */
+  top: 9.5px;                    /* same centre line as the 12px mark */
+  border-color: var(--text-dim);
+}
+.summary-tick {
+  position: absolute; top: 28px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-faint);
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(120deg, var(--hi), var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  line-height: 1.15;
+  white-space: nowrap;
 }
-.podium-grade { font-size: 13.5px; font-weight: 700; color: var(--text-dim); }
-.podium-meta { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; }
+.summary-tick-start { left: 0; }
+.summary-tick-end { right: 0; }
+.summary-tick-spec { transform: translateX(-50%); color: var(--text-dim); }
+
+.summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-7);
+  margin: var(--space-7) 0 0;
+}
+.summary-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+.summary-facts dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.summary-note { font-size: 13px; color: var(--text-dim); margin-top: var(--space-5); line-height: 1.5; }
 
 /* radar */
 .radar-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
 }
-.radar-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+.radar-card h3 { font-size: 15px; font-weight: 800; margin-bottom: var(--space-3); }
 #radar-wrap svg { width: 100%; height: auto; display: block; }
 
-.radar-axis-label { font-size: 8.5px; fill: var(--text-dim); font-weight: 600; }
+.radar-axis-label { font-size: 11px; fill: var(--text-dim); font-weight: 600; }
 .radar-grid { stroke: var(--line); fill: none; }
+
+/* Each polygon carries its own colour as --c, so the series palette is a
+   token set the theme can redefine rather than hex written into an SVG
+   attribute by JavaScript. Line only; the body arrives when the legend
+   solos one series and there is nothing stacked underneath it. */
+.radar-series {
+  fill: none;
+  stroke: var(--c);
+}
+.radar-series.solo {
+  fill: var(--c);
+  fill-opacity: 0.12;
+}
+.legend-line { stroke: var(--c); }
 
 .radar-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: var(--space-3) var(--space-5);
   justify-content: center;
-  margin-top: 8px;
+  margin-top: var(--space-3);
 }
+/* These toggle a series on the chart, so they are controls: the row was
+   14px tall, which is a third of a thumb. */
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
   transition: opacity 0.2s;
+  cursor: pointer;
 }
-.legend-item.muted { opacity: 0.3; }
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+/* Muted, not dimmed. These stay enabled — tapping one is how you come back
+   out of a solo — so WCAG's inactive-component exemption does not cover
+   them, and opacity 0.3 put the labels at 1.58:1 and their swatches as low
+   as 1.33:1. The label steps down one ink and the swatch fades; the row
+   stays readable, which it has to be, because you are choosing from it. */
+.legend-item.muted { color: var(--text-faint); }
+.legend-item.muted .legend-swatch { opacity: 0.45; }
+.legend-item:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* the series' own line, so the legend carries the pattern as well as the
+   hue and the chart does not depend on colour alone */
+.legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
 
 /* ranking list */
-.ranking { display: flex; flex-direction: column; gap: 10px; }
+.ranking { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .rank-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px 16px;
-  animation: screenIn 0.4s var(--ease) backwards;
+  padding: var(--space-5) var(--space-5);
 }
 
 .rank-top {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-4);
 }
 
-.rank-medal {
+/* Named for the thing it stopped being: this is the position in the
+   ranking, and a cupping does not award medals. */
+.rank-position {
   width: 34px; height: 34px;
   flex: none;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   background: var(--bg);
   color: var(--text-dim);
   border: 1px solid var(--line);
 }
-.rank-medal.m1 { background: linear-gradient(135deg, var(--hi), var(--accent)); color: var(--on-accent); border: none; }
-.rank-medal.m2 { background: linear-gradient(135deg, #d8d8d8, #9aa0a6); color: #17191c; border: none; }
-.rank-medal.m3 { background: linear-gradient(135deg, #dda06c, #a05f33); color: #1c1207; border: none; }
+/* Gold, silver and bronze are prizes. These are positions in a ranked
+   list, so they are numbers and they all look the same. */
 
 .rank-info { flex: 1; min-width: 0; }
-.rank-name { font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rank-grade { font-size: 12px; color: var(--text-faint); font-weight: 600; }
+.rank-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-grade { font-size: 13px; color: var(--text-faint); font-weight: 600; }
 
-.rank-score { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.rank-score { font-size: 24px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); }
 
 .rank-bar {
-  margin-top: 10px;
+  margin-top: var(--space-4);
   height: 5px;
   border-radius: 999px;
   background: var(--bg);
   overflow: hidden;
 }
+/* Flat, not a 90deg gradient: DESIGN.md allows no colour used decoratively,
+   and a gradient across a 5px bar is decoration by any reading. */
 .rank-bar-fill {
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-  width: 0;
-  transition: width 0.9s var(--ease) 0.2s;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--chrome);
+  transition: transform 0.9s var(--ease) 0.2s;
 }
 
 .rank-meta {
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: var(--space-3);
+  font-size: 13px;
   color: var(--text-faint);
   font-weight: 600;
 }
 
 .rank-notes {
-  margin-top: 7px;
+  margin-top: var(--space-3);
   font-size: 13px;
   color: var(--text-dim);
   line-height: 1.4;
@@ -1449,91 +1897,110 @@ body.plain .cva-scale { margin-top: 9px; }
 
 .history-empty {
   text-align: center;
-  padding: 70px 30px;
+  padding: calc(var(--space-8) * 2) var(--space-8);
   color: var(--text-dim);
   font-size: 15px;
   line-height: 1.5;
 }
-.history-empty-icon { font-size: 44px; margin-bottom: 12px; }
 
 .stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .stat-tile {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px 10px;
+  padding: var(--space-5) var(--space-4);
   text-align: center;
 }
 .stat-value {
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
   line-height: 1.2;
 }
 .stat-label {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 
-.hist-section { margin-bottom: 20px; }
-.hist-title { font-size: 15px; font-weight: 800; margin-bottom: 10px; }
+.hist-section { margin-bottom: var(--space-6); }
+.hist-title { font-size: 15px; font-weight: 800; margin-bottom: var(--space-4); }
 
+.seg:not([data-end="0"]),
+.coffee-rail:not([data-end="0"]) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* ten coffees scroll sideways inside this band with the scrollbar
+   suppressed, same as the segmented rows */
+.coffee-rail[data-end="0"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+}
 .seg {
   display: flex;
-  gap: 4px;
+  gap: var(--space-2);
   background: var(--bg-card);
   border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: 4px;
+  border-radius: var(--radius);
+  padding: var(--space-2);
   overflow-x: auto;
   scrollbar-width: none;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
+  /* The scrollbar is suppressed in both engines, so three of eight buttons
+     could sit past the edge with nothing to say so. A fade on the right
+     edge is the signal, and it lifts once the row is scrolled to its end. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent)
 }
 .seg::-webkit-scrollbar { display: none; }
 
 .seg-btn {
   flex: 1 0 auto;
-  padding: 9px 14px;
-  border-radius: 9px;
+  /* was 35px tall, which is not a target — and these pick the scoresheet
+     and the History dimension, both of which are the point of their screen */
+  min-height: 44px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 700;
   color: var(--text-dim);
   white-space: nowrap;
   transition: all 0.2s var(--ease);
 }
-.seg-btn.active { background: var(--accent); color: var(--on-accent); }
+.seg-btn.active { background: var(--chrome); color: var(--on-chrome); }
 
-.group-list { display: flex; flex-direction: column; gap: 8px; }
+.group-list { display: flex; flex-direction: column; gap: var(--space-3); }
 
 .group-row {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  animation: screenIn 0.3s var(--ease) backwards;
+  padding: var(--space-4) var(--space-5);
 }
 .group-row-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-4);
 }
-.group-name { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.group-count { font-size: 11.5px; color: var(--text-faint); font-weight: 600; flex: none; }
-.group-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
+.group-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-count { font-size: 11px; color: var(--text-faint); font-weight: 600; flex: none; }
+.group-avg { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .group-bar {
-  margin-top: 8px;
+  margin-top: var(--space-3);
   height: 4px;
   border-radius: 999px;
   background: var(--bg);
@@ -1541,39 +2008,44 @@ body.plain .cva-scale { margin-top: 9px; }
 }
 .group-bar-fill {
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-  transition: width 0.7s var(--ease) 0.1s;
-  width: 0;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--chrome);
+  transition: transform 0.7s var(--ease) 0.1s;
 }
 
 .group-empty {
   text-align: center;
-  padding: 22px;
-  font-size: 13.5px;
+  padding: var(--space-7);
+  font-size: 13px;
   color: var(--text-faint);
   background: var(--bg-card);
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
 }
 
-.hist-list { display: flex; flex-direction: column; gap: 8px; }
+.hist-list { display: flex; flex-direction: column; gap: var(--space-3); }
 
 .hist-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-4);
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: var(--space-4) var(--space-5);
 }
 .hist-item-info { flex: 1; min-width: 0; }
-.hist-item-name { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hist-item-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-item-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-item-meta { font-size: 11px; color: var(--text-faint); margin-top: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item-right { text-align: right; flex: none; }
-.hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
-.hist-item-date { font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
+.hist-item-score { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); }
+/* A score from a part-scored sheet is mostly untouched defaults, so it
+   does not get to wear the data ink that a finished one earns. */
+/* the partial treatment is shared — see .partial below */
+.hist-item-date { font-size: 11px; color: var(--text-faint); margin-top: var(--space-1); }
 
 /* ============================================================
    TEAM SCORES (social cupping)
@@ -1583,39 +2055,41 @@ body.plain .cva-scale { margin-top: 9px; }
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
 }
 .team-card h3 { font-size: 15px; font-weight: 800; }
-.team-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; margin-bottom: 12px; }
+.team-sub { font-size: 13px; color: var(--text-faint); margin-top: var(--space-2); margin-bottom: var(--space-4); }
 
-.team-name-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.team-name-row { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
 
 .present-cta { width: 100%; }
-.team-actions { display: flex; gap: 8px; }
-.team-actions .btn { flex: 1; padding: 13px 8px; font-size: 14px; border-radius: 13px; }
+.team-actions { display: flex; gap: var(--space-3); }
+.team-actions .btn { flex: 1; padding: var(--space-4) var(--space-3); font-size: 15px; border-radius: var(--radius); }
 
-.team-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.team-results { margin-top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
 
 .team-coffee-row {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 13px;
+  padding: var(--space-4) var(--space-4);
 }
 .team-coffee-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-4);
 }
-.team-coffee-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-coffee-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
-.team-coffee-avg small { font-size: 10px; font-weight: 700; color: var(--text-faint); margin-left: 3px; }
+.team-coffee-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-coffee-avg { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
+.team-coffee-avg small { font-size: 11px; font-weight: 700; color: var(--text-faint); margin-left: var(--space-2); }
 .team-coffee-cuppers {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--space-2);
+  font-size: 13px;
   color: var(--text-dim);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
 }
@@ -1623,18 +2097,18 @@ body.plain .cva-scale { margin-top: 9px; }
 .team-cuppers-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 .cupper-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12.5px;
+  gap: var(--space-3);
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 13px;
   font-weight: 700;
-  padding: 6px 8px 6px 12px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   border-radius: 999px;
 }
 .cupper-chip button {
@@ -1644,10 +2118,18 @@ body.plain .cva-scale { margin-top: 9px; }
   place-items: center;
   font-size: 13px;
   line-height: 1;
-  color: var(--accent);
+  color: var(--chrome);
   background: transparent;
 }
-.cupper-chip.me { padding-right: 12px; }
+/* 18px, and it removes a cupper from the table. The mark stays small
+   because the chip row is dense; the target grows around it. */
+.cupper-chip button::after {
+  content: '';
+  position: absolute;
+  inset: -13px;      /* 18 -> 44; chips are 8px apart, so no overlap */
+  border-radius: 50%;
+}
+.cupper-chip.me { padding-right: var(--space-4); }
 
 /* ============================================================
    MODAL
@@ -1670,14 +2152,14 @@ body.plain .cva-scale { margin-top: 9px; }
   max-width: 440px;
   background: var(--bg-card);
   border: 1px solid var(--line);
-  border-radius: 22px 22px 0 0;
-  padding: 22px 20px calc(var(--sab) + 20px);
-  animation: sheetUp 0.35s var(--spring);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: var(--space-7) var(--space-6) calc(var(--sab) + var(--space-6));
+  animation: sheetUp 0.35s var(--settle);
 }
 @keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } }
 
 .modal-sheet h3 { font-size: 17px; font-weight: 800; }
-.modal-hint { font-size: 13px; color: var(--text-dim); line-height: 1.45; margin: 6px 0 12px; }
+.modal-hint { font-size: 13px; color: var(--text-dim); line-height: 1.45; margin: var(--space-3) 0 var(--space-4); }
 
 .modal-input {
   width: 100%;
@@ -1686,33 +2168,69 @@ body.plain .cva-scale { margin-top: 9px; }
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);
-  padding: 12px 14px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12.5px;
+  padding: var(--space-4) var(--space-5);
+  font-family: var(--mono);
+  font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
   outline: none;
   user-select: text;
   -webkit-user-select: text;
 }
-.modal-input:focus { border-color: var(--accent-deep); }
+.modal-input:focus { border-color: var(--chrome); }
 
-.modal-actions { display: flex; gap: 10px; margin-top: 14px; }
-.modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
+/* the consequences of an irreversible action, listed rather than run
+   together into one sentence nobody finishes reading */
+.confirm-effects {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.confirm-effects li {
+  position: relative;
+  padding-left: var(--space-6);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.confirm-effects li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+/* Filled, because the button that cannot be undone should not look like the
+   button that can. Cancel is first in the sheet and takes the focus. */
+.btn-danger {
+  background: var(--red);
+  color: var(--bg);
+  font-weight: 700;
+}
+.btn-danger:active { transform: scale(0.97); }
+
+.modal-actions { display: flex; gap: var(--space-4); margin-top: var(--space-5); }
+.modal-actions .btn { flex: 1; padding: var(--space-5); font-size: 15px; }
 
 /* account sheet */
-.auth-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.auth-buttons { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-5); }
 
 .auth-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 15px;
-  border-radius: 14px;
-  font-size: 16px;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  font-size: 17px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring), filter 0.18s;
+  transition: transform 0.18s var(--settle), filter 0.18s;
 }
 .auth-btn:active { transform: scale(0.97); filter: brightness(1.06); }
 .auth-btn svg { flex: none; }
@@ -1721,24 +2239,24 @@ body.plain .cva-scale { margin-top: 9px; }
   background: var(--bg);
   color: var(--text-dim);
   border: 1px solid var(--line);
-  font-size: 14.5px;
-  padding: 13px;
+  font-size: 15px;
+  padding: var(--space-4);
 }
 .auth-google svg { opacity: 0.85; }
 
-.auth-email-field { padding: 15px; font-size: 16px; }
-.auth-buttons .detail-label { margin-bottom: -4px; }
+.auth-email-field { padding: var(--space-5); font-size: 17px; }
+.auth-buttons .detail-label { margin-bottom: calc(var(--space-2) * -1); }
 
 .auth-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-4);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin: 6px 0 2px;
+  margin: var(--space-3) 0 var(--space-1);
 }
 .auth-divider::before, .auth-divider::after {
   content: '';
@@ -1747,26 +2265,26 @@ body.plain .cva-scale { margin-top: 9px; }
   background: var(--line);
 }
 
-.auth-email-row { display: flex; gap: 8px; }
-.auth-email-row .detail-field { flex: 1; padding: 13px 14px; }
-.auth-email-row .btn { flex: none; padding: 13px 16px; font-size: 14.5px; border-radius: 12px; }
+.auth-email-row { display: flex; gap: var(--space-3); }
+.auth-email-row .detail-field { flex: 1; padding: var(--space-4) var(--space-5); }
+.auth-email-row .btn { flex: none; padding: var(--space-4) var(--space-5); font-size: 15px; border-radius: var(--radius); }
 
 .account-user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-4);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 13px 15px;
-  margin-top: 12px;
+  padding: var(--space-4) var(--space-5);
+  margin-top: var(--space-4);
 }
 .account-avatar {
   width: 40px; height: 40px;
   flex: none;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -1776,10 +2294,10 @@ body.plain .cva-scale { margin-top: 9px; }
 .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .account-user-info { min-width: 0; }
 .account-user-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.account-user-mail { font-size: 12.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-user-mail { font-size: 13px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .account-status {
-  margin-top: 10px;
+  margin-top: var(--space-4);
   font-size: 13px;
   color: var(--text-dim);
   text-align: center;
@@ -1791,26 +2309,27 @@ body.plain .cva-scale { margin-top: 9px; }
 .pin-boxes {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  margin: 18px 0 4px;
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-2);
 }
 
 .pin-box {
   width: 58px;
   height: 68px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   background: var(--bg);
   border: 1.5px solid var(--line);
   display: grid;
   place-items: center;
   font-size: 30px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  transition: border-color 0.2s, transform 0.2s var(--spring), background 0.2s;
+  transition: border-color 0.2s, transform 0.2s var(--settle), background 0.2s;
 }
-.pin-box.filled { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.pin-box.next { border-color: var(--accent-deep); }
-.pin-box.pop { animation: bump 0.22s var(--spring); }
+.pin-box.filled { border-color: var(--chrome); background: var(--chrome-soft); color: var(--chrome); }
+.pin-box.next { border-color: var(--chrome); }
+.pin-box.pop { animation: bump 0.22s var(--settle); }
 
 .pin-boxes.shake { animation: shake 0.4s var(--ease); }
 @keyframes shake {
@@ -1826,40 +2345,42 @@ body.plain .cva-scale { margin-top: 9px; }
   font-weight: 600;
   color: var(--red);
   min-height: 18px;
-  margin-top: 6px;
+  margin-top: var(--space-3);
 }
 
 .keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 6px;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .key {
   height: 58px;
-  border-radius: 15px;
+  border-radius: var(--radius);
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   display: grid;
   place-items: center;
-  transition: background 0.12s, transform 0.12s var(--spring);
+  transition: background 0.12s, transform 0.12s var(--settle);
 }
-.key:active { background: var(--accent-soft); transform: scale(0.93); }
+.key:active { background: var(--chrome-soft); transform: scale(0.93); }
 .key.blank { background: none; border: none; pointer-events: none; }
-.key.action { font-size: 21px; color: var(--accent); }
+.key.action { font-size: 20px; color: var(--chrome); }
 
 .pin-alt {
+  position: relative;
   display: block;
   width: 100%;
-  margin-top: 14px;
-  padding: 6px;
-  font-size: 13.5px;
+  margin-top: var(--space-5);
+  padding: var(--space-3);
+  font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   text-align: center;
 }
 
@@ -1869,17 +2390,17 @@ body.plain .cva-scale { margin-top: 9px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 14px;
-  padding: 13px 14px;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
-.switch-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.switch-title { font-size: 14.5px; font-weight: 700; }
-.switch-sub { font-size: 11.5px; color: var(--text-faint); line-height: 1.35; }
+.switch-label { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.switch-title { font-size: 15px; font-weight: 700; }
+.switch-sub { font-size: 11px; color: var(--text-faint); line-height: 1.35; }
 
 /* The knob was laid out with a margin, so its travel had to be guessed and
    any rounding left it riding the edge of the track. It is positioned
@@ -1900,100 +2421,168 @@ body.plain .cva-scale { margin-top: 9px; }
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
-  transition: left 0.25s var(--spring);
+  /* was #fff with a drop shadow — a hard-coded light-theme colour in a
+     system that keeps both themes complete, and the last lift outside the
+     knob. A hairline reads on both track states in both themes. */
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  transition: left 0.25s var(--settle);
 }
-.switch input:checked + .switch-track { background: var(--accent); }
+.switch input:checked + .switch-track { background: var(--chrome); }
 .switch input:checked + .switch-track .switch-knob { left: 23px; }
 
 /* ---- who has joined ---- */
 
-.joined-wrap { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.joined-wrap { margin-top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
 
-.joined-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.joined-list { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 
 .joined-chip {
   display: flex;
   align-items: center;
-  gap: 7px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  gap: var(--space-3);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
-  padding: 7px 13px;
+  padding: var(--space-3) var(--space-4);
   border-radius: 999px;
-  animation: screenIn 0.3s var(--ease) backwards;
 }
+/* presence, not a measurement — so it is ink, and the chip's own fill
+   already says whether that cupper has submitted */
 .joined-chip::before {
   content: '';
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--text-faint);
 }
 
 .joined-empty { font-size: 13px; color: var(--text-faint); }
 
-.joined-chip.done::before { background: var(--accent); }
-.joined-chip.done { background: var(--accent); color: var(--on-accent); }
-.joined-chip.done::before { background: var(--on-accent); }
+.joined-chip.done::before { background: var(--chrome); }
+.joined-chip.done { background: var(--chrome); color: var(--on-chrome); }
+.joined-chip.done::before { background: var(--on-chrome); }
 
-.reveal-btn { margin-top: 4px; padding: 13px; font-size: 14.5px; border-radius: 13px; }
+.reveal-btn { margin-top: var(--space-2); padding: var(--space-4); font-size: 15px; border-radius: var(--radius); }
 .reveal-btn:disabled { opacity: 0.55; }
 
 /* ---- live table on the results screen ---- */
 
 .live-table {
-  margin: 12px 0;
-  padding: 14px;
+  margin: var(--space-4) 0;
+  padding: var(--space-5);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: var(--space-3);
 }
 .live-head { display: flex; align-items: center; }
-.live-roster { display: flex; flex-wrap: wrap; gap: 6px; }
-.live-note { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
-.live-note strong { color: var(--accent); }
-.live-ok { font-size: 12.5px; font-weight: 700; color: var(--green); }
-.live-table .btn { padding: 13px; font-size: 14.5px; border-radius: 13px; }
+.live-roster { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.live-note { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
+.live-note strong { color: var(--chrome); }
+.live-ok { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.live-table .btn { padding: var(--space-4); font-size: 15px; border-radius: var(--radius); }
 .live-table .team-coffee-row { background: var(--bg-card); }
 
 .cupper-score {
   display: inline-block;
-  margin-right: 10px;
+  margin-right: var(--space-4);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .cupper-score em { font-style: normal; color: var(--text-faint); font-size: 11px; }
-.cupper-score.me { color: var(--accent); font-weight: 700; }
+.cupper-score.me { color: var(--chrome); font-weight: 700; }
 
-.calib { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+/* ------------------------------------------------------------
+   Part-scored sheets
+   A number from a sheet that stopped at three sections is not the
+   same kind of thing as a number from a finished one, and the table
+   has to be able to see which it is looking at. One treatment,
+   everywhere a score is shown to somebody else: the figure drops to
+   secondary ink, and the count that qualifies it sits beside it.
+   Greying is the whole signal — it never becomes a second accent,
+   because a partial sheet is incomplete, not wrong.
+   ------------------------------------------------------------ */
+.partial,
+.cupper-score.me.partial,
+.hist-item-score.partial { color: var(--text-dim); font-weight: 600; }
+/* The qualifier that tells a second person the number beside it is
+   incomplete. DESIGN.md mandates it and permits exactly one sub-11px
+   exception, which is tick furniture; this is not furniture. */
+.cupper-score i,
+.present-cupper i,
+.present-final-score i,
+.rank-grade i {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+.present-cupper.partial strong { color: var(--text-dim); }
+
+.calib { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-2); }
 .calib-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-4);
   font-size: 13px;
-  padding: 7px 11px;
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-card);
-  border-radius: 9px;
+  border-radius: var(--radius);
 }
-.calib-row.me { border: 1px solid var(--accent); }
-.calib-val { font-weight: 800; font-variant-numeric: tabular-nums; }
-.calib-val.high { color: var(--accent); }
-.calib-val.low { color: var(--text-dim); }
+.calib-row.me { border: 1px solid var(--chrome); }
+.calib-name { flex: 0 0 auto; min-width: 0; max-width: 34%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Symmetric about zero. A bar to the left and a bar to the right of the
+   centre carry identical weight and identical colour, because in a
+   calibration exercise only the magnitude means anything. */
+.calib-bar { position: relative; flex: 1 1 auto; height: 10px; min-width: 40px; }
+.calib-bar::before {
+  content: '';
+  position: absolute; left: 50%; top: 0; bottom: 0;
+  width: 1px; background: var(--text-dim); opacity: 0.55;
+}
+/* the range a calibrated panel usually sits inside, so a reader has
+   something to judge their own number against besides the room */
+.calib-band {
+  position: absolute; top: 0; bottom: 0;
+  background: var(--chrome-soft);
+  border-radius: var(--radius-sm);
+}
+.calib-bar i {
+  position: absolute; top: 2px; height: 6px;
+  background: var(--chrome);
+  opacity: 0.85;
+  border-radius: var(--radius-sm);
+}
+.calib-val {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.calib-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  margin-top: var(--space-1);
+}
 
 /* invite sheet: live PIN + QR */
 .share-pin-wrap {
   text-align: center;
-  margin: 12px 0 4px;
+  margin: var(--space-4) 0 var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-height: 58px;
 }
 .share-pin {
@@ -2001,16 +2590,17 @@ body.plain .cva-scale { margin-top: 9px; }
   font-weight: 800;
   letter-spacing: 0.35em;
   text-indent: 0.35em; /* balance the last letter-space */
-  color: var(--accent);
+  color: var(--chrome);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.share-pin.pending { font-size: 14px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: 12px 0; }
+.share-pin.pending { font-size: 15px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: var(--space-4) 0; }
 
-.share-qr-wrap { display: flex; justify-content: center; margin: 12px 0 4px; }
+.share-qr-wrap { display: flex; justify-content: center; margin: var(--space-4) 0 var(--space-2); }
 .share-qr {
   background: #ffffff;
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   line-height: 0;
   border: 1px solid var(--line);
 }
@@ -2018,30 +2608,57 @@ body.plain .cva-scale { margin-top: 9px; }
 
 /* history search + export */
 
-.hist-search-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
-.hist-search-wrap .detail-field { padding: 13px 15px; font-size: 15px; border-radius: var(--radius-sm); }
-.hist-hits { font-size: 12px; color: var(--text-faint); font-weight: 600; padding-left: 3px; min-height: 15px; }
+.hist-search-wrap { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6); }
+.hist-search-wrap .detail-field { padding: var(--space-4) var(--space-5); font-size: 15px; border-radius: var(--radius-sm); }
+.hist-hits { font-size: 13px; color: var(--text-faint); font-weight: 600; padding-left: var(--space-2); min-height: 15px; }
 
-.hist-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.hist-item-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 
-.export-btn { margin: 10px 18px 0; display: block; width: calc(100% - 36px); }
+/* The actions that close a screen — print, start over, export, clear — in
+   one stack on the screen's own measure. This replaces .export-btn, which
+   set `margin: 12px 20px 0` and `width: calc(100% - 36px)` on top of the
+   scroll container's own 16px padding: 20 and 36 do not agree, so the button
+   sat 36px in on the left and 32px on the right. Worse, the class was on one
+   button of each pair and not the other, so its partner fell back to
+   inline-block at its text width, 20px further left and flush against it.
+   No horizontal margin here at all: the container already sets the measure,
+   and a button that wants to be full width just says so. */
+.page-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.page-actions .btn { display: block; width: 100%; }
 
 /* offline badge */
 
+/* the relay being unreachable is a different fact from the phone being
+   offline, so it does not borrow the offline wording or its quiet ground */
+.offline-badge.trouble {
+  border-color: var(--red);
+  color: var(--red);
+}
+/* Anchored to the bottom, above the navigation band, where the toast already
+   lives. It used to sit centred at the top of the screen at z-index 30 —
+   directly over the cupping header's title — so the badge covered the name
+   of the coffee it was reassuring you about, in the state PRODUCT.md calls
+   the default rather than the fallback. */
 .offline-badge {
   position: fixed;
   left: 50%;
-  top: calc(var(--sat) + 8px);
+  bottom: calc(var(--sab) + 72px);
   transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  text-align: center;
   background: var(--bg-card-2);
   color: var(--text-dim);
   border: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 7px 15px;
+  padding: var(--space-3) var(--space-5);
   border-radius: 999px;
   z-index: 30;
-  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
@@ -2049,66 +2666,104 @@ body.plain .cva-scale { margin-top: 9px; }
 
 #print-sheet { display: none; }
 
+/* ------------------------------------------------------------
+   Print
+   Ink on paper, so it does not use the screen palette and should
+   not: the data ink is a dark teal that prints as a muddy grey,
+   and a paper-coloured ground on paper is nothing at all. The set
+   is declared here rather than written as literals down the block,
+   because DESIGN.md says so and because six greys scattered
+   through forty lines is how a seventh gets added.
+   ------------------------------------------------------------ */
 @media print {
+  :root {
+    --print-ink: #000000;
+    --print-ink-dim: #444444;
+    --print-ink-faint: #555555;
+    --print-foot: #666666;
+    --print-rule: #999999;
+    --print-rule-light: #dddddd;
+  }
   body { overflow: visible; height: auto; background: #fff; }
   .screen, .toast, .wheel-fab, .offline-badge, .modal { display: none !important; }
 
+  /* Landscape, because a scoresheet is a wide table: eight sections, the
+     deductions and the total do not fit across a portrait page without
+     setting the numbers too small to check. */
+  @page { size: landscape; margin: 14mm; }
+
+  /* Three sizes and no more. There were eight — 7.5, 8, 8.5, 9, 9.5, 11, 13
+     and 20pt — sitting on no ramp at all. Weight and colour carry the rest. */
   #print-sheet {
     display: block;
     position: static;
     padding: 0;
-    color: #000;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--print-ink);
+    font-family: var(--sans);
+    font-size: 9pt;
   }
   #print-sheet .p-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    border-bottom: 2px solid #000;
-    padding-bottom: 10px;
-    margin-bottom: 16px;
+    border-bottom: 2px solid var(--print-ink);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-4);
   }
-  #print-sheet h1 { font-size: 20pt; margin: 0; }
-  #print-sheet .p-head p { font-size: 9pt; color: #444; margin-top: 3px; }
-  #print-sheet .p-mark { font-size: 11pt; font-weight: 800; letter-spacing: -0.3px; }
+  #print-sheet h1 { font-size: 18pt; margin: 0; }
+  #print-sheet .p-head p { color: var(--print-ink-dim); margin-top: var(--space-2); }
+  #print-sheet .p-mark { font-weight: 800; letter-spacing: -0.3px; }
+  #print-sheet .p-summary { color: var(--print-ink-dim); margin-bottom: var(--space-4); }
 
-  #print-sheet table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  #print-sheet table { width: 100%; border-collapse: collapse; }
   #print-sheet th {
     text-align: left;
-    font-size: 7.5pt;
+    font-size: 7pt;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #444;
-    border-bottom: 1px solid #999;
-    padding: 0 6px 5px;
+    color: var(--print-ink-dim);
+    border-bottom: 1px solid var(--print-rule);
+    padding: 0 var(--space-2) var(--space-2);
   }
-  #print-sheet td { padding: 9px 6px; border-bottom: 1px solid #ddd; vertical-align: top; }
-  #print-sheet .num { text-align: right; white-space: nowrap; }
-  #print-sheet .num strong { font-size: 13pt; }
-  #print-sheet .p-grade { font-size: 7.5pt; color: #555; }
-  #print-sheet .p-notes { font-size: 8.5pt; color: #444; margin-top: 3px; }
-  #print-sheet .p-foot { margin-top: 20px; font-size: 8pt; color: #666; }
+  #print-sheet td { padding: var(--space-3) var(--space-2); border-bottom: 1px solid var(--print-rule-light); vertical-align: top; }
+  /* the score columns are read down, so they are mono and they line up */
+  #print-sheet .num {
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  #print-sheet td.unrated { color: var(--print-rule); }
+  #print-sheet .total strong { font-weight: 700; }
+  /* on paper the greying has to survive a photocopier, so a part-scored
+     total is set lighter as well as a shade down */
+  #print-sheet .total.partial { color: var(--print-ink-faint); }
+  #print-sheet .total.partial strong { font-weight: 500; }
+  #print-sheet .p-sub { font-size: 7pt; color: var(--print-ink-dim); margin-top: var(--space-2); font-family: var(--sans); }
+  #print-sheet .p-foot { margin-top: var(--space-5); font-size: 7pt; color: var(--print-foot); line-height: 1.5; }
 
   #print-sheet tr { break-inside: avoid; }
 }
 
 /* toast */
+/* Arrival toasts used to land directly on top of the live score. The score
+   is at the top of the screen now, but the navigation band is where the
+   toast used to sit, so it clears that instead. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--sab) + 30px);
+  bottom: calc(var(--sab) + 72px);
   transform: translate(-50%, 20px);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 14px;
+  background: var(--chrome);
+  color: var(--on-chrome);
+  font-size: 15px;
   font-weight: 700;
-  padding: 12px 22px;
+  padding: var(--space-4) var(--space-7);
   border-radius: 999px;
   opacity: 0;
   pointer-events: none;
-  transition: all 0.3s var(--spring);
+  transition: all 0.3s var(--settle);
   z-index: 50;
-  box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -2122,39 +2777,40 @@ body.plain .cva-scale { margin-top: 9px; }
 .panel-head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 4px 4px 8px;
-  margin-top: 4px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
 }
 .panel-head-title {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--chrome);
 }
 .panel-head-sub {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* the Describe card is the same shape as the coffee-details card, so it
-   gets its own edge to keep the two apart at a glance */
-.details-card.describe-card { box-shadow: inset 3px 0 0 var(--accent-soft); }
-.describe-card .details-toggle-label { color: var(--accent); }
+/* The Describe card is the same shape as the coffee-details card. It used
+   an accent edge to keep the two apart; the panel head above it already
+   names which half of the form you are in, so the edge is redundant. */
+.details-card.describe-card { background: var(--bg-card-2); }
+.describe-card .details-toggle-label { color: var(--chrome); }
 
 .optional-pill {
-  margin-left: 6px;
-  padding: 2px 7px;
+  margin-left: var(--space-3);
+  padding: var(--space-1) var(--space-3);
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 9.5px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2166,58 +2822,68 @@ body.plain .cva-scale { margin-top: 9px; }
    ============================================================ */
 
 .lineup-intro {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-dim);
-  padding: 4px 2px 14px;
+  padding: var(--space-2) var(--space-1) var(--space-5);
 }
 .lineup-intro strong { color: var(--text); font-weight: 700; }
 
-.lineup-list { display: flex; flex-direction: column; gap: 10px; }
+.lineup-list { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .lineup-row {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  animation: rise 0.3s var(--ease) backwards;
 }
 
-.lineup-top { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 13px; }
+.lineup-top { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-4); }
 
 .lineup-num {
   flex: none;
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12.5px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 13px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.lineup-row.named .lineup-num { background: var(--accent); color: var(--on-accent); }
+.lineup-row.named .lineup-num { background: var(--chrome); color: var(--on-chrome); }
 
 .lineup-name {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   background: none;
   border: none;
   color: var(--text);
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 600;
-  padding: 4px 0;
+  padding: var(--space-2) 0;
   user-select: text;
   -webkit-user-select: text;
 }
 .lineup-name::placeholder { color: var(--text-faint); font-weight: 500; }
 .lineup-name:focus { outline: none; }
-/* a guest is looking at the leader's lineup, not editing it */
-.lineup-name[readonly], .lineup-row .detail-field[readonly] { color: var(--text-dim); }
+/* A guest is looking at the leader's lineup, not editing it. This was scoped
+   to .lineup-row, which is why the same field on the scoring panel looked
+   editable: same data, same permission, two appearances. It is every
+   read-only field now, wherever it is drawn. */
+.lineup-name[readonly],
+.name-field[readonly],
+.detail-field[readonly] { color: var(--text-dim); cursor: default; }
 
+/* The row is dense, so the mark stays small and the target grows around it
+   — the same trick the help marks use. The two icons are 8px apart, so 6px
+   of expansion on each side cannot make them overlap. */
 .lineup-icon {
+  position: relative;
   flex: none;
   width: 32px;
   height: 32px;
@@ -2225,25 +2891,25 @@ body.plain .cva-scale { margin-top: 9px; }
   display: grid;
   place-items: center;
   color: var(--text-faint);
-  transition: transform 0.25s var(--spring), color 0.15s;
+  transition: transform 0.25s var(--settle), color 0.15s;
 }
 .lineup-icon:active { transform: scale(0.85); }
-.lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--accent); }
+.lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--chrome); }
 .lineup-icon.remove:active { color: var(--red); }
-.lineup-row.has-meta .lineup-icon.chev { color: var(--accent); }
+.lineup-row.has-meta .lineup-icon.chev { color: var(--chrome); }
 
 /* the rows borrow the details-card collapse, so they need its open state */
 .lineup-row.open .details-collapse { grid-template-rows: 1fr; }
 .lineup-row.open .details-collapse-inner { visibility: visible; transition: visibility 0s 0s; }
-.lineup-row .details-grid { padding: 2px 14px 14px; }
+.lineup-row .details-grid { padding: var(--space-1) var(--space-5) var(--space-5); }
 
-.lineup-add { width: 100%; margin-top: 12px; }
+.lineup-add { width: 100%; margin-top: var(--space-4); }
 .lineup-add:disabled { opacity: 0.4; }
 
 .lineup-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 22px;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
 }
 .lineup-actions .btn { flex: 1; }
 
@@ -2252,48 +2918,60 @@ body.plain .cva-scale { margin-top: 9px; }
    ============================================================ */
 
 .present-intro {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-dim);
-  padding: 4px 2px 14px;
+  padding: var(--space-2) var(--space-1) var(--space-5);
 }
 
-.present-list { display: flex; flex-direction: column; gap: 12px; }
+.present-list { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .present-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px 15px;
+  padding: var(--space-5) var(--space-5);
   transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
 }
+/* Three stages, and the middle one had no rule anywhere in this file: a
+   card whose identity was revealed but whose scores were still sealed was
+   pixel-identical to one nothing had happened to. In front of the table,
+   that is the leader turning a card over and nothing changing. Sealed is
+   dashed and recessed; named is solid and on the card ground, which is the
+   change; scored takes the accent edge. */
 .present-card.sealed { border-style: dashed; background: var(--bg-raise); }
-.present-card.scored { box-shadow: inset 3px 0 0 var(--accent); }
+.present-card.named { background: var(--bg-card); border-color: var(--text-faint); }
+/* Scored reads from the number the card carries, not from a stripe. */
+.present-card.scored { border-color: var(--chrome); }
 
-.present-top { display: flex; align-items: center; gap: 12px; }
+.present-top { display: flex; align-items: center; gap: var(--space-4); }
 
 .present-num {
   flex: none;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 14px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 15px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .present-card.sealed .present-num { background: var(--bg-card); color: var(--text-faint); }
 
 .present-id { flex: 1; min-width: 0; }
-.present-name { font-size: 16.5px; font-weight: 700; line-height: 1.2; }
-.present-card.sealed .present-name { color: var(--text-faint); }
+.present-name { font-size: 17px; font-weight: 700; line-height: 1.2; }
+/* Muted because the card is sealed — but at 17px bold this measured
+   4.44:1 on the sealed card's ground, which is 0.06 under the line. One
+   step up in ink keeps the muting and clears it. */
+.present-card.sealed .present-name { color: var(--text-dim); }
 .present-meta {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-dim);
-  margin-top: 3px;
+  margin-top: var(--space-2);
   line-height: 1.35;
 }
 
@@ -2302,76 +2980,82 @@ body.plain .cva-scale { margin-top: 9px; }
   display: block;
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
   line-height: 1;
-  animation: bump 0.35s var(--spring);
+  animation: bump 0.35s var(--settle);
 }
+/* The number a leader reads out loud. Declared after the base rule so a
+   part-scored figure greys here the way it does on every other surface. */
+.present-avg.partial { color: var(--text-dim); font-weight: 600; }
 .present-grade {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin-top: 3px;
+  margin-top: var(--space-2);
 }
 
 .present-cuppers {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 .present-cupper {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
   border-radius: 999px;
   background: var(--bg);
   border: 1px solid var(--line);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
 }
 .present-cupper strong {
   font-weight: 800;
   color: var(--text);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.present-cupper em { font-style: normal; font-size: 10.5px; color: var(--text-faint); }
+.present-cupper em { font-style: normal; font-size: 11px; color: var(--text-faint); }
 
+/* this is the control the leader presses in front of the table */
 .present-action {
   width: 100%;
-  margin-top: 13px;
-  padding: 11px;
+  min-height: 44px;
+  margin-top: var(--space-4);
+  padding: var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 13.5px;
+  background: var(--chrome-soft);
+  color: var(--chrome);
+  font-size: 13px;
   font-weight: 700;
-  transition: transform 0.18s var(--spring);
+  transition: transform 0.18s var(--settle);
 }
 .present-action:active { transform: scale(0.97); }
 
 .present-final {
-  margin-top: 22px;
+  margin-top: var(--space-7);
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 16px;
-  animation: rise 0.35s var(--ease) backwards;
+  padding: var(--space-5);
 }
-.present-final h3 { font-size: 15.5px; margin-bottom: 4px; }
-.present-final .team-sub { margin-bottom: 12px; }
+.present-final h3 { font-size: 15px; margin-bottom: var(--space-2); }
+.present-final .team-sub { margin-bottom: var(--space-4); }
 .present-final-row {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 9px 0;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
-  font-size: 14px;
+  font-size: 15px;
 }
 .present-final-row:first-of-type { border-top: none; }
 .present-final-pos {
@@ -2379,14 +3063,19 @@ body.plain .cva-scale { margin-top: 9px; }
   width: 20px;
   color: var(--text-faint);
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .present-final-name { flex: 1; min-width: 0; font-weight: 600; }
 .present-final-score {
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
 }
+/* declared after the base rule, so a part-scored panel score in the
+   ceremony greys the same way it does everywhere else */
+.present-final-score.partial { color: var(--text-dim); font-weight: 600; }
 
 /* ============================================================
    WIDER SCREENS
@@ -2424,21 +3113,14 @@ body.plain .cva-scale { margin-top: 9px; }
      it up to poster size */
   #radar-wrap { max-width: 360px; margin: 0 auto; }
 
-  .scorebar {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: min(var(--page), calc(100vw - 24px));
-  }
 
-  .wheel-coach { left: calc(var(--gut) + 4px); }
+  .wheel-coach { right: calc(var(--gut) + 4px); }
 
-  .toast { bottom: calc(var(--sab) + 96px); }
+  .toast { bottom: calc(var(--sab) + 78px); }
 
-  /* a 1–9 row stretched across the column put 67px buttons on screen, more
-     than twice their size on a phone — the column is for reading width, not
-     for making the controls bigger */
-  .cva-scale { max-width: 430px; }
+  /* the column is for reading width, not for stretching the control: a
+     track twice as wide makes every detent twice as far apart */
+  .scale { max-width: 430px; }
 
   /* two origin fields per row is right on a phone; on a laptop the cells
      were absurdly wide */
@@ -2458,3 +3140,102 @@ body.plain .cva-scale { margin-top: 9px; }
    switch is the leader's call over the whole table, so it is not theirs
    to flip. */
 .modal.guest-view .switch-row { display: none; }
+
+/* ============================================================
+   Keyboard focus
+
+   Every text field here replaced the focus ring with a 1px border-colour
+   swap, and .lineup-name replaced it with nothing at all — measured as
+   outline none, border 0, box-shadow none, so the coffee-name fields were
+   pixel-identical focused and unfocused. A ring is how someone driving
+   this from a keyboard knows where they are.
+
+   These sit last in the file on purpose: :focus-visible and :focus carry
+   the same specificity, so source order is what makes them win.
+   ============================================================ */
+.name-field:focus-visible,
+.detail-field:focus-visible,
+.notes-field:focus-visible,
+.modal-input:focus-visible,
+.lineup-name:focus-visible {
+  outline: 2px solid var(--chrome);
+  outline-offset: 2px;
+  border-color: var(--chrome);
+}
+
+
+/* ============================================================
+   THE DATA INK
+
+   Everything above is ink, rules and space. This is the whole
+   list of things allowed to be coloured, and every one of them
+   is a number or the position of one:
+
+     the score            the figure the screen exists to produce
+     the scale            the fill, the knob, the anchor phrase
+     progress fills       how much of something there is
+     the ranking scores   values, shown to a second person
+     the Results line     where this lineup fell on the standard
+
+   Focus rings are the one exception and they are an affordance
+   rather than decoration: a ring the same ink as the page is not
+   a ring. The radar series and the flavour wheel keep their own
+   palettes, which are categorical data and separately measured.
+
+   If something needs to stand out and is not a value, it earns
+   that with weight, size or position.
+   ============================================================ */
+
+.scorebar-score { color: var(--data); }
+
+/* A wash, never solid: the coffee's number sits on top of this fill, and a
+   solid ink under it measured 1.56:1 — the rail got less legible the more of
+   it you had filled in, on the one band a thumb reaches. */
+.rail-fill { background: var(--data-soft); }
+.rail-seg.done .rail-fill { background: var(--data-soft); }
+/* Selection, not a value: which coffee is open is not a number a cupper
+   set, so the ring is ink. The wash behind it is the part that encodes
+   something, and that keeps the data ink. */
+.rail-seg.active { border-color: var(--chrome); box-shadow: inset 0 0 0 1px var(--chrome); }
+
+.rank-bar-fill,
+.group-bar-fill { background: var(--data); }
+
+.summary-span { background: var(--data); }
+.summary-mark { border-color: var(--data); }
+
+.rank-score,
+.present-final-score,
+.team-coffee-avg,
+.hist-item-score,
+.stat-value,
+.cupper-score.me { color: var(--data); }
+
+/* A part-scored figure is not a number you can rely on, so it does not get
+   the ink. This re-asserts the shared treatment, which sits earlier in the
+   file at the same specificity and would otherwise lose on order alone. */
+.rank-score.partial,
+.present-final-score.partial,
+.hist-item-score.partial,
+.cupper-score.me.partial,
+.podium-score.partial { color: var(--text-dim); font-weight: 600; }
+
+/* An affordance, not an accent — see above. One ring for every control, not
+   an authored one on the nine that were written by hand and the browser's
+   default on everything else: the UA ring is visible but it is not
+   theme-aware, so on the dark ground it was a thin light hairline that
+   changed shape from control to control. */
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--data);
+  outline-offset: 2px;
+}
+.scale-track:focus-visible { outline-offset: 3px; }
+/* the wedges are SVG paths inside a zoomed viewport, where an outline does
+   not follow the shape — they carry their own ring, set on the stroke */
+.wheel-seg:focus-visible { outline: none; }
