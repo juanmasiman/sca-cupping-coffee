@@ -7,16 +7,16 @@ colors:
   ink: "#16181c"
   ink-dim: "#565b63"
   line: "#d9dad4"
-  data: "#0b5f4f"
-  data-soft: "#e4efec"
+  data: "#1d4f73"
+  data-soft: "#e7eef3"
   alert: "#9a3412"
   paper-dark: "#0f1113"
   panel-dark: "#171a1d"
   ink-dark: "#e9ecef"
   ink-dim-dark: "#98a0a8"
   line-dark: "#2a2e33"
-  data-dark: "#46c5a8"
-  data-soft-dark: "#16302b"
+  data-dark: "#6fb6de"
+  data-soft-dark: "#16262f"
   alert-dark: "#f0a077"
   wheel-floral: "#e87fa8"
   wheel-fruity: "#e0464b"
@@ -170,7 +170,7 @@ Ratios below are measured, and each is the **worst case across both surfaces** �
 | Ink | `#16181c` | `#e9ecef` | 17.03:1 | 14.73:1 |
 | Secondary ink | `#565b63` | `#98a0a8` | 6.55:1 | 6.60:1 |
 | Rule | `#d9dad4` | `#2a2e33` | structural only, never text | |
-| Data ink | `#0b5f4f` | `#46c5a8` | 7.28:1 | 8.16:1 |
+| Data ink | `#1d4f73` | `#6fb6de` | 8.32:1 | 7.84:1 |
 | Data wash | `#e4efec` | `#16302b` | fills only, never text | |
 | Alert | `#9a3412` | `#f0a077` | 7.00:1 | 8.32:1 |
 
@@ -189,6 +189,8 @@ This rule was written here and then not kept: the token was called `--accent` an
 Two things sit outside that list on purpose. **Focus rings** take the data ink because they are an affordance, not decoration — a ring in the same ink as the page is not a ring. **Alert red** was never the accent and keeps its own job on destructive controls.
 
 A **part-scored** figure loses the ink and takes secondary ink instead: it is not a number anyone should rely on, and that distinction outranks being a value.
+
+**On the hue itself.** It was a teal-green for most of this project's life, and it got there by being the opposite of the cream-and-copper world it replaced rather than by being chosen against anything. The argument that moved it is specific to this product: the app draws the Coffee Taster's Flavor Wheel, on which green is the *Green/Vegetative* family — under-ripe, peapod, hay-like, the defect-adjacent wedge — and then used green to mean "this is a good score". It was the one candidate whose hue already meant something else inside the product. Slate carries no flavour meaning, sits closer in temperature to the warm greys than a true blue does, and measures better in the light theme than the green it replaced. Oxblood was the more interesting answer and lost only because alert red is already spoken for.
 
 The greys are warm in light and cool in dark, each biased a few degrees toward its own ground so neither reads as a stock neutral dropped in.
 

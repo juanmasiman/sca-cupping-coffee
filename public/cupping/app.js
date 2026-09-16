@@ -374,7 +374,12 @@ function syncStaticHelp() {
 // Small "?" button; returns null when guided mode is off so callers can
 // append unconditionally.
 function helpBtn(id) {
-  if (!guidedOn() || !HELP[id]) return null;
+  // The intro mark is the one permanent door. Guided mode off removes every
+  // other explanation in the product — including, before this, the only way
+  // back to the sheet that carries the switch, so turning guidance off was a
+  // one-way trip for the person least able to reason their way out of it.
+  if (!HELP[id]) return null;
+  if (!guidedOn() && id !== 'intro') return null;
   const btn = el('button', 'help-btn', '?');
   btn.type = 'button';
   btn.setAttribute('aria-label', `About ${HELP[id].title}`);
@@ -1891,6 +1896,31 @@ async function takeSeat(code) {
   save();
 }
 
+/* Joining replaces whatever session is on this device, and it used to do
+   that without asking. #btn-start guards the identical destruction with a
+   confirm sheet; the join path — which is the most travelled entrance in the
+   product, and the one most likely to be taken mid-session when somebody
+   pastes the link into the group chat again — had no check at all. Worse, a
+   device that had ever entered a cupper name skipped even the name modal, so
+   a tapped link wiped eight scored coffees between one frame and the next,
+   with no undo and no archive.
+
+   Nothing is archived until Results, so there is genuinely nothing to
+   recover. It asks now, and it names what is at stake. */
+async function joinWouldDestroyWork() {
+  if (!state || !state.coffees || !state.coffees.length) return false;
+  const p = sessionProgress();
+  const scored = state.coffees.length - p.untouched;
+  if (scored === 0) return false;
+  return !(await confirmSheet({
+    title: 'Join this table and leave your cupping?',
+    body: `You have ${scored} coffee${scored > 1 ? 's' : ''} scored in a cupping that has not been finished, so it is not in History yet.`,
+    effects: ['Joining replaces it. That scoring is discarded.'],
+    cta: 'Leave it and join',
+    danger: true,
+  }));
+}
+
 function askNameThenJoin(payload, code) {
   const finish = async name => {
     // register under the name they gave, and keep the roster and the
@@ -1916,7 +1946,10 @@ function askNameThenJoin(payload, code) {
   };
 
   const known = getCupperName();
-  if (known) { finish(known); return; }
+  if (known) {
+    joinWouldDestroyWork().then(blocked => { if (!blocked) finish(known); });
+    return;
+  }
 
   const modal = $('#name-modal');
   const input = $('#name-input');
@@ -1925,7 +1958,11 @@ function askNameThenJoin(payload, code) {
   setTimeout(() => input.focus(), 80);
 
   const close = () => { closeSheet(modal); modal.onclick = null; };
-  const go = name => { close(); finish(name); };
+  const go = async name => {
+    close();
+    if (await joinWouldDestroyWork()) return;
+    finish(name);
+  };
 
   $('#name-submit').onclick = () => go(input.value.trim());
   $('#name-skip').onclick = () => go('');
@@ -2449,11 +2486,18 @@ function buildTabs() {
   rail.classList.toggle('dense', state.coffees.length > 6);
 }
 
+// Only the panel on screen. refreshTabs runs on every detent release, and
+// this used to rewrite the innerHTML of all ten panels' submit rows each
+// time — including nine nobody was looking at.
 function refreshSubmitRows() {
-  document.querySelectorAll('.submit-row').forEach(r => { if (r.refresh) r.refresh(); });
+  const panels = $('#panels');
+  const active = panels && panels.children[state.activeIndex];
+  const row = active && active.querySelector('.submit-row');
+  if (row && row.refresh) row.refresh();
 }
 
 function refreshTabs() {
+  markScrollEnds($('#coffee-rail'));
   const rail = $('#coffee-rail');
   const active = state.coffees[state.activeIndex];
   if (!active) return;
@@ -2545,7 +2589,22 @@ function scrollToPanel(i, smooth) {
   panels.scrollTo({ left: i * panels.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
 }
 
+/* Only the coffee on screen is reachable. All panels live in one scroll
+   container, so without this a keyboard or screen-reader user walked ten
+   name fields, seventy sliders and 230-odd chips in a flat sequence with
+   nothing saying which coffee they were in — and focusing an off-screen
+   control scroll-jacked the snap container, which then changed the active
+   coffee underneath them. */
+function syncPanelInertness() {
+  const panels = $('#panels');
+  if (!panels) return;
+  [...panels.children].forEach((panel, i) => {
+    panel.inert = i !== state.activeIndex;
+  });
+}
+
 function syncActivePanel() {
+  syncPanelInertness();
   refreshTabs();
   updateScorebar();
 }
@@ -3310,7 +3369,15 @@ function buildDescriptiveCard(coffee) {
         const chip = el('button', `cata-chip${idx ? ' child' : ''}`, escapeHTML(name));
         chip.type = 'button';
         chip.dataset.name = name;
-        const sync = () => chip.classList.toggle('on', list().includes(name));
+        // Same rule as the taste and mouthfeel chips below, which got it and
+        // this list did not: selection carried as a CSS class and a colour is
+        // nothing to a screen reader, and nothing to a cupper with a
+        // colour-vision deficiency in a dim cellar.
+        const sync = () => {
+          const on = list().includes(name);
+          chip.classList.toggle('on', on);
+          chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+        };
         chip.addEventListener('click', () => {
           if (!toggleCata(list(), name, max)) { toast(`Up to ${max} descriptors here`); return; }
           haptic();
@@ -4725,9 +4792,19 @@ function radarRange() {
   return usingCVA() ? { min: 1, max: 9 } : { min: 6, max: 10 };
 }
 
+/* null where the cupper has not rated the section. Every other surface in
+   the product refuses to present an untouched default as data; the radar was
+   the hole in that, and the most persuasive surface to have it — a shape
+   reads as a measurement, so a coffee rated 3 of 8 drew a complete polygon
+   with five vertices sitting on the parking 5. */
 function attrValue(coffee, attr) {
-  if (usingCVA()) return coffee.cva[attr.key];
-  if (attr.key in coffee.scores) return coffee.scores[attr.key];
+  if (usingCVA()) {
+    return coffee.touched && coffee.touched[attr.key] ? coffee.cva[attr.key] : null;
+  }
+  if (attr.key in coffee.scores) {
+    return coffee.touched && coffee.touched[attr.key] ? coffee.scores[attr.key] : null;
+  }
+  // per-cup attributes are always answered: every cup starts passing
   const cups = coffee.cups[attr.key];
   return 10 * cups.filter(Boolean).length / cups.length;
 }
