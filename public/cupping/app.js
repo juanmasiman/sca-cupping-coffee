@@ -4604,17 +4604,35 @@ function refreshLiveTable(data) {
           }).join('') || '<span class="cupper-score">nobody has rated this one</span>'}</div>
         </div>`).join('');
 
-      // calibration: who consistently runs high or low against the table
-      const calib = [...counted].map(name => {
+      /* Calibration: who consistently runs high or low against the table.
+
+         It is a statement about a palate, so it can only be built out of
+         sheets that are finished. A part-scored one carries its untouched
+         sections at their default 5, which drags its total toward the
+         middle of the scale wherever the cupper's real judgement sat — and
+         this list then reported that drag as a habit. At a live table a
+         cupper who had rated three sections of one coffee was told he runs
+         2.31 below the panel, under a caption explaining that direction is
+         a habit. It was not his palate. It was five sections he had not
+         got to yet, described as character.
+
+         So a cupper is measured on the coffees whose sheets they finished,
+         against the panel score as the table reads it out. Finish none and
+         there is nothing to measure; the row says that rather than
+         inventing a number, and the count rides along wherever somebody is
+         being judged on less than the whole lineup. */
+      const calibAll = [...counted].map(name => {
         const diffs = perCoffee
           .map(r => {
             const e = r.entries.find(x => x.name === name);
-            return e ? e.score - r.avg : null;
+            return e && !e.partial ? e.score - r.avg : null;
           })
           .filter(v => typeof v === 'number' && !isNaN(v));
-        const mean = diffs.reduce((a, b) => a + b, 0) / (diffs.length || 1);
-        return { name, mean, me: name === myName };
-      }).sort((a, b) => b.mean - a.mean);
+        const mean = diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
+        return { name, mean, n: diffs.length, me: name === myName };
+      });
+      const calib = calibAll.filter(c => c.mean !== null).sort((a, b) => b.mean - a.mean);
+      const unmeasured = calibAll.filter(c => c.mean === null).map(c => c.name);
 
       // Only magnitude means anything in a calibration exercise: running
       // high is not better than running low, and the old list said
@@ -4627,13 +4645,14 @@ function refreshLiveTable(data) {
       const bandLeft = 50 - (NORMAL / span) * 50;
       const bandWidth = (NORMAL / span) * 100;
 
-      html += `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
+      html += calib.length ? `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
         ${calib.map(c => {
           const frac = Math.max(-1, Math.min(1, c.mean / span));
           const w = Math.abs(frac) * 50;
           const left = c.mean >= 0 ? 50 : 50 - w;
+          const over = c.n < perCoffee.length ? ` <i>${c.n} of ${perCoffee.length}</i>` : '';
           return `<div class="calib-row${c.me ? ' me' : ''}">
-            <span class="calib-name">${escapeHTML(c.name)}</span>
+            <span class="calib-name">${escapeHTML(c.name)}${over}</span>
             <span class="calib-bar">
               <b class="calib-band" style="left:${bandLeft}%;width:${bandWidth}%"></b>
               <i style="left:${left}%;width:${w}%"></i>
@@ -4641,8 +4660,9 @@ function refreshLiveTable(data) {
             <span class="calib-val">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span>
           </div>`;
         }).join('')}
-        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict.</p>
-      </div>`;
+        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict. Only finished sheets are measured — a part-scored one would describe the sheet rather than the palate.${
+          unmeasured.length ? ` ${unmeasured.map(escapeHTML).join(', ')} ${unmeasured.length > 1 ? 'have' : 'has'} not finished a sheet in this lineup yet.` : ''}</p>
+      </div>` : `<p class="live-note">Nobody has finished a whole sheet yet, so there is nothing to calibrate against. Calibration is measured over finished sheets only.</p>`;
       wrap.innerHTML = html + lateSubmit();
     }
   }

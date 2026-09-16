@@ -2559,6 +2559,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .cupper-score i,
 .present-cupper i,
 .present-final-score i,
+.calib-name i,
 .rank-grade i {
   font-style: normal;
   font-size: 11px;
@@ -2580,7 +2581,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   border-radius: var(--radius);
 }
 .calib-row.me { border: 1px solid var(--chrome); }
-.calib-name { flex: 0 0 auto; min-width: 0; max-width: 34%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calib-name { flex: 0 0 auto; min-width: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Symmetric about zero. A bar to the left and a bar to the right of the
    centre carry identical weight and identical colour, because in a
