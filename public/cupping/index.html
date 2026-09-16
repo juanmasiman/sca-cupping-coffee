@@ -405,6 +405,22 @@
     </div>
   </div>
 
+  <!-- One sheet for every decision that used to be a window.confirm(). Eight
+       of those sat inside nine bespoke sheets, in the OS font, with "OK"
+       focused by default — including the reveal, which is the moment this
+       product exists for. -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-sheet">
+      <h3 id="confirm-title"></h3>
+      <p class="modal-hint" id="confirm-body"></p>
+      <ul class="confirm-effects" id="confirm-effects"></ul>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="confirm-go" class="btn btn-primary">Continue</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal" class="modal hidden">
     <div class="modal-sheet">
       <h3 id="modal-title">Paste code</h3>

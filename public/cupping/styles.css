@@ -1850,6 +1850,42 @@ body.plain .scale { margin-top: 9px; }
 }
 .modal-input:focus { border-color: var(--accent-deep); }
 
+/* the consequences of an irreversible action, listed rather than run
+   together into one sentence nobody finishes reading */
+.confirm-effects {
+  list-style: none;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.confirm-effects li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.confirm-effects li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+/* Filled, because the button that cannot be undone should not look like the
+   button that can. Cancel is first in the sheet and takes the focus. */
+.btn-danger {
+  background: var(--red);
+  color: var(--bg);
+  font-weight: 700;
+}
+.btn-danger:active { transform: scale(0.97); }
+
 .modal-actions { display: flex; gap: 10px; margin-top: 14px; }
 .modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
 
