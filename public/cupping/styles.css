@@ -398,6 +398,7 @@ input, textarea, select { font: inherit; }
   text-align: center;
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .stepper-value.bump { animation: bump 0.3s var(--settle); }
@@ -532,6 +533,7 @@ input, textarea, select { font: inherit; }
   font-size: 11px;
   font-weight: 600;
   color: var(--text-faint);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -599,6 +601,7 @@ input, textarea, select { font: inherit; }
   position: relative;
   font-size: 11px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
@@ -676,6 +679,7 @@ input, textarea, select { font: inherit; }
   border: 1px solid var(--data);
   font-size: 11px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   animation: bump 0.35s var(--settle);
 }
@@ -967,7 +971,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .desc-body { padding: var(--space-1) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
 .desc-intro { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
 .desc-intro strong { color: var(--text); font-weight: 700; }
-.desc-note { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
 
 .desc-section {
   display: flex;
@@ -1239,24 +1242,18 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   min-height: 18px;
 }
 
-.desc-row {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: var(--space-4) var(--space-4) var(--space-3);
-}
-.desc-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
-.desc-row-name { font-size: 13px; font-weight: 700; }
-.desc-row-value {
-  font-size: 17px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: var(--chrome);
-}
-
-/* an intensity nobody has recorded should not read as a deliberate 5 */
-.desc-row.unrated .desc-row-value { color: var(--text-faint); }
-/* shown once there is something to clear — see .cva-clear below */
+/* The intensity rows are .attr-card, the same component the scoring half
+   uses, so everything above applies to them unchanged — typography, the
+   faint value when unrated, the clear button's reveal. All that is left
+   here is the one thing that is genuinely contextual: a .desc-section is a
+   flex column with an 8px gap, and a stack of rule-separated rows has to
+   close that gap or the hairline floats between two blocks instead of
+   sitting under one. The last row's rule is dropped where the next thing
+   is a section boundary, which already draws its own. */
+.desc-section > .attr-card { padding: var(--space-4) 0 var(--space-3); }
+.desc-section > .attr-card + .attr-card { margin-top: calc(var(--space-3) * -1); }
+.desc-section > .attr-card:last-child { border-bottom: 0; }
+body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
 .desc-catas { display: flex; flex-direction: column; gap: var(--space-5); }
 .cata-group { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -1423,11 +1420,12 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border-radius: 50%;
   /* Reserved, not removed. This was `display: none` with a single
      `.attr-card.rated` rule to bring it back — which meant it never rendered
-     at all on the Describe rows, because those are .desc-row and
-     `visibility` cannot override `display`. Seven intensities per coffee
-     had a clear button with a handler, a label and a 44px target, and zero
-     pixels: a mis-dragged intensity was touched forever and went into
-     History and the CSV as a deliberate judgement.
+     at all on the Describe rows, which at the time were a separate
+     `.desc-row` component that rule never matched. Seven intensities per
+     coffee had a clear button with a handler, a label and a 44px target,
+     and zero pixels: a mis-dragged intensity was touched forever and went
+     into History and the CSV as a deliberate judgement. Both halves are
+     .attr-card now, so one rule covers them.
      Reserving the space is also what DESIGN.md asked for — no row changes
      height, and no value jumps sideways the moment it is rated. */
   display: grid;
@@ -1456,8 +1454,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   inset: -24px -12px 0;
   border-radius: var(--radius);
 }
-.attr-card.rated .cva-clear,
-.desc-row:not(.unrated) .cva-clear { visibility: visible; }
+.attr-card.rated .cva-clear { visibility: visible; }
 .cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }
 
 /* a rated section is tinted and carries an accent edge, so what is finished
@@ -1830,7 +1827,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .rank-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rank-grade { font-size: 13px; color: var(--text-faint); font-weight: 600; }
 
-.rank-score { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); }
+.rank-score { font-size: 24px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); }
 
 .rank-bar {
   margin-top: var(--space-4);
@@ -1893,6 +1891,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .stat-value {
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--chrome);
   line-height: 1.2;
@@ -1969,7 +1968,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 }
 .group-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group-count { font-size: 11px; color: var(--text-faint); font-weight: 600; flex: none; }
-.group-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
+.group-avg { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .group-bar {
   margin-top: var(--space-3);
   height: 4px;
@@ -2011,7 +2011,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .hist-item-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item-meta { font-size: 11px; color: var(--text-faint); margin-top: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item-right { text-align: right; flex: none; }
-.hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); }
+.hist-item-score { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); }
 /* A score from a part-scored sheet is mostly untouched defaults, so it
    does not get to wear the data ink that a finished one earns. */
 /* the partial treatment is shared — see .partial below */
@@ -2052,12 +2053,14 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   gap: var(--space-4);
 }
 .team-coffee-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-coffee-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
+.team-coffee-avg { font-size: 17px; font-weight: 800; font-family: var(--mono);
+ font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .team-coffee-avg small { font-size: 11px; font-weight: 700; color: var(--text-faint); margin-left: var(--space-2); }
 .team-coffee-cuppers {
   margin-top: var(--space-2);
   font-size: 13px;
   color: var(--text-dim);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
 }
@@ -2291,6 +2294,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   place-items: center;
   font-size: 30px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   transition: border-color 0.2s, transform 0.2s var(--settle), background 0.2s;
 }
@@ -2329,6 +2333,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border: 1px solid var(--line);
   font-size: 24px;
   font-weight: 600;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   display: grid;
   place-items: center;
@@ -2458,6 +2463,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .cupper-score {
   display: inline-block;
   margin-right: var(--space-4);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .cupper-score em { font-style: normal; color: var(--text-faint); font-size: 11px; }
@@ -2554,6 +2560,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   letter-spacing: 0.35em;
   text-indent: 0.35em; /* balance the last letter-space */
   color: var(--chrome);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .share-pin.pending { font-size: 15px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: var(--space-4) 0; }
@@ -2798,6 +2805,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   color: var(--chrome);
   font-size: 13px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .lineup-row.named .lineup-num { background: var(--chrome); color: var(--on-chrome); }
@@ -2817,8 +2825,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 }
 .lineup-name::placeholder { color: var(--text-faint); font-weight: 500; }
 .lineup-name:focus { outline: none; }
-/* a guest is looking at the leader's lineup, not editing it */
-.lineup-name[readonly], .lineup-row .detail-field[readonly] { color: var(--text-dim); }
+/* A guest is looking at the leader's lineup, not editing it. This was scoped
+   to .lineup-row, which is why the same field on the scoring panel looked
+   editable: same data, same permission, two appearances. It is every
+   read-only field now, wherever it is drawn. */
+.lineup-name[readonly],
+.name-field[readonly],
+.detail-field[readonly] { color: var(--text-dim); cursor: default; }
 
 /* The row is dense, so the mark stays small and the target grows around it
    — the same trick the help marks use. The two icons are 8px apart, so 6px
@@ -2898,6 +2911,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   color: var(--chrome);
   font-size: 15px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .present-card.sealed .present-num { background: var(--bg-card); color: var(--text-faint); }
@@ -2920,6 +2934,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   display: block;
   font-size: 24px;
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--chrome);
   line-height: 1;
@@ -2956,6 +2971,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .present-cupper strong {
   font-weight: 800;
   color: var(--text);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .present-cupper em { font-style: normal; font-size: 11px; color: var(--text-faint); }
@@ -2998,11 +3014,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   width: 20px;
   color: var(--text-faint);
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .present-final-name { flex: 1; min-width: 0; font-weight: 600; }
 .present-final-score {
   font-weight: 800;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--chrome);
 }

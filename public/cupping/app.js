@@ -350,6 +350,16 @@ function setGuided(on) {
 function applyGuided() {
   document.body.classList.toggle('plain', !guidedOn());
   syncStaticHelp();
+  // The marks are decided when a panel is built — helpBtn() returns null with
+  // guidance off — so the sheet on screen has to be rebuilt or it keeps the
+  // ones it was born with. That rebuild used to live in the switch's change
+  // listener instead of here, which made it true only for the one caller that
+  // remembered it; the sub-labels hid on the class alone, so any other route
+  // into this function left the sheet half-converted. The setting enforces
+  // itself now.
+  if (typeof state !== 'undefined' && state && $('#screen-cupping').classList.contains('active')) {
+    buildCuppingUI();
+  }
 }
 
 // Two help marks live in the markup rather than in a panel that gets rebuilt:
@@ -1926,7 +1936,18 @@ function askNameThenJoin(payload, code) {
     // register under the name they gave, and keep the roster and the
     // submitted scores agreeing on it
     setCupperName(name || getCupperName() || 'Cupper');
-    applySessionPayload(payload);
+    // All three callers gate on `if (payload)`, which is truthiness, not
+    // structure: a relay response that arrives truncated, or a #join= code
+    // that decodes to an object with no lineup in it, is truthy and gets
+    // here. applySessionPayload refuses it and returns false — and this line
+    // ignored the answer, so startCupping() then read state.coffees off null.
+    // The cupper was returned to setup with no session, no message and a
+    // TypeError in the console. Every other decode failure on this path says
+    // something true; this one said nothing.
+    if (!applySessionPayload(payload)) {
+      toast('That cupping link is missing its lineup — ask for a fresh one');
+      return;
+    }
     // a link made before the leader's code existed carries the lineup only
     await takeSeat(code || (payload && payload.lc) || null);
     startCupping();
@@ -2654,7 +2675,16 @@ function buildPanel(coffee, index) {
   name.placeholder = `Coffee ${index + 1} — name or lot…`;
   name.value = coffee.name;
   name.maxLength = 40;
+  // The comment above described this and the fix never landed: `locked` was
+  // computed and then not read by anything, so the panel kept accepting a
+  // guest's rename that adoptRevealedLineup threw away at the reveal.
+  name.readOnly = locked;
+  if (locked) name.title = 'The lead cupper names the coffees at this table';
   name.addEventListener('input', () => {
+    // readOnly stops a thumb, not a script, and this permission has now been
+    // half-applied twice. The guard puts it in the handler that owns the
+    // write, where it cannot be lost by someone editing the markup.
+    if (name.readOnly) { name.value = coffee.name; return; }
     coffee.name = name.value;
     refreshTabs();
     updateScorebar();
@@ -2786,6 +2816,7 @@ function buildDetailsCard(coffee) {
     if (f.list) input.setAttribute('list', f.list);
     if (f.inputmode) input.setAttribute('inputmode', f.inputmode);
     input.addEventListener('input', () => {
+      if (input.readOnly) { input.value = coffee.meta[f.key] || ''; return; }
       coffee.meta[f.key] = input.value;
       refreshSummary();
       save();
@@ -3289,7 +3320,14 @@ function buildDescriptiveCard(coffee) {
 
   const summaryEl = card.querySelector('.details-summary');
   const refreshSummary = () => {
-    summaryEl.textContent = descriptiveSummary(coffee.desc) || 'what you taste, not how good';
+    // Its sibling, the coffee-details card, names the fields it holds
+    // ("variety · process · farm…"). This one explained its own purpose —
+    // which the section head two lines above already does, in almost the
+    // same words, so the sheet said "Describe / what you taste · no
+    // judgement" and then "Describe / what you taste, not how good" within
+    // 100px. Same pattern as the sibling: say what is inside.
+    summaryEl.textContent = descriptiveSummary(coffee.desc)
+      || 'intensity · descriptors · notes';
   };
 
   const body = card.querySelector('.desc-body');
@@ -3312,18 +3350,31 @@ function buildDescriptiveCard(coffee) {
   roastInput.addEventListener('input', () => { d.roast = roastInput.value; save(); });
   body.appendChild(roast);
 
+  // The same control, so the same container. This shipped as a bordered,
+  // filled .desc-row inside the already-bordered Describe card — a card
+  // inside a card, which DESIGN.md forbids outright — while the identical
+  // scale on the scoring half shipped as a transparent, rule-separated
+  // .attr-card. One scale drawn two ways on one screen is the whole of the
+  // "Consistency and Standards" finding. It is .attr-card here too, which
+  // also hands the intensity its mono numerals: the old .desc-row-value set
+  // no font-family, so a number a reader compares to six others was sans.
   const intensityRow = attr => {
-    const row = el('div', 'desc-row');
+    const row = el('div', 'attr-card');
     row.innerHTML = `
-      <div class="desc-row-head">
-        <span class="desc-row-name">${attr.label}${attr.sub ? ` <span class="desc-note">${attr.sub}</span>` : ''}</span>
-        <div class="attr-value-row">
-          <span class="desc-row-value"></span>
-          <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} intensity">×</button>
+      <div class="attr-head">
+        <div class="attr-head-left">
+          <div class="attr-title">${attr.label}</div>
+          ${attr.sub ? `<div class="attr-sub">${attr.sub}</div>` : ''}
+        </div>
+        <div class="attr-head-right">
+          <div class="attr-value-row">
+            <div class="attr-value"></div>
+            <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} intensity">×</button>
+          </div>
         </div>
       </div>
     `;
-    const valueEl = row.querySelector('.desc-row-value');
+    const valueEl = row.querySelector('.attr-value');
 
     const scale = buildAnchoredScale({
       label: `${attr.label} — intensity, 0 to 15`,
@@ -3338,6 +3389,7 @@ function buildDescriptiveCard(coffee) {
     const refresh = () => {
       const rated = Boolean(d.touched && d.touched[attr.key]);
       row.classList.toggle('unrated', !rated);
+      row.classList.toggle('rated', rated);
       valueEl.textContent = rated ? d.intensity[attr.key] : '–';
       scale.refresh(true);
     };
@@ -5472,7 +5524,6 @@ document.addEventListener('DOMContentLoaded', () => {
       guidedSwitches.forEach(other => { other.checked = sw.checked; });
       haptic();
       toast(sw.checked ? 'Guided mode on' : 'Guided mode off');
-      if (state && $('#screen-cupping').classList.contains('active')) buildCuppingUI();
     });
   });
 
