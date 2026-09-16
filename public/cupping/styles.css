@@ -113,11 +113,19 @@
      not a hierarchy") surviving untouched in space, because the
      type ramp got collapsed and this never did.
 
-     Four-based, eight steps. Every value moved by at most 2px,
-     the same discipline the type collapse used, so the system
-     arrives without the app being redrawn. Nothing beyond the
-     scale and 0 remains: the one large value left, the empty
-     history's vertical pad, is two steps of 8.
+     Four-based, eight steps. 316 spacing declarations, of which
+     295 read from the scale and 21 are 0; 201 of them changed
+     value, and every change is 2px or smaller except two 28 -> 32
+     and the empty history's vertical pad at 70 -> 64. That is the
+     discipline the type collapse used, so the system arrives
+     without the app being redrawn. Nothing beyond the scale and 0
+     remains; the pad is two steps of 8.
+
+     (The commit that landed this said "237 declarations, each
+     moved by at most 2px". Both figures were taken from my edit
+     script's own log rather than from the file: 237 was its count
+     of lines it rewrote, and it did not flag the 4px and 6px
+     moves. Counted from the diff, the numbers are the ones above.)
      ---------------------------------------------------------- */
   --space-1: 2px;
   --space-2: 4px;
