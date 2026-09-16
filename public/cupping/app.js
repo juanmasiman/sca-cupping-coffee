@@ -534,6 +534,7 @@ function load() {
 }
 
 function clearSession() {
+  clearPresentStage();   // the ceremony belongs to the session that is going
   state = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
 }
@@ -1433,7 +1434,19 @@ function startPolling(tick, opts) {
     if (document.hidden) return; // visibilitychange wakes it again
     self.busy = true;
     let sig;
-    try { sig = await tick(); } catch (e) { sig = 'error'; }
+    // A thrown tick used to return the same 'error' string every time, which
+    // is a stable signature — so the poller read a dead relay as "nothing is
+    // changing" and stretched its interval out to the maximum, exactly when
+    // it should have been retrying. Counting the failures keeps the
+    // signature moving, and the count is what the badge reads.
+    try {
+      sig = await tick();
+      self.fails = 0;
+    } catch (e) {
+      self.fails = (self.fails || 0) + 1;
+      sig = `error:${self.fails}`;
+    }
+    setRelayTrouble(self.fails >= 3);
     self.busy = false;
     if (self.dead) return;
     if (sig === null) { self.dead = true; return; }
@@ -1969,7 +1982,7 @@ async function openInviteSheet() {
   $('#share-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
   link.onclick = () => shareUrl && shareText(
-    `☕️ Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
+    `Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
     'Join link copied'
   );
 
@@ -2294,6 +2307,7 @@ const setup = { coffees: 3, cups: 5, form: 'cva' };
 
 function initFormPicker() {
   const seg = $('#form-seg');
+  markScrollEnds(seg);
   const hint = $('#form-hint');
   const hints = {
     cva: 'SCA Coffee Value Assessment · 8 sections rated 1–9',
@@ -2440,7 +2454,7 @@ function refreshTabs() {
     const seg = rail.children[i];
     if (!seg) return;
     const p = scoreProgress(c);
-    seg.querySelector('.rail-fill').style.width = `${(p.done / p.total) * 100}%`;
+    seg.querySelector('.rail-fill').style.transform = `scaleX(${p.done / p.total})`;
     seg.querySelector('.rail-num').textContent = i + 1;
     seg.classList.toggle('active', i === state.activeIndex);
     seg.classList.toggle('done', p.complete);
@@ -3778,7 +3792,7 @@ function buildResults() {
       : null;
     card.innerHTML = `
       <div class="rank-top">
-        <div class="rank-medal">${pos + 1}</div>
+        <div class="rank-position">${pos + 1}</div>
         <div class="rank-info">
           <div class="rank-name">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
           <div class="rank-grade">${r.prog.done === 0
@@ -3801,7 +3815,7 @@ function buildResults() {
       const floor = usingCVA() ? 58 : 0;
       const pct = r.prog.done === 0 ? 0
         : Math.max(0, Math.min(100, ((r.score - floor) / (100 - floor)) * 100));
-      card.querySelector('.rank-bar-fill').style.width = `${pct}%`;
+      card.querySelector('.rank-bar-fill').style.transform = `scaleX(${pct / 100})`;
     });
   });
 
@@ -3853,7 +3867,7 @@ function renderTeamCard() {
   card.querySelector('#btn-share-scores').addEventListener('click', async () => {
     const code = await buildScoreCode();
     shareText(
-      `☕️ My cupping scores — in SCA Cupping open Results → “Add cupper’s scores” and paste:\n\n${code}`,
+      `My cupping scores — in SCA Cupping open Results → “Add cupper’s scores” and paste:\n\n${code}`,
       'Score code copied'
     );
   });
@@ -4120,7 +4134,40 @@ function wireSubmitButton(wrap, name) {
    ============================================================ */
 
 let presentData = null;   // last roster read from the relay
-let presentStage = [];    // 0 sealed · 1 identity shown · 2 scores shown
+/* 0 sealed · 1 identity shown · 2 scores shown.
+   Persisted, because this is the one screen in the app being read aloud to
+   a room. It used to be module-level only: refresh mid-ceremony — or let
+   iOS reclaim the tab — and every card went back to sealed in front of the
+   table while state.revealed stayed true. */
+let presentStage = [];
+
+// Keyed on the session id, so a ceremony is not restored onto a different
+// lineup, and dropped whenever the session is.
+function presentStageKey() {
+  return state && state.id ? `lento-present-${state.id}` : null;
+}
+
+function savePresentStage() {
+  const key = presentStageKey();
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(presentStage)); } catch (e) { /* private mode */ }
+}
+
+function loadPresentStage() {
+  const key = presentStageKey();
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    const arr = raw ? JSON.parse(raw) : null;
+    return Array.isArray(arr) && arr.length === state.coffees.length ? arr : null;
+  } catch (e) { return null; }
+}
+
+function clearPresentStage() {
+  const key = presentStageKey();
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch (e) { /* private mode */ }
+}
 
 function isTableLeader() {
   return Boolean(state && state.liveCode && state.liveToken);
@@ -4129,7 +4176,8 @@ function isTableLeader() {
 async function openPresent() {
   presentData = null;
   presentSig = null;
-  presentStage = state.coffees.map(() => 0);
+  presentStage = loadPresentStage() || state.coffees.map(() => 0);
+  savePresentStage();
   // the sealed cards go up at once; showScreen starts the poller, which
   // fetches the roster in the background
   showScreen('#screen-present');
@@ -4231,7 +4279,9 @@ function buildPresent() {
         </div>
         ${stage === 2 ? `<div class="present-score">
           <span class="present-avg">${fmt(shown)}</span>
-          <span class="present-grade">${row ? `panel · ${row.cuppers.length}` : 'your score'}</span>
+          <span class="present-grade">${row
+            ? `average of ${row.cuppers.length} cupper${row.cuppers.length > 1 ? 's' : ''}`
+            : 'your score'}</span>
         </div>` : ''}
       </div>
       ${stage === 2 && row ? `<div class="present-cuppers">${row.cuppers.map(c => {
@@ -4251,6 +4301,7 @@ function buildPresent() {
           if (!(await ensureRevealed())) return;
         }
         presentStage[i] = stage + 1;
+        savePresentStage();
         buildPresent();
       };
       card.appendChild(action);
@@ -4301,6 +4352,7 @@ function buildPresentFinal(panel) {
 async function revealAllPresent() {
   if (tableCode() && !state.revealed && !(await ensureRevealed())) return;
   presentStage = state.coffees.map(() => 2);
+  savePresentStage();
   haptic();
   buildPresent();
 }
@@ -4473,7 +4525,7 @@ function buildRadar(ranked) {
 function buildShareText() {
   const ranked = rankedCoffees();
 
-  const lines = [`☕️ SCA Cupping Results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
+  const lines = [`SCA cupping results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
   ranked.forEach((r, pos) => {
     lines.push(r.prog.done === 0
       ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
@@ -4657,6 +4709,7 @@ function buildHistory() {
   // dimension segmented control
   const seg = $('#dim-seg');
   seg.innerHTML = '';
+  markScrollEnds(seg);
   DIMENSIONS.forEach(d => {
     const btn = el('button', 'seg-btn' + (d.key === activeDim ? ' active' : ''), d.label);
     btn.addEventListener('click', () => {
@@ -4727,7 +4780,7 @@ function renderGroups(coffees) {
     // bars scaled over 60–100 so small score differences stay visible
     const barPct = Math.max(0, Math.min(100, ((g.avg - 60) / 40) * 100));
     requestAnimationFrame(() => {
-      row.querySelector('.group-bar-fill').style.width = `${barPct}%`;
+      row.querySelector('.group-bar-fill').style.transform = `scaleX(${barPct / 100})`;
     });
   });
 }
@@ -4934,10 +4987,60 @@ function registerServiceWorker() {
   navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
 }
 
-function watchConnection() {
+/* Three states, not two. The phone can be offline, which navigator.onLine
+   knows about; or online with the table's relay unreachable, which it does
+   not — and which used to look exactly like a table where nothing was
+   happening. A leader waiting for cuppers to submit deserves to know which
+   of those they are looking at. */
+let relayTrouble = false;
+
+function setRelayTrouble(on) {
+  if (relayTrouble === on) return;
+  relayTrouble = on;
+  syncConnectionBadge();
+}
+
+function syncConnectionBadge() {
   const badge = $('#offline-badge');
-  const sync = () => badge.classList.toggle('hidden', navigator.onLine);
-  window.addEventListener('online', () => { sync(); if (poller) poller.wake(); });
+  if (!badge) return;
+  if (!navigator.onLine) {
+    badge.textContent = 'Offline — everything still works';
+    badge.classList.remove('hidden', 'trouble');
+  } else if (relayTrouble) {
+    badge.textContent = 'Can’t reach the table — your scores are safe here';
+    badge.classList.remove('hidden');
+    badge.classList.add('trouble');
+  } else {
+    badge.classList.add('hidden');
+    badge.classList.remove('trouble');
+  }
+}
+
+/* A row that scrolls with its scrollbar suppressed has to say so some other
+   way. The fade lifts when there is nothing more to the right — including
+   when the row fits, where a permanent fade would be a lie. */
+function markScrollEnds(row) {
+  if (!row || row.dataset.endWatched) return;
+  row.dataset.endWatched = '1';
+  const update = () => {
+    // A row on a screen that is not showing has clientWidth 0, which reads
+    // as "there is more to the right" and paints the fade over a row nobody
+    // can see yet. Measuring on layout rather than on a frame means the
+    // first honest measurement is the one that lands.
+    if (!row.clientWidth) return;
+    const atEnd = row.scrollLeft + row.clientWidth >= row.scrollWidth - 1;
+    row.dataset.end = atEnd ? '1' : '0';
+  };
+  row.addEventListener('scroll', update, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(update).observe(row);
+  else window.addEventListener('resize', update);
+  requestAnimationFrame(update);
+  return update;
+}
+
+function watchConnection() {
+  const sync = syncConnectionBadge;
+  window.addEventListener('online', () => { relayTrouble = false; sync(); if (poller) poller.wake(); });
   window.addEventListener('offline', sync);
   sync();
 
