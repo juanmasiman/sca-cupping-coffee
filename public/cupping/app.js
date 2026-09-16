@@ -4633,8 +4633,23 @@ async function openPresent() {
   const code = tableCode();
   if (!code) return;
 
-  // the leader is a cupper too, and their sheet is finished by the time they
-  // are presenting — make sure it is in the panel average
+  /* The leader is a cupper too — when they have actually cupped.
+
+     This used to submit unconditionally, on the assumption that anyone
+     reaching the ceremony had finished their own sheet. Leading is a job:
+     the person running the table is pouring, timing, and reading the room,
+     and often scores least of anyone. Their untouched sheet is eight
+     defaults per coffee, and eight defaults is 79.00 — so opening the
+     ceremony seated a silent extra cupper who called every coffee 79.00
+     and dragged four real ones down with it. Observed at a live table: the
+     leader had rated nothing, and every card in the ceremony carried their
+     phantom score.
+
+     A sheet with nothing on it is not a score, so it is not sent. One with
+     something on it is, and now says how much of it is real. */
+  const rated = state.coffees.length - sessionProgress().untouched;
+  if (!rated) { if (poller) poller.wake(); return; }
+
   const res = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores(), myRated());
   if (res.ok) { state.submittedAt = Date.now(); save(); }
   else toast(res.reason);
