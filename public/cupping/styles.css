@@ -258,12 +258,18 @@ input, textarea, select { font: inherit; }
 .hero-cup { width: 54px; margin: 0 auto 1px; }
 .cup-svg { width: 100%; filter: drop-shadow(0 10px 24px var(--glow)); }
 
+/* Three passes, then it settles. DESIGN.md: nothing loops — an attract
+   animation runs a fixed number of times and then leaves you alone. This
+   was the one surface still breaking that rule, and it was the first screen
+   anyone sees. The cup stays; only the perpetual motion goes.
+   The `.steam` paths stay at opacity 0 at rest, which is where the
+   keyframes start and end, so nothing snaps when the last pass finishes. */
 .steam {
   stroke: var(--accent);
   stroke-width: 3.5;
   stroke-linecap: round;
   opacity: 0;
-  animation: steam 2.6s ease-in-out infinite;
+  animation: steam 2.6s ease-in-out 3;
 }
 .steam-2 { animation-delay: 0.5s; }
 .steam-3 { animation-delay: 1s; }
@@ -836,6 +842,36 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   transition: transform 0.2s var(--settle);
 }
 .attr-value.pop { animation: bump 0.25s var(--settle); }
+
+/* ------------------------------------------------------------
+   The first sheet a newcomer sees
+   A card, not a modal: it sits beside the thing it describes,
+   survives being scrolled past, and goes when it is dismissed
+   rather than the first time it is closed.
+   ------------------------------------------------------------ */
+.welcome-card {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px 16px 14px;
+  margin-bottom: 16px;
+  background: var(--bg-card);
+}
+.welcome-card h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.welcome-card p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.welcome-actions { display: flex; gap: 8px; margin-top: 14px; }
+.welcome-actions .btn { flex: 1; min-height: 44px; padding: 11px 12px; font-size: 15px; margin: 0; width: auto; }
+
+/* the guided switch riding along with the help sheets */
+.help-switch {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 
 /* ---------- guided mode help ---------- */
 

@@ -483,6 +483,8 @@ function openHelp(id) {
   if (!entry) return;
   haptic();
   const modal = $('#help-modal');
+  const sw = $('#toggle-guided-help');
+  if (sw) sw.checked = guidedOn();
   $('#help-title').textContent = entry.title;
   $('#help-body').textContent = entry.body;
   openSheet(modal, () => close());
@@ -1904,10 +1906,13 @@ function askNameThenJoin(payload, code) {
     // cupping is or why they score alone first. "How a cupping works" was
     // written for exactly this person and had nowhere to appear. Once per
     // device, and only for a device with no history of its own.
-    if (!hasCuppedBefore()) {
-      markCuppedBefore();
-      setTimeout(() => openHelp('intro'), 400);
-    }
+    // A modal fired 400ms after landing is the wrong container for
+    // orientation someone needs again in ten minutes: it interrupts, it
+    // covers the thing it is describing, and it is gone forever once
+    // dismissed. The card at the top of the first sheet stays until it is
+    // dismissed, sits beside what it explains, and the help mark in the
+    // header brings the full method back at any point.
+    if (!hasCuppedBefore()) markCuppedBefore();
   };
 
   const known = getCupperName();
@@ -2545,6 +2550,35 @@ function syncActivePanel() {
   updateScorebar();
 }
 
+/* What a first-timer needs in their first five seconds. Not the whole
+   method — three sentences about what is about to happen and why they are
+   scoring alone — with the full version one tap away. */
+const WELCOME_KEY = 'sca-cupping-welcomed-v1';
+
+function welcomeDismissed() {
+  try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return true; }
+}
+
+function dismissWelcome() {
+  try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
+  document.querySelectorAll('.welcome-card').forEach(c => c.remove());
+}
+
+function buildWelcome() {
+  const card = el('div', 'welcome-card');
+  card.innerHTML = `
+    <h2>You are scoring on your own</h2>
+    <p>Taste each coffee and rate the eight sections from 1 to 9 — 5 is “neither high nor low”, which is where an ordinary cup sits. Drag anywhere on a line; the words under your thumb say what each position means.</p>
+    <p>Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. That is the point: the standard asks every cupper to judge without being influenced by anyone else.</p>
+    <div class="welcome-actions">
+      <button class="btn btn-ghost" type="button" data-act="method">How a cupping works</button>
+      <button class="btn btn-primary" type="button" data-act="go">Start scoring</button>
+    </div>`;
+  card.querySelector('[data-act="method"]').addEventListener('click', () => openHelp('intro'));
+  card.querySelector('[data-act="go"]').addEventListener('click', () => { haptic(); dismissWelcome(); });
+  return card;
+}
+
 function buildPanel(coffee, index) {
   const panel = el('div', 'panel');
   // The lineup screen already refuses to let a guest edit a name the leader
@@ -2553,6 +2587,9 @@ function buildPanel(coffee, index) {
   // leader revealed. Same data, two permissions, and the divergence was
   // destroyed silently.
   const locked = lineupLocked();
+
+  // first coffee only: this is orientation, not a per-coffee fixture
+  if (index === 0 && !welcomeDismissed()) panel.appendChild(buildWelcome());
 
   // name
   const name = document.createElement('input');
@@ -5354,13 +5391,18 @@ document.addEventListener('DOMContentLoaded', () => {
   applyGuided();
   initFormPicker();
 
-  const guided = $('#toggle-guided');
-  guided.checked = guidedOn();
-  guided.addEventListener('change', () => {
-    setGuided(guided.checked);
-    haptic();
-    toast(guided.checked ? 'Guided mode on' : 'Guided mode off');
-    if (state && $('#screen-cupping').classList.contains('active')) buildCuppingUI();
+  // Two switches, one setting: the one on setup and the one that rides with
+  // the help sheets, so a cupper who joined by QR can reach it too.
+  const guidedSwitches = [$('#toggle-guided'), $('#toggle-guided-help')].filter(Boolean);
+  guidedSwitches.forEach(sw => {
+    sw.checked = guidedOn();
+    sw.addEventListener('change', () => {
+      setGuided(sw.checked);
+      guidedSwitches.forEach(other => { other.checked = sw.checked; });
+      haptic();
+      toast(sw.checked ? 'Guided mode on' : 'Guided mode off');
+      if (state && $('#screen-cupping').classList.contains('active')) buildCuppingUI();
+    });
   });
 
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
