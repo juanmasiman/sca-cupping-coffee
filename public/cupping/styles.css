@@ -65,9 +65,9 @@
      stand out and is not a value earns it with weight, size or
      position instead.
      ---------------------------------------------------------- */
-  --data: #0b5f4f;
-  --data-deep: #084739;
-  --data-soft: rgba(11, 95, 79, 0.10);
+  --data: #1d4f73;
+  --data-deep: #143a56;
+  --data-soft: rgba(29, 79, 115, 0.10);
   --chrome: #16181c;
   --chrome-soft: rgba(22, 24, 28, 0.06);
   --on-chrome: #fbfaf7;
@@ -75,12 +75,10 @@
   --glass-h: rgba(251, 250, 247, 0.88);
   --cup-a: #e7e9e6;
   --cup-b: #d4d8d4;
-  --green: #1f6b3a;
   --red: #9a3412;
   /* Depth is spent on exactly one thing: the control in your hand.
      Everything else separates with a rule and with space. */
   --shadow: 0 1px 3px rgba(20, 24, 28, 0.08);
-  --glow: rgba(0, 0, 0, 0);
   --radius: 4px;
   --radius-sm: 3px;
 
@@ -136,9 +134,9 @@
     --text: #e9ecef;
     --text-dim: #98a0a8;
     --text-faint: #868d94;
-    --data: #46c5a8;
-    --data-deep: #6fd9c0;
-    --data-soft: rgba(70, 197, 168, 0.14);
+    --data: #6fb6de;
+    --data-deep: #93cbe9;
+    --data-soft: rgba(111, 182, 222, 0.14);
     --chrome: #e9ecef;
     --chrome-soft: rgba(233, 236, 239, 0.09);
     --on-chrome: #0f1113;
@@ -146,7 +144,6 @@
     --glass-h: rgba(15, 17, 19, 0.88);
     --cup-a: #262b2e;
     --cup-b: #1b1f22;
-    --green: #6fd39a;
     --red: #f0a077;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     --series-1: #e85617;
@@ -171,9 +168,9 @@
   --text: #e9ecef;
   --text-dim: #98a0a8;
   --text-faint: #868d94;
-  --data: #46c5a8;
-  --data-deep: #6fd9c0;
-  --data-soft: rgba(70, 197, 168, 0.14);
+  --data: #6fb6de;
+  --data-deep: #93cbe9;
+  --data-soft: rgba(111, 182, 222, 0.14);
   --chrome: #e9ecef;
   --chrome-soft: rgba(233, 236, 239, 0.09);
   --on-chrome: #0f1113;
@@ -181,7 +178,6 @@
   --glass-h: rgba(15, 17, 19, 0.88);
   --cup-a: #262b2e;
   --cup-b: #1b1f22;
-  --green: #6fd39a;
   --red: #f0a077;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   --series-1: #e85617;
@@ -212,8 +208,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
-  user-select: none;
-  -webkit-user-select: none;
+  /* Not `user-select: none` globally. That stopped a cupper long-pressing a
+     panel score, a cupper's name or their own tasting notes to paste into a
+     message — and the surfaces that genuinely need it (the scale track, the
+     rail, the wheel) say so themselves. */
   touch-action: manipulation;
   transition: background 0.35s;
 }
@@ -272,7 +270,7 @@ input, textarea, select { font: inherit; }
   top: 7px; right: 7px;
   width: 9px; height: 9px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--chrome);
   border: 2px solid var(--bg-card);
 }
 
@@ -280,7 +278,7 @@ input, textarea, select { font: inherit; }
 .setup-hero { text-align: center; margin-bottom: 12px; }
 
 .hero-cup { width: 54px; margin: 0 auto 1px; }
-.cup-svg { width: 100%; filter: drop-shadow(0 10px 24px var(--glow)); }
+.cup-svg { width: 100%; }
 
 /* Three passes, then it settles. DESIGN.md: nothing loops — an attract
    animation runs a fixed number of times and then leaves you alone. This
@@ -445,10 +443,12 @@ input, textarea, select { font: inherit; }
 }
 .btn:active { transform: scale(0.965); filter: brightness(1.08); }
 
+/* Flat, and no shadow. A gradient between one colour and itself is the
+   fossil of the one it used to be, and --glow resolves to fully transparent
+   so that box-shadow painted nothing while still costing a paint layer. */
 .btn-primary {
-  background: linear-gradient(135deg, var(--chrome), var(--chrome));
+  background: var(--chrome);
   color: var(--on-chrome);
-  box-shadow: 0 6px 22px var(--glow);
 }
 
 .btn-ghost {
@@ -466,7 +466,6 @@ input, textarea, select { font: inherit; }
   display: block;
   width: calc(100% - 36px);
   margin: 10px 18px 0;
-  opacity: 0.85;
 }
 
 /* ============================================================
@@ -549,6 +548,8 @@ input, textarea, select { font: inherit; }
 
 .rail-seg {
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
   flex: 1;
   min-width: 34px;
   height: 44px;
@@ -573,14 +574,17 @@ input, textarea, select { font: inherit; }
   background: var(--chrome-soft);
   transition: transform 0.35s var(--ease);
 }
-.rail-seg.done .rail-fill { opacity: 0.32; }   /* colour comes from .rail-fill */
+/* colour comes from .rail-fill, which is a wash at every state */
 
+/* --text-dim, not --text-faint: this numeral can end up sitting on its own
+   progress wash, and the faint ink measured 4.2:1 there on a segment that
+   was part-rated but not the active one. */
 .rail-num {
   position: relative;
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .rail-seg.done .rail-num { color: var(--chrome); }
 
@@ -652,13 +656,18 @@ input, textarea, select { font: inherit; }
   border-radius: 999px;
   background: var(--bg-card);
   border: 1px solid var(--chrome);
-  color: var(--chrome);
+  color: var(--data);
+  border: 1px solid var(--data);
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   animation: bump 0.35s var(--settle);
 }
-.invite-count.all-in { background: var(--green); color: var(--on-chrome); }
+/* The number of cuppers at the table is a count, so it takes the data ink
+   like any other figure. "Everyone has submitted" was a hue change to a
+   green the design system did not know about; it is a fill change now —
+   same ink, filled instead of outlined. */
+.invite-count.all-in { background: var(--data); color: var(--bg); border-color: var(--data); }
 
 /* horizontally swipeable panels */
 .panels {
@@ -966,7 +975,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .cata-line { display: flex; flex-wrap: wrap; gap: 5px; }
 .cata-chip.child { font-size: 11px; padding: 6px 10px; opacity: 0.9; }
 .cata-chip.child.on { opacity: 1; }
-.chip-hint { font-weight: 500; opacity: 0.7; font-size: 11px; }
+.chip-hint { font-weight: 500; color: var(--text-faint); font-size: 11px; }
 
 /* ------------------------------------------------------------
    Hit areas
@@ -1063,7 +1072,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   color: var(--on-chrome);
   font-size: 13px;
   line-height: 1.4;
-  box-shadow: var(--shadow);
   animation: rise 0.4s var(--settle) backwards;
   animation-delay: 0.1s;
 }
@@ -1150,7 +1158,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   color: var(--text-faint);
 }
 
-.wheel-seg { cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
+.wheel-seg { user-select: none; -webkit-user-select: none; cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
 .wheel-seg:active { opacity: 0.7; }
 /* anything already chosen is ringed, on both rings — the wheel is useless as
    a record if you cannot see what you have taken from it */
@@ -1238,8 +1246,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 
 /* an intensity nobody has recorded should not read as a deliberate 5 */
 .desc-row.unrated .desc-row-value { color: var(--text-faint); }
-.desc-row .cva-clear { visibility: hidden; }
-.desc-row:not(.unrated) .cva-clear { visibility: visible; }
+/* shown once there is something to clear — see .cva-clear below */
 
 .desc-catas { display: flex; flex-direction: column; gap: 14px; }
 .cata-group { display: flex; flex-direction: column; gap: 8px; }
@@ -1333,10 +1340,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-family: var(--mono); font-size: 13px; font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--data);
-  box-shadow: var(--shadow);
 }
 /* The only lift in the system, and it is functional: this thing is in
-   your hand right now. */
+   your hand right now. It carried --shadow at rest too, which made "exactly
+   one element is allowed to lift, while it is being dragged" false about the
+   very element the rule was written for. */
 .scale-track:active .scale-knob { transform: scale(1.22); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2); }
 /* "7.75" will not fit a 32px knob at the single-digit size */
 /* "10.00" is four characters and would not fit the 32px knob at the
@@ -1405,7 +1413,17 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   height: 22px;
   flex: none;
   border-radius: 50%;
-  display: none;
+  /* Reserved, not removed. This was `display: none` with a single
+     `.attr-card.rated` rule to bring it back — which meant it never rendered
+     at all on the Describe rows, because those are .desc-row and
+     `visibility` cannot override `display`. Seven intensities per coffee
+     had a clear button with a handler, a label and a 44px target, and zero
+     pixels: a mis-dragged intensity was touched forever and went into
+     History and the CSV as a deliberate judgement.
+     Reserving the space is also what DESIGN.md asked for — no row changes
+     height, and no value jumps sideways the moment it is rated. */
+  display: grid;
+  visibility: hidden;
   place-items: center;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -1415,13 +1433,17 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   line-height: 1;
   transition: transform 0.18s var(--settle), color 0.15s, border-color 0.15s;
 }
+/* Grows upward, never down. DESIGN.md asks for this specifically: the track
+   is directly below, and a target that grew downward would let a thumb
+   overshooting the track top land on the control that wipes the rating. */
 .cva-clear::after {
   content: '';
   position: absolute;
-  inset: -11px;
+  inset: -22px -11px 0;
   border-radius: 50%;
 }
-.attr-card.rated .cva-clear { display: grid; }
+.attr-card.rated .cva-clear,
+.desc-row:not(.unrated) .cva-clear { visibility: visible; }
 .cva-clear:active { transform: scale(0.84); color: var(--red); border-color: var(--red); }
 
 /* a rated section is tinted and carries an accent edge, so what is finished
@@ -1859,9 +1881,16 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .hist-section { margin-bottom: 20px; }
 .hist-title { font-size: 15px; font-weight: 800; margin-bottom: 10px; }
 
-.seg:not([data-end="0"]) {
+.seg:not([data-end="0"]),
+.coffee-rail:not([data-end="0"]) {
   -webkit-mask-image: none;
   mask-image: none;
+}
+/* ten coffees scroll sideways inside this band with the scrollbar
+   suppressed, same as the segmented rows */
+.coffee-rail[data-end="0"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
 }
 .seg {
   display: flex;
@@ -2032,6 +2061,14 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   line-height: 1;
   color: var(--chrome);
   background: transparent;
+}
+/* 18px, and it removes a cupper from the table. The mark stays small
+   because the chip row is dense; the target grows around it. */
+.cupper-chip button::after {
+  content: '';
+  position: absolute;
+  inset: -13px;      /* 18 -> 44; chips are 8px apart, so no overlap */
+  border-radius: 50%;
 }
 .cupper-chip.me { padding-right: 12px; }
 
@@ -2323,11 +2360,14 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  /* was #fff with a drop shadow — a hard-coded light-theme colour in a
+     system that keeps both themes complete, and the last lift outside the
+     knob. A hairline reads on both track states in both themes. */
+  background: var(--bg-card);
+  border: 1px solid var(--line);
   transition: left 0.25s var(--settle);
 }
 .switch input:checked + .switch-track { background: var(--chrome); }
@@ -2351,11 +2391,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   border-radius: 999px;
   animation: screenIn 0.3s var(--ease) backwards;
 }
+/* presence, not a measurement — so it is ink, and the chip's own fill
+   already says whether that cupper has submitted */
 .joined-chip::before {
   content: '';
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--text-faint);
 }
 
 .joined-empty { font-size: 13px; color: var(--text-faint); }
@@ -2383,7 +2425,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .live-roster { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-note { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
 .live-note strong { color: var(--chrome); }
-.live-ok { font-size: 13px; font-weight: 700; color: var(--green); }
+.live-ok { font-size: 13px; font-weight: 700; color: var(--text-dim); }
 .live-table .btn { padding: 13px; font-size: 15px; border-radius: var(--radius); }
 .live-table .team-coffee-row { background: var(--bg-card); }
 
@@ -2518,11 +2560,18 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   border-color: var(--red);
   color: var(--red);
 }
+/* Anchored to the bottom, above the navigation band, where the toast already
+   lives. It used to sit centred at the top of the screen at z-index 30 —
+   directly over the cupping header's title — so the badge covered the name
+   of the coffee it was reassuring you about, in the state PRODUCT.md calls
+   the default rather than the fallback. */
 .offline-badge {
   position: fixed;
   left: 50%;
-  top: calc(var(--sat) + 8px);
+  bottom: calc(var(--sab) + 72px);
   transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  text-align: center;
   background: var(--bg-card-2);
   color: var(--text-dim);
   border: 1px solid var(--line);
@@ -2531,7 +2580,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   padding: 7px 15px;
   border-radius: 999px;
   z-index: 30;
-  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
@@ -2637,7 +2685,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   pointer-events: none;
   transition: all 0.3s var(--settle);
   z-index: 50;
-  box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -3050,8 +3097,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 
 .scorebar-score { color: var(--data); }
 
-.rail-fill { background: var(--data); }
-.rail-seg.done .rail-fill { background: var(--data); }
+/* A wash, never solid: the coffee's number sits on top of this fill, and a
+   solid ink under it measured 1.56:1 — the rail got less legible the more of
+   it you had filled in, on the one band a thumb reaches. */
+.rail-fill { background: var(--data-soft); }
+.rail-seg.done .rail-fill { background: var(--data-soft); }
 .rail-seg.done .rail-num { color: var(--data); }
 .rail-seg.active { border-color: var(--data); box-shadow: inset 0 0 0 1px var(--data); }
 .rail-seg.active .rail-num { color: var(--data); }
