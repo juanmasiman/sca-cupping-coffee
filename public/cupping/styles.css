@@ -1058,14 +1058,25 @@ body.plain .scale { margin-top: 9px; }
 .wheel-pick.note { background: var(--accent-soft); color: var(--accent); }
 .wheel-pick:active { transform: scale(0.93); }
 .wheel-pick b { font-weight: 800; font-size: 13px; line-height: 1; opacity: 0.75; }
+/* The ink is chosen per wedge — see inkOn() — because the wheel's nine hues
+   are the standard's own and a single ink cannot be legible on all of them.
+   These two are literals rather than tokens on purpose: the wheel is a
+   fixed drawing, and the ground a label sits on is the hue, not the page. */
 .wheel-cat-label {
   font-size: 7px;
   font-weight: 800;
-  fill: #ffffff;
   pointer-events: none;
   letter-spacing: 0.02em;
 }
+.wheel-cat-label.ink-dark { fill: #000000; }
+.wheel-cat-label.ink-light { fill: #ffffff; }
+
+/* Unpicked, a descriptor sits on the hue at 45% over the card, where the
+   page's own ink reads. Picked, the wedge fills and the ground becomes the
+   hue, so the label takes the same ink the category ring uses. */
 .wheel-child-label { font-size: 5.4px; font-weight: 700; fill: var(--text); pointer-events: none; }
+.wheel-child-label.picked.ink-dark { fill: #000000; }
+.wheel-child-label.picked.ink-light { fill: #ffffff; }
 .wheel-hub { fill: var(--bg-card); stroke: var(--line); stroke-width: 1.5; }
 .wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--accent); }
 
