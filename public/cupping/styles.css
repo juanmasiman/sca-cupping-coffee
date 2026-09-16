@@ -456,8 +456,9 @@ input, textarea, select { font: inherit; }
   z-index: 5;
 }
 
+/* header controls a thumb aims at in isolation — 44, not 40 */
 .icon-btn {
-  width: 40px; height: 40px;
+  width: 44px; height: 44px;
   flex: none;
   border-radius: var(--radius);
   display: grid;
@@ -476,6 +477,8 @@ input, textarea, select { font: inherit; }
   padding: 0 4px;
 }
 .cupping-title-row { display: flex; align-items: center; min-width: 0; }
+/* an h1 so the working screen is navigable by heading; it is sized by its
+   row, not by being a heading */
 .cupping-title-name {
   font-size: 17px;
   font-weight: 800;
@@ -566,8 +569,11 @@ input, textarea, select { font: inherit; }
 .coffee-rail.dense .rail-seg { min-width: 40px; border-radius: var(--radius); }
 .coffee-rail.dense .rail-num { font-size: 11px; }
 
+/* DESIGN.md:225 says every segment of this bar is 44px. The rail and the
+   wheel button were; this one was 37. */
 .finish-btn {
   flex: none;
+  min-height: 44px;
   padding: 9px 14px;
   border-radius: 999px;
   background: var(--accent-soft);
@@ -743,6 +749,7 @@ input, textarea, select { font: inherit; }
 
 .detail-field {
   width: 100%;
+  min-height: 44px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -798,11 +805,16 @@ body.plain .scale { margin-top: 9px; }
 .attr-title { font-size: 15px; font-weight: 700; }
 .attr-sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
 
+/* Secondary to the score, and no longer coloured. The knob already carries
+   this number in the accent, on the control that produced it; printing it
+   again at display size in the same ink made eight section values compete
+   with the one figure the sheet is for. */
 .attr-value {
-  font-size: 24px;
-  font-weight: 800;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--text);
   transition: transform 0.2s var(--settle);
 }
 .attr-value.pop { animation: bump 0.25s var(--settle); }
@@ -877,6 +889,35 @@ body.plain .scale { margin-top: 9px; }
 .cata-chip.child { font-size: 11px; padding: 6px 10px; opacity: 0.9; }
 .cata-chip.child.on { opacity: 1; }
 .chip-hint { font-weight: 500; opacity: 0.7; font-size: 11px; }
+
+/* ------------------------------------------------------------
+   Hit areas
+   Where a control is small because its row is dense, the target
+   grows without the mark growing — a transparent ::after with a
+   negative inset, the same device the help marks use. Each inset
+   is chosen to stay inside the gap between neighbours, so two
+   targets can never overlap and steal each other's taps.
+   ------------------------------------------------------------ */
+.lineup-icon::after,
+.wheel-link::after,
+.wheel-pick::after,
+.pin-alt::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+}
+.lineup-icon::after { inset: -6px; }        /* 32 -> 44, rows are 8px apart */
+.wheel-link::after { inset: -11px -4px; }   /* 22 -> 44 tall */
+.wheel-pick::after { inset: -9px -3px; }    /* 27 -> 45 tall, row gap is 6px */
+.pin-alt::after { inset: -8px 0; }          /* 29 -> 45 tall */
+
+/* .cata-chip stays at 35px, and that is a decision rather than an oversight.
+   It clears the 24px WCAG minimum. Reaching 44 would mean either ~9px of
+   padding per chip — adding roughly 90px to a Describe card already the
+   longest thing in the product — or an expansion larger than the 5px column
+   gap and 6px row gap, which would overlap its neighbours and let a tap land
+   on the wrong descriptor. On a checklist, taking the wrong word silently is
+   worse than a small target. */
 
 /* ---------- flavor wheel ---------- */
 
@@ -963,7 +1004,10 @@ body.plain .scale { margin-top: 9px; }
 
 /* the same door, offered where the words are actually needed */
 .cata-cap-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* an inline link inside a caption row; the mark stays inline and the
+   target grows around it */
 .wheel-link {
+  position: relative;
   flex: none;
   padding: 4px 10px;
   border-radius: 999px;
@@ -1033,6 +1077,16 @@ body.plain .scale { margin-top: 9px; }
 /* anything already chosen is ringed, on both rings — the wheel is useless as
    a record if you cannot see what you have taken from it */
 .wheel-seg.picked { stroke: var(--text); stroke-width: 2.5; }
+/* A focused wedge has to be visible over any of the nine hues and has to be
+   distinguishable from the picked ring above, so it is thicker and dashed
+   rather than a different colour. */
+.wheel-seg:focus { outline: none; }
+.wheel-seg:focus-visible {
+  outline: none;
+  stroke: var(--text);
+  stroke-width: 4;
+  stroke-dasharray: 6 3;
+}
 .wheel-child.picked { fill-opacity: 0.95; }
 
 .wheel-picked {
@@ -1044,6 +1098,7 @@ body.plain .scale { margin-top: 9px; }
 }
 .wheel-picked:empty { display: none; }
 .wheel-pick {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1206,7 +1261,19 @@ body.plain .scale { margin-top: 9px; }
    your hand right now. */
 .scale-track:active .scale-knob { transform: scale(1.22); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2); }
 /* "7.75" will not fit a 32px knob at the single-digit size */
-.scale-knob.wide { font-size: 9px; letter-spacing: -0.02em; }
+/* "10.00" is four characters and would not fit the 32px knob at the
+   single-digit size — so the knob grows rather than the type shrinking.
+   9px here meant every knob on the entire 2004 form was below the floor,
+   carrying the one thing DESIGN.md calls the most important state feedback
+   in the app. The track already insets by the knob's radius, so a wider
+   knob still lands inside the line at both ends. */
+.scale-track.wide-knob { margin: 0 20px; }
+.scale-knob.wide {
+  width: 40px;
+  margin-left: -20px;
+  font-size: 11px;
+  letter-spacing: -0.03em;
+}
 .scale-knob.settle { transition: left 0.22s var(--settle), transform 0.22s var(--settle); }
 /* Visibly not a five: a default and a judgement are the same number and
    only one of them is evidence. */
@@ -1364,7 +1431,7 @@ body.plain .scale { margin-top: 9px; }
 .defect-pts { font-size: 11px; color: var(--text-faint); }
 
 .defect-row .stepper { padding: 3px; }
-.defect-row .stepper-btn { width: 38px; height: 38px; font-size: 20px; }
+.defect-row .stepper-btn { width: 44px; height: 44px; font-size: 20px; }
 .defect-row .stepper-value { min-width: 34px; font-size: 20px; }
 
 .defect-penalty {
@@ -1410,9 +1477,17 @@ body.plain .scale { margin-top: 9px; }
 }
 .scorebar.visible { display: flex; }
 
+/* The thing the whole screen exists to produce, and it was 24px Sans — the
+   same size as each of the eight section values below it, which were also
+   the coloured ones, so nothing on the scoring screen was winning. It is a
+   ramp step up, and Mono, because DESIGN.md's rule is that a number a
+   reader could compare to another number is Mono with tabular figures: the
+   score changes on every drag and was reflowing as its digits changed. */
 .scorebar-score {
-  font-size: 24px;
-  font-weight: 800;
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
@@ -2122,6 +2197,7 @@ body.plain .scale { margin-top: 9px; }
 .key.action { font-size: 20px; color: var(--accent); }
 
 .pin-alt {
+  position: relative;
   display: block;
   width: 100%;
   margin-top: 14px;
@@ -2254,11 +2330,14 @@ body.plain .scale { margin-top: 9px; }
 .partial,
 .cupper-score.me.partial,
 .hist-item-score.partial { color: var(--text-dim); font-weight: 600; }
+/* The qualifier that tells a second person the number beside it is
+   incomplete. DESIGN.md mandates it and permits exactly one sub-11px
+   exception, which is tick furniture; this is not furniture. */
 .cupper-score i,
 .present-cupper i,
 .rank-grade i {
   font-style: normal;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--text-faint);
   font-family: var(--mono);
@@ -2576,6 +2655,7 @@ body.plain .scale { margin-top: 9px; }
 .lineup-name {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   background: none;
   border: none;
   color: var(--text);
@@ -2590,7 +2670,11 @@ body.plain .scale { margin-top: 9px; }
 /* a guest is looking at the leader's lineup, not editing it */
 .lineup-name[readonly], .lineup-row .detail-field[readonly] { color: var(--text-dim); }
 
+/* The row is dense, so the mark stays small and the target grows around it
+   — the same trick the help marks use. The two icons are 8px apart, so 6px
+   of expansion on each side cannot make them overlap. */
 .lineup-icon {
+  position: relative;
   flex: none;
   width: 32px;
   height: 32px;
@@ -2670,7 +2754,10 @@ body.plain .scale { margin-top: 9px; }
 
 .present-id { flex: 1; min-width: 0; }
 .present-name { font-size: 17px; font-weight: 700; line-height: 1.2; }
-.present-card.sealed .present-name { color: var(--text-faint); }
+/* Muted because the card is sealed — but at 17px bold this measured
+   4.44:1 on the sealed card's ground, which is 0.06 under the line. One
+   step up in ink keeps the muting and clears it. */
+.present-card.sealed .present-name { color: var(--text-dim); }
 .present-meta {
   font-size: 11px;
   color: var(--text-dim);
@@ -2723,8 +2810,10 @@ body.plain .scale { margin-top: 9px; }
 }
 .present-cupper em { font-style: normal; font-size: 11px; color: var(--text-faint); }
 
+/* this is the control the leader presses in front of the table */
 .present-action {
   width: 100%;
+  min-height: 44px;
   margin-top: 13px;
   padding: 11px;
   border-radius: var(--radius-sm);

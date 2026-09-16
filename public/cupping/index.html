@@ -138,7 +138,7 @@
       <div class="cupping-title">
         <!-- the name is rewritten per coffee, so the help mark sits beside
              it in a row of its own rather than inside it -->
-        <span class="cupping-title-row"><span class="cupping-title-name" id="cupping-name">Coffee 1</span></span>
+        <span class="cupping-title-row"><h1 class="cupping-title-name" id="cupping-name">Coffee 1</h1></span>
         <span class="cupping-title-sub" id="cupping-position"></span>
       </div>
       <button id="btn-share-session" class="invite-btn" aria-label="Invite cuppers to this session">
@@ -151,7 +151,7 @@
            held that was not already here was this number.
            No "/100": the scale floors at 58, so the denominator overstated
            the headroom, and a cupping score is quoted bare. -->
-      <div class="scorebar" id="scorebar">
+      <div class="scorebar" id="scorebar" role="status" aria-live="polite" aria-atomic="true">
         <span class="scorebar-score"><span id="scorebar-value">82.50</span></span>
         <!-- the help mark hangs off this line rather than the number, so the
              score reads as one figure and the explanation sits with the
@@ -204,12 +204,16 @@
            against a standard; the first thing the table sees is now where
            this lineup fell on that standard, and the ranking follows. -->
       <div class="summary" id="summary"></div>
+      <!-- The table comes before the chart. Submitting is the participant's
+           terminal act in the protocol and it lives in this card; it used to
+           sit third, below a radar, on a screen reached by a button that says
+           "Results". -->
+      <div class="team-card" id="team-card"></div>
       <div class="radar-card">
         <h3>Sensory profile</h3>
         <div id="radar-wrap"></div>
         <div class="radar-legend" id="radar-legend"></div>
       </div>
-      <div class="team-card" id="team-card"></div>
       <div class="ranking" id="ranking"></div>
       <button id="btn-print" class="btn btn-ghost export-btn">Print / save as PDF</button>
       <button id="btn-new-session" class="btn btn-danger-ghost">Start new session</button>
