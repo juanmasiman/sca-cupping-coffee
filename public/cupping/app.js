@@ -372,6 +372,94 @@ function addHelp(container, id) {
   if (btn) container.appendChild(btn);
 }
 
+/* ============================================================
+   SHEET DISCIPLINE
+
+   Nine modal sheets, and until now not one of them was a dialog.
+   No Escape handler anywhere in the file. No focus trap: tab out
+   of the join sheet and you were silently inside the setup screen
+   behind it, operating controls you could not see. No role, no
+   aria-modal, nothing marking the page underneath as unavailable.
+
+   One manager, so a sheet cannot be opened without getting all of
+   it. Sheets stack, because the flavour wheel can open help.
+   ============================================================ */
+
+const sheetStack = [];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]),'
+  + ' select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function sheetFocusable(modal) {
+  return [...modal.querySelectorAll(FOCUSABLE)].filter(e => e.offsetParent !== null);
+}
+
+// Everything that is not the open sheet stops being reachable — by tab, by
+// screen reader, by anything. `inert` does all three in one attribute; the
+// trap below is the floor for engines that have not shipped it.
+function setBackgroundInert(on) {
+  const top = sheetStack.length ? sheetStack[sheetStack.length - 1].modal : null;
+  document.querySelectorAll('.screen, .modal').forEach(el => {
+    if (el === top) { el.inert = false; return; }
+    el.inert = on;
+  });
+}
+
+function openSheet(modal, dismiss) {
+  if (sheetStack.some(s => s.modal === modal)) return;
+  const opener = document.activeElement;
+  modal.classList.remove('hidden');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  const heading = modal.querySelector('h2, h3');
+  if (heading) {
+    if (!heading.id) heading.id = `sheet-title-${modal.id || sheetStack.length}`;
+    modal.setAttribute('aria-labelledby', heading.id);
+  }
+  sheetStack.push({ modal, dismiss, opener });
+  setBackgroundInert(true);
+  // The first control, not the sheet itself: a reader landing on a dialog
+  // wants to know what it can do. Sheets that want their input focused
+  // still do that themselves, after this.
+  const first = sheetFocusable(modal)[0];
+  if (first) first.focus({ preventScroll: true });
+}
+
+function closeSheet(modal) {
+  modal.classList.add('hidden');
+  modal.inert = false;
+  const i = sheetStack.findIndex(s => s.modal === modal);
+  if (i < 0) return;
+  const [entry] = sheetStack.splice(i, 1);
+  setBackgroundInert(sheetStack.length > 0);
+  // back where they were, so a cupper who opened help mid-section lands on
+  // the help mark rather than at the top of the sheet
+  if (entry.opener && document.contains(entry.opener)) {
+    entry.opener.focus({ preventScroll: true });
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (!sheetStack.length) return;
+  const top = sheetStack[sheetStack.length - 1];
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (top.dismiss) top.dismiss();
+    else closeSheet(top.modal);
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const items = sheetFocusable(top.modal);
+  if (!items.length) { e.preventDefault(); return; }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const here = document.activeElement;
+  if (e.shiftKey && (here === first || !top.modal.contains(here))) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && (here === last || !top.modal.contains(here))) {
+    e.preventDefault(); first.focus();
+  }
+}, true);
+
 function openHelp(id) {
   const entry = HELP[id];
   if (!entry) return;
@@ -379,8 +467,8 @@ function openHelp(id) {
   const modal = $('#help-modal');
   $('#help-title').textContent = entry.title;
   $('#help-body').textContent = entry.body;
-  modal.classList.remove('hidden');
-  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+  openSheet(modal, () => close());
+  const close = () => { closeSheet(modal); modal.onclick = null; };
   $('#help-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
 }
@@ -768,12 +856,12 @@ function openEmailCodeSheet(email) {
   });
 
   const close = () => {
-    modal.classList.add('hidden');
+    closeSheet(modal);
     pad.detach();
     modal.onclick = null;
   };
 
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
   $('#otp-cancel').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
   $('#otp-resend').onclick = async () => {
@@ -790,7 +878,7 @@ function openAccountSheet() {
   const sheet = $('#account-sheet');
   const auth = loadAuth();
   const archive = loadArchive();
-  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+  const close = () => { closeSheet(modal); modal.onclick = null; };
 
   if (auth && auth.user) {
     const initial = (auth.user.name || auth.user.email || '?').trim()[0].toUpperCase();
@@ -861,7 +949,7 @@ function openAccountSheet() {
     sheet.querySelector('#btn-auth-cancel').onclick = close;
   }
 
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
   modal.onclick = e => { if (e.target === modal) close(); };
 }
 
@@ -1027,8 +1115,18 @@ function el(tag, cls, html) {
   return node;
 }
 
+/* Two words, not one. A 4ms tick is the instrument answering your finger —
+   a detent crossed, a chip taken. It was also what the phone did when a
+   stranger joined the table, which meant that mid-drag on Aftertaste the
+   feedback channel saying "you crossed a detent" also said "someone
+   arrived". Anything that happens at the table rather than under your hand
+   gets a pattern your finger cannot mistake for the scale. */
 function haptic() {
   if (navigator.vibrate) navigator.vibrate(4);
+}
+
+function arrivalHaptic() {
+  if (navigator.vibrate) navigator.vibrate([18, 60, 18]);
 }
 
 let toastTimer = null;
@@ -1382,7 +1480,12 @@ function syncPolling() {
   if (!state) return;
   const id = $('#share-modal').classList.contains('hidden') ? activeScreenId() : '#share-modal';
   if (id === '#share-modal' && state.liveCode && pollInvite) startPolling(pollInvite, { fast: 1200, max: 5000 });
-  else if (id === '#screen-cupping' && isTableLeader()) startPolling(pollCuppingRoster, { fast: 2500, max: 12000 });
+  // Everyone at the table polls, not only the leader. A guest still scoring
+  // used to learn about the reveal never, and a guest on Results learned
+  // about it as a silent redraw up to twelve seconds later. The most
+  // important event in the session reached every device except the ones it
+  // was about.
+  else if (id === '#screen-cupping' && tableCode()) startPolling(pollCuppingRoster, { fast: 2500, max: 12000 });
   else if (id === '#screen-results' && tableCode()) startPolling(pollResults);
   else if (id === '#screen-present' && tableCode()) startPolling(pollPresent);
 }
@@ -1400,21 +1503,44 @@ async function pollCuppingRoster() {
   const data = await relayListParticipants(code);
   if (!data) return 'offline';
 
+  const leader = isTableLeader();
   const names = data.participants.map(p => p.name);
-  if (seenCuppers) {
+  // arrivals are the leader's business; a guest does not need a buzz every
+  // time someone else sits down
+  if (leader && seenCuppers) {
     const fresh = names.filter(n => !seenCuppers.includes(n));
     if (fresh.length) {
-      haptic();
+      arrivalHaptic();
       toast(fresh.length === 1 ? `${fresh[0]} joined` : `${fresh.length} more joined`);
     }
   }
   seenCuppers = names;
 
   tableCounts = { joined: names.length, submitted: data.participants.filter(p => p.submitted).length };
+  // The transition, not the state: this fires once, on the tick where the
+  // table went from sealed to open, and only for the people who were not
+  // the one who opened it.
+  const opened = data.revealed && !state.revealed;
   state.revealed = data.revealed;
   save();
   refreshTabs();
+  if (opened && !leader) announceReveal();
   return rosterSig(data);
+}
+
+// What the leader sees as a ceremony, a guest used to see as nothing at all.
+function announceReveal() {
+  arrivalHaptic();
+  confirmSheet({
+    title: 'The table is open',
+    body: 'The cupping leader has opened every cupper’s scores. Yours are in the panel average.',
+    effects: ['Origin details for each coffee are on your device now too.'],
+    cta: 'See the table',
+  }).then(go => {
+    if (!go) return;
+    buildResults();
+    showScreen('#screen-results');
+  });
 }
 
 function myScores() {
@@ -1457,6 +1583,89 @@ async function addTeamScoresFromCode(text) {
   return { ok: true };
 }
 
+/* ---------- asking before something irreversible ----------
+
+   Every decision in this app is taken in a bespoke sheet except the eight
+   that mattered most, which were window.confirm(): the OS font, in the
+   middle of the cupping, with "OK" focused by default. Two of the eight
+   guarded nothing at all and are gone. The rest come through here, where
+   the consequences can be listed rather than crammed into one sentence,
+   and where the safe choice is the one under the cursor.                */
+
+/* The reveal is the only irreversible, table-wide act in the product, and
+   the reason to trust the result at all. It was a grey OS alert that also
+   silently flipped shareDetails, pushing farm, variety, process and
+   altitude to every guest device — a leader who chose a blind cupping had
+   it un-blinded without either dialog mentioning it.
+
+   Both consequences are named here, next to the count of who has not
+   finished, which the button beside it already knew and the dialog taking
+   the decision did not. */
+async function askToReveal() {
+  const counts = tableCounts || { joined: 0, submitted: 0 };
+  const waiting = Math.max(0, counts.joined - counts.submitted);
+  const effects = [
+    'Every cupper at the table sees every score, on their own device.',
+  ];
+  if (!state.shareDetails) {
+    effects.push('Origin details — farm, variety, process, altitude — go out with them. This cupping stops being blind.');
+  }
+  if (waiting > 0) {
+    effects.push(`${waiting} cupper${waiting > 1 ? 's have' : ' has'} not submitted yet. ${waiting > 1 ? 'Their sheets' : 'Their sheet'} can still be added afterwards, but ${waiting > 1 ? 'they' : 'that cupper'} will be scoring with the table’s scores already on screen.`);
+  }
+  effects.push('It cannot be undone.');
+  return confirmSheet({
+    title: 'Open the scores to the table?',
+    body: 'The standard asks every cupper to score independently first. This ends that.',
+    effects,
+    cta: 'Open the scores',
+    danger: true,
+  });
+}
+
+function confirmSheet({ title, body, effects, cta, danger }) {
+  return new Promise(resolve => {
+    const modal = $('#confirm-modal');
+    const go = $('#confirm-go');
+    $('#confirm-title').textContent = title;
+    $('#confirm-body').textContent = body || '';
+    $('#confirm-body').classList.toggle('hidden', !body);
+
+    const list = $('#confirm-effects');
+    list.innerHTML = '';
+    (effects || []).forEach(text => {
+      const li = el('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    list.classList.toggle('hidden', !(effects && effects.length));
+
+    go.textContent = cta || 'Continue';
+    go.classList.toggle('btn-danger', Boolean(danger));
+    go.classList.toggle('btn-primary', !danger);
+
+    let done = false;
+    const finish = answer => {
+      if (done) return;
+      done = true;
+      closeSheet(modal);
+      modal.onclick = null;
+      go.onclick = null;
+      $('#confirm-cancel').onclick = null;
+      resolve(answer);
+    };
+    const close = () => finish(false);
+
+    $('#confirm-cancel').onclick = close;
+    go.onclick = () => finish(true);
+    modal.onclick = e => { if (e.target === modal) close(); };
+    openSheet(modal, close);
+    // Cancel is first in the sheet, so it is what openSheet focuses and what
+    // Return takes. The old dialog defaulted to OK on the one action here
+    // that cannot be undone.
+  });
+}
+
 /* ---------- modal ---------- */
 
 function openModal({ title, hint, cta, onSubmit }) {
@@ -1466,11 +1675,11 @@ function openModal({ title, hint, cta, onSubmit }) {
   $('#modal-hint').textContent = hint;
   $('#modal-submit').textContent = cta;
   input.value = '';
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
   setTimeout(() => input.focus(), 60);
 
   const close = () => {
-    modal.classList.add('hidden');
+    closeSheet(modal);
     $('#modal-submit').onclick = null;
     $('#modal-cancel').onclick = null;
     modal.onclick = null;
@@ -1595,11 +1804,11 @@ function openJoinSheet() {
   });
 
   const close = () => {
-    modal.classList.add('hidden');
+    closeSheet(modal);
     pad.detach();
   };
 
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
 
   $('#join-cancel').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
@@ -1666,10 +1875,10 @@ function askNameThenJoin(payload, code) {
   const modal = $('#name-modal');
   const input = $('#name-input');
   input.value = '';
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
   setTimeout(() => input.focus(), 80);
 
-  const close = () => { modal.classList.add('hidden'); modal.onclick = null; };
+  const close = () => { closeSheet(modal); modal.onclick = null; };
   const go = name => { close(); finish(name); };
 
   $('#name-submit').onclick = () => go(input.value.trim());
@@ -1747,10 +1956,10 @@ async function openInviteSheet() {
   pin.classList.toggle('pending', !guest);
   pinWrap.classList.toggle('hidden', guest && !state.joinedCode);
   joinedWrap.classList.add('hidden');
-  modal.classList.remove('hidden');
+  openSheet(modal, () => close());
 
   const close = () => {
-    modal.classList.add('hidden');
+    closeSheet(modal);
     syncPolling(); // hand the poll back to the screen underneath
     $('#share-close').onclick = null;
     link.onclick = null;
@@ -1813,7 +2022,7 @@ async function openInviteSheet() {
   const revealBtn = $('#btn-reveal');
   revealBtn.onclick = async () => {
     if (!state.liveCode || !state.liveToken) return;
-    if (!confirm('Reveal every cupper’s scores? The protocol asks cuppers to score independently first — this opens the table for discussion and cannot be undone.')) return;
+    if (!(await askToReveal())) return;
     revealBtn.disabled = true;
     const ok = await relayReveal(state.liveCode, state.liveToken);
     if (!ok) { revealBtn.disabled = false; toast('Could not reveal — try again'); return; }
@@ -2007,10 +2216,15 @@ function buildLineupRow(coffee, index, locked) {
 
   const removeBtn = row.querySelector('.lineup-icon.remove');
   removeBtn.classList.toggle('hidden', locked || state.coffees.length <= 1);
-  removeBtn.addEventListener('click', () => {
+  removeBtn.addEventListener('click', async () => {
     if (state.coffees.length <= 1) return;
     const p = scoreProgress(coffee);
-    if (p.done > 0 && !confirm(`${coffeeName(coffee, index)} has ${p.done} section${p.done > 1 ? 's' : ''} scored. Remove it anyway?`)) return;
+    if (p.done > 0 && !(await confirmSheet({
+      title: `Remove ${coffeeName(coffee, index)}?`,
+      effects: [`${p.done} of its ${p.total} sections ${p.done > 1 ? 'have' : 'has'} been scored. That scoring is discarded.`],
+      cta: 'Remove it',
+      danger: true,
+    }))) return;
     state.coffees.splice(index, 1);
     state.activeIndex = Math.min(state.activeIndex, state.coffees.length - 1);
     haptic();
@@ -2044,7 +2258,7 @@ function openLineupPaste() {
     title: 'Paste the lineup',
     hint: 'One coffee per line — just the names. The lineup grows or shrinks to match, up to ten.',
     cta: 'Fill the lineup',
-    onSubmit: text => {
+    onSubmit: async text => {
       const names = String(text || '')
         .split('\n')
         .map(s => s.replace(/^\s*[-–—•*\d.)\]]+\s*/, '').trim())
@@ -2053,7 +2267,12 @@ function openLineupPaste() {
       if (!names.length) { toast('No names found'); return false; }
 
       const scored = state.coffees.slice(names.length).filter(c => scoreProgress(c).done > 0).length;
-      if (scored > 0 && !confirm(`This shortens the lineup and drops ${scored} coffee${scored > 1 ? 's' : ''} that already ${scored > 1 ? 'have' : 'has'} scores. Continue?`)) return false;
+      if (scored > 0 && !(await confirmSheet({
+        title: 'Shorten the lineup?',
+        effects: [`${scored} coffee${scored > 1 ? 's that already have' : ' that already has'} scores would be dropped, and that scoring is discarded.`],
+        cta: 'Shorten it',
+        danger: true,
+      }))) return false;
 
       while (state.coffees.length < names.length) state.coffees.push(newCoffee(state.cupsPerCoffee));
       state.coffees.length = names.length;
@@ -2680,8 +2899,8 @@ function openFlavorWheel() {
     refreshOpenPanel();
   };
 
-  modal.classList.remove('hidden');
-  const close = () => { modal.classList.add('hidden'); modal.onclick = null; holder.onclick = null; };
+  openSheet(modal, () => close());
+  const close = () => { closeSheet(modal); modal.onclick = null; holder.onclick = null; };
   $('#wheel-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
 }
@@ -3916,7 +4135,7 @@ function presentPanel() {
 async function ensureRevealed() {
   if (state.revealed) return true;
   if (!isTableLeader()) { toast('Only the cupping leader can reveal the table'); return false; }
-  if (!confirm('Open every cupper’s scores? The standard asks cuppers to score independently first — this ends that and cannot be undone.')) return false;
+  if (!(await askToReveal())) return false;
 
   const ok = await relayReveal(state.liveCode, state.liveToken);
   if (!ok) { toast('Could not reveal — check your connection'); return false; }
@@ -4658,12 +4877,18 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-resume').addEventListener('click', () => { if (state) startCupping(); });
   refreshResumeButton();
 
-  $('#btn-start').addEventListener('click', () => {
+  $('#btn-start').addEventListener('click', async () => {
     // starting over replaces the session in progress, so say so first
     if (state && state.coffees.length) {
       const p = sessionProgress();
       const scored = state.coffees.length - p.untouched;
-      if (scored > 0 && !confirm(`You have a cupping in progress with ${scored} coffee${scored > 1 ? 's' : ''} scored. Starting a new one replaces it. Continue?`)) return;
+      if (scored > 0 && !(await confirmSheet({
+        title: 'Replace the cupping in progress?',
+        body: `${scored} coffee${scored > 1 ? 's have' : ' has'} been scored and this cupping has not been finished, so it is not in History yet.`,
+        effects: ['Starting a new lineup discards it.'],
+        cta: 'Start a new one',
+        danger: true,
+      }))) return;
     }
     newSession(setup.coffees, setup.cups, setup.form);
     refreshResumeButton();
@@ -4724,15 +4949,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   $('#btn-finish').addEventListener('click', () => {
-    // scoring is what gets archived and shared, so say something before
-    // an unfinished sheet becomes a record
-    const p = sessionProgress();
-    if (!p.complete) {
-      const parts = [];
-      if (p.untouched) parts.push(`${p.untouched} coffee${p.untouched > 1 ? 's have' : ' has'} not been scored at all`);
-      if (p.partial) parts.push(`${p.partial} ${p.partial > 1 ? 'are' : 'is'} part-scored`);
-      if (!confirm(`${parts.join(', ')}. Unrated sections count as 5 (neither high nor low). See results anyway?`)) return;
-    }
+    // There used to be a confirm here admitting that unrated sections were
+    // being counted as 5. They are not any more — an unrated coffee shows no
+    // score at all and a part-scored one says how much of it is real, on
+    // Results and everywhere else. There is nothing left to confess, and
+    // confessing it as an interruption at the moment someone asks for their
+    // results was the worst possible delivery for it.
     buildResults();
     showScreen('#screen-results');
   });
@@ -4747,7 +4969,9 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-export-csv').addEventListener('click', exportHistoryCSV);
 
   $('#btn-new-session').addEventListener('click', () => {
-    if (!confirm('Start a new session? This cupping is already saved to History.')) return;
+    // No confirm: reaching Results archives the cupping, so this loses
+    // nothing. A dialog asking permission for an action with no consequence
+    // teaches people to dismiss the ones that have consequences.
     clearSession();
     refreshResumeButton();
     showScreen('#screen-setup');
@@ -4760,12 +4984,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-back-history').addEventListener('click', () => showScreen('#screen-setup'));
 
-  $('#btn-clear-history').addEventListener('click', () => {
+  $('#btn-clear-history').addEventListener('click', async () => {
     const signedIn = Boolean(loadAuth() && loadAuth().user);
-    const msg = signedIn
-      ? 'Delete all cupping history, including your cloud backup? This cannot be undone.'
-      : 'Delete all cupping history? This cannot be undone.';
-    if (!confirm(msg)) return;
+    const kept = loadArchive().length;
+    const effects = [`${kept} cupping${kept === 1 ? '' : 's'} deleted from this device.`];
+    if (signedIn) effects.push('Your cloud backup is deleted too, on every device signed in to this account.');
+    effects.push('It cannot be undone.');
+    if (!(await confirmSheet({
+      title: 'Delete all cupping history?',
+      effects,
+      cta: 'Delete everything',
+      danger: true,
+    }))) return;
     clearArchive();
     if (signedIn) cloudDeleteAll();
     buildHistory();
