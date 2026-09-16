@@ -4799,46 +4799,117 @@ function exportHistoryCSV() {
 }
 
 // A clean printed scoresheet — Safari's print dialog saves it as a PDF.
+/* The printed scoresheet.
+
+   This is the only artefact that leaves the phone — what a grader hands a
+   producer or attaches to a lot, and the one place the app is read by
+   somebody who was not at the table. It used to be five columns: rank,
+   name, origin, descriptors, total. No section scores, no defects, no cup
+   counts, under a header reading "Coffee Value Assessment · SCA 104-2024".
+   A ranked list cannot substantiate the number it prints, and this one was
+   claiming a standard it did not implement.
+
+   It prints the sheet now: every section as the cupper rated it, the
+   deductions, and a dash wherever nothing was rated — so the total can be
+   checked against the form it came from.                                 */
+
+// Three-letter column heads. The full section names will not fit ten
+// numeric columns across a page, and on a scoresheet the column position is
+// what a cupper reads anyway.
+function printAbbrev(label) {
+  const words = label.split(/[\s/]+/).filter(Boolean);
+  if (words.length > 1) return words.map(w => w[0]).join('').toUpperCase().slice(0, 3);
+  return label.replace(/[aeiou]/gi, (m, i) => (i === 0 ? m : '')).slice(0, 3).replace(/^./, c => c.toUpperCase());
+}
+
 function printResults() {
   const ranked = rankedCoffees();
+  const sections = usingCVA() ? CVA_SECTIONS : SCALE_ATTRS;
+  const cupAttrs = usingCVA() ? [] : CUP_ATTRS;
+  const cups = state.cupsPerCoffee;
 
   const sheet = document.createElement('div');
   sheet.id = 'print-sheet';
   const when = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const formName = usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)';
+  const who = getCupperName();
+
+  const scored = ranked.filter(r => r.prog.done > 0).map(r => r.score).sort((a, b) => a - b);
+  const anyPartial = ranked.some(r => !r.prog.complete);
+
+  const sectionValue = (coffee, attr) => {
+    if (!coffee.touched || !coffee.touched[attr.key]) return null;
+    return usingCVA() ? coffee.cva[attr.key] : coffee.scores[attr.key];
+  };
 
   sheet.innerHTML = `
     <div class="p-head">
       <div>
         <h1>Cupping results</h1>
-        <p>${escapeHTML(formName)} · ${escapeHTML(when)}${getCupperName() ? ` · ${escapeHTML(getCupperName())}` : ''}</p>
+        <p>${escapeHTML(formName)} · ${escapeHTML(when)} · ${cups} cup${cups > 1 ? 's' : ''} per coffee${who ? ` · ${escapeHTML(who)}` : ''}</p>
       </div>
       <div class="p-mark">lento.cafe</div>
     </div>
+
+    ${scored.length ? `<p class="p-summary">${scored.length} of ${ranked.length} coffee${ranked.length > 1 ? 's' : ''} scored ·
+      range ${fmt(scored[0])}–${fmt(scored[scored.length - 1])} ·
+      ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80</p>` : ''}
+
     <table>
-      <thead><tr><th>#</th><th>Coffee</th><th>Origin details</th><th>Descriptors</th><th class="num">Rated</th><th class="num">Score</th></tr></thead>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Coffee</th>
+          ${sections.map(a => `<th class="num" title="${escapeHTML(a.label)}">${escapeHTML(printAbbrev(a.label))}</th>`).join('')}
+          ${cupAttrs.map(a => `<th class="num" title="${escapeHTML(a.label)}">${escapeHTML(printAbbrev(a.label))}</th>`).join('')}
+          <th class="num">Def</th>
+          <th class="num">Score</th>
+        </tr>
+      </thead>
       <tbody>
         ${ranked.map((r, pos) => {
-          const d = usingCVA() && r.coffee.desc
-            ? [...new Set([...r.coffee.desc.cata.aroma, ...r.coffee.desc.cata.flavor])].join(', ')
+          const c = r.coffee;
+          const d = usingCVA() && c.desc
+            ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor])].join(', ')
             : '';
+          const meta = metaSummary(c.meta);
+          const deductions = usingCVA()
+            ? [c.nonUniform ? `${c.nonUniform}nu` : '', c.defective ? `${c.defective}df` : ''].filter(Boolean).join(' ')
+            : [c.taintCups ? `${c.taintCups}t` : '', c.faultCups ? `${c.faultCups}f` : ''].filter(Boolean).join(' ');
           return `<tr>
             <td>${pos + 1}</td>
-            <td><strong>${escapeHTML(coffeeName(r.coffee, r.index))}</strong>
-              ${r.coffee.notes.trim() ? `<div class="p-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}</td>
-            <td>${escapeHTML(metaSummary(r.coffee.meta))}</td>
-            <td>${escapeHTML(d)}</td>
-            <td class="num">${r.prog.done} of ${r.prog.total}</td>
-            <td class="num ${r.prog.complete ? '' : 'partial'}">${r.prog.done === 0
-              ? '—'
-              : `<strong>${fmt(r.score)}</strong><div class="p-grade">${gradeFor(r.score)}</div>`}</td>
+            <td><strong>${escapeHTML(coffeeName(c, r.index))}</strong>
+              ${meta ? `<div class="p-sub">${escapeHTML(meta)}</div>` : ''}
+              ${d ? `<div class="p-sub">${escapeHTML(d)}</div>` : ''}
+              ${c.notes.trim() ? `<div class="p-sub">${escapeHTML(c.notes.trim())}</div>` : ''}</td>
+            ${sections.map(a => {
+              const v = sectionValue(c, a);
+              // CVA sections are whole numbers 1–9; only the 2004 form's
+              // quarter points need the decimals
+              const shown = v === null ? '–' : (usingCVA() ? String(v) : fmt(v));
+              return `<td class="num${v === null ? ' unrated' : ''}">${shown}</td>`;
+            }).join('')}
+            ${cupAttrs.map(a => {
+              const passed = c.cups[a.key].filter(Boolean).length;
+              return `<td class="num">${passed}/${c.cups[a.key].length}</td>`;
+            }).join('')}
+            <td class="num">${deductions || '–'}</td>
+            <td class="num total${r.prog.complete ? '' : ' partial'}">${r.prog.done === 0
+              ? '–'
+              : `<strong>${fmt(r.score)}</strong>${r.prog.complete ? '' : `<div class="p-sub">${r.prog.done}/${r.prog.total}</div>`}`}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
-    ${ranked.some(r => !r.prog.complete)
-      ? `<p class="p-foot">A score is shown only for the sections that were rated. Where the Rated column is short of ${sectionCount()}, the sheet was not finished and the score is not a complete assessment.</p>`
-      : ''}
+
+    <p class="p-foot">${sections.map(a => `${printAbbrev(a.label)} ${a.label}`).join(' · ')}${
+      cupAttrs.length ? ' · ' + cupAttrs.map(a => `${printAbbrev(a.label)} ${a.label}, cups passed`).join(' · ') : ''
+    } · Def deductions${usingCVA() ? ' (nu non-uniform, df defective)' : ' (t tainted, f faulty)'}.
+    Sections are scored ${usingCVA() ? '1–9' : '6.00–10.00'}.</p>
+
+    ${anyPartial ? `<p class="p-foot">A dash means the section was not rated. A total set in grey comes from a sheet that
+      was not finished, and the count beside it says how many of the ${sectionCount()} sections stand behind it.</p>` : ''}
+
     <p class="p-foot">Scores recorded with lento.cafe/cupping</p>
   `;
 
