@@ -129,6 +129,21 @@ const DESC_ATTRS = [
 // The olfactory CATA list, exactly as printed on the SCA form: nine
 // categories, some with their own sub-descriptors. Used for the
 // fragrance/aroma box and again for the flavor/aftertaste box.
+/* Which ink a label needs to be legible on a given wedge.
+
+   The wheel's nine hues are the Coffee Taster's Flavor Wheel's own and are
+   not up for redesign, but the label ink was a flat #ffffff on all nine —
+   2.61:1 on the pink, 1.68:1 on the yellow, against the 4.5:1 that 7px text
+   needs. Choosing the ink per hue instead of the hue per ink fixes it
+   without moving a single colour: worst case 5.15:1. */
+function inkOn(hex) {
+  const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const n = parseInt(hex.slice(1), 16);
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  // contrast against black is (L+0.05)/0.05; against white it is 1.05/(L+0.05)
+  return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? 'dark' : 'light';
+}
+
 const CATA_OLFACTORY = [
   { name: 'Floral' },
   { name: 'Fruity', children: ['Berry', 'Dried Fruit', 'Citrus Fruit'] },
@@ -2668,7 +2683,7 @@ function buildWheelSVG() {
       ? parts.map((t, i) =>
           `<tspan x="${lx.toFixed(1)}" dy="${i === 0 ? '-0.55em' : '1.1em'}">${escapeHTML(t.trim())}</tspan>`).join('')
       : escapeHTML(cat.name);
-    svg += `<text class="wheel-cat-label" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${label}</text>`;
+    svg += `<text class="wheel-cat-label ink-${inkOn(cat.color)}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${label}</text>`;
 
     cat.children.forEach(child => {
       const cSpan = (1 / total) * Math.PI * 2;
@@ -2679,7 +2694,11 @@ function buildWheelSVG() {
       const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
       let cDeg = (cMid * 180) / Math.PI;
       if (cDeg > 90 || cDeg < -90) cDeg += 180;
-      svg += `<text class="wheel-child-label" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${cDeg.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})">${escapeHTML(child)}</text>`;
+      // A picked descriptor's wedge goes to 95% opacity, so its ground stops
+      // being the card and becomes the hue — which took the label with it,
+      // to 2.94:1 in light and 1.55:1 in dark. The label carries the ink its
+      // own hue needs, and switches to it exactly when the wedge fills.
+      svg += `<text class="wheel-child-label ink-${inkOn(cat.color)}" data-desc="${escapeHTML(child)}" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${cDeg.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})">${escapeHTML(child)}</text>`;
       outerAngle = c1;
     });
 
@@ -2837,6 +2856,9 @@ function openFlavorWheel() {
     });
     holder.querySelectorAll('.wheel-child').forEach(seg => {
       seg.classList.toggle('picked', wordSet.has(seg.dataset.desc.toLowerCase()));
+    });
+    holder.querySelectorAll('.wheel-child-label').forEach(t => {
+      t.classList.toggle('picked', wordSet.has(t.dataset.desc.toLowerCase()));
     });
 
     // a running list of what has been taken from the wheel, each one tappable
