@@ -578,7 +578,9 @@ input, textarea, select { font: inherit; }
 
 /* --text-dim, not --text-faint: this numeral can end up sitting on its own
    progress wash, and the faint ink measured 4.2:1 there on a segment that
-   was part-rated but not the active one. */
+   was part-rated but not the active one. It is ink at every state — the
+   fill behind it carries the progress, and which coffee is open is a
+   selection, not a number. */
 .rail-num {
   position: relative;
   font-size: 11px;
@@ -1435,12 +1437,18 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 }
 /* Grows upward, never down. DESIGN.md asks for this specifically: the track
    is directly below, and a target that grew downward would let a thumb
-   overshooting the track top land on the control that wipes the rating. */
+   overshooting the track top land on the control that wipes the rating.
+
+   The insets account for border-box: the button is 22px with a 1px border,
+   so the pseudo anchors to a 20px padding box and needs 24 and 12 to reach
+   44 in each axis. The radius is square, because a 50% radius made the
+   target an ellipse that reached only ~19px sideways at the centre-line —
+   the axis a thumb actually arrives along. */
 .cva-clear::after {
   content: '';
   position: absolute;
-  inset: -22px -11px 0;
-  border-radius: 50%;
+  inset: -24px -12px 0;
+  border-radius: var(--radius);
 }
 .attr-card.rated .cva-clear,
 .desc-row:not(.unrated) .cva-clear { visibility: visible; }
@@ -1482,10 +1490,19 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   display: flex;
   gap: 10px;
   margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
 }
+.cups-row::-webkit-scrollbar { display: none; }
 
+/* A 44px floor, and the row scrolls rather than shrinking below it — the
+   same answer .coffee-rail.dense already gives to the same problem. At the
+   eight cups the stepper allows, flex:1 put these at 36.7px, and on the
+   2004 form these fifteen controls carry 30 of the 100 points. */
 .cup-check {
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 44px;
   aspect-ratio: 1;
   max-width: 60px;
   border-radius: var(--radius);
@@ -1758,7 +1775,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   transition: opacity 0.2s;
   cursor: pointer;
 }
-.legend-item.muted { opacity: 0.3; }
+/* Muted, not dimmed. These stay enabled — tapping one is how you come back
+   out of a solo — so WCAG's inactive-component exemption does not cover
+   them, and opacity 0.3 put the labels at 1.58:1 and their swatches as low
+   as 1.33:1. The label steps down one ink and the swatch fades; the row
+   stays readable, which it has to be, because you are choosing from it. */
+.legend-item.muted { color: var(--text-faint); }
+.legend-item.muted .legend-swatch { opacity: 0.45; }
 .legend-item:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; border-radius: var(--radius-sm); }
 /* the series' own line, so the legend carries the pattern as well as the
    hue and the chart does not depend on colour alone */
@@ -3102,9 +3125,10 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
    it you had filled in, on the one band a thumb reaches. */
 .rail-fill { background: var(--data-soft); }
 .rail-seg.done .rail-fill { background: var(--data-soft); }
-.rail-seg.done .rail-num { color: var(--data); }
-.rail-seg.active { border-color: var(--data); box-shadow: inset 0 0 0 1px var(--data); }
-.rail-seg.active .rail-num { color: var(--data); }
+/* Selection, not a value: which coffee is open is not a number a cupper
+   set, so the ring is ink. The wash behind it is the part that encodes
+   something, and that keeps the data ink. */
+.rail-seg.active { border-color: var(--chrome); box-shadow: inset 0 0 0 1px var(--chrome); }
 
 .rank-bar-fill,
 .group-bar-fill { background: var(--data); }
@@ -3128,13 +3152,22 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .cupper-score.me.partial,
 .podium-score.partial { color: var(--text-dim); font-weight: 600; }
 
-/* an affordance, not an accent — see above */
-.scale-track:focus-visible,
-.name-field:focus-visible,
-.notes-field:focus-visible,
-.detail-field:focus-visible,
-.modal-input:focus-visible,
-.lineup-name:focus-visible,
-.wheel-zoom-btn:focus-visible,
-.legend-item:focus-visible,
-.desc-row .scale-track:focus-visible { outline-color: var(--data); }
+/* An affordance, not an accent — see above. One ring for every control, not
+   an authored one on the nine that were written by hand and the browser's
+   default on everything else: the UA ring is visible but it is not
+   theme-aware, so on the dark ground it was a thin light hairline that
+   changed shape from control to control. */
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--data);
+  outline-offset: 2px;
+}
+.scale-track:focus-visible { outline-offset: 3px; }
+/* the wedges are SVG paths inside a zoomed viewport, where an outline does
+   not follow the shape — they carry their own ring, set on the stroke */
+.wheel-seg:focus-visible { outline: none; }
