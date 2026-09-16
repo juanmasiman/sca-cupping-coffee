@@ -531,7 +531,10 @@ input, textarea, select { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: 0 var(--space-2);
+  /* No padding of its own: the header's 8px gap already separates this
+     column from the back button on one side and the invite on the other,
+     and the 8px this used to add on top of it was the difference between
+     the status line fitting on a 360px phone and being cut. */
 }
 .cupping-title-row { display: flex; align-items: center; min-width: 0; }
 /* an h1 so the working screen is navigable by heading; it is sized by its
@@ -549,7 +552,12 @@ input, textarea, select { font: inherit; }
   color: var(--text-faint);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  /* nowrap with nothing to catch it cut this line off mid-glyph: on a
+     320px screen the run simply stopped, with no ellipsis to say it had.
+     A clipped line has to look clipped. */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* one segment per coffee: position, progress and jump target in one row */

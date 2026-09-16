@@ -2584,12 +2584,24 @@ function refreshTabs() {
   // screen: the live code. A latecomer asks for it mid-section, and reading
   // it off the header beats leaving the sheet to open a sheet to read four
   // digits and find your place again.
+  /* Three facts, one line, and on a phone the line is not always long
+     enough for three. It is 156px wide on a 390px screen and the full run —
+     "1 of 3 · code 6375 · not sent" — wants 191, so it was cut mid-glyph,
+     with no ellipsis and no warning, and what fell off the end was "not
+     sent". The one fact on the line that nobody can recover by tapping
+     something was the first one lost.
+
+     So the line is ordered by what it costs to lose. Whether your sheet has
+     reached the table leads, because nothing else on this screen says it.
+     The code follows, and if that is what gets clipped the invite button
+     beside it opens the code full size. The position goes last and is
+     dropped entirely at a live table: the rail along the bottom numbers
+     every coffee and marks the one you are on, and the coffee's own name is
+     the line directly above this one. */
   const parts = [];
-  if (state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
-  if (live) parts.push(`code ${code}`);
-  // At a live table, whether your sheet has reached it is a fact you should
-  // not have to go looking for.
   if (code) parts.push(state.submittedAt ? 'sent' : 'not sent');
+  if (live) parts.push(`code ${code}`);
+  if (!code && state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
 
