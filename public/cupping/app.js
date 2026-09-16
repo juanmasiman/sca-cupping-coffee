@@ -2330,11 +2330,16 @@ function initFormPicker() {
   };
   FORMS.forEach(f => {
     const btn = el('button', 'seg-btn' + (f.id === setup.form ? ' active' : ''), f.name);
+    btn.setAttribute('aria-pressed', f.id === setup.form ? 'true' : 'false');
     btn.addEventListener('click', () => {
       setup.form = f.id;
       haptic();
-      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      seg.querySelectorAll('.seg-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       hint.textContent = hints[f.id];
     });
     seg.appendChild(btn);
@@ -2426,6 +2431,10 @@ function buildTabs() {
   rail.classList.toggle('dense', state.coffees.length > 6);
 }
 
+function refreshSubmitRows() {
+  document.querySelectorAll('.submit-row').forEach(r => { if (r.refresh) r.refresh(); });
+}
+
 function refreshTabs() {
   const rail = $('#coffee-rail');
   const active = state.coffees[state.activeIndex];
@@ -2462,8 +2471,13 @@ function refreshTabs() {
   const parts = [];
   if (state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
   if (live) parts.push(`code ${code}`);
+  // At a live table, whether your sheet has reached it is a fact you should
+  // not have to go looking for.
+  if (code) parts.push(state.submittedAt ? 'sent' : 'not sent');
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
+
+  refreshSubmitRows();
 
   state.coffees.forEach((c, i) => {
     const seg = rail.children[i];
@@ -2479,10 +2493,19 @@ function refreshTabs() {
   });
 }
 
+let panelScrollWired = false;
+
 function buildPanels() {
   const panels = $('#panels');
   panels.innerHTML = '';
   state.coffees.forEach((c, i) => panels.appendChild(buildPanel(c, i)));
+
+  // Registered once. buildPanels runs on start, on every guided-mode toggle
+  // and on reveal-driven rebuilds, and #panels is a persistent element — so
+  // each rebuild used to add another listener with its own debounce timer,
+  // and after three of them a single swipe fired three save() calls.
+  if (panelScrollWired) return;
+  panelScrollWired = true;
 
   // sync active tab with horizontal swipe position
   let scrollTimer = null;
@@ -2511,6 +2534,12 @@ function syncActivePanel(animated) {
 
 function buildPanel(coffee, index) {
   const panel = el('div', 'panel');
+  // The lineup screen already refuses to let a guest edit a name the leader
+  // owns; the scoring panel offered the same fields with no such check, and
+  // adoptRevealedLineup then overwrote whatever was typed the instant the
+  // leader revealed. Same data, two permissions, and the divergence was
+  // destroyed silently.
+  const locked = lineupLocked();
 
   // name
   const name = document.createElement('input');
@@ -2554,7 +2583,58 @@ function buildPanel(coffee, index) {
   notes.addEventListener('input', () => { coffee.notes = notes.value; save(); });
   panel.appendChild(notes);
 
+  panel.appendChild(buildSubmitRow());
+
   return panel;
+}
+
+/* Submission is the participant's terminal act in the protocol, and it used
+   to exist in exactly one place: inside the team card, third down the
+   Results scroll, past a radar chart — reached through a button labelled
+   "Results". Nothing on the screen where a cupper spends the whole session
+   mentioned it. The leader auto-submits on entering Present; nobody else
+   did, so a cupper could score eight coffees, pocket the phone, and
+   contribute nothing to the panel average without ever being told.
+
+   It lives at the end of the sheet now, which is where you are standing
+   when you have finished scoring. */
+function buildSubmitRow() {
+  const row = el('div', 'submit-row');
+  const refresh = () => {
+    const code = tableCode();
+    if (!code) { row.classList.add('hidden'); return; }
+    row.classList.remove('hidden');
+    const p = sessionProgress();
+    const sent = Boolean(state.submittedAt);
+    const rated = state.coffees.length - p.untouched;
+    row.innerHTML = sent
+      ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
+         <button class="btn btn-ghost" type="button">Update my scores</button>`
+      : `<p class="submit-note">${rated === 0
+            ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
+            : `${p.complete
+                ? 'Every coffee is scored.'
+                : `${rated} of ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''} scored.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
+         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Submit my scores</button>`;
+    const btn = row.querySelector('button');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      const res = await relaySubmitScores(tableCode(), state.participantId,
+        getCupperName() || (state.liveCode ? 'Host' : 'Cupper'), myScores(), myRated());
+      if (!res.ok) { btn.disabled = false; btn.textContent = 'Try again'; toast(res.reason); return; }
+      state.submittedAt = Date.now();
+      save();
+      arrivalHaptic();
+      toast('Sent to the table');
+      refreshTabs();
+      refresh();
+      if (poller) poller.wake();
+    });
+  };
+  row.refresh = refresh;
+  refresh();
+  return row;
 }
 
 // A labelled divider inside a panel, with the guided-mode help attached.
@@ -2596,6 +2676,7 @@ function buildDetailsCard(coffee) {
     input.placeholder = f.placeholder;
     input.value = coffee.meta[f.key] || '';
     input.maxLength = 60;
+    input.readOnly = lineupLocked();
     if (f.list) input.setAttribute('list', f.list);
     if (f.inputmode) input.setAttribute('inputmode', f.inputmode);
     input.addEventListener('input', () => {
@@ -2666,7 +2747,8 @@ function buildWheelSVG() {
     const a0 = angle, a1 = angle + span;
     const mid = (a0 + a1) / 2;
 
-    svg += `<path class="wheel-seg wheel-cat" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" data-cat="${escapeHTML(cat.name)}"/>`;
+    svg += `<path class="wheel-seg wheel-cat" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
+      + ` aria-label="${escapeHTML(cat.name)} — category, checks it on the Describe form" data-cat="${escapeHTML(cat.name)}"/>`;
 
     // category label, rotated to sit along its wedge
     const lx = C + ((R_IN + R_MID) / 2) * Math.cos(mid);
@@ -2689,7 +2771,8 @@ function buildWheelSVG() {
       const cSpan = (1 / total) * Math.PI * 2;
       const c0 = outerAngle, c1 = outerAngle + cSpan;
       const cMid = (c0 + c1) / 2;
-      svg += `<path class="wheel-seg wheel-child" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
+      svg += `<path class="wheel-seg wheel-child" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
+        + ` aria-label="${escapeHTML(child)} — ${escapeHTML(cat.name)}, adds the word to your tasting notes" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
       const tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
       const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
       let cDeg = (cMid * 180) / Math.PI;
@@ -2779,6 +2862,92 @@ const WHEEL_ZOOMS = [
   { z: 2.8, label: 'Close' },
 ];
 
+/* The wheel as a keyboard widget.
+
+   Sixty-eight descriptors and nine categories, and every one of them was
+   reachable only by pointer: no role, no tabindex, one delegated click
+   handler over <path> elements. DESIGN.md defends the wheel's type-size
+   exemption on the grounds that it is the only view answering the question a
+   first-timer actually has — which words exist at all — and that view was
+   unavailable to an entire class of first-timer.
+
+   It is one tab stop, not seventy-seven. Putting every wedge in the tab
+   order would make a keyboard user pass all of them to reach "Done", so the
+   wheel behaves the way a grid or a menu does: Tab reaches it, arrows move
+   inside it, and Enter or Space takes the wedge under the cursor. Left and
+   right run along the ring you are on; up and down step between the category
+   ring and its own descriptors, which is the relationship the drawing is
+   about. */
+function wireWheelKeyboard(holder) {
+  const svg = holder.querySelector('svg');
+  if (!svg) return;
+  const cats = [...holder.querySelectorAll('.wheel-cat')];
+  const kids = [...holder.querySelectorAll('.wheel-child')];
+  if (!cats.length) return;
+
+  svg.setAttribute('role', 'group');
+  svg.setAttribute('aria-label', 'Flavor wheel — arrow keys move between wedges, Enter takes one');
+
+  let current = cats[0];
+  const setCurrent = seg => {
+    if (!seg) return;
+    [...cats, ...kids].forEach(x => x.setAttribute('tabindex', '-1'));
+    current = seg;
+    seg.setAttribute('tabindex', '0');
+  };
+  setCurrent(cats[0]);
+
+  const childrenOf = cat => kids.filter(k => k.dataset.cat === cat.dataset.cat);
+  const ringOf = seg => (seg.classList.contains('wheel-cat') ? cats : kids);
+
+  const step = (seg, delta) => {
+    const ring = ringOf(seg);
+    const i = ring.indexOf(seg);
+    return ring[(i + delta + ring.length) % ring.length];
+  };
+
+  const move = seg => {
+    if (!seg) return;
+    setCurrent(seg);
+    seg.focus({ preventScroll: true });
+    // the wheel is a scrolled, zoomed viewport — a wedge the keyboard
+    // reaches has to be brought into it
+    if (seg.scrollIntoView) seg.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+
+  holder.onkeydown = e => {
+    const seg = e.target.closest && e.target.closest('.wheel-seg');
+    if (!seg) return;
+    const isCat = seg.classList.contains('wheel-cat');
+    let next = null;
+
+    if (e.key === 'ArrowRight') next = step(seg, 1);
+    else if (e.key === 'ArrowLeft') next = step(seg, -1);
+    else if (e.key === 'ArrowDown') next = isCat ? childrenOf(seg)[0] : null;
+    else if (e.key === 'ArrowUp') {
+      next = isCat ? null : cats.find(c => c.dataset.cat === seg.dataset.cat);
+    } else if (e.key === 'Home') next = ringOf(seg)[0];
+    else if (e.key === 'End') next = ringOf(seg)[ringOf(seg).length - 1];
+    else if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      seg.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return;
+    } else {
+      return;
+    }
+
+    if (!next) return;
+    e.preventDefault();
+    move(next);
+  };
+
+  // clicking a wedge makes it the one the keyboard resumes from
+  holder.addEventListener('click', e => {
+    const seg = e.target.closest && e.target.closest('.wheel-seg');
+    if (seg) setCurrent(seg);
+  }, true);
+}
+
 function wireWheelZoom(holder) {
   const out = $('#wheel-zoom-out');
   const inn = $('#wheel-zoom-in');
@@ -2852,10 +3021,14 @@ function openFlavorWheel() {
     const wordSet = new Set(words.map(w => w.toLowerCase()));
 
     holder.querySelectorAll('.wheel-cat').forEach(seg => {
-      seg.classList.toggle('picked', cata.has(wheelCataName(seg.dataset.cat)));
+      const on = cata.has(wheelCataName(seg.dataset.cat));
+      seg.classList.toggle('picked', on);
+      seg.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     holder.querySelectorAll('.wheel-child').forEach(seg => {
-      seg.classList.toggle('picked', wordSet.has(seg.dataset.desc.toLowerCase()));
+      const on = wordSet.has(seg.dataset.desc.toLowerCase());
+      seg.classList.toggle('picked', on);
+      seg.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     holder.querySelectorAll('.wheel-child-label').forEach(t => {
       t.classList.toggle('picked', wordSet.has(t.dataset.desc.toLowerCase()));
@@ -2935,8 +3108,15 @@ function openFlavorWheel() {
     refreshOpenPanel();
   };
 
+  wireWheelKeyboard(holder);
+
   openSheet(modal, () => close());
-  const close = () => { closeSheet(modal); modal.onclick = null; holder.onclick = null; };
+  const close = () => {
+    closeSheet(modal);
+    modal.onclick = null;
+    holder.onclick = null;
+    holder.onkeydown = null;
+  };
   $('#wheel-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
 }
@@ -3107,7 +3287,15 @@ function buildDescriptiveCard(coffee) {
       const chip = el('button', 'cata-chip',
         `${escapeHTML(name)}${hint ? ` <span class="chip-hint">${escapeHTML(hint)}</span>` : ''}`);
       chip.type = 'button';
-      const sync = () => chip.classList.toggle('on', list().includes(name));
+      // The selected state was a CSS class and a colour, which is nothing at
+      // all to a screen reader — and meaning carried by colour alone is also
+      // nothing to a cupper with a colour-vision deficiency in the dim
+      // cellar DESIGN.md describes.
+      const sync = () => {
+        const on = list().includes(name);
+        chip.classList.toggle('on', on);
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+      };
       chip.addEventListener('click', () => {
         if (!toggleCata(list(), name, max)) { toast(`Up to ${max} here`); return; }
         haptic();
@@ -3294,8 +3482,11 @@ function buildAnchoredScale(opts) {
   const paintKnob = i => {
     const text = format(valueAt(i));
     knob.textContent = text;
-    // "7.75" does not fit a 32px knob at the single-digit size
-    knob.classList.toggle('wide', text.length > 2);
+    // "7.75" does not fit a 32px knob at the single-digit size, so the knob
+    // grows and the track insets further to keep it inside the line
+    const wide = text.length > 2;
+    knob.classList.toggle('wide', wide);
+    track.classList.toggle('wide-knob', wide);
   };
 
   // settle=true springs the knob home; during a drag it must not animate,
@@ -3306,7 +3497,16 @@ function buildAnchoredScale(opts) {
     knob.classList.toggle('settle', Boolean(settle));
     knob.classList.toggle('empty', !set);
     knob.style.left = pct(i) + '%';
-    if (set) paintKnob(i); else { knob.textContent = ''; knob.classList.remove('wide'); }
+    if (set) {
+      paintKnob(i);
+    } else {
+      knob.textContent = '';
+      // keep the wide geometry on an unrated scale whose values would be
+      // wide, so the track does not shift the first time one is set
+      const wide = format(valueAt(1)).length > 2;
+      knob.classList.toggle('wide', wide);
+      track.classList.toggle('wide-knob', wide);
+    }
     cover(i);
     fill.style.width = set ? pct(i) + '%' : '0';
     live.textContent = set ? say(i) : 'not rated yet';
@@ -3609,7 +3809,14 @@ function buildCupCard(coffee, attr) {
       void valueEl.offsetWidth;
       valueEl.classList.add('pop');
     }
-    [...row.children].forEach((btn, i) => btn.classList.toggle('checked', cups[i]));
+    [...row.children].forEach((btn, i) => {
+      btn.classList.toggle('checked', cups[i]);
+      btn.setAttribute('aria-pressed', cups[i] ? 'true' : 'false');
+      // its accessible name was the bare digit, so a reader announced
+      // "button, 1" whether the cup passed or failed — and on the 2004 form
+      // these fifteen controls carry 30 of the 100 points
+      btn.setAttribute('aria-label', `Cup ${i + 1} — ${cups[i] ? 'passes' : 'fails'} ${attr.label}`);
+    });
   };
 
   cups.forEach((_, i) => {
@@ -3716,9 +3923,14 @@ function updateScorebar() {
     ? shortGrade(score)
     : `${progress.done} of ${progress.total} rated`;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
+  // DESIGN.md: a sheet with nothing rated shows no number at all, an em
+  // dash. Results, print and the CSV all obeyed; this one printed 79.00
+  // directly above the words "0 of 8 rated", which is the exact confusion
+  // the rule exists to prevent.
+  const shown = progress.done === 0 ? '—' : fmt(score);
   const valueEl = $('#scorebar-value');
-  if (valueEl.textContent !== fmt(score)) {
-    valueEl.textContent = fmt(score);
+  if (valueEl.textContent !== shown) {
+    valueEl.textContent = shown;
     const box = valueEl.parentElement;
     box.classList.remove('pulse');
     void box.offsetWidth;
@@ -3800,7 +4012,10 @@ function buildResults() {
 
   buildSummary(ranked);
 
-  buildRadar(ranked);
+  // A coffee nobody rated has no sensory profile — it has eight defaults.
+  // Every other surface excludes it; this one was drawing it as a regular
+  // octagon at the mid ring and naming it in the legend.
+  buildRadar(ranked.filter(r => r.prog.done > 0));
 
   // ranking cards
   const ranking = $('#ranking');
@@ -4449,8 +4664,15 @@ function radarAttrs() {
 }
 
 // radar floors: enough headroom that differences read, without clipping
+/* The full range each form can record. It floored at 3 (CVA) and 5 (2004),
+   which cropped the chart to the band most coffees land in — and silently
+   flattened the ones that do not: a section rated 1 or 2 plotted at exactly
+   the same radius as a 3, so a defective lot drew the same shape as a
+   merely weak one. That is the case a sensory profile is most diagnostic
+   for, and the only surface in the app that was clipping data rather than
+   marking it. */
 function radarRange() {
-  return usingCVA() ? { min: 3, max: 9 } : { min: 5, max: 10 };
+  return usingCVA() ? { min: 1, max: 9 } : { min: 6, max: 10 };
 }
 
 function attrValue(coffee, attr) {
@@ -4514,6 +4736,7 @@ function buildRadar(ranked) {
   ranked.forEach(r => {
     const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
     const item = el('button', 'legend-item');
+    item.setAttribute('aria-pressed', 'false');
     // the swatch is the series' own line, so the legend carries both
     // channels the chart uses rather than only the colour
     item.innerHTML = `<svg class="legend-swatch" viewBox="0 0 24 8" aria-hidden="true">`
@@ -4522,13 +4745,17 @@ function buildRadar(ranked) {
       + escapeHTML(coffeeName(r.coffee, r.index));
     item.addEventListener('click', () => {
       const muting = !item.classList.contains('solo');
-      legend.querySelectorAll('.legend-item').forEach(li => li.classList.remove('solo', 'muted'));
+      legend.querySelectorAll('.legend-item').forEach(li => {
+        li.classList.remove('solo', 'muted');
+        li.setAttribute('aria-pressed', 'false');
+      });
       $('#radar-wrap').querySelectorAll('polygon[data-coffee]').forEach(p => {
         p.style.opacity = '';
         p.classList.remove('solo');
       });
       if (muting) {
         item.classList.add('solo');
+        item.setAttribute('aria-pressed', 'true');
         legend.querySelectorAll('.legend-item').forEach(li => { if (li !== item) li.classList.add('muted'); });
         $('#radar-wrap').querySelectorAll('polygon[data-coffee]').forEach(p => {
           const mine = p.dataset.coffee === String(r.index);
@@ -4734,11 +4961,16 @@ function buildHistory() {
   markScrollEnds(seg);
   DIMENSIONS.forEach(d => {
     const btn = el('button', 'seg-btn' + (d.key === activeDim ? ' active' : ''), d.label);
+    btn.setAttribute('aria-pressed', d.key === activeDim ? 'true' : 'false');
     btn.addEventListener('click', () => {
       activeDim = d.key;
       haptic();
-      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      seg.querySelectorAll('.seg-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       renderGroups(coffees);
     });
     seg.appendChild(btn);
@@ -4764,7 +4996,7 @@ function buildHistory() {
           ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="hist-item-right">
-          <div class="hist-item-score${c.complete === false ? ' partial' : ''}">${fmt(c.score)}</div>
+          <div class="hist-item-score${c.complete === false ? ' partial' : ''}">${c.rated === 0 ? '—' : fmt(c.score)}</div>
           <div class="hist-item-date">${c.complete === false
             ? `${c.rated} of ${c.sections} rated`
             : date}</div>
@@ -4811,8 +5043,14 @@ function renderGroups(coffees) {
    EXPORT — CSV and a printable scoresheet
    ============================================================ */
 
+/* A cupper names a coffee, exports, and opens the file in Excel. A cell
+   starting =, +, - or @ is a formula there, not text — so "=HYPERLINK(...)"
+   typed into a coffee name would execute on someone else's machine. Prefix
+   it with a single quote, which every spreadsheet reads as "this is text"
+   and hides, and quote the cell so the prefix cannot be re-interpreted. */
 function csvCell(v) {
   const s = v == null ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) return `"'${s.replace(/"/g, '""')}"`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
