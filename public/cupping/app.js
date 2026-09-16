@@ -2894,7 +2894,7 @@ function buildWheelSVG() {
     const a0 = angle, a1 = angle + span;
     const mid = (a0 + a1) / 2;
 
-    svg += `<path class="wheel-seg wheel-cat" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
+    svg += `<path class="wheel-seg wheel-cat ink-${inkOn(cat.color)}" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
       + ` aria-label="${escapeHTML(cat.name)} — category, checks it on the Describe form" data-cat="${escapeHTML(cat.name)}"/>`;
 
     // category label, rotated to sit along its wedge
@@ -2918,7 +2918,7 @@ function buildWheelSVG() {
       const cSpan = (1 / total) * Math.PI * 2;
       const c0 = outerAngle, c1 = outerAngle + cSpan;
       const cMid = (c0 + c1) / 2;
-      svg += `<path class="wheel-seg wheel-child" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
+      svg += `<path class="wheel-seg wheel-child ink-${inkOn(cat.color)}" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
         + ` aria-label="${escapeHTML(child)} — ${escapeHTML(cat.name)}, adds the word to your tasting notes" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
       const tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
       const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
@@ -4265,6 +4265,22 @@ function renderTeamCard() {
   const live = Boolean(tableCode());
   const leader = isTableLeader();
 
+  /* The ceremony was reachable only by a leader with a live networked code,
+     and its own intro copy reads "No live table — this walks your own scores
+     coffee by coffee." That sentence was written for someone who could never
+     get to it. PRODUCT.md calls the offline table the default case, so the
+     person most likely to want a coffee-by-coffee walk-through — a solo
+     cupper, or a leader whose code never came back because there is no
+     signal — was the one person locked out of it.
+
+     A guest at someone else's live table is still not offered it: revealing
+     is the leader's single irreversible act for the whole table, and
+     ensureRevealed() refuses anyone else. So the button appears for the
+     leader, or when there is no live table at all and there is something to
+     walk through. */
+  const scored = state.coffees.filter(c => scoreProgress(c).done > 0).length;
+  const canPresent = leader || (!tableCode() && scored > 0);
+
   card.innerHTML = `
     <h3>${live ? 'The table' : 'Team scores'}</h3>
     <p class="team-sub">${live
@@ -4275,7 +4291,9 @@ function renderTeamCard() {
       <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
     </div>
     <div class="live-table hidden" id="live-table"></div>
-    ${leader ? '<button class="btn btn-primary present-cta" id="btn-present">Present to the table</button>' : ''}
+    ${canPresent ? `<button class="btn btn-primary present-cta" id="btn-present">${leader
+        ? 'Present to the table'
+        : 'Walk the coffees one by one'}</button>` : ''}
     <div class="team-actions${live ? ' hidden' : ''}">
       <button class="btn btn-ghost" id="btn-share-scores">Share my scores</button>
       <button class="btn btn-ghost" id="btn-add-scores">Add cupper’s scores</button>
@@ -4284,7 +4302,7 @@ function renderTeamCard() {
     <div class="team-results" id="team-results"></div>
   `;
 
-  if (leader) card.querySelector('#btn-present').addEventListener('click', openPresent);
+  if (canPresent) card.querySelector('#btn-present').addEventListener('click', openPresent);
   // the card is fresh, so the live table has nothing rendered yet — the
   // Results poller fills it in on its first tick, immediately
   liveSig = null;
