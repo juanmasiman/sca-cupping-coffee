@@ -2894,7 +2894,7 @@ function buildWheelSVG() {
     const a0 = angle, a1 = angle + span;
     const mid = (a0 + a1) / 2;
 
-    svg += `<path class="wheel-seg wheel-cat" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
+    svg += `<path class="wheel-seg wheel-cat ink-${inkOn(cat.color)}" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
       + ` aria-label="${escapeHTML(cat.name)} — category, checks it on the Describe form" data-cat="${escapeHTML(cat.name)}"/>`;
 
     // category label, rotated to sit along its wedge
@@ -2918,7 +2918,7 @@ function buildWheelSVG() {
       const cSpan = (1 / total) * Math.PI * 2;
       const c0 = outerAngle, c1 = outerAngle + cSpan;
       const cMid = (c0 + c1) / 2;
-      svg += `<path class="wheel-seg wheel-child" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
+      svg += `<path class="wheel-seg wheel-child ink-${inkOn(cat.color)}" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
         + ` aria-label="${escapeHTML(child)} — ${escapeHTML(cat.name)}, adds the word to your tasting notes" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
       const tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
       const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);

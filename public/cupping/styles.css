@@ -44,9 +44,19 @@
   --bg-card: #ffffff;
   --bg-card-2: #f2f6f4;
   --line: #d9dad4;
+  /* The scale's own track, ticks and empty knob. These are not hairlines
+     between blocks — they are the parts of a control that say where it
+     starts, where it ends, where the detents are, and that nothing has been
+     chosen yet, so WCAG 1.4.11 asks 3:1 of them and --line gives 1.29.
+     This is the lightest grey clearing 3:1 on all three grounds the scale is
+     drawn on: the page, a white card, and the Describe card. */
+  --rail: #8c8d89;
   --text: #16181c;
   --text-dim: #565b63;
-  --text-faint: #6b7178;
+  /* 4.44:1 on --bg-raise, which is the cupping header, so the two status
+     lines that never scroll away were the app's only real text failure.
+     This is the lightest value clearing 4.5:1 on all four grounds. */
+  --text-faint: #6a6f75;
   /* ----------------------------------------------------------
      One data ink, and it means one thing: this is a value a
      cupper set. The rest of the interface is ink and rules.
@@ -161,9 +171,10 @@
     --bg-card: #171a1d;
     --bg-card-2: #1b2320;
     --line: #2a2e33;
+    --rail: #6a6d70;
     --text: #e9ecef;
     --text-dim: #98a0a8;
-    --text-faint: #868d94;
+    --text-faint: #848a91;
     --data: #6fb6de;
     --data-deep: #93cbe9;
     --data-soft: rgba(111, 182, 222, 0.14);
@@ -194,9 +205,10 @@
   --bg-card: #171a1d;
   --bg-card-2: #1b2320;
   --line: #2a2e33;
+  --rail: #6a6d70;
   --text: #e9ecef;
   --text-dim: #98a0a8;
-  --text-faint: #868d94;
+  --text-faint: #848a91;
   --data: #6fb6de;
   --data-deep: #93cbe9;
   --data-soft: rgba(111, 182, 222, 0.14);
@@ -1185,8 +1197,17 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
    a record if you cannot see what you have taken from it */
 .wheel-seg.picked { stroke: var(--text); stroke-width: 2.5; }
 /* A focused wedge has to be visible over any of the nine hues and has to be
-   distinguishable from the picked ring above, so it is thicker and dashed
-   rather than a different colour. */
+   distinguishable from the picked ring above, so it is thicker and dashed.
+   Thickness and dashes were doing all of that work and the colour was a flat
+   var(--text) on every hue, which measured 2.62:1 on Roasted in light and
+   failed 3:1 on six of the nine in dark. The labels already solved exactly
+   this problem — inkOn() picks black or white per hue by contrast — so the
+   wedges now carry the same class and the ring takes the same ink.
+
+   An unpicked child wedge is its hue at 45% over the card, which is a much
+   lighter ground, and there the page ink is the right answer; that is what
+   the base rule below is. The ink override applies to the full-strength
+   grounds: every category wedge, and a child wedge once picked. */
 .wheel-seg:focus { outline: none; }
 .wheel-seg:focus-visible {
   outline: none;
@@ -1194,6 +1215,10 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   stroke-width: 4;
   stroke-dasharray: 6 3;
 }
+.wheel-cat.ink-dark:focus-visible,
+.wheel-child.picked.ink-dark:focus-visible { stroke: #000000; }
+.wheel-cat.ink-light:focus-visible,
+.wheel-child.picked.ink-light:focus-visible { stroke: #ffffff; }
 .wheel-child.picked { fill-opacity: 0.95; }
 
 .wheel-picked {
@@ -1322,17 +1347,26 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .scale-track:active { cursor: grabbing; }
 .scale-track:focus-visible { outline: 2px solid var(--chrome); outline-offset: 3px; border-radius: var(--radius-sm); }
 
-.scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--line); }
-.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--data); opacity: 0.5; width: 0; }
-.scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--line); transform: translateX(-0.5px); }
+.scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--rail); }
+/* Full strength, not 0.5. Half-opacity data ink composited to 2.44:1 on
+   the page, and this line is the one part of the control that encodes how
+   far along the value is. At full strength it is 7.97-8.68:1 and it is
+   simply the data ink doing the job the colour rule gives it. */
+.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--data); width: 0; }
+.scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--rail); transform: translateX(-0.5px); }
 /* A detent with no numeral under it — the quarter points on the 2004 form,
    the unlabelled intensities. Still a place the knob lands and still a
    haptic crossing, so it is drawn, just shorter: the line has to show that
    seventeen stops exist without printing seventeen numbers. */
 .scale-tick.minor { top: 22px; height: 5px; opacity: 0.7; }
 /* The neutral anchor is structurally different from the other eight
-   positions, so its tick is drawn differently. */
-.scale-tick.mid { top: 14px; height: 20px; background: var(--text-dim); opacity: 0.55; }
+   positions, so its tick is drawn differently — taller, and in the secondary
+   ink rather than the rail's grey. At 0.55 that ink composited to 2.44:1,
+   which is under 1.4.11's 3:1 for the one tick on the line that carries a
+   meaning of its own. 0.70 is the lowest step that clears it on all four
+   grounds (3.21-4.06:1) and it stays visibly stronger than the 3.06-3.63:1
+   ticks around it, which is the distinction the taller draw is making. */
+.scale-tick.mid { top: 14px; height: 20px; background: var(--text-dim); opacity: 0.7; }
 .scale-num {
   /* The only type under the 11px floor, and the exception is deliberate:
      these duplicate the number already inside the knob, so they are tick
@@ -1387,7 +1421,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
    only one of them is evidence. */
 .scale-knob.empty {
   border-style: dashed;
-  border-color: var(--line);
+  border-color: var(--rail);
   background: transparent;
   color: transparent;
   box-shadow: none;
