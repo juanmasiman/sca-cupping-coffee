@@ -3694,26 +3694,75 @@ function updateScorebar() {
    RESULTS SCREEN
    ============================================================ */
 
+/* What a cupping actually produced, against the scale it was scored on.
+
+   This replaced a winner card. Removing the trophy, the podium and the
+   medals was right and did not go far enough: what was left still opened on
+   "Highest score on the table", which is a contest frame wearing a neutral
+   label. A cupping grades samples against a standard, so the first thing the
+   table sees is where this lineup fell on that standard — every coffee
+   placed on the same line, the specialty threshold marked on it, and the
+   range stated. Which one came top is a fact about the ranking below, not
+   the headline. */
+function buildSummary(ranked) {
+  const scored = ranked.filter(r => r.prog.done > 0);
+  const wrap = $('#summary');
+
+  if (!scored.length) {
+    wrap.innerHTML = `
+      <div class="summary-head">Nothing scored yet</div>
+      <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
+    return;
+  }
+
+  // The scale each form actually produces, not 0–100: CVA floors at 58 and
+  // the 2004 form at 60 with every cup passing, so a bar drawn from zero
+  // spends most of its length on scores that cannot happen.
+  const FLOOR = usingCVA() ? 58 : 60;
+  const SPECIALTY = 80;
+  const pct = v => Math.max(0, Math.min(100, ((v - FLOOR) / (100 - FLOOR)) * 100));
+
+  const values = scored.map(r => r.score).sort((a, b) => a - b);
+  const low = values[0];
+  const high = values[values.length - 1];
+  const mid = values.length % 2
+    ? values[(values.length - 1) / 2]
+    : (values[values.length / 2 - 1] + values[values.length / 2]) / 2;
+  const above = values.filter(v => v >= SPECIALTY).length;
+
+  const form = usingCVA() ? 'CVA · SCA 104-2024' : 'SCA cupping form (2004)';
+  const cups = state.cupsPerCoffee;
+  const complete = ranked.filter(r => r.prog.complete).length;
+
+  wrap.innerHTML = `
+    <div class="summary-head">This cupping</div>
+    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}</p>
+
+    <div class="summary-scale">
+      <div class="summary-rail"></div>
+      <div class="summary-span" style="left:${pct(low)}%;right:${100 - pct(high)}%"></div>
+      <div class="summary-threshold" style="left:${pct(SPECIALTY)}%"></div>
+      ${scored.map(r => `<i class="summary-mark" style="left:${pct(r.score)}%" title="${escapeHTML(coffeeName(r.coffee, r.index))} ${fmt(r.score)}"></i>`).join('')}
+      <span class="summary-tick summary-tick-start">${FLOOR}</span>
+      <span class="summary-tick summary-tick-spec" style="left:${pct(SPECIALTY)}%">${SPECIALTY}</span>
+      <span class="summary-tick summary-tick-end">100</span>
+    </div>
+
+    <dl class="summary-facts">
+      <div><dt>Range</dt><dd>${values.length > 1 ? `${fmt(low)} – ${fmt(high)}` : fmt(low)}</dd></div>
+      <div><dt>Median</dt><dd>${fmt(mid)}</dd></div>
+      <div><dt>At or above 80</dt><dd>${above} of ${values.length}</dd></div>
+    </dl>
+    ${complete < ranked.length
+      ? `<p class="summary-note">${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} complete. A part-scored sheet is marked wherever its number appears.</p>`
+      : ''}
+  `;
+}
+
 function buildResults() {
   const ranked = rankedCoffees();
 
-  // The top of the table, stated rather than crowned. A cupping grades
-  // samples against a standard; it does not run a contest, and a trophy
-  // told the table the wrong thing about what they had just done.
-  const winner = ranked[0];
-  const winnerMeta = metaSummary(winner.coffee.meta);
-  const podium = $('#podium');
-  podium.innerHTML = `
-    <div class="podium-label">Highest score on the table</div>
-    <div class="podium-name">${escapeHTML(coffeeName(winner.coffee, winner.index))}</div>
-    <div class="podium-score${winner.prog.complete ? '' : ' partial'}">${winner.prog.done === 0 ? '—' : fmt(winner.score)}</div>
-    <div class="podium-grade">${winner.prog.done === 0
-      ? 'no sections rated'
-      : winner.prog.complete
-        ? gradeFor(winner.score)
-        : `${gradeFor(winner.score)} · ${winner.prog.done} of ${winner.prog.total} rated`}</div>
-    ${winnerMeta ? `<div class="podium-meta">${escapeHTML(winnerMeta)}</div>` : ''}
-  `;
+  buildSummary(ranked);
 
   buildRadar(ranked);
 
@@ -3873,7 +3922,7 @@ async function pollResults() {
   if (data && data.revealed && !identitiesAdopted && !isTableLeader()) {
     identitiesAdopted = true;
     if (await adoptRevealedLineup(code)) {
-      buildResults();     // podium, ranking and radar all carry the names
+      buildResults();     // summary, ranking and radar all carry the names
       buildCuppingUI();   // and so does the sheet they came from
       liveSig = null;
     }
