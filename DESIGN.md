@@ -114,11 +114,14 @@ rounded:
   knob: "50%"
 type-ramp: ["9px", "11px", "13px", "15px", "17px", "20px", "24px", "30px", "40px"]
 spacing:
-  xs: "5px"
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
-  xl: "24px"
+  space-1: "2px"
+  space-2: "4px"
+  space-3: "8px"
+  space-4: "12px"
+  space-5: "16px"
+  space-6: "20px"
+  space-7: "24px"
+  space-8: "32px"
 components:
   scale-track:
     height: "48px"
