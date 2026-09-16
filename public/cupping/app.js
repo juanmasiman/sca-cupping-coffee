@@ -1905,10 +1905,36 @@ function openJoinSheet() {
 // Register at a live table. A seat that never arrives used to leave the
 // cupper with no way to submit at all; submitting can claim one later, so a
 // failure here is survivable — but it should not pass unmentioned.
+/* Sitting down twice at the same table.
+
+   Taking a seat cut a new one every time, unconditionally. Opening the join
+   link again is not an unusual thing to do — it gets pasted into the group
+   chat twice, someone reloads, someone taps it to check they are in the
+   right room — and each of those put a second chip with the same name on
+   the leader's roster, one of them orphaned: the device keeps only the
+   newest id, so the older seat can never be submitted to, and never
+   disappears either. The leader counts heads against the room and comes up
+   one over, with no way to tell which chip is the ghost.
+
+   So a seat already held at this table is checked and kept. The relay
+   answers 403 to a stranger's id, which is how an expired or ended seat is
+   told apart from a good one — and a request that never reached the relay
+   at all keeps the seat too, because a second chip is a worse answer to a
+   dropped connection than a stale one. */
 async function takeSeat(code) {
   if (!state || !code) return;
+  const held = state.joinedCode === code && state.participantId ? state.participantId : null;
   state.joinedCode = code;
   save();
+
+  if (held) {
+    const seat = await relayFetch(
+      `/sessions/${encodeURIComponent(code)}/participants?id=${encodeURIComponent(held)}`, { method: 'GET' });
+    if (!state) return;
+    // 200: the seat is still ours. 0: we never asked, so assume it is.
+    if (seat.ok || seat.status === 0) { state.participantId = held; save(); return; }
+  }
+
   const id = await relayJoinSession(code, getCupperName() || 'Cupper');
   if (!state) return;
   if (id) state.participantId = id;
