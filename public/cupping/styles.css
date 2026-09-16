@@ -72,7 +72,6 @@
   --chrome-soft: rgba(22, 24, 28, 0.06);
   --on-chrome: #fbfaf7;
   --hi: #12806a;
-  --glass-h: rgba(251, 250, 247, 0.88);
   --cup-a: #e7e9e6;
   --cup-b: #d4d8d4;
   --red: #9a3412;
@@ -164,7 +163,6 @@
     --chrome-soft: rgba(233, 236, 239, 0.09);
     --on-chrome: #0f1113;
     --hi: #7fe0c8;
-    --glass-h: rgba(15, 17, 19, 0.88);
     --cup-a: #262b2e;
     --cup-b: #1b1f22;
     --red: #f0a077;
@@ -198,7 +196,6 @@
   --chrome-soft: rgba(233, 236, 239, 0.09);
   --on-chrome: #0f1113;
   --hi: #7fe0c8;
-  --glass-h: rgba(15, 17, 19, 0.88);
   --cup-a: #262b2e;
   --cup-b: #1b1f22;
   --red: #f0a077;
@@ -251,12 +248,7 @@ input, textarea, select { font: inherit; }
   flex-direction: column;
   background: var(--bg);
 }
-.screen.active { display: flex; animation: screenIn 0.35s var(--ease); }
-
-@keyframes screenIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: none; }
-}
+.screen.active { display: flex; }
 
 .hidden { display: none !important; }
 
@@ -303,26 +295,15 @@ input, textarea, select { font: inherit; }
 .hero-cup { width: 54px; margin: 0 auto var(--space-1); }
 .cup-svg { width: 100%; }
 
-/* Three passes, then it settles. DESIGN.md: nothing loops — an attract
-   animation runs a fixed number of times and then leaves you alone. This
-   was the one surface still breaking that rule, and it was the first screen
-   anyone sees. The cup stays; only the perpetual motion goes.
-   The `.steam` paths stay at opacity 0 at rest, which is where the
-   keyframes start and end, so nothing snaps when the last pass finishes. */
+/* Three curls of steam, drawn once and left there. They used to rise three
+   times on load, which was already a retreat from looping forever; the
+   budget has no room for either. A static curl says "coffee" just as well
+   as a moving one and costs the first screen nothing. */
 .steam {
   stroke: var(--chrome);
   stroke-width: 3.5;
   stroke-linecap: round;
-  opacity: 0;
-  animation: steam 2.6s ease-in-out 3;
-}
-.steam-2 { animation-delay: 0.5s; }
-.steam-3 { animation-delay: 1s; }
-
-@keyframes steam {
-  0%   { opacity: 0; transform: translateY(6px); }
-  35%  { opacity: 0.75; }
-  100% { opacity: 0; transform: translateY(-7px); }
+  opacity: 0.38;
 }
 
 /* Solid, not gradient-clipped. Emphasis comes from weight and size;
@@ -438,10 +419,7 @@ input, textarea, select { font: inherit; }
   border-radius: 50% 50% 42% 42%;
   background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
   border: 1.5px solid var(--chrome);
-  animation: cupPop 0.4s var(--settle) backwards;
 }
-
-@keyframes cupPop { from { transform: scale(0); } }
 
 .setup-actions {
   margin-top: auto;
@@ -500,9 +478,14 @@ input, textarea, select { font: inherit; }
   align-items: center;
   gap: var(--space-3);
   padding: calc(var(--sat) + var(--space-4)) var(--space-4) var(--space-4);
-  background: var(--glass-h);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  /* This band used to be translucent over an 18px blur, from the world
+     where it floated above a scrolling sheet. It does not float any more:
+     it is the first row of the flex column, so the blur had nothing behind
+     it to blur and the 0.88 alpha composited over the page's own background
+     to exactly the page's own background. It is chrome, like the navigation
+     band at the other end, so it takes the same raised surface and the two
+     bracket the sheet. */
+  background: var(--bg-raise);
   border-bottom: 1px solid var(--line);
   z-index: 5;
 }
@@ -1064,24 +1047,20 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   .wheel-fab span { display: none; }
 }
 
-/* until it has been opened once, it breathes */
+/* A standing ring, not a pulse. The button has never been opened, so it
+   wears a mark; the mark does not have to move to be a mark, and a ring
+   breathing on the scoring screen until someone finally taps it is the
+   opposite of an instrument. At the old inset of -1px a static ring was
+   indistinguishable from a slightly heavier border, so it sits clear of
+   the button instead. It goes the first time the wheel is opened. */
 .wheel-fab.unused::after {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: -5px;
   border-radius: 999px;
-  border: 2px solid var(--chrome);
-  /* Three passes, not forever. DESIGN.md allows no motion beyond the knob
-     settle and the score's own change; a ring pulsing on the scoring screen
-     until someone finally taps it is the opposite of an instrument. Three
-     is enough to be noticed and it then leaves the cupper alone. */
-  animation: wheelPing 2.4s var(--ease) 3;
+  border: 1px solid var(--chrome);
+  opacity: 0.45;
   pointer-events: none;
-}
-@keyframes wheelPing {
-  0%   { opacity: 0.65; transform: scale(1); }
-  70%  { opacity: 0; transform: scale(1.22); }
-  100% { opacity: 0; transform: scale(1.22); }
 }
 
 /* one-time coach mark, pointing down at the button in the score bar */
@@ -1097,8 +1076,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   color: var(--on-chrome);
   font-size: 13px;
   line-height: 1.4;
-  animation: rise 0.4s var(--settle) backwards;
-  animation-delay: 0.1s;
 }
 .wheel-coach strong { display: block; font-weight: 800; font-size: 13px; }
 .wheel-coach::after {
@@ -1418,8 +1395,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   color: var(--data); font-variant-numeric: tabular-nums;
 }
 .scale-live.none { color: var(--text-faint); font-weight: 400; font-style: italic; }
-
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 
 @media (prefers-reduced-motion: reduce) {
   .scale-knob.settle { transition: none; }
@@ -1818,7 +1793,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--space-5) var(--space-5);
-  animation: screenIn 0.4s var(--ease) backwards;
 }
 
 .rank-top {
@@ -1978,7 +1952,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: var(--space-4) var(--space-5);
-  animation: screenIn 0.3s var(--ease) backwards;
 }
 .group-row-top {
   display: flex;
@@ -2435,7 +2408,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   font-weight: 700;
   padding: var(--space-3) var(--space-4);
   border-radius: 999px;
-  animation: screenIn 0.3s var(--ease) backwards;
 }
 /* presence, not a measurement — so it is ink, and the chip's own fill
    already says whether that cupper has submitted */
@@ -2803,7 +2775,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  animation: rise 0.3s var(--ease) backwards;
 }
 
 .lineup-top { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-4); }
@@ -3002,7 +2973,6 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--space-5);
-  animation: rise 0.35s var(--ease) backwards;
 }
 .present-final h3 { font-size: 15px; margin-bottom: var(--space-2); }
 .present-final .team-sub { margin-bottom: var(--space-4); }

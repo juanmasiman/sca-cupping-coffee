@@ -2075,7 +2075,6 @@ async function openInviteSheet() {
     } else {
       people.forEach((p, i) => {
         const chip = el('span', `joined-chip${p.submitted ? ' done' : ''}`, escapeHTML(p.name));
-        chip.style.animationDelay = `${i * 0.04}s`;
         joinedList.appendChild(chip);
       });
     }
@@ -2231,7 +2230,6 @@ function buildLineup() {
 
 function buildLineupRow(coffee, index, locked) {
   const row = el('div', 'lineup-row');
-  row.style.animationDelay = `${Math.min(index, 8) * 0.03}s`;
   row.innerHTML = `
     <div class="lineup-top">
       <span class="lineup-num">${index + 1}</span>
@@ -2438,7 +2436,6 @@ function renderCupsPreview() {
     const cups = el('div', 'preview-cups');
     for (let j = 0; j < setup.cups; j++) {
       const cup = el('span', 'preview-cup');
-      cup.style.animationDelay = `${i * 0.05 + j * 0.04}s`;
       cups.appendChild(cup);
     }
     row.appendChild(cups);
@@ -4139,7 +4136,6 @@ function buildResults() {
   ranking.innerHTML = '';
   ranked.forEach((r, pos) => {
     const card = el('div', 'rank-card');
-    card.style.animationDelay = `${pos * 0.07}s`;
     const meta = metaSummary(r.coffee.meta);
     const descriptors = usingCVA() && r.coffee.desc
       ? [...new Set([...r.coffee.desc.cata.aroma, ...r.coffee.desc.cata.flavor])]
@@ -4616,7 +4612,6 @@ function buildPresent() {
   state.coffees.forEach((coffee, i) => {
     const stage = presentStage[i] || 0;
     const card = el('div', 'present-card ' + ['sealed', 'named', 'scored'][stage]);
-    card.style.animationDelay = `${Math.min(i, 8) * 0.04}s`;
 
     const meta = metaSummary(coffee.meta);
     const row = panel ? panel[i] : null;
@@ -5148,7 +5143,6 @@ function renderGroups(coffees) {
 
   groups.forEach((g, i) => {
     const row = el('div', 'group-row');
-    row.style.animationDelay = `${i * 0.04}s`;
     row.innerHTML = `
       <div class="group-row-top">
         <span class="group-name">${escapeHTML(g.name)}</span>
