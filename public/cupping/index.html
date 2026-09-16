@@ -27,19 +27,16 @@
       </button>
       <header class="setup-hero">
         <div class="hero-cup">
+          <!-- Flat ink, no gradient. Nothing on this screen represents a
+               measurement yet, so nothing on it is coloured — and a
+               two-stop gradient was decorative colour twice over. -->
           <svg viewBox="0 0 120 120" class="cup-svg" aria-hidden="true">
-            <defs>
-              <linearGradient id="cupGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="var(--accent)"/>
-                <stop offset="1" stop-color="var(--accent-deep)"/>
-              </linearGradient>
-            </defs>
             <path class="steam steam-1" d="M48 30 C44 22, 52 18, 48 10" fill="none"/>
             <path class="steam steam-2" d="M60 28 C56 20, 64 16, 60 8" fill="none"/>
             <path class="steam steam-3" d="M72 30 C68 22, 76 18, 72 10" fill="none"/>
-            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="url(#cupGrad)"/>
+            <path d="M30 46 h60 a4 4 0 0 1 4 4 v6 c14 0 18 8 18 14 s-4 14-18 14 h-2 c-4 12-14 20-32 20 s-28-8-32-20 a10 10 0 0 1 -2 -6 V50 a4 4 0 0 1 4-4z" fill="var(--chrome)"/>
             <path d="M94 62 c9 0 12 5 12 8 s-3 8-12 8 z" fill="var(--bg)" opacity=".35"/>
-            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--accent-deep)" opacity=".55"/>
+            <ellipse cx="60" cy="48" rx="30" ry="5" fill="var(--bg)" opacity=".28"/>
           </svg>
         </div>
         <h1>lento</h1>

@@ -36,10 +36,10 @@ colors:
 typography:
   score:
     fontFamily: "Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
-    fontSize: "46px"
+    fontSize: "30px"
     fontWeight: 600
-    lineHeight: 0.92
-    letterSpacing: "-0.035em"
+    lineHeight: 1.05
+    letterSpacing: "-0.03em"
   section:
     fontFamily: "Plex Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "15px"
@@ -112,7 +112,7 @@ rounded:
   md: "4px"
   pill: "999px"
   knob: "50%"
-type-ramp: ["9px", "11px", "13px", "15px", "17px", "20px", "24px", "30px", "40px", "46px"]
+type-ramp: ["9px", "11px", "13px", "15px", "17px", "20px", "24px", "30px", "40px"]
 spacing:
   xs: "5px"
   sm: "8px"
@@ -178,6 +178,18 @@ Ratios below are measured, and each is the **worst case across both surfaces** �
 
 There is **one** data ink and it has one meaning: this is a value a cupper set. It is never used for emphasis, never for a heading, never for a decorative accent, and never for a brand moment. If something needs to stand out and is not a value, it earns that with weight, size, or position instead.
 
+This rule was written here and then not kept: the token was called `--accent` and it was on **86 declarations** — icon colour, ghost-button text, section heads, stat values, the toast ground, the coach mark, the wheel hub, the form tag. On the scoresheet the score competed with two section heads, a pill, four help marks and two buttons for the same colour. It is enforced now, and the tokens say which is which: `--data` is the one ink, `--chrome` is the page's ink for everything else. The complete list of things allowed to be coloured is:
+
+- **the score** — the figure the screen exists to produce
+- **the scale** — its fill, its knob, and the anchor phrase under your thumb
+- **progress fills** — the rail, the ranking bars, the range on Results: how much of something there is
+- **scores shown to a second person** — the ranking, the panel average, History
+- **the ten radar series and the flavour wheel**, which are categorical data and separately measured
+
+Two things sit outside that list on purpose. **Focus rings** take the data ink because they are an affordance, not decoration — a ring in the same ink as the page is not a ring. **Alert red** was never the accent and keeps its own job on destructive controls.
+
+A **part-scored** figure loses the ink and takes secondary ink instead: it is not a number anyone should rely on, and that distinction outranks being a value.
+
 The greys are warm in light and cool in dark, each biased a few degrees toward its own ground so neither reads as a stock neutral dropped in.
 
 ## Typography
@@ -188,7 +200,7 @@ The split is semantic and absolute: if a reader could compare it to another numb
 
 **The ramp is nine steps and everything sits on one of them:** 11, 13, 15, 17, 20, 24, 30, 40, 46, with a single 9px tick below it for the scale numbers. The sheet used to carry **twenty-eight** different sizes — 11.5 next to 12 next to 12.5 next to 13 — which is not a hierarchy, it is an accumulation. Collapsing it moved eighty declarations by at most 2px each, so the system arrived without the app being redrawn.
 
-The score at 46px is the only display-sized element, and it earns that by being the thing the whole screen exists to produce.
+The score is the largest thing on the scoring screen and the only one set in the data ink, which is how it earns being the thing the screen exists to produce. It is 30px rather than the 46px this section first claimed: the score moved into the header when the layout went to three bands, and a 46px figure in a header row costs more height than folding it there saved. What matters is not the absolute size but that nothing competes — the eight section values sit a ramp step below it, in the page's own ink, because the knob already carries each of them in the data ink on the control that produced it.
 
 **Both faces are self-hosted and precached by the service worker** (`fonts/plex-sans-var.woff2`, `fonts/plex-mono-400.woff2`, `fonts/plex-mono-600.woff2` — latin subset, 60 KB for the set; Sans is one variable file covering every weight). Offline capability is binding in `PRODUCT.md`, and a webfont fetched from a CDN is a webfont that disappears in a roastery basement. A font that only loads with signal is a broken font.
 

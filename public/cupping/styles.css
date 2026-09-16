@@ -47,10 +47,30 @@
   --text: #16181c;
   --text-dim: #565b63;
   --text-faint: #6b7178;
-  --accent: #0b5f4f;
-  --accent-deep: #084739;
-  --accent-soft: rgba(11, 95, 79, 0.10);
-  --on-accent: #fbfaf7;
+  /* ----------------------------------------------------------
+     One data ink, and it means one thing: this is a value a
+     cupper set. The rest of the interface is ink and rules.
+
+     This was --accent and it was on 86 declarations — icon
+     colour, ghost-button text, section heads, stat values, the
+     toast ground, the coach mark, the wheel hub. DESIGN.md said
+     "never for emphasis, never for a heading, never for a
+     decorative accent, never for a brand moment" the whole time
+     and the code did all four. The score competed with two
+     section heads, a pill, four help marks and two buttons for
+     the same colour; now it is the only coloured thing on the
+     sheet, which is what the rule was for.
+
+     Chrome is the page's own ink, so anything that needs to
+     stand out and is not a value earns it with weight, size or
+     position instead.
+     ---------------------------------------------------------- */
+  --data: #0b5f4f;
+  --data-deep: #084739;
+  --data-soft: rgba(11, 95, 79, 0.10);
+  --chrome: #16181c;
+  --chrome-soft: rgba(22, 24, 28, 0.06);
+  --on-chrome: #fbfaf7;
   --hi: #12806a;
   --glass-h: rgba(251, 250, 247, 0.88);
   --cup-a: #e7e9e6;
@@ -116,10 +136,12 @@
     --text: #e9ecef;
     --text-dim: #98a0a8;
     --text-faint: #868d94;
-    --accent: #46c5a8;
-    --accent-deep: #6fd9c0;
-    --accent-soft: rgba(70, 197, 168, 0.14);
-    --on-accent: #0f1113;
+    --data: #46c5a8;
+    --data-deep: #6fd9c0;
+    --data-soft: rgba(70, 197, 168, 0.14);
+    --chrome: #e9ecef;
+    --chrome-soft: rgba(233, 236, 239, 0.09);
+    --on-chrome: #0f1113;
     --hi: #7fe0c8;
     --glass-h: rgba(15, 17, 19, 0.88);
     --cup-a: #262b2e;
@@ -149,10 +171,12 @@
   --text: #e9ecef;
   --text-dim: #98a0a8;
   --text-faint: #868d94;
-  --accent: #46c5a8;
-  --accent-deep: #6fd9c0;
-  --accent-soft: rgba(70, 197, 168, 0.14);
-  --on-accent: #0f1113;
+  --data: #46c5a8;
+  --data-deep: #6fd9c0;
+  --data-soft: rgba(70, 197, 168, 0.14);
+  --chrome: #e9ecef;
+  --chrome-soft: rgba(233, 236, 239, 0.09);
+  --on-chrome: #0f1113;
   --hi: #7fe0c8;
   --glass-h: rgba(15, 17, 19, 0.88);
   --cup-a: #262b2e;
@@ -265,7 +289,7 @@ input, textarea, select { font: inherit; }
    The `.steam` paths stay at opacity 0 at rest, which is where the
    keyframes start and end, so nothing snaps when the last pass finishes. */
 .steam {
-  stroke: var(--accent);
+  stroke: var(--chrome);
   stroke-width: 3.5;
   stroke-linecap: round;
   opacity: 0;
@@ -351,12 +375,12 @@ input, textarea, select { font: inherit; }
   border-radius: var(--radius);
   font-size: 24px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   display: grid;
   place-items: center;
   transition: background 0.15s, transform 0.15s var(--settle);
 }
-.stepper-btn:active { background: var(--accent-soft); transform: scale(0.88); }
+.stepper-btn:active { background: var(--chrome-soft); transform: scale(0.88); }
 .stepper-btn:disabled { color: var(--text-faint); opacity: 0.4; }
 
 .stepper-value {
@@ -367,7 +391,7 @@ input, textarea, select { font: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .stepper-value.bump { animation: bump 0.3s var(--settle); }
-@keyframes bump { 50% { transform: scale(1.25); color: var(--accent); } }
+@keyframes bump { 50% { transform: scale(1.25); color: var(--chrome); } }
 
 /* animated table preview */
 .cups-preview {
@@ -384,7 +408,7 @@ input, textarea, select { font: inherit; }
 .preview-row { display: flex; align-items: center; gap: 9px; }
 .preview-coffee-dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent-deep);
+  background: var(--chrome);
   flex: none;
 }
 .preview-cups { display: flex; gap: 6px; }
@@ -392,7 +416,7 @@ input, textarea, select { font: inherit; }
   width: 16px; height: 16px;
   border-radius: 50% 50% 42% 42%;
   background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
-  border: 1.5px solid var(--accent-deep);
+  border: 1.5px solid var(--chrome);
   animation: cupPop 0.4s var(--settle) backwards;
 }
 
@@ -422,15 +446,15 @@ input, textarea, select { font: inherit; }
 .btn:active { transform: scale(0.965); filter: brightness(1.08); }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
-  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--chrome), var(--chrome));
+  color: var(--on-chrome);
   box-shadow: 0 6px 22px var(--glow);
 }
 
 .btn-ghost {
   background: var(--bg-card);
   border: 1px solid var(--line);
-  color: var(--accent);
+  color: var(--chrome);
 }
 
 /* No opacity dimmer. It was costing contrast on exactly the two controls
@@ -468,10 +492,10 @@ input, textarea, select { font: inherit; }
   border-radius: var(--radius);
   display: grid;
   place-items: center;
-  color: var(--accent);
+  color: var(--chrome);
   transition: background 0.15s, transform 0.15s var(--settle);
 }
-.icon-btn:active { background: var(--accent-soft); transform: scale(0.88); }
+.icon-btn:active { background: var(--chrome-soft); transform: scale(0.88); }
 
 .cupping-title {
   flex: 1;
@@ -546,10 +570,10 @@ input, textarea, select { font: inherit; }
   width: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  background: var(--accent-soft);
+  background: var(--chrome-soft);
   transition: transform 0.35s var(--ease);
 }
-.rail-seg.done .rail-fill { background: var(--accent); opacity: 0.32; }
+.rail-seg.done .rail-fill { opacity: 0.32; }   /* colour comes from .rail-fill */
 
 .rail-num {
   position: relative;
@@ -558,13 +582,13 @@ input, textarea, select { font: inherit; }
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
-.rail-seg.done .rail-num { color: var(--accent-deep); }
+.rail-seg.done .rail-num { color: var(--chrome); }
 
 .rail-seg.active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--chrome);
+  box-shadow: inset 0 0 0 1px var(--chrome);
 }
-.rail-seg.active .rail-num { color: var(--accent); }
+.rail-seg.active .rail-num { color: var(--chrome); }
 
 /* ten segments still need to be tappable, so trade padding for count */
 /* Ten coffees at 44px do not fit across a phone, so a dense lineup keeps
@@ -581,8 +605,8 @@ input, textarea, select { font: inherit; }
   min-height: 44px;
   padding: 9px 14px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 15px;
   font-weight: 700;
   transition: transform 0.15s var(--settle);
@@ -603,17 +627,17 @@ input, textarea, select { font: inherit; }
   height: 44px;
   border-radius: 999px;
   background: var(--bg-card);
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--chrome);
+  color: var(--chrome);
   font-size: 15px;
   font-weight: 700;
   transition: transform 0.15s var(--settle), background 0.15s;
 }
-.invite-btn:active { transform: scale(0.92); background: var(--accent-soft); }
+.invite-btn:active { transform: scale(0.92); background: var(--chrome-soft); }
 .invite-btn.live {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: var(--on-chrome);
 }
 /* how many are at the table, kept current by the background poll */
 .invite-count {
@@ -627,14 +651,14 @@ input, textarea, select { font: inherit; }
   padding: 0 4px;
   border-radius: 999px;
   background: var(--bg-card);
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--chrome);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   animation: bump 0.35s var(--settle);
 }
-.invite-count.all-in { background: var(--green); color: var(--on-accent); }
+.invite-count.all-in { background: var(--green); color: var(--on-chrome); }
 
 /* horizontally swipeable panels */
 .panels {
@@ -680,7 +704,7 @@ input, textarea, select { font: inherit; }
   -webkit-user-select: text;
 }
 .name-field::placeholder { color: var(--text-faint); font-weight: 500; }
-.name-field:focus { border-color: var(--accent-deep); }
+.name-field:focus { border-color: var(--chrome); }
 
 /* ---------- coffee details (variety, farm, …) ---------- */
 
@@ -713,7 +737,7 @@ input, textarea, select { font: inherit; }
 }
 .details-chevron {
   flex: none;
-  color: var(--accent);
+  color: var(--chrome);
   transition: transform 0.3s var(--settle);
 }
 .details-card.open .details-chevron { transform: rotate(180deg); }
@@ -767,7 +791,7 @@ input, textarea, select { font: inherit; }
   -webkit-user-select: text;
 }
 .detail-field::placeholder { color: var(--text-faint); }
-.detail-field:focus { border-color: var(--accent-deep); }
+.detail-field:focus { border-color: var(--chrome); }
 
 /* ---------- attribute card / slider ---------- */
 
@@ -850,7 +874,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
    rather than the first time it is closed.
    ------------------------------------------------------------ */
 .welcome-card {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--chrome);
   border-radius: var(--radius);
   padding: 16px 16px 14px;
   margin-bottom: 16px;
@@ -883,8 +907,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   height: 19px;
   margin-left: 7px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
@@ -902,7 +926,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   inset: -13px;
   border-radius: 50%;
 }
-.help-btn:active { transform: scale(0.82); background: var(--accent); color: var(--on-accent); }
+.help-btn:active { transform: scale(0.82); background: var(--chrome); color: var(--on-chrome); }
 
 .help-body {
   font-size: 15px;
@@ -991,8 +1015,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   align-items: center;
   gap: 6px;
   background: var(--bg-card);
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--chrome);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
   position: relative;
@@ -1012,7 +1036,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   position: absolute;
   inset: -1px;
   border-radius: 999px;
-  border: 2px solid var(--accent);
+  border: 2px solid var(--chrome);
   /* Three passes, not forever. DESIGN.md allows no motion beyond the knob
      settle and the score's own change; a ring pulsing on the scoring screen
      until someone finally taps it is the opposite of an instrument. Three
@@ -1035,8 +1059,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   z-index: 8;
   padding: 11px 14px;
   border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  color: var(--on-chrome);
   font-size: 13px;
   line-height: 1.4;
   box-shadow: var(--shadow);
@@ -1051,7 +1075,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   bottom: -6px;
   width: 12px;
   height: 12px;
-  background: var(--accent);
+  background: var(--chrome);
   transform: rotate(45deg);
 }
 .wheel-coach.leaving { opacity: 0; transform: translateY(6px); transition: all 0.3s var(--ease); }
@@ -1065,8 +1089,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   flex: none;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 700;
   transition: transform 0.15s var(--settle);
@@ -1115,7 +1139,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   cursor: pointer;
 }
 .wheel-zoom-btn:disabled { opacity: 0.4; cursor: default; }
-.wheel-zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wheel-zoom-btn:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; }
 .wheel-zoom-level {
   flex: 1;
   text-align: center;
@@ -1158,13 +1182,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   gap: 6px;
   padding: 5px 8px 5px 11px;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  color: var(--on-chrome);
   font-size: 13px;
   font-weight: 700;
   transition: transform 0.18s var(--settle);
 }
-.wheel-pick.note { background: var(--accent-soft); color: var(--accent); }
+.wheel-pick.note { background: var(--chrome-soft); color: var(--chrome); }
 .wheel-pick:active { transform: scale(0.93); }
 .wheel-pick b { font-weight: 800; font-size: 13px; line-height: 1; opacity: 0.75; }
 /* The ink is chosen per wedge — see inkOn() — because the wheel's nine hues
@@ -1187,13 +1211,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .wheel-child-label.picked.ink-dark { fill: #000000; }
 .wheel-child-label.picked.ink-light { fill: #ffffff; }
 .wheel-hub { fill: var(--bg-card); stroke: var(--line); stroke-width: 1.5; }
-.wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--accent); }
+.wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--chrome); }
 
 .wheel-status {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   min-height: 18px;
 }
 
@@ -1209,7 +1233,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-size: 17px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
 }
 
 /* an intensity nobody has recorded should not read as a deliberate 5 */
@@ -1234,9 +1258,9 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 }
 .cata-chip:active { transform: scale(0.93); }
 .cata-chip.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: var(--on-chrome);
   font-weight: 700;
 }
 
@@ -1244,8 +1268,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .rank-tag {
   padding: 3px 9px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1274,10 +1298,10 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   -webkit-tap-highlight-color: transparent;
 }
 .scale-track:active { cursor: grabbing; }
-.scale-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+.scale-track:focus-visible { outline: 2px solid var(--chrome); outline-offset: 3px; border-radius: var(--radius-sm); }
 
 .scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--line); }
-.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--accent); opacity: 0.45; width: 0; }
+.scale-fill { position: absolute; left: 2px; top: 23px; height: 2px; background: var(--data); opacity: 0.5; width: 0; }
 .scale-tick { position: absolute; top: 19px; width: 1px; height: 10px; background: var(--line); transform: translateX(-0.5px); }
 /* A detent with no numeral under it — the quarter points on the 2004 form,
    the unlabelled intensities. Still a place the knob lands and still a
@@ -1304,11 +1328,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -16px;
   border-radius: 50%;
   background: var(--bg-card);
-  border: 2px solid var(--accent);
+  border: 2px solid var(--data);
   display: grid; place-items: center;
   font-family: var(--mono); font-size: 13px; font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--data);
   box-shadow: var(--shadow);
 }
 /* The only lift in the system, and it is functional: this thing is in
@@ -1358,7 +1382,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .scale-live {
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
-  color: var(--accent); font-variant-numeric: tabular-nums;
+  color: var(--data); font-variant-numeric: tabular-nums;
 }
 .scale-live.none { color: var(--text-faint); font-weight: 400; font-style: italic; }
 
@@ -1421,8 +1445,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   margin-left: 7px;
   padding: 1px 6px;
   border-radius: var(--radius);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -1453,11 +1477,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .cup-check svg { width: 24px; height: 24px; }
 .cup-check .cup-outline { stroke: var(--text-faint); transition: stroke 0.2s; }
 .cup-check.checked {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--chrome-soft);
+  border-color: var(--chrome);
   transform: scale(1.02);
 }
-.cup-check.checked .cup-outline { stroke: var(--accent); }
+.cup-check.checked .cup-outline { stroke: var(--chrome); }
 .cup-check:active { transform: scale(0.9); }
 
 .cup-check .cup-num {
@@ -1467,7 +1491,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-weight: 700;
   color: var(--text-faint);
 }
-.cup-check.checked .cup-num { color: var(--accent); }
+.cup-check.checked .cup-num { color: var(--chrome); }
 
 /* ---------- defects ---------- */
 
@@ -1515,7 +1539,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   user-select: text;
   -webkit-user-select: text;
 }
-.notes-field:focus { border-color: var(--accent-deep); }
+.notes-field:focus { border-color: var(--chrome); }
 .notes-field::placeholder { color: var(--text-faint); }
 
 /* ---------- score bar ---------- */
@@ -1553,7 +1577,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   gap: 5px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   white-space: nowrap;
   letter-spacing: 0.01em;
 }
@@ -1611,7 +1635,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 /* the span this lineup actually covered */
 .summary-span {
   position: absolute; top: 13px; height: 2px;
-  background: var(--accent); opacity: 0.45;
+  background: var(--chrome); opacity: 0.45;
 }
 /* 80 is the line the whole trade draws, so it is drawn */
 .summary-threshold {
@@ -1626,7 +1650,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   margin-left: -6px;
   border-radius: 50%;
   background: var(--bg);
-  border: 2px solid var(--accent);
+  border: 2px solid var(--chrome);
 }
 .summary-tick {
   position: absolute; top: 28px;
@@ -1713,7 +1737,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   cursor: pointer;
 }
 .legend-item.muted { opacity: 0.3; }
-.legend-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+.legend-item:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; border-radius: var(--radius-sm); }
 /* the series' own line, so the legend carries the pattern as well as the
    hue and the chart does not depend on colour alone */
 .legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
@@ -1756,7 +1780,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .rank-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rank-grade { font-size: 13px; color: var(--text-faint); font-weight: 600; }
 
-.rank-score { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.rank-score { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); }
 
 .rank-bar {
   margin-top: 10px;
@@ -1772,7 +1796,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   width: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  background: var(--accent);
+  background: var(--chrome);
   transition: transform 0.9s var(--ease) 0.2s;
 }
 
@@ -1820,7 +1844,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-size: 24px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
   line-height: 1.2;
 }
 .stat-label {
@@ -1870,7 +1894,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   white-space: nowrap;
   transition: all 0.2s var(--ease);
 }
-.seg-btn.active { background: var(--accent); color: var(--on-accent); }
+.seg-btn.active { background: var(--chrome); color: var(--on-chrome); }
 
 .group-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -1889,7 +1913,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 }
 .group-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group-count { font-size: 11px; color: var(--text-faint); font-weight: 600; flex: none; }
-.group-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
+.group-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .group-bar {
   margin-top: 8px;
   height: 4px;
@@ -1902,7 +1926,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   width: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  background: var(--accent);
+  background: var(--chrome);
   transition: transform 0.7s var(--ease) 0.1s;
 }
 
@@ -1931,7 +1955,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .hist-item-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item-meta { font-size: 11px; color: var(--text-faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item-right { text-align: right; flex: none; }
-.hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.hist-item-score { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); }
 /* A score from a part-scored sheet is mostly untouched defaults, so it
    does not get to wear the data ink that a finished one earns. */
 /* the partial treatment is shared — see .partial below */
@@ -1972,7 +1996,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   gap: 10px;
 }
 .team-coffee-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-coffee-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); flex: none; }
+.team-coffee-avg { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .team-coffee-avg small { font-size: 11px; font-weight: 700; color: var(--text-faint); margin-left: 3px; }
 .team-coffee-cuppers {
   margin-top: 4px;
@@ -1992,8 +2016,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
   padding: 6px 8px 6px 12px;
@@ -2006,7 +2030,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   place-items: center;
   font-size: 13px;
   line-height: 1;
-  color: var(--accent);
+  color: var(--chrome);
   background: transparent;
 }
 .cupper-chip.me { padding-right: 12px; }
@@ -2057,7 +2081,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   user-select: text;
   -webkit-user-select: text;
 }
-.modal-input:focus { border-color: var(--accent-deep); }
+.modal-input:focus { border-color: var(--chrome); }
 
 /* the consequences of an irreversible action, listed rather than run
    together into one sentence nobody finishes reading */
@@ -2163,8 +2187,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   width: 40px; height: 40px;
   flex: none;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -2206,8 +2230,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-variant-numeric: tabular-nums;
   transition: border-color 0.2s, transform 0.2s var(--settle), background 0.2s;
 }
-.pin-box.filled { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.pin-box.next { border-color: var(--accent-deep); }
+.pin-box.filled { border-color: var(--chrome); background: var(--chrome-soft); color: var(--chrome); }
+.pin-box.next { border-color: var(--chrome); }
 .pin-box.pop { animation: bump 0.22s var(--settle); }
 
 .pin-boxes.shake { animation: shake 0.4s var(--ease); }
@@ -2246,9 +2270,9 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   place-items: center;
   transition: background 0.12s, transform 0.12s var(--settle);
 }
-.key:active { background: var(--accent-soft); transform: scale(0.93); }
+.key:active { background: var(--chrome-soft); transform: scale(0.93); }
 .key.blank { background: none; border: none; pointer-events: none; }
-.key.action { font-size: 20px; color: var(--accent); }
+.key.action { font-size: 20px; color: var(--chrome); }
 
 .pin-alt {
   position: relative;
@@ -2258,7 +2282,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   padding: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--chrome);
   text-align: center;
 }
 
@@ -2306,7 +2330,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
   transition: left 0.25s var(--settle);
 }
-.switch input:checked + .switch-track { background: var(--accent); }
+.switch input:checked + .switch-track { background: var(--chrome); }
 .switch input:checked + .switch-track .switch-knob { left: 23px; }
 
 /* ---- who has joined ---- */
@@ -2319,8 +2343,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   display: flex;
   align-items: center;
   gap: 7px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
   padding: 7px 13px;
@@ -2336,9 +2360,9 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 
 .joined-empty { font-size: 13px; color: var(--text-faint); }
 
-.joined-chip.done::before { background: var(--accent); }
-.joined-chip.done { background: var(--accent); color: var(--on-accent); }
-.joined-chip.done::before { background: var(--on-accent); }
+.joined-chip.done::before { background: var(--chrome); }
+.joined-chip.done { background: var(--chrome); color: var(--on-chrome); }
+.joined-chip.done::before { background: var(--on-chrome); }
 
 .reveal-btn { margin-top: 4px; padding: 13px; font-size: 15px; border-radius: var(--radius); }
 .reveal-btn:disabled { opacity: 0.55; }
@@ -2358,7 +2382,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .live-head { display: flex; align-items: center; }
 .live-roster { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-note { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
-.live-note strong { color: var(--accent); }
+.live-note strong { color: var(--chrome); }
 .live-ok { font-size: 13px; font-weight: 700; color: var(--green); }
 .live-table .btn { padding: 13px; font-size: 15px; border-radius: var(--radius); }
 .live-table .team-coffee-row { background: var(--bg-card); }
@@ -2369,7 +2393,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-variant-numeric: tabular-nums;
 }
 .cupper-score em { font-style: normal; color: var(--text-faint); font-size: 11px; }
-.cupper-score.me { color: var(--accent); font-weight: 700; }
+.cupper-score.me { color: var(--chrome); font-weight: 700; }
 
 /* ------------------------------------------------------------
    Part-scored sheets
@@ -2408,7 +2432,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   background: var(--bg-card);
   border-radius: var(--radius);
 }
-.calib-row.me { border: 1px solid var(--accent); }
+.calib-row.me { border: 1px solid var(--chrome); }
 .calib-name { flex: 0 0 auto; min-width: 0; max-width: 34%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Symmetric about zero. A bar to the left and a bar to the right of the
@@ -2424,12 +2448,12 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
    something to judge their own number against besides the room */
 .calib-band {
   position: absolute; top: 0; bottom: 0;
-  background: var(--accent-soft);
+  background: var(--chrome-soft);
   border-radius: var(--radius-sm);
 }
 .calib-bar i {
   position: absolute; top: 2px; height: 6px;
-  background: var(--accent);
+  background: var(--chrome);
   opacity: 0.85;
   border-radius: var(--radius-sm);
 }
@@ -2461,7 +2485,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-weight: 800;
   letter-spacing: 0.35em;
   text-indent: 0.35em; /* balance the last letter-space */
-  color: var(--accent);
+  color: var(--chrome);
   font-variant-numeric: tabular-nums;
 }
 .share-pin.pending { font-size: 15px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: 12px 0; }
@@ -2603,8 +2627,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   left: 50%;
   bottom: calc(var(--sab) + 72px);
   transform: translate(-50%, 20px);
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--chrome);
+  color: var(--on-chrome);
   font-size: 15px;
   font-weight: 700;
   padding: 12px 22px;
@@ -2636,7 +2660,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--chrome);
 }
 .panel-head-sub {
   flex: 1;
@@ -2652,14 +2676,14 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
    an accent edge to keep the two apart; the panel head above it already
    names which half of the form you are in, so the edge is redundant. */
 .details-card.describe-card { background: var(--bg-card-2); }
-.describe-card .details-toggle-label { color: var(--accent); }
+.describe-card .details-toggle-label { color: var(--chrome); }
 
 .optional-pill {
   margin-left: 6px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -2698,13 +2722,13 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   border-radius: var(--radius);
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.lineup-row.named .lineup-num { background: var(--accent); color: var(--on-accent); }
+.lineup-row.named .lineup-num { background: var(--chrome); color: var(--on-chrome); }
 
 .lineup-name {
   flex: 1;
@@ -2739,9 +2763,9 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   transition: transform 0.25s var(--settle), color 0.15s;
 }
 .lineup-icon:active { transform: scale(0.85); }
-.lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--accent); }
+.lineup-row.open .lineup-icon.chev { transform: rotate(180deg); color: var(--chrome); }
 .lineup-icon.remove:active { color: var(--red); }
-.lineup-row.has-meta .lineup-icon.chev { color: var(--accent); }
+.lineup-row.has-meta .lineup-icon.chev { color: var(--chrome); }
 
 /* the rows borrow the details-card collapse, so they need its open state */
 .lineup-row.open .details-collapse { grid-template-rows: 1fr; }
@@ -2787,7 +2811,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .present-card.sealed { border-style: dashed; background: var(--bg-raise); }
 .present-card.named { background: var(--bg-card); border-color: var(--text-faint); }
 /* Scored reads from the number the card carries, not from a stripe. */
-.present-card.scored { border-color: var(--accent); }
+.present-card.scored { border-color: var(--chrome); }
 
 .present-top { display: flex; align-items: center; gap: 12px; }
 
@@ -2798,8 +2822,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   border-radius: var(--radius);
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 15px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -2825,7 +2849,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   font-size: 24px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
   line-height: 1;
   animation: bump 0.35s var(--settle);
 }
@@ -2871,8 +2895,8 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
   margin-top: 13px;
   padding: 11px;
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--chrome-soft);
+  color: var(--chrome);
   font-size: 13px;
   font-weight: 700;
   transition: transform 0.18s var(--settle);
@@ -2909,7 +2933,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .present-final-score {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--chrome);
 }
 /* declared after the base rule, so a part-scored panel score in the
    ceremony greys the same way it does everywhere else */
@@ -2996,9 +3020,71 @@ body.plain .describe-card:not(.open) .details-toggle { padding: 9px 14px; }
 .notes-field:focus-visible,
 .modal-input:focus-visible,
 .lineup-name:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--chrome);
   outline-offset: 2px;
-  border-color: var(--accent-deep);
+  border-color: var(--chrome);
 }
 
 
+/* ============================================================
+   THE DATA INK
+
+   Everything above is ink, rules and space. This is the whole
+   list of things allowed to be coloured, and every one of them
+   is a number or the position of one:
+
+     the score            the figure the screen exists to produce
+     the scale            the fill, the knob, the anchor phrase
+     progress fills       how much of something there is
+     the ranking scores   values, shown to a second person
+     the Results line     where this lineup fell on the standard
+
+   Focus rings are the one exception and they are an affordance
+   rather than decoration: a ring the same ink as the page is not
+   a ring. The radar series and the flavour wheel keep their own
+   palettes, which are categorical data and separately measured.
+
+   If something needs to stand out and is not a value, it earns
+   that with weight, size or position.
+   ============================================================ */
+
+.scorebar-score { color: var(--data); }
+
+.rail-fill { background: var(--data); }
+.rail-seg.done .rail-fill { background: var(--data); }
+.rail-seg.done .rail-num { color: var(--data); }
+.rail-seg.active { border-color: var(--data); box-shadow: inset 0 0 0 1px var(--data); }
+.rail-seg.active .rail-num { color: var(--data); }
+
+.rank-bar-fill,
+.group-bar-fill { background: var(--data); }
+
+.summary-span { background: var(--data); }
+.summary-mark { border-color: var(--data); }
+
+.rank-score,
+.present-final-score,
+.team-coffee-avg,
+.hist-item-score,
+.stat-value,
+.cupper-score.me { color: var(--data); }
+
+/* A part-scored figure is not a number you can rely on, so it does not get
+   the ink. This re-asserts the shared treatment, which sits earlier in the
+   file at the same specificity and would otherwise lose on order alone. */
+.rank-score.partial,
+.present-final-score.partial,
+.hist-item-score.partial,
+.cupper-score.me.partial,
+.podium-score.partial { color: var(--text-dim); font-weight: 600; }
+
+/* an affordance, not an accent — see above */
+.scale-track:focus-visible,
+.name-field:focus-visible,
+.notes-field:focus-visible,
+.detail-field:focus-visible,
+.modal-input:focus-visible,
+.lineup-name:focus-visible,
+.wheel-zoom-btn:focus-visible,
+.legend-item:focus-visible,
+.desc-row .scale-track:focus-visible { outline-color: var(--data); }
