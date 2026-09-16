@@ -3117,6 +3117,9 @@ function wireWheelZoom(holder) {
     // are reading is a state badge, not an action.
     toggle.textContent = step === 0 ? 'Zoom in to read' : 'Show the whole wheel';
     toggle.setAttribute('aria-pressed', step === 0 ? 'false' : 'true');
+    // the click handler needs to know which view it is in: a ring that is
+    // readable and a ring that is ten pixels wide are not the same control
+    holder.dataset.zoom = step === 0 ? 'whole' : 'read';
     if (!move) return;
     requestAnimationFrame(() => {
       // Zooming about the centre is right once you are exploring, but the
@@ -3134,10 +3137,42 @@ function wireWheelZoom(holder) {
     haptic();
     apply(true, fromWhole);
   });
+
+  /* Zoom in and put one wedge in the middle of the view.
+
+     Reaching for a word in the whole-wheel view is not a tap anyone can
+     make: sixty-eight descriptors share one ring, so each is about ten
+     screen pixels across where it starts and fifteen where it ends. What
+     came of a miss was not nothing — it was the neighbouring word, written
+     silently into the tasting notes. So in that view the outer ring stops
+     being a control and becomes what it looks like: a map. Touch it and it
+     brings you closer instead. */
+  holder.zoomToRead = seg => {
+    if (step !== 0) return false;
+    step = 1;
+    apply(false, false);
+    requestAnimationFrame(() => {
+      if (seg && seg.scrollIntoView) seg.scrollIntoView({ block: 'center', inline: 'center' });
+    });
+    return true;
+  };
+
   apply(false, false);
 }
 
-function openFlavorWheel() {
+/* The wheel fills one of the two olfactory CATA lists — the orthonasal one
+   under Fragrance & aroma, or the retronasal one under Flavor & aftertaste.
+   It used to fill `flavor` whichever one you opened it from, so a cupper
+   working through fragrance, on the wheel offered inside that very section,
+   had their descriptors filed under flavor: a claim about what the coffee
+   tastes like, made from a sniff of dry grounds. The two are different
+   evidence and the form asks for them separately.
+
+   Opened from the corner, with no section around it, it still writes to
+   flavor — that is the list most of a session is spent in. Which one it is
+   writing to is printed at the top either way. */
+function openFlavorWheel(listKey) {
+  const target = listKey === 'aroma' ? 'aroma' : 'flavor';
   markWheelSeen();
   const modal = $('#wheel-modal');
   const holder = $('#wheel-holder');
@@ -3151,7 +3186,13 @@ function openFlavorWheel() {
 
   const coffee = state && state.coffees[state.activeIndex];
 
-  const cataList = () => coffee.desc.cata.flavor;
+  const cataList = () => coffee.desc.cata[target];
+  const hint = $('#wheel-hint');
+  if (hint) {
+    hint.innerHTML = `Inner ring ticks a descriptor under <strong>${target === 'aroma'
+      ? 'Fragrance &amp; aroma' : 'Flavor &amp; aftertaste'}</strong> — up to 5, as the standard allows. `
+      + 'Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.';
+  }
   const notesFromWheel = () => {
     const items = noteItems(coffee.notes).map(s => s.toLowerCase());
     return WHEEL_WORDS.filter(w => items.includes(w.toLowerCase()));
@@ -3165,7 +3206,7 @@ function openFlavorWheel() {
 
   const sync = message => {
     if (!coffee || !coffee.desc) return;
-    const cata = new Set([...coffee.desc.cata.aroma, ...coffee.desc.cata.flavor]);
+    const cata = new Set(cataList());
     const words = notesFromWheel();
     const wordSet = new Set(words.map(w => w.toLowerCase()));
 
@@ -3191,10 +3232,8 @@ function openFlavorWheel() {
       chip.type = 'button';
       chip.onclick = () => {
         haptic();
-        ['aroma', 'flavor'].forEach(k => {
-          const at = coffee.desc.cata[k].indexOf(name);
-          if (at >= 0) coffee.desc.cata[k].splice(at, 1);
-        });
+        const at = cataList().indexOf(name);
+        if (at >= 0) cataList().splice(at, 1);
         save();
         sync(`${name} unchecked`);
         refreshOpenPanel();
@@ -3228,6 +3267,16 @@ function openFlavorWheel() {
   holder.onclick = e => {
     const seg = e.target.closest('.wheel-seg');
     if (!seg || !coffee) return;
+
+    // one word out of sixty-eight, ten pixels wide: bring it closer rather
+    // than write down whichever of its neighbours the thumb actually met
+    if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
+        && holder.zoomToRead && holder.zoomToRead(seg)) {
+      haptic();
+      sync(`Zoomed in — tap “${seg.dataset.desc}” again to add it to your notes`);
+      return;
+    }
+
     haptic();
     let message;
 
@@ -3509,12 +3558,12 @@ function buildDescriptiveCard(coffee) {
 
   // The wheel is the vocabulary for exactly these lists, so it is offered
   // right where someone is stuck for a word rather than only in the corner.
-  const capRow = text => {
+  const capRow = (text, listKey) => {
     const row = el('div', 'cata-cap-row');
     row.appendChild(el('span', 'cata-cap', text));
     const link = el('button', 'wheel-link', 'Flavor wheel');
     link.type = 'button';
-    link.addEventListener('click', e => { e.stopPropagation(); openFlavorWheel(); });
+    link.addEventListener('click', e => { e.stopPropagation(); openFlavorWheel(listKey); });
     row.appendChild(link);
     return row;
   };
@@ -3524,7 +3573,7 @@ function buildDescriptiveCard(coffee) {
   fa.appendChild(intensityRow(DESC_ATTRS[0]));
   fa.appendChild(intensityRow(DESC_ATTRS[1]));
   const aromaTree = olfactoryChips('aroma', 5);
-  fa.appendChild(capRow('Orthonasal descriptors · up to 5'));
+  fa.appendChild(capRow('Orthonasal descriptors · up to 5', 'aroma'));
   fa.appendChild(aromaTree.wrap);
   fa.appendChild(noteField('fragrance', 'freely elicited notes…'));
   body.appendChild(fa);
@@ -3534,7 +3583,7 @@ function buildDescriptiveCard(coffee) {
   fl.appendChild(intensityRow(DESC_ATTRS[2]));
   fl.appendChild(intensityRow(DESC_ATTRS[3]));
   const flavorTree = olfactoryChips('flavor', 5);
-  fl.appendChild(capRow('Retronasal descriptors · up to 5'));
+  fl.appendChild(capRow('Retronasal descriptors · up to 5', 'flavor'));
   fl.appendChild(flavorTree.wrap);
   fl.appendChild(el('span', 'cata-cap', 'Main tastes · up to 2'));
   fl.appendChild(flatChips('tastes', CATA_TASTES, 2));
@@ -5670,7 +5719,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-join').addEventListener('click', openJoinSheet);
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
-  $('#btn-wheel').addEventListener('click', openFlavorWheel);
+  $('#btn-wheel').addEventListener('click', () => openFlavorWheel());
   $('#wheel-coach').addEventListener('click', () => { markWheelSeen(); openFlavorWheel(); });
   // scoring means they are busy — the coach mark has said its piece
   $('#panels').addEventListener('pointerdown', hideWheelCoach, { passive: true });
