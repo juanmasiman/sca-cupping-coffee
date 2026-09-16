@@ -1090,10 +1090,20 @@ function ratedNote(entry) {
 // The lineup in score order, each coffee carrying how much of its sheet is
 // real. A coffee with nothing rated sorts to the bottom whatever cvaScore
 // says about it, because what cvaScore says about it is eight defaults.
+//
+// A part-scored sheet gets the same reasoning, and used not to. This sort
+// demoted only the *wholly* unrated, so three sections out of eight — the
+// other five sitting at their default 5 — placed first at 88.75, above two
+// finished sheets at 83.50 and 78.25. Grey ink and a "3 of 8" beside it are
+// not enough for something standing in first position: this design system
+// answers everything else with position, and the number a table reads first
+// is the ranking's order, not its typography. Complete sheets rank among
+// themselves, part-scored sheets rank below them, nothing rated is last.
 function rankedCoffees() {
+  const tier = p => (p.done === 0 ? 2 : p.complete ? 0 : 1);
   return state.coffees
     .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c), prog: scoreProgress(c) }))
-    .sort((a, b) => (a.prog.done === 0) - (b.prog.done === 0) || b.score - a.score);
+    .sort((a, b) => tier(a.prog) - tier(b.prog) || b.score - a.score);
 }
 
 function defectPenalty(c) {
@@ -4136,7 +4146,20 @@ function buildSummary(ranked) {
   const SPECIALTY = 80;
   const pct = v => Math.max(0, Math.min(100, ((v - FLOOR) / (100 - FLOOR)) * 100));
 
-  const values = scored.map(r => r.score).sort((a, b) => a - b);
+  // Range, median and "at or above 80" describe finished sheets. They used
+  // to be computed over every sheet with a single section rated, so a coffee
+  // whose remaining seven sections were sitting at their default 5 widened
+  // the range and moved the median. A statistic is a claim about a set; this
+  // one has to say which set, and the set has to be the reliable one.
+  //
+  // When nothing is finished there is no reliable set, so rather than print
+  // nothing the figures fall back to every scored sheet and the note below
+  // says plainly that they rest on part-scored ones.
+  const firm = scored.filter(r => r.prog.complete);
+  const basis = firm.length ? firm : scored;
+  const onlyPartial = !firm.length;
+
+  const values = basis.map(r => r.score).sort((a, b) => a - b);
   const low = values[0];
   const high = values[values.length - 1];
   const mid = values.length % 2
@@ -4156,7 +4179,7 @@ function buildSummary(ranked) {
       <div class="summary-rail"></div>
       <div class="summary-span" style="left:${pct(low)}%;right:${100 - pct(high)}%"></div>
       <div class="summary-threshold" style="left:${pct(SPECIALTY)}%"></div>
-      ${scored.map(r => `<i class="summary-mark" style="left:${pct(r.score)}%" title="${escapeHTML(coffeeName(r.coffee, r.index))} ${fmt(r.score)}"></i>`).join('')}
+      ${scored.map(r => `<i class="summary-mark${r.prog.complete ? '' : ' partial'}" style="left:${pct(r.score)}%" title="${escapeHTML(coffeeName(r.coffee, r.index))} ${fmt(r.score)}${r.prog.complete ? '' : ` · ${r.prog.done} of ${r.prog.total} rated`}"></i>`).join('')}
       <span class="summary-tick summary-tick-start">${FLOOR}</span>
       <span class="summary-tick summary-tick-spec" style="left:${pct(SPECIALTY)}%">${SPECIALTY}</span>
       <span class="summary-tick summary-tick-end">100</span>
@@ -4168,7 +4191,9 @@ function buildSummary(ranked) {
       <div><dt>At or above 80</dt><dd>${above} of ${values.length}</dd></div>
     </dl>
     ${complete < ranked.length
-      ? `<p class="summary-note">${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} complete. A part-scored sheet is marked wherever its number appears.</p>`
+      ? `<p class="summary-note">${onlyPartial
+          ? `No sheet is complete, so the figures above rest on part-scored sheets and will move as you finish them.`
+          : `${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} complete, and the figures above describe ${complete === 1 ? 'that one' : 'those'}. A part-scored sheet is marked hollow on the line, ranks below the finished ones, and carries its count wherever its number appears.`}</p>`
       : ''}
   `;
 }
@@ -4670,6 +4695,23 @@ function buildPresent() {
     const mine = coffeeScore(coffee);
     const shown = row ? row.avg : mine;
 
+    // This is the one surface where a number is read out loud, and it was the
+    // one surface that showed a part-scored number as a finished one: a sheet
+    // rated 3 of 8 printed 88.75 in full ink with no qualifier, beside two
+    // complete sheets drawn identically. Results, History, print and the CSV
+    // all carry the treatment DESIGN.md calls "one treatment, everywhere",
+    // and the Results screen immediately before this one promises in writing
+    // that "a part-scored sheet is marked wherever its number appears".
+    // The live path already had it via row.cuppers; the solo path — the one a
+    // leader without signal is actually on — never got it.
+    const own = scoreProgress(coffee);
+    const partial = row ? row.cuppers.some(c => c.partial) : !own.complete;
+    // "nothing rated · 0 of 8 rated" says it twice; the count only adds
+    // something when some of the sheet is real.
+    const qualifier = row
+      ? (partial ? ' · some part-scored' : '')
+      : (own.complete || own.done === 0 ? '' : ` · ${own.done} of ${own.total} rated`);
+
     card.innerHTML = `
       <div class="present-top">
         <span class="present-num">${i + 1}</span>
@@ -4679,10 +4721,10 @@ function buildPresent() {
           ${stage && !meta ? '<div class="present-meta">no details recorded</div>' : ''}
         </div>
         ${stage === 2 ? `<div class="present-score">
-          <span class="present-avg">${fmt(shown)}</span>
+          <span class="present-avg${partial ? ' partial' : ''}">${own.done === 0 && !row ? '—' : fmt(shown)}</span>
           <span class="present-grade">${row
             ? `average of ${row.cuppers.length} cupper${row.cuppers.length > 1 ? 's' : ''}`
-            : 'your score'}</span>
+            : (own.done === 0 ? 'nothing rated' : 'your score')}${qualifier}</span>
         </div>` : ''}
       </div>
       ${stage === 2 && row ? `<div class="present-cuppers">${row.cuppers.map(c => {
@@ -4732,8 +4774,14 @@ function buildPresentFinal(panel) {
       partial: panel
         ? panel[i].cuppers.some(e => e.partial)
         : own[i].done > 0 && !own[i].complete,
+      // The grey ink said "not reliable" and then declined to say how much of
+      // the sheet was real. Every other ranking in the product carries the
+      // count; this one dropped it.
+      note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
     }))
-    .sort((a, b) => (a.empty - b.empty) || (b.score - a.score));
+    // and it is ranked the same way Results is: complete first, part-scored
+    // below them, nothing rated last. Position carries it, not just colour.
+    .sort((a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
   const n = panel ? Math.max(...panel.map(p => p.cuppers.length)) : 0;
 
   wrap.innerHTML = `
@@ -4745,7 +4793,7 @@ function buildPresentFinal(panel) {
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}</span>
+        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${r.note ? ` <i>${r.note}</i>` : ''}</span>
       </div>`).join('')}
   `;
 }
@@ -5320,7 +5368,14 @@ function printResults() {
   const formName = usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)';
   const who = getCupperName();
 
-  const scored = ranked.filter(r => r.prog.done > 0).map(r => r.score).sort((a, b) => a - b);
+  // Same rule as the on-screen summary: the range and the count describe
+  // finished sheets, because a sheet with one section rated carries seven
+  // defaults and would widen both. Falls back to every scored sheet only
+  // when nothing is finished, and the caption says which set it used.
+  const scoredRows = ranked.filter(r => r.prog.done > 0);
+  const firmRows = scoredRows.filter(r => r.prog.complete);
+  const basisRows = firmRows.length ? firmRows : scoredRows;
+  const scored = basisRows.map(r => r.score).sort((a, b) => a - b);
   const anyPartial = ranked.some(r => !r.prog.complete);
 
   const sectionValue = (coffee, attr) => {
@@ -5337,9 +5392,11 @@ function printResults() {
       <div class="p-mark">lento.cafe</div>
     </div>
 
-    ${scored.length ? `<p class="p-summary">${scored.length} of ${ranked.length} coffee${ranked.length > 1 ? 's' : ''} scored ·
+    ${scored.length ? `<p class="p-summary">${scoredRows.length} of ${ranked.length} coffee${ranked.length > 1 ? 's' : ''} scored ·
+      ${firmRows.length ? `${firmRows.length} complete` : 'none complete'} ·
       range ${fmt(scored[0])}–${fmt(scored[scored.length - 1])} ·
-      ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80</p>` : ''}
+      ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80
+      ${firmRows.length ? '(complete sheets only)' : '(part-scored sheets included — none is complete)'}</p>` : ''}
 
     <table>
       <thead>

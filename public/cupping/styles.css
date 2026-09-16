@@ -1701,6 +1701,20 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   background: var(--bg);
   border: 2px solid var(--chrome);
 }
+/* A part-scored coffee still has a place on the line — it is where its
+   number currently falls — but it is not one of the sheets the range and
+   the median describe, so it is drawn smaller and in the secondary ink.
+   Grey is what a part-scored figure takes everywhere else in the product,
+   so the mark matches its own number rather than borrowing the unrated
+   knob's dashes, which at 12px with a 2px border render as four dashes and
+   read as a broken ring rather than a deliberate one. Size carries it too,
+   so the difference is not hue alone. */
+.summary-mark.partial {
+  width: 9px; height: 9px;
+  margin-left: -4.5px;           /* half the smaller mark */
+  top: 9.5px;                    /* same centre line as the 12px mark */
+  border-color: var(--text-dim);
+}
 .summary-tick {
   position: absolute; top: 28px;
   font-family: var(--mono); font-size: 11px;
@@ -2494,9 +2508,11 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
    exception, which is tick furniture; this is not furniture. */
 .cupper-score i,
 .present-cupper i,
+.present-final-score i,
 .rank-grade i {
   font-style: normal;
   font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-faint);
   font-family: var(--mono);
@@ -2947,6 +2963,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   line-height: 1;
   animation: bump 0.35s var(--settle);
 }
+/* The number a leader reads out loud. Declared after the base rule so a
+   part-scored figure greys here the way it does on every other surface. */
+.present-avg.partial { color: var(--text-dim); font-weight: 600; }
 .present-grade {
   display: block;
   font-size: 11px;
