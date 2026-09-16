@@ -2363,12 +2363,20 @@ body.plain .scale { margin-top: 9px; }
   body { overflow: visible; height: auto; background: #fff; }
   .screen, .toast, .wheel-fab, .offline-badge, .modal { display: none !important; }
 
+  /* Landscape, because a scoresheet is a wide table: eight sections, the
+     deductions and the total do not fit across a portrait page without
+     setting the numbers too small to check. */
+  @page { size: landscape; margin: 14mm; }
+
+  /* Three sizes and no more. There were eight — 7.5, 8, 8.5, 9, 9.5, 11, 13
+     and 20pt — sitting on no ramp at all. Weight and colour carry the rest. */
   #print-sheet {
     display: block;
     position: static;
     padding: 0;
     color: var(--print-ink);
     font-family: var(--sans);
+    font-size: 9pt;
   }
   #print-sheet .p-head {
     display: flex;
@@ -2376,32 +2384,39 @@ body.plain .scale { margin-top: 9px; }
     justify-content: space-between;
     border-bottom: 2px solid var(--print-ink);
     padding-bottom: 10px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
-  #print-sheet h1 { font-size: 20pt; margin: 0; }
-  #print-sheet .p-head p { font-size: 9pt; color: var(--print-ink-dim); margin-top: 3px; }
-  #print-sheet .p-mark { font-size: 11pt; font-weight: 800; letter-spacing: -0.3px; }
+  #print-sheet h1 { font-size: 18pt; margin: 0; }
+  #print-sheet .p-head p { color: var(--print-ink-dim); margin-top: 3px; }
+  #print-sheet .p-mark { font-weight: 800; letter-spacing: -0.3px; }
+  #print-sheet .p-summary { color: var(--print-ink-dim); margin-bottom: 12px; }
 
-  #print-sheet table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  #print-sheet table { width: 100%; border-collapse: collapse; }
   #print-sheet th {
     text-align: left;
-    font-size: 7.5pt;
+    font-size: 7pt;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--print-ink-dim);
     border-bottom: 1px solid var(--print-rule);
-    padding: 0 6px 5px;
+    padding: 0 5px 5px;
   }
-  #print-sheet td { padding: 9px 6px; border-bottom: 1px solid var(--print-rule-light); vertical-align: top; }
-  #print-sheet .num { text-align: right; white-space: nowrap; }
-  #print-sheet .num strong { font-size: 13pt; }
+  #print-sheet td { padding: 8px 5px; border-bottom: 1px solid var(--print-rule-light); vertical-align: top; }
+  /* the score columns are read down, so they are mono and they line up */
+  #print-sheet .num {
+    text-align: right;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  #print-sheet td.unrated { color: var(--print-rule); }
+  #print-sheet .total strong { font-weight: 700; }
   /* on paper the greying has to survive a photocopier, so a part-scored
-     score is also set lighter rather than only a shade down */
-  #print-sheet .num.partial { color: var(--print-ink-faint); }
-  #print-sheet .num.partial strong { font-weight: 500; }
-  #print-sheet .p-grade { font-size: 7.5pt; color: var(--print-ink-faint); }
-  #print-sheet .p-notes { font-size: 8.5pt; color: var(--print-ink-dim); margin-top: 3px; }
-  #print-sheet .p-foot { margin-top: 20px; font-size: 8pt; color: var(--print-foot); }
+     total is set lighter as well as a shade down */
+  #print-sheet .total.partial { color: var(--print-ink-faint); }
+  #print-sheet .total.partial strong { font-weight: 500; }
+  #print-sheet .p-sub { font-size: 7pt; color: var(--print-ink-dim); margin-top: 3px; font-family: var(--sans); }
+  #print-sheet .p-foot { margin-top: 14px; font-size: 7pt; color: var(--print-foot); line-height: 1.5; }
 
   #print-sheet tr { break-inside: avoid; }
 }
