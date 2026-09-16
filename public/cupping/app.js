@@ -4150,12 +4150,31 @@ function updateScorebar() {
     ? shortGrade(score)
     : `${progress.done} of ${progress.total} rated`;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
-  // DESIGN.md: a sheet with nothing rated shows no number at all, an em
-  // dash. Results, print and the CSV all obeyed; this one printed 79.00
-  // directly above the words "0 of 8 rated", which is the exact confusion
-  // the rule exists to prevent.
-  const shown = progress.done === 0 ? '—' : fmt(score);
+  /* The number waits for the sheet.
+
+     The em dash used to appear only at 0 of 8, on the grounds that a score
+     built from nothing is not a score. One rated section does not change
+     that: the CVA formula floors at 52.75 and each section is worth 0.66,
+     so rating Fragrance a 6 and nothing else prints 79.75 — a hair under
+     specialty, from one sniff. It does not climb toward anything either;
+     it starts near the top of the scale and drifts by a point or so per
+     section. A cupper watching it read a machine at work on numbers they
+     had not given, and a second read it as a verdict on a sheet they knew
+     was a quarter finished. The 2004 form does the same from 82.50.
+
+     There is a second reason, older than this app: a running total anchors
+     the sections still to come, which is the bias calibration exists to
+     remove. You score what is in the cup and the total is whatever it is.
+
+     So the slot carries how far along the sheet is, and the score arrives
+     when the last section does. */
+  const shown = progress.complete ? fmt(score) : '—';
   const valueEl = $('#scorebar-value');
+  // The bar is a live region, and an em dash announced into one is noise at
+  // best — "dash, 3 of 8 rated" is not a sentence. The dash is a mark for
+  // the eye; the count already carries the whole meaning, so that is what a
+  // screen reader gets.
+  valueEl.parentElement.setAttribute('aria-hidden', progress.complete ? 'false' : 'true');
   if (valueEl.textContent !== shown) {
     valueEl.textContent = shown;
     const box = valueEl.parentElement;

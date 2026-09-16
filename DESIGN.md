@@ -243,6 +243,8 @@ A score built from sections nobody rated is not the same kind of number as a sco
 
 This reaches the live team card, the Present ceremony, the Results podium and ranking, History, the printed sheet, the share text and the CSV. If a surface can show a score to a second person, it can show this.
 
+**The sheet you are working on is the exception, and it is stricter.** Everything above is about a number shown to someone else once cupping is over; the header of a sheet still being filled shows no number at all until the last section lands. Two reasons, and either would be enough. The arithmetic: CVA floors at 52.75 and pays 0.66 a section, so one rated section prints 79.75 and the 2004 form prints 82.50 from nothing at all — the figure starts near the top of the scale and drifts by about a point per section rather than climbing toward anything, which reads as a verdict long before there is one. And the practice: a running total anchors the sections still to come, which is precisely the bias calibration exists to remove. The slot carries `3 of 8 rated` while the sheet is open and the score the moment it is finished. The dash is a mark for the eye only — the header is a live region, so the dash is hidden from assistive technology and the count is what gets announced.
+
 ## Layout
 
 One column, always. The sheet is a vertical run of sections separated by hairline rules — not cards, not panels, not tiles. A rule says "next section" more quietly than a border does, and eight bordered cards stacked on a phone reads as eight objects competing rather than one instrument.
