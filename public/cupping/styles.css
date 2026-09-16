@@ -1435,39 +1435,85 @@ body.plain .scale { margin-top: 9px; }
 
 .results-footpad { height: calc(var(--sab) + 28px); }
 
-/* podium (winner highlight) */
-.podium {
-  text-align: center;
-  padding: 18px 16px 22px;
-  border-radius: var(--radius);
-  background:
-    radial-gradient(120% 100% at 50% 0%, var(--accent-soft), transparent 60%),
-    var(--bg-card);
-  border: 1px solid var(--line);
-  margin-bottom: 14px;
-  animation: screenIn 0.5s var(--ease);
+/* ------------------------------------------------------------
+   The Results opener
+   A line, the way the scoresheet draws one: the scale the form
+   actually produces, every coffee placed on it, and the specialty
+   threshold marked. No tint, no gradient, no card lift — this is
+   the same object as the anchored scale at a different scale.
+   ------------------------------------------------------------ */
+.summary {
+  padding: 4px 2px 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
 }
-/* --text-faint would pass on the plain card at 4.93:1, but .podium lays a
-   radial accent tint over that card and this label sits at the strongest
-   point of it, which pushed it to 4.39:1 in light and 4.32:1 in dark. The
-   ground here is not the token's ground, so the ink steps up one. */
-.podium-label {
+.summary-head {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.podium-name { font-size: 20px; font-weight: 700; margin-top: 4px; }
-.podium-score {
-  font-size: 46px;
-  font-weight: 700;
+.summary-meta { font-size: 13px; color: var(--text-faint); margin-top: 3px; }
+
+.summary-scale { position: relative; height: 44px; margin: 22px 16px 0; }
+.summary-rail {
+  position: absolute; left: 0; right: 0; top: 13px;
+  height: 2px; background: var(--line);
+}
+/* the span this lineup actually covered */
+.summary-span {
+  position: absolute; top: 13px; height: 2px;
+  background: var(--accent); opacity: 0.45;
+}
+/* 80 is the line the whole trade draws, so it is drawn */
+.summary-threshold {
+  position: absolute; top: 6px;
+  width: 1px; height: 16px;
+  background: var(--text-dim);
+  opacity: 0.55;
+}
+.summary-mark {
+  position: absolute; top: 8px;
+  width: 12px; height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+}
+.summary-tick {
+  position: absolute; top: 28px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.summary-tick-start { left: 0; }
+.summary-tick-end { right: 0; }
+.summary-tick-spec { transform: translateX(-50%); color: var(--text-dim); }
+
+.summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 26px;
+  margin: 22px 0 0;
+}
+.summary-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+.summary-facts dd {
+  margin: 1px 0 0;
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  line-height: 1.15;
 }
-.podium-grade { font-size: 13px; font-weight: 700; color: var(--text-dim); }
-.podium-meta { font-size: 13px; color: var(--text-faint); margin-top: 3px; }
+.summary-note { font-size: 13px; color: var(--text-dim); margin-top: 16px; line-height: 1.5; }
 
 /* radar */
 .radar-card {
