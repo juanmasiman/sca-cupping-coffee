@@ -326,6 +326,22 @@
     <div class="modal-sheet">
       <h3 id="help-title"></h3>
       <p class="help-body" id="help-body"></p>
+      <!-- The guided-mode switch used to exist only on the setup screen —
+           which a cupper who joined by scanning a QR code never passes
+           through. The one person who most needs to turn guidance ON, or a
+           visiting expert who wants it off, could not reach it. It rides
+           with the explanations instead, so anyone who can open a help mark
+           can decide whether to keep getting them. -->
+      <label class="switch-row help-switch" for="toggle-guided-help">
+        <span class="switch-label">
+          <span class="switch-title">Guided mode</span>
+          <span class="switch-sub">Explain each part of the scoresheet</span>
+        </span>
+        <span class="switch">
+          <input type="checkbox" id="toggle-guided-help" checked>
+          <span class="switch-track"><span class="switch-knob"></span></span>
+        </span>
+      </label>
       <div class="modal-actions">
         <button id="help-close" class="btn btn-primary">Got it</button>
       </div>
