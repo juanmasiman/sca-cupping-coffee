@@ -450,8 +450,42 @@ input, textarea, select { font: inherit; }
   gap: var(--space-4);
 }
 
-.setup-actions-row { display: flex; gap: var(--space-4); }
-.setup-actions-row .btn { flex: 1; }
+/* The joiner's door, at the top of the leader's console because most of a
+   table is joining rather than leading. It is a card, not a ghost button:
+   the other path off this screen is a lineup you build, and those are not
+   the same weight of thing. */
+.join-door {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-5);
+  background: var(--bg-card);
+  /* --rail, not --line: this border is the edge of a control, and the card
+     it draws sits on a page background only 1.02:1 away from its own fill,
+     so the border is what says a control is there. DESIGN.md's 1.4.11 rule
+     puts that on the instrument token with a 3:1 floor, not the hairline
+     token that only separates blocks. */
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  color: var(--chrome);
+}
+.join-door-text { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; min-width: 0; }
+.join-door-title { font-size: 17px; font-weight: 700; }
+.join-door-sub { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+.join-door svg { flex: 0 0 auto; color: var(--text-faint); }
+
+/* names the other path without competing with it */
+.setup-or {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: var(--space-5);
+}
 
 /* ---------- buttons ---------- */
 

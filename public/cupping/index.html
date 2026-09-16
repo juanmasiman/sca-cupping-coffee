@@ -43,6 +43,22 @@
         <p class="subtitle">SCA cupping · Coffee Value Assessment</p>
       </header>
 
+      <!-- The front door for the four people out of five who were handed a
+           code rather than a lineup. This screen is the leader's console —
+           form, coffees, cups — and joining was a ghost button at the very
+           bottom of it, sharing a row with History, under the button that
+           starts a rival cupping. Someone joining their first cupping
+           found it last. -->
+      <button id="btn-join-door" class="join-door" type="button">
+        <span class="join-door-text">
+          <span class="join-door-title">Join a cupping</span>
+          <span class="join-door-sub">Enter a 4-digit code, a link or a QR</span>
+        </span>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <span class="setup-or">Or set one up</span>
+
       <div class="setup-cards">
         <div class="setup-card setup-card-column">
           <div class="setup-card-label">
@@ -91,10 +107,7 @@
       </div>
 
       <div class="setup-actions">
-        <div class="setup-actions-row">
-          <button id="btn-history" class="btn btn-ghost">History</button>
-          <button id="btn-join" class="btn btn-ghost">Join a cupping</button>
-        </div>
+        <button id="btn-history" class="btn btn-ghost">History</button>
         <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
         <button id="btn-start" class="btn btn-primary">Set the lineup</button>
       </div>

@@ -5823,7 +5823,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-present-back').addEventListener('click', () => showScreen('#screen-results'));
   $('#btn-present-all').addEventListener('click', revealAllPresent);
 
-  $('#btn-join').addEventListener('click', openJoinSheet);
+  $('#btn-join-door').addEventListener('click', openJoinSheet);
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
   $('#btn-wheel').addEventListener('click', () => openFlavorWheel());
