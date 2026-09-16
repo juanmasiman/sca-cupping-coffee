@@ -469,13 +469,15 @@ input, textarea, select { font: inherit; }
 
 /* No opacity dimmer. It was costing contrast on exactly the two controls
    whose text should be clearest — the ones that delete things. */
+/* Its sibling .btn-ghost is three colour declarations and nothing else, and
+   so is this now. It used to carry the same `width: calc(100% - 36px)` and
+   `margin: 12px 20px 0` that .export-btn did — layout smuggled into a colour
+   variant — which put "Clear history" 20px right of the button above it with
+   an extra 12px of gap even after both were stacked properly. */
 .btn-danger-ghost {
   background: none;
   border: 1px solid var(--red);
   color: var(--red);
-  display: block;
-  width: calc(100% - 36px);
-  margin: var(--space-4) var(--space-6) 0;
 }
 
 /* ============================================================
@@ -1147,23 +1149,29 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   gap: var(--space-4);
   margin-top: var(--space-4);
 }
+/* One button carrying a phrase, not two carrying glyphs. It keeps the 44px
+   height and takes its width from the words, which is why there is no
+   `width` here: "Zoom in to read" and "Show the whole wheel" are different
+   lengths and the button should fit whichever it is showing. */
 .wheel-zoom-btn {
-  width: 44px;
-  height: 44px;
+  min-height: 44px;
   flex: none;
+  padding: 0 var(--space-5);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-card);
   color: var(--text);
-  font-size: 20px;
-  line-height: 1;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
 }
-.wheel-zoom-btn:disabled { opacity: 0.4; cursor: default; }
+.wheel-zoom-btn:active { transform: scale(0.96); }
 .wheel-zoom-btn:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; }
 .wheel-zoom-level {
   flex: 1;
-  text-align: center;
+  min-width: 0;
+  text-align: left;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.05em;
@@ -2606,7 +2614,22 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
 .hist-item-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 
-.export-btn { margin: var(--space-4) var(--space-6) 0; display: block; width: calc(100% - 36px); }
+/* The actions that close a screen — print, start over, export, clear — in
+   one stack on the screen's own measure. This replaces .export-btn, which
+   set `margin: 12px 20px 0` and `width: calc(100% - 36px)` on top of the
+   scroll container's own 16px padding: 20 and 36 do not agree, so the button
+   sat 36px in on the left and 32px on the right. Worse, the class was on one
+   button of each pair and not the other, so its partner fell back to
+   inline-block at its text width, 20px further left and flush against it.
+   No horizontal margin here at all: the container already sets the measure,
+   and a button that wants to be full width just says so. */
+.page-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.page-actions .btn { display: block; width: 100%; }
 
 /* offline badge */
 

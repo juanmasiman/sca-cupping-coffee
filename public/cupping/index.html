@@ -212,11 +212,17 @@
         <div class="radar-legend" id="radar-legend"></div>
       </div>
       <div class="ranking" id="ranking"></div>
-      <button id="btn-print" class="btn btn-ghost export-btn">Print / save as PDF</button>
-      <!-- Not danger-styled: reaching Results archives the cupping, so this
-           destroys nothing. Red that cries wolf teaches people to ignore it
-           on the controls where it means something. -->
-      <button id="btn-new-session" class="btn btn-ghost">Start new session</button>
+      <!-- One stack, one measure. These two used to be loose siblings: the
+           first carried .export-btn (its own margins and width) and the
+           second carried nothing, so it rendered inline-block at its text
+           width, 20px further left, flush against the button above it. -->
+      <div class="page-actions">
+        <button id="btn-print" class="btn btn-ghost">Print / save as PDF</button>
+        <!-- Not danger-styled: reaching Results archives the cupping, so this
+             destroys nothing. Red that cries wolf teaches people to ignore it
+             on the controls where it means something. -->
+        <button id="btn-new-session" class="btn btn-ghost">Start new session</button>
+      </div>
       <div class="results-footpad"></div>
     </div>
   </section>
@@ -273,8 +279,10 @@
           <div class="hist-list" id="hist-list"></div>
         </div>
 
-        <button id="btn-export-csv" class="btn btn-ghost export-btn">Export all cuppings as CSV</button>
-        <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+        <div class="page-actions">
+          <button id="btn-export-csv" class="btn btn-ghost">Export all cuppings as CSV</button>
+          <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+        </div>
       </div>
       <div class="results-footpad"></div>
     </div>
@@ -308,10 +316,11 @@
       <!-- The wheel opens whole, the way a paper one is read: take it all
            in, then lean closer. Zoom scrolls rather than reflows, so the
            wheel itself never changes. -->
+      <!-- Two states, so one button that names the state it goes to, rather
+           than a −/+ pair with one end permanently disabled. -->
       <div class="wheel-zoom-bar">
-        <button type="button" id="wheel-zoom-out" class="wheel-zoom-btn" aria-label="Zoom out">−</button>
         <span class="wheel-zoom-level" id="wheel-zoom-level" aria-live="polite">Whole wheel</span>
-        <button type="button" id="wheel-zoom-in" class="wheel-zoom-btn" aria-label="Zoom in">+</button>
+        <button type="button" id="wheel-zoom-toggle" class="wheel-zoom-btn" aria-pressed="false">Zoom in to read</button>
       </div>
       <div class="wheel-holder" id="wheel-holder"></div>
       <div class="wheel-picked" id="wheel-picked"></div>

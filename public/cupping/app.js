@@ -3000,13 +3000,18 @@ function maybeShowWheelCoach() {
    because "1.8×" tells a cupper nothing and "readable" tells them
    exactly what they are asking for. Zooming keeps the middle of what you
    were looking at in the middle. */
-// The middle step is not a round number chosen for tidiness. Descriptors
-// render at 5.53px with the wheel fit to a phone and the floor is 11px,
-// so "readable" has to clear 2.002x or the label on the button is a lie.
+// Two states, not three. "Close" was a third rung that answered no question
+// the other two left open: whole-wheel is for finding out which words exist,
+// readable is for picking one, and past that you are just looking at the same
+// word larger. A ladder is also the wrong control for two states, because one
+// end of a stepper is always disabled — so this is a toggle now.
+//
+// 2.05 is not a round number chosen for tidiness. Descriptors render at
+// 5.53px with the wheel fit to a phone and the floor is 11px, so "readable"
+// has to clear 2.002x or the label on the button is a lie.
 const WHEEL_ZOOMS = [
   { z: 1, label: 'Whole wheel' },
   { z: 2.05, label: 'Readable' },
-  { z: 2.8, label: 'Close' },
 ];
 
 /* The wheel as a keyboard widget.
@@ -3096,10 +3101,9 @@ function wireWheelKeyboard(holder) {
 }
 
 function wireWheelZoom(holder) {
-  const out = $('#wheel-zoom-out');
-  const inn = $('#wheel-zoom-in');
+  const toggle = $('#wheel-zoom-toggle');
   const level = $('#wheel-zoom-level');
-  if (!out || !inn || !level) return;
+  if (!toggle || !level) return;
   let step = 0;
 
   const apply = (move, fromWhole) => {
@@ -3108,30 +3112,28 @@ function wireWheelZoom(holder) {
     const fy = holder.scrollHeight ? (holder.scrollTop + holder.clientHeight / 2) / holder.scrollHeight : 0.5;
     holder.style.setProperty('--wheel-zoom', WHEEL_ZOOMS[step].z);
     level.textContent = WHEEL_ZOOMS[step].label;
-    out.disabled = step === 0;
-    inn.disabled = step === WHEEL_ZOOMS.length - 1;
+    // The button names where it goes, not where you are — the label beside
+    // it already says that, and a control that reads "Readable" while you
+    // are reading is a state badge, not an action.
+    toggle.textContent = step === 0 ? 'Zoom in to read' : 'Show the whole wheel';
+    toggle.setAttribute('aria-pressed', step === 0 ? 'false' : 'true');
     if (!move) return;
     requestAnimationFrame(() => {
       // Zooming about the centre is right once you are exploring, but the
       // first zoom out of whole-wheel would land on the hub — the one part
       // of this drawing with nothing to read. So that step goes to the top
-      // of the wheel, where the words are; every step after keeps centre.
+      // of the wheel, where the words are.
       holder.scrollLeft = fx * holder.scrollWidth - holder.clientWidth / 2;
       holder.scrollTop = fromWhole ? 0 : fy * holder.scrollHeight - holder.clientHeight / 2;
     });
   };
 
-  const go = delta => {
-    const next = Math.min(WHEEL_ZOOMS.length - 1, Math.max(0, step + delta));
-    if (next === step) return;
-    const fromWhole = step === 0 && delta > 0;
-    step = next;
+  toggle.addEventListener('click', () => {
+    const fromWhole = step === 0;
+    step = step === 0 ? 1 : 0;
     haptic();
     apply(true, fromWhole);
-  };
-
-  out.addEventListener('click', () => go(-1));
-  inn.addEventListener('click', () => go(1));
+  });
   apply(false, false);
 }
 
