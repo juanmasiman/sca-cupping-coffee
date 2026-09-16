@@ -4559,10 +4559,40 @@ function refreshLiveTable(data) {
       ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
       : '';
     html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
+    /* The reveal belongs where the decision is made.
+
+       It lived in one place: a small head-count pill in the header of the
+       *scoring* screen. A leader deciding to open the table is not on the
+       scoring screen — they are on Results, looking at this card, which is
+       the thing that changes when they do it. Getting there meant leaving
+       Results, finding a pill whose affordance reads "invite", and coming
+       back. Two screens away from the decision, for the one action in this
+       product that cannot be undone.
+
+       It is offered here too, under the sentence that says what it does.
+       The confirmation sheet is unchanged: four consequences in plain
+       words, irreversibility on its own line. */
     if (isTableLeader()) {
-      html += `<p class="live-note">You are the leader: <strong>Present to the table</strong> below walks the lineup and opens the scores when you are ready.</p>`;
+      html += `<p class="live-note">You are the leader. <strong>Present to the table</strong> below walks the lineup coffee by coffee and opens the scores as it goes — or open them here, all at once, and read the panel off this card.</p>`;
+      html += `<button class="btn btn-ghost" id="btn-reveal-here">Open the scores to the table</button>`;
     }
     wrap.innerHTML = html;
+
+    const revealHere = wrap.querySelector('#btn-reveal-here');
+    if (revealHere) {
+      revealHere.addEventListener('click', async () => {
+        revealHere.disabled = true;
+        if (!(await ensureRevealed())) { revealHere.disabled = false; return; }
+        // the card the leader is looking at is the thing that changed, so it
+        // redraws now rather than on the poller's next tick. buildResults
+        // rebuilds the team card and empties the live block inside it, so
+        // it goes first and the table is drawn into what it leaves.
+        buildResults();
+        const fresh = await relayListParticipants(tableCode());
+        liveSig = rosterSig(fresh);
+        refreshLiveTable(fresh);
+      });
+    }
   } else {
     // panel result: average of the independent scores, per SCA practice.
     // Everyone at the table — the leader included — is in this roster, so
