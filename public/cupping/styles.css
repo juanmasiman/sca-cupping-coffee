@@ -1338,8 +1338,15 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .scale-num.at-start { transform: translateX(0); }
 .scale-num.at-end { transform: translateX(-100%); }
 
+/* The negative margin is half the knob's own width, which is what centres it
+   on the detent `left` puts it at. It is geometry, not spacing, so it stays a
+   literal tied to the 32px above it — and it must never be written as
+   `-var(--token)`, which is not valid CSS: the declaration is dropped whole
+   and the knob silently sits half its width to the right of the value it is
+   reporting. That is exactly what the spacing collapse did to these four
+   rules, and no probe in the suite was looking at knob position. */
 .scale-knob {
-  position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -var(--space-5);
+  position: absolute; top: 8px; width: 32px; height: 32px; margin-left: -16px;
   border-radius: 50%;
   background: var(--bg-card);
   border: 2px solid var(--data);
@@ -1363,7 +1370,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .scale-track.wide-knob { margin: 0 var(--space-6); }
 .scale-knob.wide {
   width: 40px;
-  margin-left: -var(--space-6);
+  margin-left: -20px;            /* half the wide knob's 40px */
   font-size: 11px;
   letter-spacing: -0.03em;
 }
@@ -1689,7 +1696,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .summary-mark {
   position: absolute; top: 8px;
   width: 12px; height: 12px;
-  margin-left: -var(--space-3);
+  margin-left: -6px;             /* half the mark's 12px */
   border-radius: 50%;
   background: var(--bg);
   border: 2px solid var(--chrome);
@@ -2216,7 +2223,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .auth-google svg { opacity: 0.85; }
 
 .auth-email-field { padding: var(--space-5); font-size: 17px; }
-.auth-buttons .detail-label { margin-bottom: -var(--space-2); }
+.auth-buttons .detail-label { margin-bottom: calc(var(--space-2) * -1); }
 
 .auth-divider {
   display: flex;
