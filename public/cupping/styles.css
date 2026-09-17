@@ -718,16 +718,24 @@ input, textarea, select { font: inherit; }
   border-color: var(--chrome);
   color: var(--on-chrome);
 }
+/* the glyph follows the job: share when there is nobody to count, people
+   once there is */
+.invite-icon-people { display: none; }
+.invite-btn.live .invite-icon-share { display: none; }
+.invite-btn.live .invite-icon-people { display: block; }
 /* how many are at the table, kept current by the background poll */
 .invite-count {
   position: absolute;
-  top: -1px;
-  right: -1px;
+  top: -3px;
+  right: -4px;
   display: grid;
   place-items: center;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 var(--space-2);
+  /* A badge, not a label. At 19px tall and 30px wide it covered the top
+     half of the 44px circle it is attached to and read as a caption printed
+     over the icon. It sits on the corner now. */
+  min-width: 17px;
+  height: 17px;
+  padding: 0 var(--space-1);
   border-radius: 999px;
   background: var(--bg-card);
   border: 1px solid var(--chrome);
@@ -743,7 +751,18 @@ input, textarea, select { font: inherit; }
    like any other figure. "Everyone has submitted" was a hue change to a
    green the design system did not know about; it is a fill change now —
    same ink, filled instead of outlined. */
-.invite-count.all-in { background: var(--data); color: var(--bg); border-color: var(--data); }
+/* The filled state needs an edge, or it is not a badge any more. Filling it
+   with --data on a button whose own fill is --chrome put 2.05:1 light and
+   1.88:1 dark between the pill and the circle behind it, and the matching
+   border gave it nothing to stand on — at the one moment a leader is looking
+   for it, everyone in, the badge sank into the button. The ring is the ink
+   the button's own glyph uses, so the pill's extent is legible in both
+   states while the fill keeps carrying the meaning. */
+.invite-count.all-in {
+  background: var(--data);
+  color: var(--bg);
+  border-color: var(--on-chrome);
+}
 
 /* horizontally swipeable panels */
 .panels {

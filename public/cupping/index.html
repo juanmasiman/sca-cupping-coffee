@@ -151,8 +151,20 @@
         <span class="cupping-title-row"><h1 class="cupping-title-name" id="cupping-name">Coffee 1</h1></span>
         <span class="cupping-title-sub" id="cupping-position"></span>
       </div>
+      <!-- Two icons, because the button does two things. With no table it
+           invites, and a share glyph says so. Once a table is live it is the
+           table — and a share glyph wearing a "1/4" badge gave that count no
+           domain: a cupper read it as progress on his own sheet, which the
+           scorebar 60px to its right states as "0 of 8 rated". Two bare
+           fractions, one header. People on the button make the badge people. -->
       <button id="btn-share-session" class="invite-btn" aria-label="Invite cuppers to this session">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
+        <svg class="invite-icon-share" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M16 8a3 3 0 1 0-2.83-4H13a3 3 0 0 0 .09.73L8.6 7.36a3 3 0 1 0 0 5.28l4.49 2.63A3 3 0 1 0 16 14c-.65 0-1.25.21-1.74.56l-4.35-2.55a3 3 0 0 0 0-2.02l4.35-2.55c.49.35 1.09.56 1.74.56z" fill="currentColor"/></svg>
+        <svg class="invite-icon-people" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <circle cx="9" cy="8" r="3.1" fill="none" stroke="currentColor" stroke-width="1.9"/>
+          <path d="M3.4 19a5.6 5.6 0 0 1 11.2 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M16.2 5.4a3.1 3.1 0 0 1 0 5.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M17.6 14.2A5.6 5.6 0 0 1 20.6 19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>
         <span class="invite-count hidden"></span>
       </button>
       <!-- The live score, folded into the header rather than given a band
