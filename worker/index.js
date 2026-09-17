@@ -176,6 +176,29 @@ async function handleApi(request, env, path, cors) {
       : null;
     if (!scores || !scores.length) return json({ error: 'No scores supplied' }, 400);
 
+    /* How much of each sheet is real, carried alongside the scores.
+
+       The client has always sent this and the relay has always dropped it,
+       which meant the honest-panel-math worked everywhere except the one
+       place a number gets read out loud. A cupper who rated three of eight
+       sections, or never opened a coffee at all, arrived at every other
+       device indistinguishable from someone who finished: the untouched
+       sections come through at their stored default of 5, so an unopened
+       CVA sheet reads 79.00 and averages in at full weight. Measured at a
+       four-person table: a Kenya one cupper never opened was read out at
+       90.81, where the three who actually tasted it averaged 94.75 — near
+       enough four points of under-call, on the wrong side of the line a
+       buying decision gets made on.
+
+       A count per coffee, clamped to the sections a form can have, and only
+       as long as the scores it describes. Absent or malformed, it is simply
+       not stored, and the client's own fallback treats such a sheet as
+       complete — which is the right answer for an older client and the
+       wrong one to reach for here. */
+    const rated = Array.isArray(body && body.rated)
+      ? body.rated.slice(0, scores.length).map(v => Math.max(0, Math.min(20, Math.round(Number(v) || 0))))
+      : null;
+
     const prev = existing.metadata || {};
     await env.CUPPINGS.put(key, '', {
       expirationTtl: TTL_SECONDS,
@@ -184,6 +207,7 @@ async function handleApi(request, env, path, cors) {
         joinedAt: prev.joinedAt || Date.now(),
         submittedAt: Date.now(),
         scores,
+        ...(rated && rated.length ? { rated } : {}),
       },
     });
     return json({ ok: true });
@@ -235,6 +259,10 @@ async function handleApi(request, env, path, cors) {
         submitted: Boolean(m.submittedAt),
         // sealed until the leader reveals, so nobody anchors on anyone else
         ...(revealed && m.scores ? { scores: m.scores } : {}),
+        // and how much of each sheet is real, so a part-scored submission
+        // says so wherever its number appears rather than only on the
+        // device that produced it
+        ...(revealed && m.rated ? { rated: m.rated } : {}),
       }));
     return json({ participants, revealed });
   }

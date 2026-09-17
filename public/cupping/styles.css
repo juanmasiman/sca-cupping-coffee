@@ -450,8 +450,42 @@ input, textarea, select { font: inherit; }
   gap: var(--space-4);
 }
 
-.setup-actions-row { display: flex; gap: var(--space-4); }
-.setup-actions-row .btn { flex: 1; }
+/* The joiner's door, at the top of the leader's console because most of a
+   table is joining rather than leading. It is a card, not a ghost button:
+   the other path off this screen is a lineup you build, and those are not
+   the same weight of thing. */
+.join-door {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-5);
+  background: var(--bg-card);
+  /* --rail, not --line: this border is the edge of a control, and the card
+     it draws sits on a page background only 1.02:1 away from its own fill,
+     so the border is what says a control is there. DESIGN.md's 1.4.11 rule
+     puts that on the instrument token with a 3:1 floor, not the hairline
+     token that only separates blocks. */
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  color: var(--chrome);
+}
+.join-door-text { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; min-width: 0; }
+.join-door-title { font-size: 17px; font-weight: 700; }
+.join-door-sub { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+.join-door svg { flex: 0 0 auto; color: var(--text-faint); }
+
+/* names the other path without competing with it */
+.setup-or {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: var(--space-5);
+}
 
 /* ---------- buttons ---------- */
 
@@ -531,7 +565,10 @@ input, textarea, select { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: 0 var(--space-2);
+  /* No padding of its own: the header's 8px gap already separates this
+     column from the back button on one side and the invite on the other,
+     and the 8px this used to add on top of it was the difference between
+     the status line fitting on a 360px phone and being cut. */
 }
 .cupping-title-row { display: flex; align-items: center; min-width: 0; }
 /* an h1 so the working screen is navigable by heading; it is sized by its
@@ -549,7 +586,12 @@ input, textarea, select { font: inherit; }
   color: var(--text-faint);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  /* nowrap with nothing to catch it cut this line off mid-glyph: on a
+     320px screen the run simply stopped, with no ellipsis to say it had.
+     A clipped line has to look clipped. */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* one segment per coffee: position, progress and jump target in one row */
@@ -676,16 +718,24 @@ input, textarea, select { font: inherit; }
   border-color: var(--chrome);
   color: var(--on-chrome);
 }
+/* the glyph follows the job: share when there is nobody to count, people
+   once there is */
+.invite-icon-people { display: none; }
+.invite-btn.live .invite-icon-share { display: none; }
+.invite-btn.live .invite-icon-people { display: block; }
 /* how many are at the table, kept current by the background poll */
 .invite-count {
   position: absolute;
-  top: -1px;
-  right: -1px;
+  top: -3px;
+  right: -4px;
   display: grid;
   place-items: center;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 var(--space-2);
+  /* A badge, not a label. At 19px tall and 30px wide it covered the top
+     half of the 44px circle it is attached to and read as a caption printed
+     over the icon. It sits on the corner now. */
+  min-width: 17px;
+  height: 17px;
+  padding: 0 var(--space-1);
   border-radius: 999px;
   background: var(--bg-card);
   border: 1px solid var(--chrome);
@@ -701,7 +751,18 @@ input, textarea, select { font: inherit; }
    like any other figure. "Everyone has submitted" was a hue change to a
    green the design system did not know about; it is a fill change now —
    same ink, filled instead of outlined. */
-.invite-count.all-in { background: var(--data); color: var(--bg); border-color: var(--data); }
+/* The filled state needs an edge, or it is not a badge any more. Filling it
+   with --data on a button whose own fill is --chrome put 2.05:1 light and
+   1.88:1 dark between the pill and the circle behind it, and the matching
+   border gave it nothing to stand on — at the one moment a leader is looking
+   for it, everyone in, the badge sank into the button. The ring is the ink
+   the button's own glyph uses, so the pill's extent is legible in both
+   states while the fill keeps carrying the meaning. */
+.invite-count.all-in {
+  background: var(--data);
+  color: var(--bg);
+  border-color: var(--on-chrome);
+}
 
 /* horizontally swipeable panels */
 .panels {
@@ -1854,6 +1915,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
 
 /* ranking list */
+/* Sits outside the cards it names, so it takes the radar card's heading
+   size without the radar card's fill. */
+.ranking-head { font-size: 15px; font-weight: 800; margin-bottom: var(--space-4); }
 .ranking { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .rank-card {
@@ -2551,6 +2615,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .cupper-score i,
 .present-cupper i,
 .present-final-score i,
+.calib-name i,
 .rank-grade i {
   font-style: normal;
   font-size: 11px;
@@ -2572,7 +2637,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   border-radius: var(--radius);
 }
 .calib-row.me { border: 1px solid var(--chrome); }
-.calib-name { flex: 0 0 auto; min-width: 0; max-width: 34%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calib-name { flex: 0 0 auto; min-width: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Symmetric about zero. A bar to the left and a bar to the right of the
    centre carry identical weight and identical colour, because in a

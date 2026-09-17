@@ -1905,10 +1905,36 @@ function openJoinSheet() {
 // Register at a live table. A seat that never arrives used to leave the
 // cupper with no way to submit at all; submitting can claim one later, so a
 // failure here is survivable — but it should not pass unmentioned.
+/* Sitting down twice at the same table.
+
+   Taking a seat cut a new one every time, unconditionally. Opening the join
+   link again is not an unusual thing to do — it gets pasted into the group
+   chat twice, someone reloads, someone taps it to check they are in the
+   right room — and each of those put a second chip with the same name on
+   the leader's roster, one of them orphaned: the device keeps only the
+   newest id, so the older seat can never be submitted to, and never
+   disappears either. The leader counts heads against the room and comes up
+   one over, with no way to tell which chip is the ghost.
+
+   So a seat already held at this table is checked and kept. The relay
+   answers 403 to a stranger's id, which is how an expired or ended seat is
+   told apart from a good one — and a request that never reached the relay
+   at all keeps the seat too, because a second chip is a worse answer to a
+   dropped connection than a stale one. */
 async function takeSeat(code) {
   if (!state || !code) return;
+  const held = state.joinedCode === code && state.participantId ? state.participantId : null;
   state.joinedCode = code;
   save();
+
+  if (held) {
+    const seat = await relayFetch(
+      `/sessions/${encodeURIComponent(code)}/participants?id=${encodeURIComponent(held)}`, { method: 'GET' });
+    if (!state) return;
+    // 200: the seat is still ours. 0: we never asked, so assume it is.
+    if (seat.ok || seat.status === 0) { state.participantId = held; save(); return; }
+  }
+
   const id = await relayJoinSession(code, getCupperName() || 'Cupper');
   if (!state) return;
   if (id) state.participantId = id;
@@ -2558,12 +2584,24 @@ function refreshTabs() {
   // screen: the live code. A latecomer asks for it mid-section, and reading
   // it off the header beats leaving the sheet to open a sheet to read four
   // digits and find your place again.
+  /* Three facts, one line, and on a phone the line is not always long
+     enough for three. It is 156px wide on a 390px screen and the full run —
+     "1 of 3 · code 6375 · not sent" — wants 191, so it was cut mid-glyph,
+     with no ellipsis and no warning, and what fell off the end was "not
+     sent". The one fact on the line that nobody can recover by tapping
+     something was the first one lost.
+
+     So the line is ordered by what it costs to lose. Whether your sheet has
+     reached the table leads, because nothing else on this screen says it.
+     The code follows, and if that is what gets clipped the invite button
+     beside it opens the code full size. The position goes last and is
+     dropped entirely at a live table: the rail along the bottom numbers
+     every coffee and marks the one you are on, and the coffee's own name is
+     the line directly above this one. */
   const parts = [];
-  if (state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
-  if (live) parts.push(`code ${code}`);
-  // At a live table, whether your sheet has reached it is a fact you should
-  // not have to go looking for.
   if (code) parts.push(state.submittedAt ? 'sent' : 'not sent');
+  if (live) parts.push(`code ${code}`);
+  if (!code && state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
 
@@ -2752,7 +2790,17 @@ function buildSubmitRow() {
     row.classList.remove('hidden');
     const p = sessionProgress();
     const sent = Boolean(state.submittedAt);
-    const rated = state.coffees.length - p.untouched;
+    const n = state.coffees.length;
+    const rated = n - p.untouched;
+    /* "2 of 4 coffees scored" counted a coffee with three sections of eight
+       as scored, on the one screen where the count exists to help somebody
+       decide whether to send. A cupper who read it as two finished sheets
+       sent one finished and one three-eighths done, and said so afterwards.
+       Started is not finished, so the line says both. */
+    const finished = n - p.untouched - p.partial;
+    const tally = [`${finished} of ${n} finished`];
+    if (p.partial) tally.push(`${p.partial} part-scored`);
+    if (p.untouched) tally.push(`${p.untouched} not started`);
     row.innerHTML = sent
       ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
          <button class="btn btn-ghost" type="button">Update my scores</button>`
@@ -2760,7 +2808,7 @@ function buildSubmitRow() {
             ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
             : `${p.complete
                 ? 'Every coffee is scored.'
-                : `${rated} of ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''} scored.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
+                : `${tally.join(' · ')}.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
          <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Submit my scores</button>`;
     const btn = row.querySelector('button');
     btn.addEventListener('click', async () => {
@@ -3117,6 +3165,9 @@ function wireWheelZoom(holder) {
     // are reading is a state badge, not an action.
     toggle.textContent = step === 0 ? 'Zoom in to read' : 'Show the whole wheel';
     toggle.setAttribute('aria-pressed', step === 0 ? 'false' : 'true');
+    // the click handler needs to know which view it is in: a ring that is
+    // readable and a ring that is ten pixels wide are not the same control
+    holder.dataset.zoom = step === 0 ? 'whole' : 'read';
     if (!move) return;
     requestAnimationFrame(() => {
       // Zooming about the centre is right once you are exploring, but the
@@ -3134,10 +3185,42 @@ function wireWheelZoom(holder) {
     haptic();
     apply(true, fromWhole);
   });
+
+  /* Zoom in and put one wedge in the middle of the view.
+
+     Reaching for a word in the whole-wheel view is not a tap anyone can
+     make: sixty-eight descriptors share one ring, so each is about ten
+     screen pixels across where it starts and fifteen where it ends. What
+     came of a miss was not nothing — it was the neighbouring word, written
+     silently into the tasting notes. So in that view the outer ring stops
+     being a control and becomes what it looks like: a map. Touch it and it
+     brings you closer instead. */
+  holder.zoomToRead = seg => {
+    if (step !== 0) return false;
+    step = 1;
+    apply(false, false);
+    requestAnimationFrame(() => {
+      if (seg && seg.scrollIntoView) seg.scrollIntoView({ block: 'center', inline: 'center' });
+    });
+    return true;
+  };
+
   apply(false, false);
 }
 
-function openFlavorWheel() {
+/* The wheel fills one of the two olfactory CATA lists — the orthonasal one
+   under Fragrance & aroma, or the retronasal one under Flavor & aftertaste.
+   It used to fill `flavor` whichever one you opened it from, so a cupper
+   working through fragrance, on the wheel offered inside that very section,
+   had their descriptors filed under flavor: a claim about what the coffee
+   tastes like, made from a sniff of dry grounds. The two are different
+   evidence and the form asks for them separately.
+
+   Opened from the corner, with no section around it, it still writes to
+   flavor — that is the list most of a session is spent in. Which one it is
+   writing to is printed at the top either way. */
+function openFlavorWheel(listKey) {
+  const target = listKey === 'aroma' ? 'aroma' : 'flavor';
   markWheelSeen();
   const modal = $('#wheel-modal');
   const holder = $('#wheel-holder');
@@ -3151,7 +3234,13 @@ function openFlavorWheel() {
 
   const coffee = state && state.coffees[state.activeIndex];
 
-  const cataList = () => coffee.desc.cata.flavor;
+  const cataList = () => coffee.desc.cata[target];
+  const hint = $('#wheel-hint');
+  if (hint) {
+    hint.innerHTML = `Inner ring ticks a descriptor under <strong>${target === 'aroma'
+      ? 'Fragrance &amp; aroma' : 'Flavor &amp; aftertaste'}</strong> — up to 5, as the standard allows. `
+      + 'Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.';
+  }
   const notesFromWheel = () => {
     const items = noteItems(coffee.notes).map(s => s.toLowerCase());
     return WHEEL_WORDS.filter(w => items.includes(w.toLowerCase()));
@@ -3165,7 +3254,7 @@ function openFlavorWheel() {
 
   const sync = message => {
     if (!coffee || !coffee.desc) return;
-    const cata = new Set([...coffee.desc.cata.aroma, ...coffee.desc.cata.flavor]);
+    const cata = new Set(cataList());
     const words = notesFromWheel();
     const wordSet = new Set(words.map(w => w.toLowerCase()));
 
@@ -3191,10 +3280,8 @@ function openFlavorWheel() {
       chip.type = 'button';
       chip.onclick = () => {
         haptic();
-        ['aroma', 'flavor'].forEach(k => {
-          const at = coffee.desc.cata[k].indexOf(name);
-          if (at >= 0) coffee.desc.cata[k].splice(at, 1);
-        });
+        const at = cataList().indexOf(name);
+        if (at >= 0) cataList().splice(at, 1);
         save();
         sync(`${name} unchecked`);
         refreshOpenPanel();
@@ -3228,6 +3315,16 @@ function openFlavorWheel() {
   holder.onclick = e => {
     const seg = e.target.closest('.wheel-seg');
     if (!seg || !coffee) return;
+
+    // one word out of sixty-eight, ten pixels wide: bring it closer rather
+    // than write down whichever of its neighbours the thumb actually met
+    if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
+        && holder.zoomToRead && holder.zoomToRead(seg)) {
+      haptic();
+      sync(`Zoomed in — tap “${seg.dataset.desc}” again to add it to your notes`);
+      return;
+    }
+
     haptic();
     let message;
 
@@ -3509,12 +3606,12 @@ function buildDescriptiveCard(coffee) {
 
   // The wheel is the vocabulary for exactly these lists, so it is offered
   // right where someone is stuck for a word rather than only in the corner.
-  const capRow = text => {
+  const capRow = (text, listKey) => {
     const row = el('div', 'cata-cap-row');
     row.appendChild(el('span', 'cata-cap', text));
     const link = el('button', 'wheel-link', 'Flavor wheel');
     link.type = 'button';
-    link.addEventListener('click', e => { e.stopPropagation(); openFlavorWheel(); });
+    link.addEventListener('click', e => { e.stopPropagation(); openFlavorWheel(listKey); });
     row.appendChild(link);
     return row;
   };
@@ -3524,7 +3621,7 @@ function buildDescriptiveCard(coffee) {
   fa.appendChild(intensityRow(DESC_ATTRS[0]));
   fa.appendChild(intensityRow(DESC_ATTRS[1]));
   const aromaTree = olfactoryChips('aroma', 5);
-  fa.appendChild(capRow('Orthonasal descriptors · up to 5'));
+  fa.appendChild(capRow('Orthonasal descriptors · up to 5', 'aroma'));
   fa.appendChild(aromaTree.wrap);
   fa.appendChild(noteField('fragrance', 'freely elicited notes…'));
   body.appendChild(fa);
@@ -3534,7 +3631,7 @@ function buildDescriptiveCard(coffee) {
   fl.appendChild(intensityRow(DESC_ATTRS[2]));
   fl.appendChild(intensityRow(DESC_ATTRS[3]));
   const flavorTree = olfactoryChips('flavor', 5);
-  fl.appendChild(capRow('Retronasal descriptors · up to 5'));
+  fl.appendChild(capRow('Retronasal descriptors · up to 5', 'flavor'));
   fl.appendChild(flavorTree.wrap);
   fl.appendChild(el('span', 'cata-cap', 'Main tastes · up to 2'));
   fl.appendChild(flatChips('tastes', CATA_TASTES, 2));
@@ -4101,12 +4198,31 @@ function updateScorebar() {
     ? shortGrade(score)
     : `${progress.done} of ${progress.total} rated`;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
-  // DESIGN.md: a sheet with nothing rated shows no number at all, an em
-  // dash. Results, print and the CSV all obeyed; this one printed 79.00
-  // directly above the words "0 of 8 rated", which is the exact confusion
-  // the rule exists to prevent.
-  const shown = progress.done === 0 ? '—' : fmt(score);
+  /* The number waits for the sheet.
+
+     The em dash used to appear only at 0 of 8, on the grounds that a score
+     built from nothing is not a score. One rated section does not change
+     that: the CVA formula floors at 52.75 and each section is worth 0.66,
+     so rating Fragrance a 6 and nothing else prints 79.75 — a hair under
+     specialty, from one sniff. It does not climb toward anything either;
+     it starts near the top of the scale and drifts by a point or so per
+     section. A cupper watching it read a machine at work on numbers they
+     had not given, and a second read it as a verdict on a sheet they knew
+     was a quarter finished. The 2004 form does the same from 82.50.
+
+     There is a second reason, older than this app: a running total anchors
+     the sections still to come, which is the bias calibration exists to
+     remove. You score what is in the cup and the total is whatever it is.
+
+     So the slot carries how far along the sheet is, and the score arrives
+     when the last section does. */
+  const shown = progress.complete ? fmt(score) : '—';
   const valueEl = $('#scorebar-value');
+  // The bar is a live region, and an em dash announced into one is noise at
+  // best — "dash, 3 of 8 rated" is not a sentence. The dash is a mark for
+  // the eye; the count already carries the whole meaning, so that is what a
+  // screen reader gets.
+  valueEl.parentElement.setAttribute('aria-hidden', progress.complete ? 'false' : 'true');
   if (valueEl.textContent !== shown) {
     valueEl.textContent = shown;
     const box = valueEl.parentElement;
@@ -4134,10 +4250,24 @@ function buildSummary(ranked) {
   const scored = ranked.filter(r => r.prog.done > 0);
   const wrap = $('#summary');
 
+  /* Whose scores these are.
+
+     This block and the ranking below it are built from the sheets on *this
+     device*. The table card between them is built from the panel. Nothing
+     said so, and the heading said "This cupping", which at a live table is
+     a claim about the room. A leader who had been pouring rather than
+     scoring got "Nothing scored yet — no section of any coffee has been
+     rated" printed directly above a revealed panel with four coffees and
+     four cuppers in it. Two answers to "what did this table score",
+     stacked, both of them true of different things. */
+  const live = Boolean(tableCode());
+
   if (!scored.length) {
-    wrap.innerHTML = `
-      <div class="summary-head">Nothing scored yet</div>
-      <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
+    wrap.innerHTML = live
+      ? `<div class="summary-head">Your sheet</div>
+         <p class="summary-note">You have not rated anything on this device, so there is nothing of yours to place on the scale. The table’s scores are in the card below.</p>`
+      : `<div class="summary-head">Nothing scored yet</div>
+         <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
     return;
   }
 
@@ -4174,8 +4304,8 @@ function buildSummary(ranked) {
   const complete = ranked.filter(r => r.prog.complete).length;
 
   wrap.innerHTML = `
-    <div class="summary-head">This cupping</div>
-    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}</p>
+    <div class="summary-head">${live ? 'Your sheet' : 'This cupping'}</div>
+    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}${live ? ' · your own scores, not the table’s' : ''}</p>
 
     <div class="summary-scale">
       <div class="summary-rail"></div>
@@ -4210,7 +4340,10 @@ function buildResults() {
   // octagon at the mid ring and naming it in the legend.
   buildRadar(ranked.filter(r => r.prog.done > 0));
 
-  // ranking cards
+  // ranking cards — yours, and said to be yours when there is a table whose
+  // panel sits in the card above them
+  const rankHead = $('#ranking-head');
+  if (rankHead) rankHead.textContent = tableCode() ? 'Your sheet, coffee by coffee' : 'Coffee by coffee';
   const ranking = $('#ranking');
   ranking.innerHTML = '';
   ranked.forEach((r, pos) => {
@@ -4341,6 +4474,9 @@ function renderTeamCard() {
 
 // what the table looked like the last time it was drawn
 let liveSig = null;
+// and the roster behind it, so what leaves this screen on the clipboard can
+// be the panel rather than one device's sheet
+let liveData = null;
 
 // The Results screen's poller. Redrawing the block on every tick would
 // throw away the reveal animation and fight the buttons under a finger,
@@ -4400,6 +4536,7 @@ async function pollResults() {
 function refreshLiveTable(data) {
   const code = tableCode();
   const wrap = $('#live-table');
+  liveData = data;
   if (!code || !wrap) return;
   wrap.classList.remove('hidden');
 
@@ -4453,10 +4590,40 @@ function refreshLiveTable(data) {
       ? `<p class="live-ok">✓ Your scores are in. You can keep editing and submit again.</p>`
       : '';
     html += `<button class="btn btn-primary" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
+    /* The reveal belongs where the decision is made.
+
+       It lived in one place: a small head-count pill in the header of the
+       *scoring* screen. A leader deciding to open the table is not on the
+       scoring screen — they are on Results, looking at this card, which is
+       the thing that changes when they do it. Getting there meant leaving
+       Results, finding a pill whose affordance reads "invite", and coming
+       back. Two screens away from the decision, for the one action in this
+       product that cannot be undone.
+
+       It is offered here too, under the sentence that says what it does.
+       The confirmation sheet is unchanged: four consequences in plain
+       words, irreversibility on its own line. */
     if (isTableLeader()) {
-      html += `<p class="live-note">You are the leader: <strong>Present to the table</strong> below walks the lineup and opens the scores when you are ready.</p>`;
+      html += `<p class="live-note">You are the leader. <strong>Present to the table</strong> below walks the lineup coffee by coffee and opens the scores as it goes — or open them here, all at once, and read the panel off this card.</p>`;
+      html += `<button class="btn btn-ghost" id="btn-reveal-here">Open the scores to the table</button>`;
     }
     wrap.innerHTML = html;
+
+    const revealHere = wrap.querySelector('#btn-reveal-here');
+    if (revealHere) {
+      revealHere.addEventListener('click', async () => {
+        revealHere.disabled = true;
+        if (!(await ensureRevealed())) { revealHere.disabled = false; return; }
+        // the card the leader is looking at is the thing that changed, so it
+        // redraws now rather than on the poller's next tick. buildResults
+        // rebuilds the team card and empties the live block inside it, so
+        // it goes first and the table is drawn into what it leaves.
+        buildResults();
+        const fresh = await relayListParticipants(tableCode());
+        liveSig = rosterSig(fresh);
+        refreshLiveTable(fresh);
+      });
+    }
   } else {
     // panel result: average of the independent scores, per SCA practice.
     // Everyone at the table — the leader included — is in this roster, so
@@ -4488,7 +4655,9 @@ function refreshLiveTable(data) {
         <div class="team-coffee-row">
           <div class="team-coffee-top">
             <span class="team-coffee-name">${escapeHTML(row.name)}</span>
-            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>PANEL</small></span>
+            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>${row.entries.length
+              ? `PANEL · ${row.entries.length} cupper${row.entries.length > 1 ? 's' : ''}`
+              : 'PANEL'}</small></span>
           </div>
           <div class="team-coffee-cuppers">${row.entries.map(e => {
             const d = e.score - row.avg;
@@ -4498,17 +4667,35 @@ function refreshLiveTable(data) {
           }).join('') || '<span class="cupper-score">nobody has rated this one</span>'}</div>
         </div>`).join('');
 
-      // calibration: who consistently runs high or low against the table
-      const calib = [...counted].map(name => {
+      /* Calibration: who consistently runs high or low against the table.
+
+         It is a statement about a palate, so it can only be built out of
+         sheets that are finished. A part-scored one carries its untouched
+         sections at their default 5, which drags its total toward the
+         middle of the scale wherever the cupper's real judgement sat — and
+         this list then reported that drag as a habit. At a live table a
+         cupper who had rated three sections of one coffee was told he runs
+         2.31 below the panel, under a caption explaining that direction is
+         a habit. It was not his palate. It was five sections he had not
+         got to yet, described as character.
+
+         So a cupper is measured on the coffees whose sheets they finished,
+         against the panel score as the table reads it out. Finish none and
+         there is nothing to measure; the row says that rather than
+         inventing a number, and the count rides along wherever somebody is
+         being judged on less than the whole lineup. */
+      const calibAll = [...counted].map(name => {
         const diffs = perCoffee
           .map(r => {
             const e = r.entries.find(x => x.name === name);
-            return e ? e.score - r.avg : null;
+            return e && !e.partial ? e.score - r.avg : null;
           })
           .filter(v => typeof v === 'number' && !isNaN(v));
-        const mean = diffs.reduce((a, b) => a + b, 0) / (diffs.length || 1);
-        return { name, mean, me: name === myName };
-      }).sort((a, b) => b.mean - a.mean);
+        const mean = diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
+        return { name, mean, n: diffs.length, me: name === myName };
+      });
+      const calib = calibAll.filter(c => c.mean !== null).sort((a, b) => b.mean - a.mean);
+      const unmeasured = calibAll.filter(c => c.mean === null).map(c => c.name);
 
       // Only magnitude means anything in a calibration exercise: running
       // high is not better than running low, and the old list said
@@ -4521,13 +4708,14 @@ function refreshLiveTable(data) {
       const bandLeft = 50 - (NORMAL / span) * 50;
       const bandWidth = (NORMAL / span) * 100;
 
-      html += `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
+      html += calib.length ? `<div class="calib"><span class="detail-label">Calibration · average difference from the panel</span>
         ${calib.map(c => {
           const frac = Math.max(-1, Math.min(1, c.mean / span));
           const w = Math.abs(frac) * 50;
           const left = c.mean >= 0 ? 50 : 50 - w;
+          const over = c.n < perCoffee.length ? ` <i>${c.n} of ${perCoffee.length}</i>` : '';
           return `<div class="calib-row${c.me ? ' me' : ''}">
-            <span class="calib-name">${escapeHTML(c.name)}</span>
+            <span class="calib-name">${escapeHTML(c.name)}${over}</span>
             <span class="calib-bar">
               <b class="calib-band" style="left:${bandLeft}%;width:${bandWidth}%"></b>
               <i style="left:${left}%;width:${w}%"></i>
@@ -4535,8 +4723,9 @@ function refreshLiveTable(data) {
             <span class="calib-val">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span>
           </div>`;
         }).join('')}
-        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict.</p>
-      </div>`;
+        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict. Only finished sheets are measured — a part-scored one would describe the sheet rather than the palate.${
+          unmeasured.length ? ` ${unmeasured.map(escapeHTML).join(', ')} ${unmeasured.length > 1 ? 'have' : 'has'} not finished a sheet in this lineup yet.` : ''}</p>
+      </div>` : `<p class="live-note">Nobody has finished a whole sheet yet, so there is nothing to calibrate against. Calibration is measured over finished sheets only.</p>`;
       wrap.innerHTML = html + lateSubmit();
     }
   }
@@ -4633,8 +4822,23 @@ async function openPresent() {
   const code = tableCode();
   if (!code) return;
 
-  // the leader is a cupper too, and their sheet is finished by the time they
-  // are presenting — make sure it is in the panel average
+  /* The leader is a cupper too — when they have actually cupped.
+
+     This used to submit unconditionally, on the assumption that anyone
+     reaching the ceremony had finished their own sheet. Leading is a job:
+     the person running the table is pouring, timing, and reading the room,
+     and often scores least of anyone. Their untouched sheet is eight
+     defaults per coffee, and eight defaults is 79.00 — so opening the
+     ceremony seated a silent extra cupper who called every coffee 79.00
+     and dragged four real ones down with it. Observed at a live table: the
+     leader had rated nothing, and every card in the ceremony carried their
+     phantom score.
+
+     A sheet with nothing on it is not a score, so it is not sent. One with
+     something on it is, and now says how much of it is real. */
+  const rated = state.coffees.length - sessionProgress().untouched;
+  if (!rated) { if (poller) poller.wake(); return; }
+
   const res = await relaySubmitScores(code, state.participantId, getCupperName() || 'Host', myScores(), myRated());
   if (res.ok) { state.submittedAt = Date.now(); save(); }
   else toast(res.reason);
@@ -4728,8 +4932,12 @@ function buildPresent() {
     const partial = row ? row.cuppers.some(c => c.partial) : !own.complete;
     // "nothing rated · 0 of 8 rated" says it twice; the count only adds
     // something when some of the sheet is real.
+    // "some part-scored" is a warning with no size to it. How many of the
+    // sheets in this average were unfinished is the thing a room needs, and
+    // every other surface in the product gives the count rather than a word.
+    const partCount = row ? row.cuppers.filter(c => c.partial).length : 0;
     const qualifier = row
-      ? (partial ? ' · some part-scored' : '')
+      ? (partCount ? ` · ${partCount} part-scored` : '')
       : (own.complete || own.done === 0 ? '' : ` · ${own.done} of ${own.total} rated`);
 
     card.innerHTML = `
@@ -4738,7 +4946,6 @@ function buildPresent() {
         <div class="present-id">
           <div class="present-name">${stage ? escapeHTML(coffeeName(coffee, i)) : `Coffee ${i + 1}`}</div>
           ${stage && meta ? `<div class="present-meta">${escapeHTML(meta)}</div>` : ''}
-          ${stage && !meta ? '<div class="present-meta">no details recorded</div>' : ''}
         </div>
         ${stage === 2 ? `<div class="present-score">
           <span class="present-avg${partial ? ' partial' : ''}">${own.done === 0 && !row ? '—' : fmt(shown)}</span>
@@ -4798,22 +5005,55 @@ function buildPresentFinal(panel) {
       // the sheet was real. Every other ranking in the product carries the
       // count; this one dropped it.
       note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
+      // how many cuppers stand behind this row's number, and how many of
+      // them handed in an unfinished sheet
+      n: panel ? panel[i].cuppers.length : 0,
+      partN: panel ? panel[i].cuppers.filter(c => c.partial).length : 0,
     }))
-    // and it is ranked the same way Results is: complete first, part-scored
-    // below them, nothing rated last. Position carries it, not just colour.
-    .sort((a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
-  const n = panel ? Math.max(...panel.map(p => p.cuppers.length)) : 0;
+    /* Ranked by what the row is.
+
+       Solo, each row is one sheet, so the Results rule holds: complete
+       first, part-scored below them, nothing rated last — a total made
+       mostly of defaults should not outrank one that was earned.
+
+       A panel row is not a sheet. It is an average over the cuppers who
+       rated that coffee, and demoting it because one of them stopped early
+       ranks the coffee by the worst sheet in it. It put a Kenya at 91.08,
+       averaged over three cuppers, below a Brazil at 84.25 that one person
+       rated — while the table card two taps away, which sorts on the score,
+       had them the other way up. The count and the part-scored mark are
+       printed beside every row; the order is the score. */
+    .sort(panel
+      ? (a, b) => (a.empty - b.empty) || (b.score - a.score)
+      : (a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
+  /* The denominator is per coffee, and this card used to print one number
+     for the whole lineup — the *maximum* across them. A table where four
+     people scored the Ethiopia and two got as far as the Brazil announced
+     "the average of 4 independent cuppers" over both. It is the single most
+     quotable line the product produces, and an average with a denominator
+     that does not apply to every row in it is not a panel score. Each row
+     carries its own count now, and the caption states the spread when the
+     coffees do not agree. */
+  const counts = panel ? panel.map(p => p.cuppers.length).filter(Boolean) : [];
+  const nLow = counts.length ? Math.min(...counts) : 0;
+  const nHigh = counts.length ? Math.max(...counts) : 0;
 
   wrap.innerHTML = `
     <h3>The table’s ranking</h3>
     <p class="team-sub">${panel
-      ? `Panel scores — the average of ${n} independent cupper${n > 1 ? 's' : ''}, as the standard prescribes.`
+      ? (nLow === nHigh
+          ? `Panel scores — each the average of ${nHigh} independent cupper${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
+          : `Panel scores — each the average of the cuppers who rated that coffee, ${nLow} to ${nHigh} of them. The count is beside every score.`)
       : 'Your own scores — no other cuppers have submitted.'}</p>
     ${rows.map((r, pos) => `
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${r.note ? ` <i>${r.note}</i>` : ''}</span>
+        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${
+          r.note ? ` <i>${r.note}</i>` : ''}${
+          !r.empty && r.n
+            ? ` <i>${r.n} cupper${r.n > 1 ? 's' : ''}${r.partN ? ` · ${r.partN} part-scored` : ''}</i>`
+            : ''}</span>
       </div>`).join('')}
   `;
 }
@@ -5013,10 +5253,53 @@ function buildRadar(ranked) {
 
 /* ---------- share ---------- */
 
+// The revealed panel, per coffee, from the roster the table card last drew.
+// Null while the scores are sealed, or when there is no table.
+function sharedPanel() {
+  if (!liveData || !liveData.revealed) return null;
+  const all = liveData.participants.filter(p => Array.isArray(p.scores));
+  if (!all.length) return null;
+  return state.coffees.map((c, i) => {
+    const entries = panelEntries(all, i);
+    return {
+      name: coffeeName(c, i),
+      entries,
+      avg: entries.reduce((a, e) => a + e.score, 0) / (entries.length || 1),
+    };
+  });
+}
+
+/* What leaves this screen on the clipboard.
+
+   It used to be one device's sheet under the heading "SCA cupping results",
+   with no mention that a table existed. A leader who had just read a panel
+   out loud shared their own numbers instead of it, labelled as the results
+   of the cupping — and a panel average with no denominator beside it is the
+   most quotable figure this product makes. The panel leads when there is
+   one, every row carries the count behind it and how many of those sheets
+   were part-scored, and the sheet on this device follows under its own
+   heading. */
 function buildShareText() {
   const ranked = rankedCoffees();
+  const panel = sharedPanel();
 
   const lines = [`SCA cupping results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
+
+  if (panel) {
+    const rated = panel.filter(r => r.entries.length).sort((a, b) => b.avg - a.avg);
+    const none = panel.filter(r => !r.entries.length);
+    lines.push('THE TABLE — panel scores');
+    rated.forEach((r, pos) => {
+      const n = r.entries.length;
+      const part = r.entries.filter(e => e.partial).length;
+      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · average of ${n} cupper${n > 1 ? 's' : ''}${
+        part ? `, ${part} of them part-scored` : ''}`);
+    });
+    none.forEach(r => lines.push(`— ${r.name} — not rated by anyone at the table`));
+    lines.push('');
+    lines.push('MY OWN SHEET');
+  }
+
   ranked.forEach((r, pos) => {
     lines.push(r.prog.done === 0
       ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
@@ -5652,10 +5935,10 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-present-back').addEventListener('click', () => showScreen('#screen-results'));
   $('#btn-present-all').addEventListener('click', revealAllPresent);
 
-  $('#btn-join').addEventListener('click', openJoinSheet);
+  $('#btn-join-door').addEventListener('click', openJoinSheet);
 
   $('#btn-share-session').addEventListener('click', openInviteSheet);
-  $('#btn-wheel').addEventListener('click', openFlavorWheel);
+  $('#btn-wheel').addEventListener('click', () => openFlavorWheel());
   $('#wheel-coach').addEventListener('click', () => { markWheelSeen(); openFlavorWheel(); });
   // scoring means they are busy — the coach mark has said its piece
   $('#panels').addEventListener('pointerdown', hideWheelCoach, { passive: true });
