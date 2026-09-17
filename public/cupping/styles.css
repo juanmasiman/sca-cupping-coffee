@@ -1896,6 +1896,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
 
 /* ranking list */
+/* Sits outside the cards it names, so it takes the radar card's heading
+   size without the radar card's fill. */
+.ranking-head { font-size: 15px; font-weight: 800; margin-bottom: var(--space-4); }
 .ranking { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .rank-card {

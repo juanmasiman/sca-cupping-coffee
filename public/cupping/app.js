@@ -2790,7 +2790,17 @@ function buildSubmitRow() {
     row.classList.remove('hidden');
     const p = sessionProgress();
     const sent = Boolean(state.submittedAt);
-    const rated = state.coffees.length - p.untouched;
+    const n = state.coffees.length;
+    const rated = n - p.untouched;
+    /* "2 of 4 coffees scored" counted a coffee with three sections of eight
+       as scored, on the one screen where the count exists to help somebody
+       decide whether to send. A cupper who read it as two finished sheets
+       sent one finished and one three-eighths done, and said so afterwards.
+       Started is not finished, so the line says both. */
+    const finished = n - p.untouched - p.partial;
+    const tally = [`${finished} of ${n} finished`];
+    if (p.partial) tally.push(`${p.partial} part-scored`);
+    if (p.untouched) tally.push(`${p.untouched} not started`);
     row.innerHTML = sent
       ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
          <button class="btn btn-ghost" type="button">Update my scores</button>`
@@ -2798,7 +2808,7 @@ function buildSubmitRow() {
             ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
             : `${p.complete
                 ? 'Every coffee is scored.'
-                : `${rated} of ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''} scored.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
+                : `${tally.join(' · ')}.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
          <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Submit my scores</button>`;
     const btn = row.querySelector('button');
     btn.addEventListener('click', async () => {
@@ -4240,10 +4250,24 @@ function buildSummary(ranked) {
   const scored = ranked.filter(r => r.prog.done > 0);
   const wrap = $('#summary');
 
+  /* Whose scores these are.
+
+     This block and the ranking below it are built from the sheets on *this
+     device*. The table card between them is built from the panel. Nothing
+     said so, and the heading said "This cupping", which at a live table is
+     a claim about the room. A leader who had been pouring rather than
+     scoring got "Nothing scored yet — no section of any coffee has been
+     rated" printed directly above a revealed panel with four coffees and
+     four cuppers in it. Two answers to "what did this table score",
+     stacked, both of them true of different things. */
+  const live = Boolean(tableCode());
+
   if (!scored.length) {
-    wrap.innerHTML = `
-      <div class="summary-head">Nothing scored yet</div>
-      <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
+    wrap.innerHTML = live
+      ? `<div class="summary-head">Your sheet</div>
+         <p class="summary-note">You have not rated anything on this device, so there is nothing of yours to place on the scale. The table’s scores are in the card below.</p>`
+      : `<div class="summary-head">Nothing scored yet</div>
+         <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
     return;
   }
 
@@ -4280,8 +4304,8 @@ function buildSummary(ranked) {
   const complete = ranked.filter(r => r.prog.complete).length;
 
   wrap.innerHTML = `
-    <div class="summary-head">This cupping</div>
-    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}</p>
+    <div class="summary-head">${live ? 'Your sheet' : 'This cupping'}</div>
+    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}${live ? ' · your own scores, not the table’s' : ''}</p>
 
     <div class="summary-scale">
       <div class="summary-rail"></div>
@@ -4316,7 +4340,10 @@ function buildResults() {
   // octagon at the mid ring and naming it in the legend.
   buildRadar(ranked.filter(r => r.prog.done > 0));
 
-  // ranking cards
+  // ranking cards — yours, and said to be yours when there is a table whose
+  // panel sits in the card above them
+  const rankHead = $('#ranking-head');
+  if (rankHead) rankHead.textContent = tableCode() ? 'Your sheet, coffee by coffee' : 'Coffee by coffee';
   const ranking = $('#ranking');
   ranking.innerHTML = '';
   ranked.forEach((r, pos) => {
@@ -4447,6 +4474,9 @@ function renderTeamCard() {
 
 // what the table looked like the last time it was drawn
 let liveSig = null;
+// and the roster behind it, so what leaves this screen on the clipboard can
+// be the panel rather than one device's sheet
+let liveData = null;
 
 // The Results screen's poller. Redrawing the block on every tick would
 // throw away the reveal animation and fight the buttons under a finger,
@@ -4506,6 +4536,7 @@ async function pollResults() {
 function refreshLiveTable(data) {
   const code = tableCode();
   const wrap = $('#live-table');
+  liveData = data;
   if (!code || !wrap) return;
   wrap.classList.remove('hidden');
 
@@ -4624,7 +4655,9 @@ function refreshLiveTable(data) {
         <div class="team-coffee-row">
           <div class="team-coffee-top">
             <span class="team-coffee-name">${escapeHTML(row.name)}</span>
-            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>PANEL</small></span>
+            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>${row.entries.length
+              ? `PANEL · ${row.entries.length} cupper${row.entries.length > 1 ? 's' : ''}`
+              : 'PANEL'}</small></span>
           </div>
           <div class="team-coffee-cuppers">${row.entries.map(e => {
             const d = e.score - row.avg;
@@ -4899,8 +4932,12 @@ function buildPresent() {
     const partial = row ? row.cuppers.some(c => c.partial) : !own.complete;
     // "nothing rated · 0 of 8 rated" says it twice; the count only adds
     // something when some of the sheet is real.
+    // "some part-scored" is a warning with no size to it. How many of the
+    // sheets in this average were unfinished is the thing a room needs, and
+    // every other surface in the product gives the count rather than a word.
+    const partCount = row ? row.cuppers.filter(c => c.partial).length : 0;
     const qualifier = row
-      ? (partial ? ' · some part-scored' : '')
+      ? (partCount ? ` · ${partCount} part-scored` : '')
       : (own.complete || own.done === 0 ? '' : ` · ${own.done} of ${own.total} rated`);
 
     card.innerHTML = `
@@ -4909,7 +4946,6 @@ function buildPresent() {
         <div class="present-id">
           <div class="present-name">${stage ? escapeHTML(coffeeName(coffee, i)) : `Coffee ${i + 1}`}</div>
           ${stage && meta ? `<div class="present-meta">${escapeHTML(meta)}</div>` : ''}
-          ${stage && !meta ? '<div class="present-meta">no details recorded</div>' : ''}
         </div>
         ${stage === 2 ? `<div class="present-score">
           <span class="present-avg${partial ? ' partial' : ''}">${own.done === 0 && !row ? '—' : fmt(shown)}</span>
@@ -4969,22 +5005,55 @@ function buildPresentFinal(panel) {
       // the sheet was real. Every other ranking in the product carries the
       // count; this one dropped it.
       note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
+      // how many cuppers stand behind this row's number, and how many of
+      // them handed in an unfinished sheet
+      n: panel ? panel[i].cuppers.length : 0,
+      partN: panel ? panel[i].cuppers.filter(c => c.partial).length : 0,
     }))
-    // and it is ranked the same way Results is: complete first, part-scored
-    // below them, nothing rated last. Position carries it, not just colour.
-    .sort((a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
-  const n = panel ? Math.max(...panel.map(p => p.cuppers.length)) : 0;
+    /* Ranked by what the row is.
+
+       Solo, each row is one sheet, so the Results rule holds: complete
+       first, part-scored below them, nothing rated last — a total made
+       mostly of defaults should not outrank one that was earned.
+
+       A panel row is not a sheet. It is an average over the cuppers who
+       rated that coffee, and demoting it because one of them stopped early
+       ranks the coffee by the worst sheet in it. It put a Kenya at 91.08,
+       averaged over three cuppers, below a Brazil at 84.25 that one person
+       rated — while the table card two taps away, which sorts on the score,
+       had them the other way up. The count and the part-scored mark are
+       printed beside every row; the order is the score. */
+    .sort(panel
+      ? (a, b) => (a.empty - b.empty) || (b.score - a.score)
+      : (a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
+  /* The denominator is per coffee, and this card used to print one number
+     for the whole lineup — the *maximum* across them. A table where four
+     people scored the Ethiopia and two got as far as the Brazil announced
+     "the average of 4 independent cuppers" over both. It is the single most
+     quotable line the product produces, and an average with a denominator
+     that does not apply to every row in it is not a panel score. Each row
+     carries its own count now, and the caption states the spread when the
+     coffees do not agree. */
+  const counts = panel ? panel.map(p => p.cuppers.length).filter(Boolean) : [];
+  const nLow = counts.length ? Math.min(...counts) : 0;
+  const nHigh = counts.length ? Math.max(...counts) : 0;
 
   wrap.innerHTML = `
     <h3>The table’s ranking</h3>
     <p class="team-sub">${panel
-      ? `Panel scores — the average of ${n} independent cupper${n > 1 ? 's' : ''}, as the standard prescribes.`
+      ? (nLow === nHigh
+          ? `Panel scores — each the average of ${nHigh} independent cupper${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
+          : `Panel scores — each the average of the cuppers who rated that coffee, ${nLow} to ${nHigh} of them. The count is beside every score.`)
       : 'Your own scores — no other cuppers have submitted.'}</p>
     ${rows.map((r, pos) => `
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${r.note ? ` <i>${r.note}</i>` : ''}</span>
+        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${
+          r.note ? ` <i>${r.note}</i>` : ''}${
+          !r.empty && r.n
+            ? ` <i>${r.n} cupper${r.n > 1 ? 's' : ''}${r.partN ? ` · ${r.partN} part-scored` : ''}</i>`
+            : ''}</span>
       </div>`).join('')}
   `;
 }
@@ -5184,10 +5253,53 @@ function buildRadar(ranked) {
 
 /* ---------- share ---------- */
 
+// The revealed panel, per coffee, from the roster the table card last drew.
+// Null while the scores are sealed, or when there is no table.
+function sharedPanel() {
+  if (!liveData || !liveData.revealed) return null;
+  const all = liveData.participants.filter(p => Array.isArray(p.scores));
+  if (!all.length) return null;
+  return state.coffees.map((c, i) => {
+    const entries = panelEntries(all, i);
+    return {
+      name: coffeeName(c, i),
+      entries,
+      avg: entries.reduce((a, e) => a + e.score, 0) / (entries.length || 1),
+    };
+  });
+}
+
+/* What leaves this screen on the clipboard.
+
+   It used to be one device's sheet under the heading "SCA cupping results",
+   with no mention that a table existed. A leader who had just read a panel
+   out loud shared their own numbers instead of it, labelled as the results
+   of the cupping — and a panel average with no denominator beside it is the
+   most quotable figure this product makes. The panel leads when there is
+   one, every row carries the count behind it and how many of those sheets
+   were part-scored, and the sheet on this device follows under its own
+   heading. */
 function buildShareText() {
   const ranked = rankedCoffees();
+  const panel = sharedPanel();
 
   const lines = [`SCA cupping results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
+
+  if (panel) {
+    const rated = panel.filter(r => r.entries.length).sort((a, b) => b.avg - a.avg);
+    const none = panel.filter(r => !r.entries.length);
+    lines.push('THE TABLE — panel scores');
+    rated.forEach((r, pos) => {
+      const n = r.entries.length;
+      const part = r.entries.filter(e => e.partial).length;
+      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · average of ${n} cupper${n > 1 ? 's' : ''}${
+        part ? `, ${part} of them part-scored` : ''}`);
+    });
+    none.forEach(r => lines.push(`— ${r.name} — not rated by anyone at the table`));
+    lines.push('');
+    lines.push('MY OWN SHEET');
+  }
+
   ranked.forEach((r, pos) => {
     lines.push(r.prog.done === 0
       ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
