@@ -164,6 +164,20 @@ This **replaces** the previous cream-and-copper world. That world was the first 
 
 The surface this world was designed against is the scoresheet mid-session: eight sections, a thumb on glass, coffee cooling on a timer. Anything that cannot survive that scene does not belong here.
 
+## More than one app
+
+lento.cafe carries a cupping sheet and an espresso dial-in, and will carry a filter brew log. They are separate instruments with separate shells — a cupper at a table and a barista on a bar are not running the same software, and neither should wait for the other's code to load — but they are one product and this is one law.
+
+The part of it a browser can read lives in **`public/shared/tokens.css`**: palette for both themes, the two faces, the spacing scale, radius and easing. Every app links it before its own stylesheet and precaches it in its own service worker. Nothing else is shared. A second copy of the palette is a second palette inside a month, and the figures in this document were measured once.
+
+**The rule that travels between them is the one about evidence.** On the cupping sheet: a score is only evidence for the sections somebody rated, so a part-scored sheet is marked and an untouched one leaves the average. On the dial-in it is the same sentence about a different measurement:
+
+- **No refractometer reading, no extraction yield.** Ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Other tools estimate it. This one returns nothing, because an estimate and a reading are the same pixels once they are set in the same type, and only one of them is a fact.
+- **A shot missing its yield has no ratio**, and the card says which measurement is absent and what could not be built from it rather than printing a dash and leaving the reader to work it out.
+- **Nothing is fast or slow until the window is stated.** The window is a field on the coffee, not a constant in the code.
+
+**Advice says which kind of advice it is.** The dial-in suggests a next move, and espresso has one dominant variable — grind — which is dominant in two of the four corners, not all of them. Sour and fast, or bitter and slow, and grind fixes both at once: those get an instruction and a rule in the data ink. Sour and *slow*, or bitter and *fast*, do not point at grind at all, and going finer on a shot that is already slow makes it worse: those get a list of what to look at, no pick, and a rule in the instrument grey. The difference is carried by the words and the rule, never by colour alone. This is the same line the calibration block takes on the cupping side — direction is a habit, not a verdict.
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.
