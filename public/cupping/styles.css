@@ -636,17 +636,27 @@ input, textarea, select { font: inherit; }
 /* Progress fills scale rather than resize. Animating width relayouts the
    subtree on every frame; a transform is composited. The pill shape lives
    on the parent, which already clips, so the fill is a plain rectangle that
-   can be scaled without turning its own radius into an ellipse. */
+   can be scaled without turning its own radius into an ellipse.
+
+   It was a full-height wash in --chrome-soft, and --chrome-soft over a card
+   measures 1.17:1 light and 1.29:1 dark. The rail is the one always-visible
+   map of the sheet and its map ink was invisible: a coffee three sections
+   in and a coffee nobody had opened drew the same, and so did a finished
+   one and a seven-of-eight one. A cupper reported exactly that.
+
+   It is a bar along the bottom edge now, in the data ink — which DESIGN.md
+   already lists progress fills under, beside the ranking bars and the range
+   on Results. 7.82:1 light, 7.20:1 dark, and the length reads at arm's
+   length instead of needing to be looked for. */
 .rail-fill {
   position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 100%;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
   transform: scaleX(0);
   transform-origin: left center;
-  background: var(--chrome-soft);
+  background: var(--data);
   transition: transform 0.35s var(--ease);
 }
-/* colour comes from .rail-fill, which is a wash at every state */
 
 /* --text-dim, not --text-faint: this numeral can end up sitting on its own
    progress wash, and the faint ink measured 4.2:1 there on a segment that
@@ -661,13 +671,21 @@ input, textarea, select { font: inherit; }
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
-.rail-seg.done .rail-num { color: var(--chrome); }
-
 .rail-seg.active {
   border-color: var(--chrome);
   box-shadow: inset 0 0 0 1px var(--chrome);
 }
 .rail-seg.active .rail-num { color: var(--chrome); }
+
+/* Finished last, so it survives being the open one too.
+
+   A full bar and a seven-of-eight bar differ by five pixels across a 40px
+   segment, which is not a distinction anyone reads mid-session. So the
+   numeral takes the data ink when the sheet is done — the one ink, meaning
+   what it always means here: this is a value a cupper set. Two signals
+   change together, length and ink, so it is never colour alone, and the
+   segment's aria-label has said "rated" or "3 of 8 rated" throughout. */
+.rail-seg.done .rail-num { color: var(--data); }
 
 /* ten segments still need to be tappable, so trade padding for count */
 /* Ten coffees at 44px do not fit across a phone, so a dense lineup keeps
@@ -3287,11 +3305,19 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
 .scorebar-score { color: var(--data); }
 
-/* A wash, never solid: the coffee's number sits on top of this fill, and a
-   solid ink under it measured 1.56:1 — the rail got less legible the more of
-   it you had filled in, on the one band a thumb reaches. */
-.rail-fill { background: var(--data-soft); }
-.rail-seg.done .rail-fill { background: var(--data-soft); }
+/* Solid, because it no longer sits under anything.
+
+   This was a wash for a good reason: the fill used to cover the whole
+   segment with the coffee's number on top of it, and solid data ink under
+   an 11px numeral measured 1.56:1 — the rail got less legible the more of
+   it you had filled in, on the one band a thumb reaches.
+
+   The wash then cost the rail its meaning. --data-soft over a card is
+   1.17:1 light and 1.29:1 dark, so three sections in and never opened drew
+   the same, and so did finished and seven-of-eight. The fill is a 3px bar
+   along the bottom edge now, clear of the numeral, which is what lets it
+   be the ink it is supposed to be: 7.82:1 light, 7.20:1 dark. */
+.rail-fill { background: var(--data); }
 /* Selection, not a value: which coffee is open is not a number a cupper
    set, so the ring is ink. The wash behind it is the part that encodes
    something, and that keeps the data ink. */
