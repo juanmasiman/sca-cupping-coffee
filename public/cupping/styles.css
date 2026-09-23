@@ -2298,6 +2298,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   margin-top: var(--space-3);
 }
 
+/* one help entry can be several paragraphs now */
+#help-body p + p { margin-top: var(--space-4); }
+
 .join-what {
   font-size: 15px;
   font-weight: 700;

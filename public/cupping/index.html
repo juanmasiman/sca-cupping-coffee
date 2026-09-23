@@ -107,9 +107,12 @@
       </div>
 
       <div class="setup-actions">
-        <button id="btn-history" class="btn btn-ghost">History</button>
-        <button id="btn-resume" class="btn btn-ghost hidden">Resume last session</button>
+        <!-- Resume leads when there is something to resume. A reload mid-
+             cupping is routine on a phone, and the loudest button on this
+             screen used to be the one that abandons the session. -->
+        <button id="btn-resume" class="btn btn-primary hidden">Resume last session</button>
         <button id="btn-start" class="btn btn-primary">Set the lineup</button>
+        <button id="btn-history" class="btn btn-ghost">History</button>
       </div>
     </div>
   </section>

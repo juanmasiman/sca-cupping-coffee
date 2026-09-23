@@ -185,7 +185,7 @@ const HELP = {
   },
   score: {
     title: 'What the score means',
-    body: 'The CVA score runs from 58 to 100: it is 0.65625 × the sum of your eight section scores, plus 52.75, minus 2 points per non-uniform cup and 4 per defective cup. By long convention 80+ is considered specialty grade. It is a measure of quality impression, not of how much you personally liked the coffee.',
+    body: 'The CVA score runs from 58 to 100: it is 0.65625 × the sum of your eight section scores, plus 52.75, minus 2 points per non-uniform cup and 4 per defective cup. By long convention 80+ is considered specialty grade. It is a measure of quality impression, not of how much you personally liked the coffee.\n\nThe scale starts at 58 rather than 0, so the numbers sit high and a careful sheet can come out sounding more enthusiastic than you felt. Eight sections at 6 is 84.25. Eight at 7 is 89.50. Eight at 5 — neither high nor low, all the way down — is 79.00. That is the formula, not flattery: what the grade beside the number is naming is where the arithmetic landed, not how impressed you were.',
   },
   'cva.fragrance': { title: 'Fragrance', body: 'The smell of the dry, freshly ground coffee, before any water touches it. Break the surface of the grounds with your nose close to the cup. High quality here means the fragrance is clean, distinct, and appealing — not simply loud.' },
   'cva.aroma': { title: 'Aroma', body: 'The smell of the wet coffee, judged as you break the crust about four minutes after pouring. Push the crust back with your spoon and inhale as the trapped aromatics release. This is often the most revealing moment of the whole cupping.' },
@@ -501,7 +501,20 @@ function openHelp(id) {
   const sw = $('#toggle-guided-help');
   if (sw) sw.checked = guidedOn();
   $('#help-title').textContent = entry.title;
-  $('#help-body').textContent = entry.body;
+  /* Paragraphs, not one block.
+
+     Every help body was set with textContent, so a blank line in the
+     source rendered as a space and a long entry arrived as a wall. The
+     text is built into this file, never user data, but it is still put on
+     the page as nodes rather than markup — there is no reason for this
+     path to be able to parse HTML at all. */
+  const helpBody = $('#help-body');
+  helpBody.textContent = '';
+  String(entry.body).split(/\n{2,}/).forEach(para => {
+    const p = document.createElement('p');
+    p.textContent = para.trim();
+    helpBody.appendChild(p);
+  });
   openSheet(modal, () => close());
   const close = () => { closeSheet(modal); modal.onclick = null; };
   $('#help-close').onclick = close;
@@ -5968,13 +5981,40 @@ function watchConnection() {
 // cupping screen used to hide the only route back to it.
 function refreshResumeButton() {
   const btn = $('#btn-resume');
+  const start = $('#btn-start');
   const n = state && state.coffees ? state.coffees.length : 0;
   btn.classList.toggle('hidden', !n);
+
+  /* The emphasis follows what is at stake.
+
+     Resume was a ghost button below the fold and "Set the lineup" was the
+     loud black primary directly under it — so on a phone, where a reload
+     mid-session is routine, the loudest control on the screen was the one
+     that abandons a live cupping. Two testers wrote it up independently.
+
+     Nothing here is archived until Results, so what "Set the lineup"
+     discards cannot be recovered. It keeps its confirm sheet; it just
+     stops shouting over the thing most people on this screen want. */
+  /* Only an unfinished session outranks starting a new one. Once every
+     coffee is scored the cupping has been through Results and is in
+     History, so there is nothing left to lose by setting a new lineup —
+     and two primaries side by side is no hierarchy at all. */
+  const unfinished = Boolean(n) && !sessionProgress().complete;
+  btn.classList.toggle('btn-primary', unfinished);
+  btn.classList.toggle('btn-ghost', !unfinished);
+  if (start) {
+    start.classList.toggle('btn-primary', !unfinished);
+    start.classList.toggle('btn-ghost', Boolean(unfinished));
+  }
   if (!n) return;
+
   const p = sessionProgress();
+  const scored = n - p.untouched;
   btn.textContent = p.complete
     ? `Resume · ${n} coffee${n > 1 ? 's' : ''} scored`
-    : `Resume · ${n} coffee${n > 1 ? 's' : ''}`;
+    : scored
+      ? `Resume · ${scored} of ${n} coffee${n > 1 ? 's' : ''} scored`
+      : `Resume · ${n} coffee${n > 1 ? 's' : ''}`;
 }
 
 function startCupping() {
