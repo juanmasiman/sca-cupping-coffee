@@ -1186,12 +1186,18 @@ function arrivalHaptic() {
 }
 
 let toastTimer = null;
+const TOAST_MS = 1800;
+// when the toast currently on screen will be gone, so anything else that
+// wants that corner can wait for it
+let toastClearAt = 0;
+
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  toastClearAt = Date.now() + TOAST_MS;
+  toastTimer = setTimeout(() => t.classList.remove('show'), TOAST_MS);
 }
 
 function showScreen(id) {
@@ -2011,6 +2017,32 @@ function askNameThenJoin(payload, code) {
   const modal = $('#name-modal');
   const input = $('#name-input');
   input.value = '';
+
+  /* Say what is on the other end.
+
+     This sheet asked for a name and said nothing about the table it was
+     about to put that name on — not the size of the lineup, not the
+     scoresheet, not the code. Joining also replaces whatever cupping is on
+     this device, so it is the last screen before an irreversible step, and
+     it was the one screen with no information on it. A cupper asked for
+     exactly this.
+
+     The lineup is in the payload already. Who is leading is not: the
+     standard has cuppers work from coded samples, so names stay out of a
+     blind payload and this sheet will not invent one. */
+  const what = $('#join-what');
+  if (what) {
+    const n = payload && Array.isArray(payload.k) ? payload.k.length : 0;
+    const cups = payload && payload.c ? payload.c : null;
+    const form = payload && payload.f === 'legacy' ? 'SCA 2004 form' : 'SCA CVA';
+    const bits = [];
+    if (n) bits.push(`${n} coffee${n > 1 ? 's' : ''}`);
+    if (cups) bits.push(`${cups} cup${cups > 1 ? 's' : ''} each`);
+    bits.push(form);
+    const table = code || (payload && payload.lc);
+    what.textContent = `You are joining ${bits.join(' · ')}${table ? ` · table ${table}` : ''}.`;
+    what.classList.toggle('hidden', !n);
+  }
   openSheet(modal, () => close());
   setTimeout(() => input.focus(), 80);
 
@@ -2132,14 +2164,41 @@ async function openInviteSheet() {
       ? `At the table · ${done} of ${people.length} submitted`
       : 'At the table';
 
+    /* Which chip is you, and what to do when nobody can tell.
+
+       The roster was a row of names with nothing marking your own, and at
+       a table where two people share a name it is worse than unmarked:
+       a cupper found "Mara · Ben · Tomás · Tomás · Aiko" and could not
+       say which Tomás he was, nor could the leader, who was then waiting
+       on a head that might not exist.
+
+       The relay returns names and not ids — deliberately, since a roster
+       is not a place to hand out other people's seat tokens — so a name
+       that appears twice cannot be resolved here by matching. What can be
+       done is to stop pretending: mark yours when it is unambiguous, and
+       when it is not, say so and name the fix, which is a fix only the
+       person holding the phone can make. */
+    const myName = getCupperName();
+    const sameName = myName ? people.filter(p => p.name === myName).length : 0;
+
     joinedList.innerHTML = '';
     if (!people.length) {
       joinedList.appendChild(el('span', 'joined-empty', 'Waiting for cuppers to join…'));
     } else {
-      people.forEach((p, i) => {
-        const chip = el('span', `joined-chip${p.submitted ? ' done' : ''}`, escapeHTML(p.name));
+      people.forEach(p => {
+        const mine = sameName === 1 && p.name === myName;
+        const chip = el('span', `joined-chip${p.submitted ? ' done' : ''}${mine ? ' me' : ''}`,
+          escapeHTML(p.name) + (mine ? ' <i>you</i>' : ''));
         joinedList.appendChild(chip);
       });
+    }
+
+    const clash = $('#joined-clash');
+    if (clash) {
+      clash.classList.toggle('hidden', sameName < 2);
+      if (sameName >= 2) {
+        clash.textContent = `${sameName} cuppers here are called ${myName}, so neither the leader nor this screen can tell which seat is yours. Add an initial to your name on the Results screen and it will show on the roster.`;
+      }
     }
 
     // reveal control: sealed scores are the protocol, so this is deliberate —
@@ -3047,12 +3106,24 @@ function maybeShowWheelCoach() {
   fab.classList.toggle('unused', !wheelSeen());
   if (wheelSeen()) return;
   const coach = $('#wheel-coach');
+  /* It waits for the toast.
+
+     Both live in the same corner — the coach at bottom 66px on the right,
+     the toast at bottom 72px in the middle — and on a 390px screen they
+     overlap. The coach arrives 1400ms after the sheet opens and the join
+     toast is up for 1800ms, so joining a table put two boxes on top of
+     each other, six pixels apart, every time. A cupper photographed it.
+
+     An attract cue has no deadline, so it is the one that gives way. */
   clearTimeout(coachTimer);
-  coachTimer = setTimeout(() => {
+  const tryShow = () => {
     if (activeScreenId() !== '#screen-cupping' || wheelSeen()) return;
+    const wait = toastClearAt - Date.now();
+    if (wait > 0) { coachTimer = setTimeout(tryShow, wait + 200); return; }
     coach.classList.remove('hidden');
     coachTimer = setTimeout(hideWheelCoach, 9000);
-  }, 1400);
+  };
+  coachTimer = setTimeout(tryShow, 1400);
 }
 
 /* Zoom for the wheel. Whole-wheel is where it opens and where it belongs
@@ -4605,11 +4676,32 @@ function refreshLiveTable(data) {
     if (!isTableLeader()) {
       html += `<p class="live-note">The leader chooses the moment, usually once everyone is in. This screen opens by itself when they do — you do not have to watch it or refresh anything.</p>`;
     }
-    // who is still out, so the leader knows what they are waiting on
+    /* Who is still out, so the leader knows what they are waiting on — and
+       which chip is yours, which the roster never said.
+
+       This is the roster a guest actually reads; the one in the invite
+       sheet only polls for a leader. A cupper found "Mara · Ben · Tomás ·
+       Tomás · Aiko" here and could not tell which Tomás he was. Neither
+       could the leader, who was then holding the table open for a head
+       that might not exist.
+
+       The relay returns names without ids — a roster is not a place to
+       hand out other people's seat tokens — so a name appearing twice
+       cannot be resolved by matching. What it can do is stop pretending:
+       mark yours when it is unambiguous, and when it is not, say so and
+       name the fix. */
     if (data.participants.length) {
+      const sameName = data.participants.filter(p => p.name === myName).length;
       html += `<div class="live-roster">${data.participants
-        .map(p => `<span class="joined-chip${p.submitted ? ' done' : ''}">${escapeHTML(p.name)}</span>`)
+        .map(p => {
+          const mine = sameName === 1 && p.name === myName;
+          return `<span class="joined-chip${p.submitted ? ' done' : ''}${mine ? ' me' : ''}">${
+            escapeHTML(p.name)}${mine ? ' <i>you</i>' : ''}</span>`;
+        })
         .join('')}</div>`;
+      if (sameName >= 2) {
+        html += `<p class="live-note">${sameName} cuppers here are called ${escapeHTML(myName)}, so nothing on this screen can tell which seat is yours — and the leader cannot either. The “Your name” field at the top of this card is what the roster follows.</p>`;
+      }
     }
     // Anyone at a live table can submit: a seat that never arrived is claimed
     // at submit time rather than hiding the button and stranding their scores.

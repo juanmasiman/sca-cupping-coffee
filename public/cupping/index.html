@@ -402,6 +402,10 @@
   <div id="name-modal" class="modal hidden">
     <div class="modal-sheet">
       <h3>What’s your name?</h3>
+      <!-- What you are about to join, before you commit to it. Joining
+           replaces whatever is on this device, and the sheet used to ask
+           for a name without once saying what was on the other end. -->
+      <p class="join-what" id="join-what"></p>
       <p class="modal-hint">The cupping leader will see who has joined the table.</p>
       <input id="name-input" class="detail-field" type="text" maxlength="24" placeholder="e.g. Juan" autocomplete="given-name">
       <div class="modal-actions">
@@ -455,6 +459,9 @@
       <div class="joined-wrap hidden" id="joined-wrap">
         <span class="detail-label" id="joined-title">At the table</span>
         <div class="joined-list" id="joined-list"></div>
+        <!-- Two people with one name is a seat nobody can attribute, and a
+             leader waiting on a head that may not exist. -->
+        <p class="joined-clash hidden" id="joined-clash"></p>
         <button class="btn btn-ghost reveal-btn hidden" id="btn-reveal">Reveal scores to the table</button>
       </div>
 
