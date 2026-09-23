@@ -2066,7 +2066,10 @@ async function openInviteSheet() {
   const guest = !state.liveCode && Boolean(state.joinedCode || state.joinedLineup);
 
   modal.classList.toggle('guest-view', guest);
-  $('#share-title').textContent = guest ? 'Cupping code' : 'Invite cuppers';
+  // The title names the act, the label below names the digits. Both said
+  // "Cupping code" for a guest — the same two words twice, twenty pixels
+  // apart, in two different styles.
+  $('#share-title').textContent = guest ? 'Pass the table on' : 'Invite cuppers';
   $('#share-hint').textContent = guest
     ? 'Anyone else joining scans this or enters the code in “Join a cupping”. Only the leader can reveal the scores.'
     : 'Cuppers can scan the QR with their camera, enter the live code in “Join a cupping”, or open the link you share.';
@@ -2091,7 +2094,10 @@ async function openInviteSheet() {
   }
 
   toggle.checked = state.shareDetails;
-  $('#share-pin-label').textContent = guest ? 'Cupping code' : 'Live code';
+  // One name for one thing, whichever seat you are in. It was "Cupping
+  // code" to a guest and "Live code" to the leader: same four digits, two
+  // names, and they read them out to each other.
+  $('#share-pin-label').textContent = 'Cupping code';
   pin.textContent = guest ? (state.joinedCode || '—') : 'Getting live code…';
   pin.classList.toggle('pending', !guest);
   pinWrap.classList.toggle('hidden', guest && !state.joinedCode);
@@ -2302,7 +2308,7 @@ function buildLineupRow(coffee, index, locked) {
   `;
 
   const nameInput = row.querySelector('.lineup-name');
-  nameInput.placeholder = `Coffee ${index + 1} — name or lot…`;
+  nameInput.placeholder = `Coffee ${index + 1} — name…`;
   nameInput.value = coffee.name;
   nameInput.readOnly = locked;
 
@@ -2691,8 +2697,18 @@ function dismissWelcome() {
 
 function buildWelcome() {
   const card = el('div', 'welcome-card');
+  /* The heading has to be true of the room it is in.
+
+     It read "You are scoring on your own" however you arrived, including
+     to somebody who had just joined a four-person table by QR — and its
+     own second paragraph, three lines below, talks about the table's
+     scores and the leader who opens them. The card knew there was a
+     table; the heading did not. What both are about is independence, and
+     that is the same fact stated two ways depending on who is in the
+     room. */
+  const table = Boolean(tableCode());
   card.innerHTML = `
-    <h2>You are scoring on your own</h2>
+    <h2>${table ? 'Everyone scores on their own' : 'You are scoring on your own'}</h2>
     <p>Taste each coffee and rate the eight sections from 1 to 9 — 5 is “neither high nor low”, which is where an ordinary cup sits. Drag anywhere on a line; the words under your thumb say what each position means.</p>
     <p>Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. That is the point: the standard asks every cupper to judge without being influenced by anyone else.</p>
     <div class="welcome-actions">
@@ -2720,7 +2736,7 @@ function buildPanel(coffee, index) {
   const name = document.createElement('input');
   name.className = 'name-field';
   name.type = 'text';
-  name.placeholder = `Coffee ${index + 1} — name or lot…`;
+  name.placeholder = `Coffee ${index + 1} — name…`;
   name.value = coffee.name;
   name.maxLength = 40;
   // The comment above described this and the fix never landed: `locked` was
@@ -3938,7 +3954,7 @@ function buildCvaDefectsCard(coffee) {
     <div class="attr-head">
       <div>
         <div class="attr-title">Cup deductions</div>
-        <div class="attr-sub">subtracted from the affective score</div>
+        <div class="attr-sub">subtracted from this coffee’s score</div>
       </div>
     </div>
     <div class="defect-rows">
@@ -4577,7 +4593,18 @@ function refreshLiveTable(data) {
 
   if (!data.revealed) {
     const done = data.participants.filter(p => p.submitted).length;
+    /* Say when, and whether they will be told.
+
+       This screen said "sealed until the leader opens the table" three
+       times over and never once said when that happens or what a guest has
+       to do about it. A first-time cupper wrote down that she sat watching
+       the screen not knowing whether she was waiting for something or had
+       missed it. The leader decides when; the device is already polling, so
+       the answer to "do I need to do anything" is no. */
     html += `<p class="live-note">Scores stay sealed until the leader opens the table — the protocol asks every cupper to score independently first. <strong>${done} of ${data.participants.length}</strong> submitted.</p>`;
+    if (!isTableLeader()) {
+      html += `<p class="live-note">The leader chooses the moment, usually once everyone is in. This screen opens by itself when they do — you do not have to watch it or refresh anything.</p>`;
+    }
     // who is still out, so the leader knows what they are waiting on
     if (data.participants.length) {
       html += `<div class="live-roster">${data.participants
