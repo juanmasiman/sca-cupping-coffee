@@ -730,7 +730,12 @@ input, textarea, select { font: inherit; }
 /* guided mode explains the sections; without it the sub-lines are noise,
    and the value and its wording fit on the title's line */
 body.plain .attr-sub { display: none; }
-body.plain .attr-card { padding: var(--space-4) var(--space-5) var(--space-4); }
+/* Guided off is meant to compact the sheet, and it mostly deleted captions.
+   What is left in a plain card is load-bearing: a 48px track (the touch
+   floor), a 27px head carrying the value and the undo, and the readout that
+   names the position under your thumb. So what comes out is the padding and
+   the gaps around them, not the instrument. */
+body.plain .attr-card { padding: var(--space-3) var(--space-5); }
 body.plain .attr-title { line-height: 1.2; }
 body.plain .attr-head { align-items: baseline; margin-bottom: 0; }
 body.plain .attr-head-right {
@@ -739,7 +744,8 @@ body.plain .attr-head-right {
   gap: var(--space-3);
   max-width: 62%;
 }
-body.plain .scale { margin-top: var(--space-3); }
+body.plain .scale { margin-top: var(--space-2); }
+body.plain .scale-anchors { margin-top: var(--space-1); }
 
 /* ------------------------------------------------------------
    Guided mode off is the expert's mode, and it was only hiding
