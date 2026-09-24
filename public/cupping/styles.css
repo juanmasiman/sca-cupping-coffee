@@ -1260,7 +1260,17 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   font-variant-numeric: tabular-nums;
 }
 /* the one the knob is standing on — see the comment in buildAnchoredScale */
+/* The numeral the knob is standing on is hidden, because the knob carries
+   that number itself — except when it is carrying nothing.
+
+   Unset, the knob parks on the middle tick and is drawn hollow, so it hid
+   the "5" and put nothing in its place: every track on the sheet read
+   1 2 3 4 _ 6 7 8 9, and the one number missing was the one the onboarding
+   calls "neither high nor low". Three cuppers across two rounds reported
+   it, one of them twice. An empty knob is a ring now, and the numeral
+   reads through it. */
 .scale-num.under { visibility: hidden; }
+.scale-track:has(.scale-knob.empty) .scale-num.under { visibility: visible; }
 .scale-num.at-start { transform: translateX(0); }
 .scale-num.at-end { transform: translateX(-100%); }
 
@@ -1684,6 +1694,10 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 }
 .radar-card h3 { font-size: 15px; font-weight: 800; margin-bottom: var(--space-3); }
 #radar-wrap svg { width: 100%; height: auto; display: block; }
+
+.radar-note { margin-top: var(--space-4); }
+.radar-note p { font-size: 13px; color: var(--text-dim); }
+.radar-note p + p { margin-top: var(--space-2); }
 
 .radar-axis-label { font-size: 11px; fill: var(--text-dim); font-weight: 600; }
 .radar-grid { stroke: var(--line); fill: none; }

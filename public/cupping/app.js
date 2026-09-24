@@ -5302,6 +5302,15 @@ function renderTeamTable() {
    per-cup checks, which are pass/fail counts rather than intensities and sat
    pinned at 10 on almost every plot. What is left on both forms is what the
    cupper actually judged cup by cup. */
+/* Seven spokes, not eight, and on purpose.
+
+   Overall is not a sensory dimension — it is a judgement about the whole
+   cup, which is what the other seven add up to. Plotting it beside
+   Fragrance and Mouthfeel puts a summary on the same footing as its own
+   components and makes the shape mean two things at once. Two cuppers read
+   its absence as a bug in an app that says "eight sections" everywhere,
+   which is fair: the reason was in nobody's head but the code's. It is
+   printed under the chart now. */
 const RADAR_SKIP = ['overall', 'balance', 'uniformity', 'cleanCup', 'sweetness'];
 
 function radarAttrs() {
@@ -5367,8 +5376,26 @@ function buildRadar(ranked) {
     svg += `<text x="${lx.toFixed(1)}" y="${(ly + 3).toFixed(1)}" text-anchor="middle" class="radar-axis-label">${short}</text>`;
   });
 
+  /* Only sheets that can be drawn honestly get drawn.
+
+     attrValue returns null for a section nobody rated — that part was
+     right, and the comment above it says why. What happened next was not:
+     Math.max(MIN, null) is MIN, so every unrated section was plotted at
+     the bottom of the scale. A cupper who skipped Sweetness had a polygon
+     collapsed to the centre on that spoke, reading as "no sweetness at
+     all", while the same blank counted as a 5 in her published score. The
+     same screen said it twice, two different ways, and neither was what
+     she said.
+
+     A profile with holes is not a profile. A coffee missing any of the
+     seven is named under the chart instead of drawn, which is what every
+     other surface in this product does with a number it cannot stand
+     behind. */
+  const complete = ranked.filter(r => ATTRS.every(a => attrValue(r.coffee, a) !== null));
+  const undrawn = ranked.filter(r => !complete.includes(r));
+
   // one polygon per coffee (ranked order so winner draws last, on top)
-  [...ranked].reverse().forEach(r => {
+  [...complete].reverse().forEach(r => {
     const pts = ATTRS.map((attr, i) => {
       const v = Math.max(MIN, attrValue(r.coffee, attr));
       const rr = (R * (v - MIN)) / (MAX - MIN);
@@ -5388,10 +5415,21 @@ function buildRadar(ranked) {
   svg += '</svg>';
   $('#radar-wrap').innerHTML = svg;
 
-  // legend with tap-to-highlight
+  const note = $('#radar-note');
+  if (note) {
+    const bits = [`Seven spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`];
+    if (undrawn.length) {
+      bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
+        undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${
+        undrawn.length > 1 ? 'these sheets have' : 'this sheet has'} sections nobody rated.`);
+    }
+    note.innerHTML = bits.map(t => `<p>${t}</p>`).join('');
+  }
+
+  // legend with tap-to-highlight — only what is on the chart
   const legend = $('#radar-legend');
   legend.innerHTML = '';
-  ranked.forEach(r => {
+  complete.forEach(r => {
     const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
     const item = el('button', 'legend-item');
     item.setAttribute('aria-pressed', 'false');
@@ -6052,12 +6090,19 @@ function refreshResumeButton() {
   }
   if (!n) return;
 
+  /* Started is not finished here either.
+
+     This label counted a coffee with three sections of eight as scored —
+     the same overcount the send line had, made by me in the same session I
+     fixed that one, two hundred lines apart. A cupper reloaded, read
+     "2 of 4 coffees scored", and found one finished sheet and one three
+     -eighths done. */
   const p = sessionProgress();
-  const scored = n - p.untouched;
+  const finished = n - p.untouched - p.partial;
   btn.textContent = p.complete
     ? `Resume · ${n} coffee${n > 1 ? 's' : ''} scored`
-    : scored
-      ? `Resume · ${scored} of ${n} coffee${n > 1 ? 's' : ''} scored`
+    : finished || p.partial
+      ? `Resume · ${finished} of ${n} finished${p.partial ? ` · ${p.partial} part-scored` : ''}`
       : `Resume · ${n} coffee${n > 1 ? 's' : ''}`;
 }
 

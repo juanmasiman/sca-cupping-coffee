@@ -7,7 +7,7 @@
    needs to reach the internet, and it fails softly when it can't.
    ============================================================ */
 
-const VERSION = 'v26';
+const VERSION = 'v27';
 const SHELL_CACHE = `lento-cupping-shell-${VERSION}`;
 
 const SHELL = [
