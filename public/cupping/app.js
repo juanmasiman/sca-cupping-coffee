@@ -3594,6 +3594,7 @@ function buildDescriptiveCard(coffee) {
       onCommit: () => { refresh(); save(); },
     });
     row.appendChild(scale.el);
+    compactScale(row, scale.el);
 
     const refresh = () => {
       const rated = Boolean(d.touched && d.touched[attr.key]);
@@ -3846,9 +3847,18 @@ function buildAnchoredScale(opts) {
     Object.keys(nums).forEach(k => nums[k].classList.toggle('under', Number(k) === i));
   };
 
+  /* Under the track the readout leads with the number, because the words
+     sit between two numeric anchors and need placing. Moved up beside the
+     value — which guided-off does — the number is already there in the data
+     ink, and the knob has it too, so three of them would land in one row.
+     There it says only what the position means. */
   const say = i => {
     const word = wordAt(i);
-    return format(valueAt(i)) + (word ? ` · ${word}` : '');
+    // An intensity has no word, only a number — and beside the value that
+    // is the same number twice. Nothing, then; "not rated yet" still shows,
+    // because that one says something the value cannot.
+    if (!word) return wrap.classList.contains('scale-compact') ? '' : format(valueAt(i));
+    return wrap.classList.contains('scale-compact') ? word : `${format(valueAt(i))} · ${word}`;
   };
   const sayAria = i => {
     const word = wordAt(i);
@@ -3998,6 +4008,7 @@ function buildCvaCard(coffee, section) {
     onCommit: commit,
   });
   card.appendChild(scale.el);
+  compactScale(card, scale.el);
 
   const refresh = popIt => {
     const v = coffee.cva[section.key];
@@ -4088,6 +4099,38 @@ function buildCvaDefectsCard(coffee) {
   return card;
 }
 
+/* Guided off, the readout moves up beside the value.
+
+   A plain scale card is 115px and four things fill it: a 48px track, which
+   is the touch floor for the control the screen exists to operate; a 27px
+   head carrying the section name, the value and the undo; a 17px row under
+   the track; and 16px of padding. Only one of those four can go, and the
+   row under the track is it — but not by hiding it, because its middle
+   cell is the readout that names the position under your thumb and it is
+   what aria-valuetext is read from.
+
+   So the readout is *moved* rather than mirrored: the same node, written by
+   the same two lines in buildAnchoredScale, relocated next to the number it
+   describes. The row it leaves behind holds only the low and high words,
+   which is what an expert turning guidance off is declining. One node, one
+   writer, no state to keep in sync. */
+function compactScale(card, scaleEl) {
+  if (guidedOn()) return;
+  const live = scaleEl.querySelector('.scale-live');
+  const row = card.querySelector('.attr-value-row');
+  if (!live || !row) return;
+  row.insertBefore(live, row.firstChild);
+  // the scale formats its readout differently once it is not under the track
+  scaleEl.classList.add('scale-compact');
+  /* The class is what licenses hiding the row, and it is set only once the
+     readout is safely out of it. Keying the CSS off body.plain alone hid the
+     row on every card — including the Describe intensity rows, which a
+     different builder makes and which still had their readout inside it. It
+     disappeared. Marking the card that was actually compacted makes the two
+     halves of this change impossible to separate. */
+  card.classList.add('compact-scale');
+}
+
 /* ---------- scale attribute card with custom slider ---------- */
 
 function buildScaleCard(coffee, attr) {
@@ -4126,6 +4169,7 @@ function buildScaleCard(coffee, attr) {
     onCommit: commit,
   });
   card.appendChild(scale.el);
+  compactScale(card, scale.el);
 
   const refresh = popIt => {
     const rated = Boolean(coffee.touched[attr.key]);

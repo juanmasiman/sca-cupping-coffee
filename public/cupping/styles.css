@@ -745,7 +745,18 @@ body.plain .attr-head-right {
   max-width: 62%;
 }
 body.plain .scale { margin-top: var(--space-2); }
-body.plain .scale-anchors { margin-top: var(--space-1); }
+/* The readout has moved into the head, so what is left here is the low and
+   high words — which is the scaffolding an expert turning guidance off is
+   declining. 19px a card, 171px across a coffee. */
+body.plain .compact-scale .scale-anchors { display: none; }
+body.plain .attr-value-row .scale-live {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-right: var(--space-3);
+  white-space: nowrap;
+}
+body.plain .attr-value-row .scale-live.none { font-style: italic; color: var(--text-faint); }
 
 /* ------------------------------------------------------------
    Guided mode off is the expert's mode, and it was only hiding
