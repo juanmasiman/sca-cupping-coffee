@@ -452,6 +452,9 @@ input { font: inherit; color: inherit; }
 .num-field {
   display: flex;
   align-items: center;
+  /* The note wraps onto a line of its own: what is wrong with the number
+     is a sentence, and a sentence does not fit beside the steppers. */
+  flex-wrap: wrap;
   gap: var(--space-3);
   min-height: 56px;
   padding: 0 var(--space-3) 0 var(--space-4);
@@ -494,8 +497,13 @@ input { font: inherit; color: inherit; }
 }
 .num-value:focus { outline: none; }
 .num-unit {
+  /* A fixed 16px gutter, because every unit here is one character — g, s,
+     °. It was not a minimum, so a longer word printed straight over the
+     stepper beside it. Now it starts at one character and takes what a
+     longer one needs. */
   flex: none;
-  width: 16px;
+  min-width: 16px;
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
@@ -521,6 +529,24 @@ input { font: inherit; color: inherit; }
 /* Nothing entered is not zero. The slot shows its placeholder in tertiary
    ink and the data ink stays for values somebody actually set. */
 .num-field.empty .num-value { color: var(--text-faint); }
+
+/* What is wrong with what was typed.
+
+   It takes alert red because it is the one state in this app where the
+   number on screen is not the number in the record — and because the
+   remedy is the reader's, in the field their cursor is already in. It
+   only ever appears under a field somebody is typing in. */
+.num-note {
+  flex-basis: 100%;
+  padding: 0 0 var(--space-3) 0;
+  margin-top: calc(var(--space-3) * -1);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--red);
+}
+.num-note:empty { display: none; }
+.num-field.bad { border-color: var(--red); }
+.num-field.bad .num-value { color: var(--red); }
 
 /* ---------- the readout ---------- */
 
@@ -574,6 +600,10 @@ input { font: inherit; color: inherit; }
   color: var(--text-faint);
 }
 .field-label.section { margin-top: var(--space-5); display: block; }
+
+/* Two walls, two questions, and enough air between them that they read as
+   two rather than as one control with four ends. */
+#body-label { margin-top: var(--space-4); }
 
 .scale { display: flex; flex-direction: column; gap: var(--space-3); }
 .scale-track {
@@ -808,7 +838,7 @@ input { font: inherit; color: inherit; }
 
 /* ---------- edit / settings ---------- */
 
-.edit-body, .settings-body, .help-body {
+.edit-body, .settings-body, .help-body, .kit-body {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);
@@ -872,6 +902,49 @@ input { font: inherit; color: inherit; }
 }
 .seg-btn:last-child { border-right: none; }
 .seg-btn.on { background: var(--chrome); color: var(--on-chrome); }
+
+/* ---------- your kit ---------- */
+
+/* Wider gaps than the other sheets: these are six separate questions
+   rather than one form, and they are read one at a time. */
+.kit-body { gap: var(--space-5); }
+.kit-row { display: flex; flex-direction: column; gap: var(--space-2); }
+/* Why the question is being asked. Somebody answering "it has one" should
+   know it takes a field off every shot sheet from here on. */
+.kit-sub {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  margin-bottom: var(--space-1);
+}
+.kit-basket { display: flex; gap: var(--space-3); align-items: flex-end; }
+.kit-basket .field { flex: 1; }
+.field-narrow { flex: 0 0 88px !important; }
+
+/* The way back into the setup, from Settings. Two lines: what it is, and
+   what is currently in it. */
+.kit-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: left;
+  padding: var(--space-4);
+  min-height: 56px;
+}
+.kit-btn-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.kit-btn-sub { font-size: 13px; font-weight: 400; color: var(--text-dim); }
+
+/* The line the whole product turns on, on the screen a first-time visitor
+   actually reads — it used to be buried two sheets deep in Settings. */
+.empty-foot {
+  margin: var(--space-5) auto 0;
+  max-width: 34ch;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.empty .btn { margin-top: var(--space-5); width: 100%; }
+.empty .btn + .btn { margin-top: var(--space-3); }
 
 /* ---------- toast ---------- */
 

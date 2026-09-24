@@ -35,6 +35,7 @@ function load() {
     if (raw) state = migrate(JSON.parse(raw));
   } catch (e) { /* private mode, or a shape this build cannot read */ }
   if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null };
+  if (!state.kit) state.kit = defaultKit();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -53,6 +54,7 @@ function savePrefs() {
 // the only copy of an afternoon's work.
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
+  s.kit = Object.assign(defaultKit(), s.kit || {});
   (s.coffees || []).forEach(c => {
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
@@ -61,11 +63,60 @@ function migrate(s) {
     if (!Array.isArray(c.shots)) c.shots = [];
     c.shots.forEach(sh => {
       if (typeof sh.taste === 'undefined') sh.taste = null;
+      if (typeof sh.body === 'undefined') sh.body = null;
       if (typeof sh.intent === 'undefined') sh.intent = null;
     });
   });
   return s;
 }
+
+/* ---------- the kit ----------
+
+   Asked once, before the first shot, and then never again.
+
+   A dial-in tool that asks for brew temperature on a machine with one
+   temperature is asking somebody to invent a number and then quoting it
+   back at them. The advice is worse: "brew temperature is the usual next
+   lever, up a degree or two" is not a suggestion to a Bambino Plus owner,
+   it is the app admitting it does not know what they are standing in front
+   of. Half this product's value is knowing which levers exist.
+
+   What the app needs is not the machine's name. A brand table goes stale
+   within a year, misses every import, and is wrong about anything modded —
+   and a Gaggia Classic with a PID is a different machine from the one on
+   the box. So the app asks what the machine can *change*, in four
+   questions, and carries the names purely as the user's own record.
+   Nothing is inferred from them.
+
+   The defaults are the commonest home setup — one fixed temperature, no
+   pressure control — so skipping the screen leaves somebody with the
+   simplest sheet rather than the fullest one. A field you can see and
+   cannot change is a field you will eventually fill in with a guess. */
+
+function defaultKit() {
+  return {
+    machine: '',
+    grinder: '',
+    basket: '',
+    // what the machine can do, in the app's terms
+    temp: 'fixed',       // 'fixed' — one temperature | 'set' — you choose it
+    pressure: 'fixed',   // 'fixed' | 'gauge' — you can see it | 'profile' — you can change it
+    steps: 'stepless',   // 'stepped' — clicks | 'stepless' — a number on a dial
+    basketDose: 18,
+    asked: false,        // has anybody answered or skipped this screen
+  };
+}
+
+const kit = () => (state && state.kit) || defaultKit();
+// The machine holds one temperature, so there is no temperature to record
+// and none to suggest moving.
+const canSetTemp = () => kit().temp === 'set';
+const canSetPressure = () => kit().pressure === 'profile';
+const seesPressure = () => kit().pressure !== 'fixed';
+// A stepped grinder counts clicks; a stepless one reads a number off a
+// dial. Neither number means anything to anyone else, which is why the app
+// only ever suggests a direction.
+const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
 
 /* ---------- the model ---------- */
 
@@ -81,7 +132,9 @@ function uid() {
    against something, and this app refuses to call one fast without
    saying what it was measured against. */
 function defaultTarget() {
-  return { dose: 18, ratio: 2, timeLo: 25, timeHi: 30, temp: null };
+  // The basket decides the dose more than anything else does, and the kit
+  // already knows which basket is in the machine.
+  return { dose: kit().basketDose || 18, ratio: 2, timeLo: 25, timeHi: 30, temp: null };
 }
 
 /* A starting point from the bag.
@@ -317,6 +370,39 @@ function tasteSide(v) {
   return 'neither';
 }
 
+/* The other wall.
+
+   Sour and bitter are what extraction does. Watery and muddy are what
+   concentration does, and they move on different levers: grind changes how
+   much comes out of the puck, ratio and dose change how much of it is in
+   the cup. A tool that answers "grind finer" to a thin shot is answering
+   the wrong question — a shot can be extracted perfectly and still be
+   watery, because there is not enough coffee in it.
+
+   Two walls, two questions, two answers. Asking them together as one
+   "how was it" is what makes espresso advice feel like guesswork: the
+   person says "bad" and the tool picks an axis for them. */
+const BODY_WORDS = {
+  '-3': 'thin, watery',
+  '-2': 'watery',
+  '-1': 'a little thin',
+  '0': 'neither',
+  '1': 'a little heavy',
+  '2': 'heavy, muddy',
+  '3': 'thick, sludgy',
+};
+
+function bodyWord(v) {
+  return BODY_WORDS[String(v)] || '';
+}
+
+function bodySide(v) {
+  if (v === null || typeof v !== 'number') return null;
+  if (v <= -1) return 'watery';
+  if (v >= 1) return 'muddy';
+  return 'neither';
+}
+
 /* What to try next.
 
    Espresso has one dominant variable and it is grind, but it is dominant
@@ -343,13 +429,17 @@ function suggest(shot, target) {
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
-      why: 'Sour and slow together do not point at grind: going finer would make it slower still. Look at brew temperature, at whether the puck channelled, and at how long ago it was roasted.' };
+      why: `Sour and slow together do not point at grind: going finer would make it slower still. ${canSetTemp()
+        ? 'Look at brew temperature, at whether the puck channelled, and at how long ago it was roasted.'
+        : 'Look at whether the puck channelled, and at how long ago it was roasted.'}` };
   }
   if (side === 'bitter' && place.time === 'fast') {
     return { sure: false, move: 'Not grind, this time.',
       why: 'Bitter and fast together do not point at grind: going coarser would make it faster still. This pattern usually means the water found a channel, so look at distribution and tamp before anything else.' };
   }
-  if (side === 'neither' && place.time === 'in') {
+  // "This is the one" over a cup somebody has just called muddy is the app
+  // not reading its own sheet. Both walls have to be quiet for this.
+  if (side === 'neither' && place.time === 'in' && bodySide(shot.body) !== 'muddy' && bodySide(shot.body) !== 'watery') {
     // Once it has been marked, saying "mark it" is the app not reading its
     // own screen — the keeper card is pinned six inches above this line.
     return shot.verdict === 'keeper'
@@ -362,9 +452,150 @@ function suggest(shot, target) {
     return { sure: false, move: 'Taste says nothing is wrong.',
       why: `It is ${place.time === 'fast' ? 'faster' : 'slower'} than the window but tastes of neither wall, which is worth more than the window is. Either move the window to fit the coffee, or change the ratio and see whether the cup follows.` };
   }
-  // in the window, but tasting of one of the walls
+  /* In the window, and still tasting of one of the walls.
+
+     This is where a kit-blind tool falls over. Brew temperature is the
+     textbook next lever and most home machines do not have one, so the
+     answer has to be the lever the person in front of it actually has.
+     Ratio is that lever, and it is a real one: more water through the same
+     puck takes more with it, less takes less. */
+  if (canSetTemp()) {
+    return { sure: false, move: 'Grind has done its job.',
+      why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next lever — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
+  }
   return { sure: false, move: 'Grind has done its job.',
-    why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next lever — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
+    why: side === 'sour'
+      ? 'The shot is in the window and still tastes sour. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Let it run longer on the same dose: more water through the same puck takes more with it. Still sour at 1:2.5 and the bag probably wants a few more days off the roast.'
+      : 'The shot is in the window and still tastes bitter. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Stop it shorter and the harsh end of the extraction stays in the puck. If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.' };
+}
+
+/* Both walls at once, which is one fault rather than two.
+
+   Advised separately the two axes can disagree about the same lever: a
+   sour, thin shot got "let it run longer" from the taste scale and "stop
+   it shorter" from the body scale, stacked, both about the ratio. Two
+   instructions for one shot is not advice, and a dial-in moves one thing
+   at a time anyway.
+
+   Taken together they disagree about nothing, and each pair has exactly
+   one lever — a better read than either wall alone gives:
+
+     sour + thin      under-extracted        grind finer
+     bitter + heavy   over-extracted         grind coarser
+     sour + heavy     the ratio is too short let it run longer
+     bitter + thin    the ratio is too long  stop it shorter
+
+   The first two move both walls with one change, which is why they are
+   the corners every barista learns first. The other two are the corners
+   that get people stuck, because the wall you notice sends you to the
+   grinder and the grinder is not what is wrong.
+
+   The clock still outranks the cup on the two grind answers. Finer is the
+   wrong move on a shot that is already slow however it tastes, and the
+   pair says so rather than repeating itself louder. */
+function wallPair(shot, target) {
+  const t = tasteSide(shot.taste);
+  const b = bodySide(shot.body);
+  if (t === null || b === null || t === 'neither' || b === 'neither') return null;
+  const place = placeOf(shot, target);
+  const r = ratioOf(shot);
+  const at = r === null ? '' : ` at 1:${r.toFixed(1)}`;
+
+  if (t === 'sour' && b === 'watery') {
+    if (place.time === 'slow') {
+      return { sure: false, move: 'Under-extracted — but not for want of grind.',
+        why: 'Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower. Water that runs long and still takes little with it has found a way round the puck rather than through it. Distribution and tamp first.' };
+    }
+    return { sure: true, move: 'Grind finer.',
+      why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.` };
+  }
+  if (t === 'bitter' && b === 'muddy') {
+    if (place.time === 'fast') {
+      return { sure: false, move: 'Over-extracted — but not for want of grind.',
+        why: 'Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster. Water that runs quickly and still takes too much is going through part of the puck and not the rest. Distribution and tamp first.' };
+    }
+    return { sure: true, move: 'Grind coarser.',
+      why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.` };
+  }
+  /* The two ratio answers move the clock as a side effect, and on a shot
+     already outside the window that reads as the app contradicting the
+     line above it. It is not a contradiction — a longer ratio is meant to
+     take longer — but the window has to follow, and only the person who
+     set it can move it. */
+  if (t === 'sour' && b === 'muddy') {
+    return { sure: true, move: 'Let it run longer.',
+      why: `Sour and heavy${at} is the ratio rather than the grind: the shot was stopped before the water had finished taking what it came for, so the cup is concentrated and under-extracted at once. Take the next one further — same dose, more in the cup — and both ends move together. Leave the grinder where it is.${
+        place.time === 'slow' ? ' It will run longer still than the window you set, which is the window needing to move rather than the shot.' : ''}` };
+  }
+  return { sure: true, move: 'Stop it shorter.',
+    why: `Bitter and thin${at} is the ratio rather than the grind: the last of the shot was adding water and harshness and nothing else. Stop the next one earlier — same dose, less in the cup — and both ends move together. Leave the grinder where it is.${
+      place.time === 'fast' ? ' It will come in faster still than the window you set, which is the window needing to move rather than the shot.' : ''}` };
+}
+
+/* The second wall, advised on its own levers.
+
+   Grind is not in this answer anywhere, and that is the point. A watery
+   shot is not under-extracted by definition — it can be perfectly
+   extracted and still thin, because thin is about how much coffee is in
+   the cup, which is ratio and dose. Telling somebody to grind finer for it
+   sends them to the wrong machine.
+
+   Returns null when the cup said nothing about body, and when it said
+   "neither", because a dial-in that is going to plan does not need
+   narrating. */
+function bodyNote(shot) {
+  const side = bodySide(shot.body);
+  if (side === null || side === 'neither') return null;
+  const r = ratioOf(shot);
+  const long = r !== null && r >= 2.4;
+  const short = r !== null && r <= 1.8;
+
+  if (side === 'watery') {
+    if (long) {
+      return { move: 'Stop it shorter.',
+        why: `Thin at 1:${r.toFixed(1)} is a lot of water for that dose. Take the next one to 1:2 and the same coffee arrives in a smaller cup, which is most of what "more body" means.` };
+    }
+    if (short) {
+      return { move: 'Not the ratio — the dose.',
+        why: `It is already short at 1:${r.toFixed(1)} and still thin, so there is not enough coffee going in. A gram more in the basket, if the basket takes it, before anything else.` };
+    }
+    return { move: 'Shorter, or more in the basket.',
+      why: 'Thin is about how much coffee is in the cup rather than how much came out of the puck. Stop the shot a few grams earlier, or put a gram more in — one at a time, so you can read which did it.' };
+  }
+  if (long) {
+    return { move: 'Not the ratio — the dose.',
+      why: `It is already long at 1:${r.toFixed(1)} and still heavy, which usually means more coffee in the basket than the basket wants. Drop a gram and see whether the cup opens up.` };
+  }
+  return { move: 'Let it run longer.',
+    why: `Heavy and muddy is a concentrated cup${short ? ` — 1:${r.toFixed(1)} is a short one` : ''}. Take the next one further, a few grams more in the cup, and the same shot thins out without touching the grind.` };
+}
+
+/* What to do next, as this app is willing to say it.
+
+   One list, so the sheet and the board cannot disagree, and at most one
+   entry when the cup named both walls — that is the whole point of asking
+   them separately and then reading them together. */
+function nextMove(shot, target) {
+  const pair = wallPair(shot, target);
+  if (pair) return [pair];
+  /* One wall named, and it is the body one.
+
+     The body note is then the whole answer. Printing "Taste says nothing
+     is wrong" above "the cup is thin, stop it shorter" is the app arguing
+     with itself about which half of the cup counts, and the first line is
+     not even true: something is wrong, it is just not on the axis grind
+     works on. */
+  const b = bodyNote(shot);
+  if (b) return [{ sure: false, move: b.move, why: b.why }];
+  const t = suggest(shot, target);
+  return t ? [t] : [];
+}
+
+function tipHTML(tip, cls) {
+  return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
+      <span class="tip-move">${escapeHTML(tip.move)}</span>
+      <span class="tip-why">${escapeHTML(tip.why)}</span>
+    </div>`;
 }
 
 /* ---------- formatting ---------- */
@@ -451,6 +682,7 @@ function numField(opts) {
       <button type="button" class="num-step" data-dir="-1" aria-label="Less ${escapeHTML(opts.label)}">−</button>
       <button type="button" class="num-step" data-dir="1" aria-label="More ${escapeHTML(opts.label)}">+</button>
     </span>
+    <span class="num-note" id="${id}-note" role="status"></span>
   `;
   const input = wrap.querySelector('.num-value');
   let value = opts.value === null || opts.value === undefined ? null : opts.value;
@@ -467,6 +699,8 @@ function numField(opts) {
   const commit = v => {
     value = v === null ? null : Math.max(opts.min, Math.min(opts.max, round(v)));
     render();
+    const nt = wrap.querySelector('.num-note');
+    if (nt) { nt.textContent = ''; wrap.classList.remove('bad'); }
     if (opts.onChange) opts.onChange(value);
   };
 
@@ -480,16 +714,52 @@ function numField(opts) {
       commit(from);
     });
   });
-  input.addEventListener('input', () => {
-    const raw = input.value.replace(',', '.').trim();
-    if (raw === '') { value = null; if (opts.onChange) opts.onChange(null); wrap.classList.add('empty'); return; }
-    const v = Number(raw);
-    if (!isFinite(v)) return;
-    value = Math.max(opts.min, Math.min(opts.max, v));
-    wrap.classList.remove('empty');
+  /* What the field holds when the text is not a number.
+
+     It used to hold whatever it held last. Type 43.2, select all, type
+     "xyz", and `Number('xyz')` is NaN, so the handler returned early and
+     left 43.2 sitting in the variable — the readout went on printing
+     1:2.40 above a field reading "xyz", and Save wrote 43.2 to the log. A
+     barista testing this app deleted a yield and the app recorded it
+     anyway. In a product whose whole argument is that it will not print a
+     number it cannot account for, that is the one bug that cannot stand.
+
+     Out of range was the same failure wearing a politer coat: a typed 999
+     was clamped to 200 on every keystroke, so the field said 999 and the
+     maths said 200, and blur rewrote the field without a word.
+
+     So: text that is not a number in range means there is no value, the
+     field says which of the two it is, and the readout above goes back to
+     dashes. Nothing is guessed on the reader's behalf and nothing is
+     silently corrected — the text stays as typed until the person fixes
+     it, because it is their typo to see. */
+  const note = wrap.querySelector('.num-note');
+  const setNote = msg => {
+    note.textContent = msg || '';
+    wrap.classList.toggle('bad', Boolean(msg));
+  };
+  const take = (v, msg) => {
+    value = v;
+    wrap.classList.toggle('empty', v === null);
+    setNote(msg);
     if (opts.onChange) opts.onChange(value);
+  };
+  input.addEventListener('input', () => {
+    const typed = input.value.trim();
+    const raw = typed.replace(',', '.');
+    if (raw === '') return take(null, '');
+    const v = Number(raw);
+    if (!isFinite(v)) {
+      return take(null, `“${typed}” is not a number, so nothing is recorded here.`);
+    }
+    if (v < opts.min || v > opts.max) {
+      return take(null, `${opts.label} takes ${opts.min} to ${opts.max}${opts.unit ? ' ' + opts.unit : ''}. Nothing is recorded until it is one of those.`);
+    }
+    take(round(v), '');
   });
-  input.addEventListener('blur', () => commit(value));
+  // Tidy up the formatting of a number that is real; leave text that is not
+  // exactly where it was typed, with its note, so the typo stays visible.
+  input.addEventListener('blur', () => { if (value !== null) commit(value); });
 
   render();
   wrap.setValue = v => { value = v; render(); };
@@ -507,20 +777,21 @@ function numField(opts) {
    Untouched is not a value. The knob sits at centre until somebody moves
    it, drawn hollow, and the block reads "not tasted" rather than
    "neither" — a default and a judgement are the same pixel otherwise. */
-function tasteScale(value, onChange) {
+function tasteScale(opts) {
+  const { value, onChange, words, low, high, labelledBy, empty } = opts;
   const wrap = el('div', 'scale');
   wrap.innerHTML = `
     <div class="scale-track" tabindex="0" role="slider"
          aria-valuemin="${TASTE_MIN}" aria-valuemax="${TASTE_MAX}"
-         aria-labelledby="taste-label">
+         aria-labelledby="${labelledBy}">
       <div class="scale-rail"></div>
       <div class="scale-mid"></div>
       <div class="scale-knob"></div>
     </div>
     <div class="scale-anchors">
-      <span>sour</span><span class="scale-anchor-mid">neither</span><span>bitter</span>
+      <span>${low}</span><span class="scale-anchor-mid">neither</span><span>${high}</span>
     </div>
-    <div class="scale-readout" id="taste-readout"></div>
+    <div class="scale-readout"></div>
   `;
   const track = wrap.querySelector('.scale-track');
   const knob = wrap.querySelector('.scale-knob');
@@ -533,8 +804,8 @@ function tasteScale(value, onChange) {
     knob.style.left = `${pct}%`;
     knob.classList.toggle('untouched', v === null);
     track.setAttribute('aria-valuenow', shown);
-    track.setAttribute('aria-valuetext', v === null ? 'not tasted yet' : tasteWord(v));
-    readout.textContent = v === null ? 'not tasted yet' : tasteWord(v);
+    track.setAttribute('aria-valuetext', v === null ? empty : words(v));
+    readout.textContent = v === null ? empty : words(v);
     readout.classList.toggle('untouched', v === null);
   };
 
@@ -658,7 +929,7 @@ function renderTarget(c) {
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
-      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp ? ` · ${t.temp}°` : ''}</span>
+      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp && canSetTemp() ? ` · ${t.temp}°` : ''}</span>
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   `;
@@ -672,13 +943,35 @@ function renderShots(c) {
   const empty = $('#empty');
   empty.classList.toggle('hidden', Boolean(has));
   if (!has) {
-    // Nothing on the shelf and nothing pulled yet are different problems
-    // with different next steps, and the card used to give one answer.
+    /* Three different empty screens, because they are three different
+       problems. Nobody has said what they are standing in front of; there
+       is no bag on the shelf; there is a bag and no shots. The card used
+       to give one answer to all of them.
+
+       The kit comes first because it changes what the shot sheet asks for,
+       and answering it after four shots means four sheets asked for the
+       wrong things. */
+    if (!kit().asked) {
+      empty.innerHTML = `
+        <div class="empty-title">What are you pulling on?</div>
+        <p class="empty-body">Four questions about your machine and grinder, once. The shot sheet is built from the answers: there is no point in a temperature field on a machine with one temperature, and no point in advice that tells you to raise it.</p>
+        <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
+        <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — most machines are the default</button>
+        <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
+      empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
+      empty.querySelector('#btn-kit-later').addEventListener('click', () => {
+        state.kit = Object.assign(defaultKit(), { asked: true });
+        save();
+        renderBoard();
+      });
+      return;
+    }
     empty.innerHTML = c
       ? `<div class="empty-title">No shots yet</div>
-         <p class="empty-body">Pull one and put three numbers in: what went in, what came out, how long it took. Everything else on this screen is built from those.</p>`
+         <p class="empty-body">Pull one and put four numbers in: what went in, what came out, how long it took, where the grinder was. Everything else on this screen is built from those.</p>`
       : `<div class="empty-title">Nothing on the shelf</div>
-         <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>`;
+         <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
+         <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
     return;
   }
 
@@ -740,16 +1033,19 @@ function shotCard(shot, prev, c, n, newest) {
       <span class="shot-when">${fmtDate(shot.at)}</span>
     </div>
     <div class="shot-numbers">
-      ${fmt1(num(shot.dose))}<small>g</small> <span aria-hidden="true">→</span> ${fmt1(num(shot.yield))}<small>g</small>
+      ${num(shot.dose) === null ? '—' : `${fmt1(num(shot.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
+        num(shot.yield) === null ? '—' : `${fmt1(num(shot.yield))}<small>g</small>`}
       ${flow !== null ? ` · ${fmt2(flow)}<small>g/s</small>` : ''}
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
+      ${num(Number(shot.grind)) !== null && shot.grind !== '' ? ` · grind ${escapeHTML(String(shot.grind))}<small>${escapeHTML(grindUnit() === 'clicks' ? ' clicks' : '')}</small>` : ''}
     </div>
     ${missing.length ? `<div class="shot-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
     ${timeNote ? `<div class="shot-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="shot-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${shot.intent ? `<div class="shot-intent">meant to: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${shot.intent ? `<div class="shot-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
     ${intentCheck(shot, prev) ? `<div class="shot-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
     ${shot.taste !== null ? `<div class="shot-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
+    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="shot-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
     ${shot.notes ? `<div class="shot-notes">${escapeHTML(shot.notes)}</div>` : ''}
     ${shot.verdict === 'keeper' ? '<div class="shot-keeper-flag">the keeper</div>' : ''}
     ${newestTip(shot, c, newest)}
@@ -780,19 +1076,15 @@ function missingLine(missing) {
    grinder deciding what to do. The board is where that decision happens. */
 function newestTip(shot, c, newest) {
   if (!newest) return '';
-  const tip = suggest(shot, c.target);
-  if (!tip) {
-    // Say what is missing rather than nothing: a shot with no taste on it
-    // cannot be advised, and the reason is one tap away from being fixed.
-    const why = shot.taste === null ? 'Tap this shot and say how it tasted to get a next move.'
-      : num(shot.time) === null ? 'Tap this shot and add its time to get a next move.'
-      : null;
-    return why ? `<div class="shot-tip open"><span class="tip-why">${why}</span></div>` : '';
-  }
-  return `<div class="shot-tip ${tip.sure ? 'sure' : 'open'}">
-      <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
-    </div>`;
+  const tips = nextMove(shot, c.target);
+  if (tips.length) return tips.map(t => tipHTML(t, 'shot-tip')).join('');
+  // Say what is missing rather than nothing: a shot with no taste on it
+  // cannot be advised, and the reason is one tap away from being fixed.
+  const why = shot.taste === null && shot.body === null
+      ? 'Tap this shot and say how it tasted to get a next move.'
+    : num(shot.time) === null ? 'Tap this shot and add its time to get a next move.'
+    : null;
+  return why ? `<div class="shot-tip open"><span class="tip-why">${why}</span></div>` : '';
 }
 
 // A seven-step run of pips with the taken one filled — the position is the
@@ -829,18 +1121,58 @@ function openShot(shot) {
     yield: null,
     time: null,
     taste: null,
+    body: null,
     verdict: null,
     intent: null,
-    grind: last ? last.grind : '',
+    // where the grinder is as far as anyone has said, which is the board's
+    // "grinder today" when it is set and the last shot otherwise
+    grind: grindStart(c),
     temp: last ? last.temp : '',
-    basket: last ? last.basket : '',
+    press: last ? last.press : '',
+    basket: last ? last.basket : (kit().basket || ''),
     notes: '',
     tds: null,
   };
+  if (editing.grind === undefined) editing.grind = '';
 
   $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${c.shots.indexOf(shot) + 1}`;
+  /* Remove this shot.
+
+     There was no way to. A mis-logged shot is not a small problem in a
+     log whose whole purpose is the line "what changed since the last
+     one": it sits in the history for ever and skews the next card's
+     arithmetic. It only appears on a shot that exists — there is nothing
+     to delete on a sheet nobody has saved yet. */
+  const del = $('#shot-delete');
+  del.classList.toggle('hidden', editingIsNew);
+  del.onclick = () => {
+    const i = c.shots.indexOf(shot);
+    if (i < 0) return;
+    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it. There is no undo.`)) return;
+    c.shots.splice(i, 1);
+    save();
+    closeModal('#shot-modal');
+    renderBoard();
+    toast('Shot removed');
+  };
   buildShotSheet(c);
   openModal('#shot-modal');
+}
+
+/* Has anything been put on this sheet?
+
+   Used to decide whether closing it costs the person anything. The X used
+   to throw away a fully typed shot without a word. */
+function shotHasContent() {
+  if (!editing) return false;
+  return ['dose', 'yield', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
+    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+}
+
+function closeShotSheet() {
+  if (editingIsNew && shotHasContent()
+      && !confirm('Close without saving? What you have put on this sheet goes with it.')) return;
+  closeModal('#shot-modal');
 }
 
 function buildShotSheet(c) {
@@ -860,10 +1192,47 @@ function buildShotSheet(c) {
     label: 'Time', unit: 's', value: editing.time, min: 0, max: 180, step: 1, digits: 0,
     startAt: c.target.timeLo, onChange: v => { editing.time = v; refresh(); },
   }));
+  /* Grind belongs here, not behind a disclosure.
 
+     It was in the "and the rest" drawer with basket and notes, which is
+     the wrong shelf for the one number a dial-in is about: a barista
+     testing this could not answer "where was the grinder when that one was
+     good?" from the board, because the setting was collapsed on the sheet
+     and never printed on the card — only the delta was, which tells you it
+     moved 0.6 and not what it moved to.
+
+     It is a stepper rather than a text field because the gesture it
+     records is "one click finer", and because the deltas on the cards were
+     already doing arithmetic on it. The unit comes from the kit: clicks on
+     a stepped grinder, a dial reading on a stepless one. Neither number
+     means anything to anybody else, which is why the app only ever suggests
+     a direction and never a value. */
+  const stepped = kit().steps === 'stepped';
+  row.appendChild(numField({
+    // No unit in the slot: a grind setting has none, and "clicks" does not
+    // fit a 16px gutter — it overlapped the stepper it sat beside. The word
+    // belongs in the prose, where it is doing work.
+    label: 'Grind', unit: '', value: num(editing.grind),
+    min: 0, max: 100, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
+    startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
+  }));
+
+  // Two walls, two questions. Asked separately because they are answered
+  // separately: grind for one, ratio and dose for the other.
   const taste = $('#taste-scale');
   taste.innerHTML = '';
-  taste.appendChild(tasteScale(editing.taste, v => { editing.taste = v; renderReadout(c); }));
+  taste.appendChild(tasteScale({
+    value: editing.taste, words: tasteWord, low: 'sour', high: 'bitter',
+    labelledBy: 'taste-label', empty: 'not tasted yet',
+    onChange: v => { editing.taste = v; renderReadout(c); },
+  }));
+  const body = $('#body-scale');
+  body.innerHTML = '';
+  body.appendChild(tasteScale({
+    value: editing.body, words: bodyWord, low: 'watery', high: 'muddy',
+    labelledBy: 'body-label', empty: 'not said yet',
+    onChange: v => { editing.body = v; renderReadout(c); },
+  }));
 
   buildIntent(c);
   buildVerdict(c);
@@ -871,12 +1240,29 @@ function buildShotSheet(c) {
   renderReadout(c);
 }
 
+/* Where the grinder is, as far as this app knows.
+
+   Two sources of truth used to answer this: the board's "grinder today",
+   which is where somebody said they had moved it to, and the last shot's
+   grind. A new sheet prefilled from the second and ignored the first, so
+   a barista who had just told the app the grinder was at 5.0 was offered
+   4.2. The one somebody stated most recently wins. */
+function grindStart(c) {
+  const now = num(Number(c.grindNow));
+  if (c.grindNow !== '' && now !== null) return now;
+  const last = shotsNewestFirst(c)[0];
+  const prev = last ? num(Number(last.grind)) : null;
+  return prev === null ? undefined : prev;
+}
+
 /* Stated before the numbers, because that is when you know it. */
 function buildIntent(c) {
   const wrap = $('#intent');
   if (!wrap) return;
   wrap.innerHTML = '';
-  INTENTS.forEach(i => {
+  // "Hotter" is not an intention on a machine with one temperature, and
+  // offering it invites somebody to record a change they did not make.
+  INTENTS.filter(i => i.field !== 'temp' || canSetTemp()).forEach(i => {
     const on = editing.intent === i.key;
     const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(i.label));
     b.type = 'button';
@@ -919,16 +1305,31 @@ function buildVerdict(c) {
   });
 }
 
+/* The drawer holds what your machine can change, and nothing else.
+
+   A brew temperature field on a machine with one brew temperature is an
+   invitation to write down a number you did not set, and the app then
+   quotes it back at you as though it were a decision. Same for pressure.
+   The kit says which of these exist; see defaultKit. */
 function buildMore(c) {
   const body = $('#more-body');
+  const summary = $('#more > summary');
+  if (summary) {
+    const bits = [];
+    if (canSetTemp()) bits.push('temperature');
+    if (canSetPressure()) bits.push('pressure');
+    summary.textContent = bits.length
+      ? `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())} and the rest`
+      : 'Basket, notes and the rest';
+  }
   body.innerHTML = `
     <div class="more-grid">
-      <label class="field"><span class="field-label">Grind setting</span>
-        <input class="field-input" id="f-grind" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 4.2"></label>
-      <label class="field"><span class="field-label">Brew temp</span>
-        <input class="field-input" id="f-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></label>
+      ${canSetTemp() ? `<label class="field"><span class="field-label">Brew temp</span>
+        <input class="field-input" id="f-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></label>` : ''}
+      ${canSetPressure() ? `<label class="field"><span class="field-label">Pressure / flow</span>
+        <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="e.g. 6 bar, 2ml/s"></label>` : ''}
       <label class="field"><span class="field-label">Basket</span>
-        <input class="field-input" id="f-basket" type="text" autocomplete="off" placeholder="e.g. 18g VST"></label>
+        <input class="field-input" id="f-basket" type="text" autocomplete="off" placeholder="${escapeHTML(kit().basket || 'e.g. 18g IMS')}"></label>
       ${prefs.tds ? `<label class="field"><span class="field-label">TDS %</span>
         <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
@@ -950,16 +1351,16 @@ function buildMore(c) {
       renderReadout(c);
     });
   };
-  bind('#f-grind', 'grind', false);
   bind('#f-temp', 'temp', false);
+  bind('#f-press', 'press', false);
   bind('#f-basket', 'basket', false);
   bind('#f-tds', 'tds', true);
   bind('#f-notes', 'notes', false);
 
-  // Open it and it stays open — somebody moving the grind every shot should
-  // not have to reopen the drawer the grind lives in.
+  // Open it and it stays open — whatever is in here, somebody who filled it
+  // in on the last shot is filling it in on this one.
   const more = $('#more');
-  more.open = Boolean(editing.grind || editing.temp || editing.basket || editing.notes || editing.tds);
+  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.notes || editing.tds);
 }
 
 /* Everything read out of the three numbers, and nothing typed.
@@ -972,7 +1373,19 @@ function renderReadout(c) {
   const flow = flowOf(editing);
   const ey = extractionOf(editing);
   const place = placeOf(editing, c.target);
-  const tip = suggest(editing, c.target);
+  const tips = nextMove(editing, c.target);
+  /* The "you said finer and the grinder has not moved" check, live.
+
+     It only ran on the saved card, which is to say it arrived after the
+     one moment it could be acted on: while the sheet is open you are two
+     steps from the grinder, and once it is saved you are reading history.
+     The prior shot is the one before this one in the log — the last one
+     for a new sheet, the one before it for an edit. */
+  const rows = shotsNewestFirst(c);
+  const prevShot = editingIsNew
+    ? (rows[0] || null)
+    : (rows[rows.indexOf(editing) + 1] || null);
+  const mismatch = intentCheck(editing, prevShot);
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null
@@ -997,10 +1410,8 @@ function renderReadout(c) {
       </div>` : ''}
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
-    ${tip ? `<div class="tip ${tip.sure ? 'sure' : 'open'}">
-      <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
-    </div>` : ''}
+    ${tips.map(t => tipHTML(t, 'tip')).join('')}
+    ${mismatch ? `<div class="shot-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
 
@@ -1013,11 +1424,19 @@ function saveShot() {
     // you only timed is still evidence. It is marked, not refused.
     toast(`Saved without ${missing.join(' or ')}`);
   }
-  if (editingIsNew) c.shots.push(editing);
+  const wasNew = editingIsNew;
+  if (wasNew) c.shots.push(editing);
   save();
   closeModal('#shot-modal');
   renderBoard();
-  if (!editingIsNew) toast('Shot updated');
+  // The card you just made is the one you want to look at, and the board
+  // used to leave you wherever you happened to be scrolled.
+  if (wasNew) {
+    const first = $('#shots') && $('#shots').firstElementChild;
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } else {
+    toast('Shot updated');
+  }
 }
 
 /* ============================================================
@@ -1080,11 +1499,13 @@ function openCoffees() {
   openModal('#coffee-modal');
 }
 
-function openEdit(c) {
+function openEdit(c, opts) {
+  const adding = Boolean(opts && opts.adding);
   const body = $('#edit-body');
   const t = c.target;
-  // the grind-today sheet borrows this shell and hides the destructive control
-  $('#edit-delete').classList.remove('hidden');
+  // the grind-today sheet borrows this shell and hides the destructive
+  // control; so does a coffee that is not on the shelf yet
+  $('#edit-delete').classList.toggle('hidden', adding);
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
@@ -1130,37 +1551,70 @@ function openEdit(c) {
       b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
       roastWrap.appendChild(b);
     });
+    /* The baseline offers the levers this machine has.
+
+       Quoting a brew temperature at somebody whose machine holds one is
+       the same mistake the shot sheet used to make, one screen earlier:
+       it reads as a recommendation and it is a number they cannot act on.
+       On a fixed-temperature machine the roast still says something — it
+       says what ratio to start at — so the sentence keeps the range as
+       context and the button applies only the ratio. */
     const e = roastEntry(c.roast);
+    const withTemp = canSetTemp();
     baseWrap.innerHTML = e
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.</p>
-           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${e.temp}° and 1:${e.ratio}</button>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.${
+             withTemp ? '' : ` Your machine holds one temperature, so the ratio is the part of this you can take.`}</p>
+           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${withTemp ? `${e.temp}° and ` : ''}1:${e.ratio}</button>
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');
     if (apply) apply.addEventListener('click', () => {
       t.ratio = e.ratio;
-      t.temp = e.temp;
+      if (withTemp) t.temp = e.temp;
       commit();
+      if (!adding) save();
       haptic();
-      toast(`Aiming at 1:${e.ratio}, ${e.temp}°`);
-      closeModal('#edit-modal');
-      save();
+      // Applying a starting point is one field changing, not the end of
+      // the conversation. It used to close the whole sheet, which is a
+      // bigger act than the button admits to and left people unsure
+      // whether the name they had just typed had gone in with it.
+      toast(withTemp ? `Aiming at 1:${e.ratio}, ${e.temp}°` : `Aiming at 1:${e.ratio}`);
+      buildTargetGrid();
       renderBoard();
     });
   };
   renderRoast();
 
+  /* The window, as fields.
+
+     Built in a function because the roast baseline writes to it and the
+     grid then has to show what it wrote — before, the button changed the
+     ratio behind the reader's back and closed the sheet, so the only
+     evidence it had worked was a toast.
+
+     Temperature is a field here only when the machine has one to set. The
+     board advertised "aiming at 94°" with no way to reach it: the number
+     could only be set by tapping the roast suggestion, which also
+     overwrote the ratio. */
   const grid = body.querySelector('#target-grid');
-  grid.appendChild(numField({ label: 'Dose', unit: 'g', value: t.dose, min: 5, max: 40, step: 0.5, digits: 1,
-    onChange: v => { t.dose = v === null ? 18 : v; } }));
-  grid.appendChild(numField({ label: 'Ratio 1:', unit: '', value: t.ratio, min: 1, max: 6, step: 0.1, digits: 1,
-    onChange: v => { t.ratio = v === null ? 2 : v; } }));
-  grid.appendChild(numField({ label: 'From', unit: 's', value: t.timeLo, min: 5, max: 90, step: 1, digits: 0,
-    onChange: v => { t.timeLo = v === null ? 25 : v; } }));
-  grid.appendChild(numField({ label: 'To', unit: 's', value: t.timeHi, min: 5, max: 120, step: 1, digits: 0,
-    onChange: v => { t.timeHi = v === null ? 30 : v; } }));
+  const buildTargetGrid = () => {
+    grid.innerHTML = '';
+    grid.appendChild(numField({ label: 'Dose', unit: 'g', value: t.dose, min: 5, max: 40, step: 0.5, digits: 1,
+      onChange: v => { t.dose = v === null ? 18 : v; } }));
+    grid.appendChild(numField({ label: 'Ratio 1:', unit: '', value: t.ratio, min: 1, max: 6, step: 0.1, digits: 1,
+      onChange: v => { t.ratio = v === null ? 2 : v; } }));
+    grid.appendChild(numField({ label: 'From', unit: 's', value: t.timeLo, min: 5, max: 90, step: 1, digits: 0,
+      onChange: v => { t.timeLo = v === null ? 25 : v; } }));
+    grid.appendChild(numField({ label: 'To', unit: 's', value: t.timeHi, min: 5, max: 120, step: 1, digits: 0,
+      onChange: v => { t.timeHi = v === null ? 30 : v; } }));
+    if (canSetTemp()) {
+      grid.appendChild(numField({ label: 'Temp', unit: '°', value: t.temp, min: 80, max: 100, step: 1, digits: 0,
+        onChange: v => { t.temp = v; } }));
+    }
+  };
+  buildTargetGrid();
 
   /* Every way out of this sheet commits the same fields.
 
@@ -1180,6 +1634,10 @@ function openEdit(c) {
 
   $('#edit-save').onclick = () => {
     commit();
+    if (adding && !state.coffees.some(x => x.id === c.id)) {
+      state.coffees.push(c);
+      state.activeId = c.id;
+    }
     save();
     closeModal('#edit-modal');
     renderBoard();
@@ -1197,23 +1655,140 @@ function openEdit(c) {
   openModal('#edit-modal');
 }
 
+/* A coffee arrives when it has a name, not when the button is pressed.
+
+   Tapping "Add a coffee" used to push an "Unnamed coffee · 0 shots" onto
+   the shelf before a character had been typed, so backing out of the sheet
+   left a ghost bag behind. The record is built here and only joins the
+   shelf if the sheet is saved. */
 function addCoffee() {
   const c = newCoffee('');
-  state.coffees.push(c);
-  state.activeId = c.id;
-  save();
   closeModal('#coffee-modal');
-  renderBoard();
-  openEdit(c);
+  openEdit(c, { adding: true });
 }
 
 /* ============================================================
    SETTINGS, HELP, MODALS
    ============================================================ */
 
+/* A segmented row: a label, a sentence of why it matters, and the answers.
+
+   The "why" is not padding. Somebody being asked whether their machine
+   holds one temperature deserves to know that the answer removes a field
+   from every shot sheet from here on. */
+function segRow(label, sub, options, current, onPick) {
+  const wrap = el('div', 'kit-row');
+  wrap.innerHTML = `
+    <span class="field-label">${escapeHTML(label)}</span>
+    ${sub ? `<span class="kit-sub">${escapeHTML(sub)}</span>` : ''}
+    <div class="seg" role="radiogroup" aria-label="${escapeHTML(label)}"></div>
+  `;
+  const seg = wrap.querySelector('.seg');
+  options.forEach(([key, text]) => {
+    const on = current === key;
+    const b = el('button', 'seg-btn' + (on ? ' on' : ''), escapeHTML(text));
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.addEventListener('click', () => { haptic(); onPick(key); });
+    seg.appendChild(b);
+  });
+  return wrap;
+}
+
+/* Your kit, asked once.
+
+   See defaultKit for why this screen exists at all. The short version: a
+   field you can see and cannot change is a field you will eventually fill
+   in with a guess, and advice that names a lever you do not have is worse
+   than no advice. */
+function openKit() {
+  const k = Object.assign(defaultKit(), state.kit);
+  const body = $('#kit-body');
+  body.innerHTML = `
+    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a lever your machine does not have. The names are your own record — nothing is read out of them.</p>
+    <label class="field"><span class="field-label">Machine</span>
+      <input class="field-input" id="k-machine" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Breville Bambino Plus"></label>
+    <div id="k-temp"></div>
+    <div id="k-press"></div>
+    <label class="field"><span class="field-label">Grinder</span>
+      <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. DF64"></label>
+    <div id="k-steps"></div>
+    <div class="kit-basket">
+      <label class="field"><span class="field-label">Basket</span>
+        <input class="field-input" id="k-basket" type="text" maxlength="60" autocomplete="off" placeholder="e.g. IMS Competizione"></label>
+      <label class="field field-narrow"><span class="field-label">Its dose</span>
+        <input class="field-input" id="k-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="18"></label>
+    </div>
+  `;
+  body.querySelector('#k-machine').value = k.machine;
+  body.querySelector('#k-grinder').value = k.grinder;
+  body.querySelector('#k-basket').value = k.basket;
+  body.querySelector('#k-dose').value = k.basketDose === null ? '' : k.basketDose;
+
+  const redraw = () => {
+    const t = body.querySelector('#k-temp');
+    t.innerHTML = '';
+    t.appendChild(segRow('Brew temperature',
+      'Most home machines hold one. Say so and the temperature field leaves the shot sheet, and nothing here tells you to raise it.',
+      [['fixed', 'It has one'], ['set', 'I set it']], k.temp,
+      key => { k.temp = key; redraw(); }));
+
+    const pr = body.querySelector('#k-press');
+    pr.innerHTML = '';
+    pr.appendChild(segRow('Pressure and flow',
+      'A gauge you can read is not the same as a lever you can move.',
+      [['fixed', 'Neither'], ['gauge', 'I can see it'], ['profile', 'I can change it']], k.pressure,
+      key => { k.pressure = key; redraw(); }));
+
+    const st = body.querySelector('#k-steps');
+    st.innerHTML = '';
+    st.appendChild(segRow('The grind dial',
+      'Only so the app uses your words for it. It never suggests a setting, only a direction — your numbers mean nothing on anyone else’s grinder.',
+      [['stepless', 'A number'], ['stepped', 'Clicks']], k.steps,
+      key => { k.steps = key; redraw(); }));
+  };
+  redraw();
+
+  $('#kit-save').onclick = () => {
+    k.machine = body.querySelector('#k-machine').value.trim();
+    k.grinder = body.querySelector('#k-grinder').value.trim();
+    k.basket = body.querySelector('#k-basket').value.trim();
+    const d = Number(body.querySelector('#k-dose').value.replace(',', '.').trim());
+    k.basketDose = isFinite(d) && d > 0 && d <= 60 ? d : null;
+    k.asked = true;
+    state.kit = k;
+    save();
+    closeModal('#kit-modal');
+    renderBoard();
+    toast('Setup saved');
+  };
+  // Skipping is answering: the defaults are the commonest home machine, and
+  // somebody who skips should get the simplest sheet rather than the
+  // fullest one. It is not asked again, and it is in Settings for ever.
+  $('#kit-skip').onclick = () => {
+    state.kit = Object.assign(defaultKit(), { asked: true });
+    save();
+    closeModal('#kit-modal');
+    renderBoard();
+  };
+  openModal('#kit-modal');
+}
+
+function kitLine() {
+  const k = kit();
+  const bits = [k.machine, k.grinder, k.basket].filter(Boolean);
+  return bits.length ? bits.join(' · ') : 'Not set — the sheet is using the defaults';
+}
+
 function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
+    <button class="btn btn-ghost kit-btn" id="btn-kit">
+      <span class="kit-btn-title">Your setup</span>
+      <span class="kit-btn-sub">${escapeHTML(kitLine())}</span>
+    </button>
+
     <label class="switch-row" for="t-tds">
       <span class="switch-text">
         <span class="switch-title">Refractometer</span>
@@ -1241,9 +1816,16 @@ function openSettings() {
     seg.appendChild(b);
   });
 
-  body.querySelector('#btn-help').addEventListener('click', () => { closeModal('#settings-modal'); openHelp(); });
+  body.querySelector('#btn-kit').addEventListener('click', () => { closeModal('#settings-modal'); openKit(); });
+  body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
 }
+
+// Where Help was opened from, so closing it goes back there. Closing it
+// used to land on the board, because Settings had already been closed to
+// make room — a tester went in for the refractometer toggle, read the
+// help, and had to walk the whole path again.
+let helpFrom = null;
 
 function openHelp() {
   $('#help-body').innerHTML = `
@@ -1252,6 +1834,11 @@ function openHelp() {
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
+    <p><strong>Sour, bitter, watery, muddy</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>
+    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the puck; bitter is water that took too much. Grind is the lever, because grind moves time — finer is slower is more extracted.</p>
+    <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the lever. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
+    <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole shot.</p>
+    <p><strong>Your setup</strong> decides what this app asks you for. Say your machine holds one temperature and the temperature field leaves the sheet and stops appearing in the advice — a field you cannot change is a field you will end up filling in with a guess. Change it any time in Settings.</p>
     <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>
   `;
   openModal('#help-modal');
@@ -1323,15 +1910,20 @@ function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
-  $('#shot-close').addEventListener('click', () => closeModal('#shot-modal'));
+  $('#shot-close').addEventListener('click', closeShotSheet);
+  $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
   $('#shot-save').addEventListener('click', saveShot);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
-  $('#help-close').addEventListener('click', () => closeModal('#help-modal'));
-  $('#help-done').addEventListener('click', () => closeModal('#help-modal'));
+  const closeHelp = () => {
+    closeModal('#help-modal');
+    if (helpFrom === 'settings') { helpFrom = null; openSettings(); }
+  };
+  $('#help-close').addEventListener('click', closeHelp);
+  $('#help-done').addEventListener('click', closeHelp);
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;

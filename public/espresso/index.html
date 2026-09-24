@@ -94,9 +94,14 @@
         <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
       </div>
 
+      <!-- Two walls, asked separately. Grind answers the first; ratio and
+           dose answer the second. Asking them as one "how was it" is what
+           makes espresso advice feel like guesswork. -->
       <div class="taste-block">
-        <span class="field-label" id="taste-label">How it tasted</span>
+        <span class="field-label" id="taste-label">Sour or bitter?</span>
         <div id="taste-scale"></div>
+        <span class="field-label" id="body-label">Watery or muddy?</span>
+        <div id="body-scale"></div>
       </div>
 
       <div class="verdict-block">
@@ -104,15 +109,20 @@
         <div class="verdict" id="verdict" role="radiogroup" aria-label="Keep it?"></div>
       </div>
 
-      <!-- Everything you change less often than the three numbers. Open it
-           when you change one; it stays open for the rest of the session. -->
+      <!-- Everything you change less often than the numbers above, and only
+           what your kit can change: a brew-temperature field on a machine
+           with one brew temperature is an invitation to write down a number
+           you did not set. The summary is rewritten from the kit. -->
       <details class="more" id="more">
-        <summary>Grind, temperature and the rest</summary>
+        <summary>Basket, notes and the rest</summary>
         <div class="more-body" id="more-body"></div>
       </details>
     </div>
 
     <div class="sheet-actions">
+      <!-- Only on a shot that exists; there is nothing to remove from a
+           sheet nobody has saved. -->
+      <button id="shot-delete" class="btn btn-ghost btn-danger hidden">Remove this shot</button>
       <button id="shot-save" class="btn btn-primary">Save the shot</button>
     </div>
   </div>
@@ -147,6 +157,26 @@
     <div class="sheet-actions">
       <button id="edit-delete" class="btn btn-ghost btn-danger">Remove this coffee</button>
       <button id="edit-save" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ YOUR KIT ============ -->
+<!-- Asked once, before the first shot. What the app needs is not the
+     machine's name — a brand table goes stale in a year and is wrong about
+     anything modded — but what the machine can change. -->
+<div id="kit-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="kit-title">
+    <div class="sheet-head">
+      <h3 id="kit-title">Your setup</h3>
+      <button id="kit-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="kit-body" id="kit-body"></div>
+    <div class="sheet-actions">
+      <button id="kit-skip" class="btn btn-ghost">Skip</button>
+      <button id="kit-save" class="btn btn-primary">Save</button>
     </div>
   </div>
 </div>
