@@ -171,8 +171,16 @@ async function handleApi(request, env, path, cors) {
     const { body, error } = await readPayload(request, json);
     if (error) return error;
 
+    /* null is a value here, and the only one that survives the round trip.
+
+       A sheet that is not finished has no score — the sections nobody
+       reached would enter the total at their stored default — so the client
+       sends null for it. Coercing that to 0 would hand every device at the
+       table a cupper who looked at the coffee and scored it nought, which is
+       a worse lie than the one the null exists to stop. */
     const scores = Array.isArray(body && body.scores)
-      ? body.scores.slice(0, 10).map(v => Math.max(0, Math.min(100, Number(v) || 0)))
+      ? body.scores.slice(0, 10).map(v =>
+          typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null)
       : null;
     if (!scores || !scores.length) return json({ error: 'No scores supplied' }, 400);
 

@@ -1004,7 +1004,31 @@ function openAccountSheet() {
 
 /* ---------- scoring ---------- */
 
+/* The sheet's score, or null while the sheet is unfinished.
+
+   Both forms score a cup as a sum over every section, and every section
+   sits at a stored default until a cupper moves it — 5 on the CVA form,
+   7.5 on the 2004 one. Sum a sheet that is three sections in and the other
+   five are not missing from the total; they are in it, at a value nobody
+   chose. Three sections rated 7, 8 and 6 print 83.00, which is
+   0.65625 × (21 + five invented 5s) + 52.75. A count beside it repairs
+   nothing, because there is nothing in the number to discount — you cannot
+   read 83.00 as "the real part is 21". It is a whole-cup score built mostly
+   from defaults, and it lands a point under specialty from three sniffs.
+
+   The scorebar has refused to print one since the day it was written, and
+   calibration has excluded them since a cupper was told his palate ran 2.31
+   low when what ran low was five sections he had not reached. Everything
+   else still manufactured the number: a part-scored sheet entered the panel
+   average as a full cupper, and at a live table a Kenya came out 4.69 points
+   light because two of its four sheets were unfinished — under a footnote,
+   on the same screen, promising that only finished sheets are measured.
+
+   So the sum happens once the sheet is whole, and until then the answer is
+   that there is no answer. Every surface reads the null and says how far
+   along the sheet is instead. */
 function coffeeScore(c) {
+  if (!scoreProgress(c).complete) return null;
   return usingCVA() ? cvaScore(c) : legacyScore(c);
 }
 
@@ -1075,29 +1099,61 @@ function ratedAt(p, i) {
   return typeof n === 'number' ? n : null;
 }
 
-// The scores that may enter a panel average for coffee i: wholly unrated
-// sheets removed, part-scored ones kept and flagged.
+/* Every seat that has put something on the record for coffee i.
+
+   Being at the table and being in the average are two different questions,
+   and `score` answers the second: a finished sheet carries its number, a
+   part-scored one carries null. The sections it has not reached would enter
+   any total at their stored default, so there is no number to average and
+   none to print — see coffeeScore. It still gets a row, with its count,
+   because a cupper who is two sections in should read as a cupper who is
+   two sections in, not vanish from the table.
+
+   A submission from a build older than the `rated` array has no count to
+   interrogate, so it is taken at its word: dropping a cupper who is sitting
+   at the table is worse than trusting a number this build cannot check. */
 function panelEntries(participants, i) {
   const total = sectionCount();
   return participants.map(p => {
-    const score = Array.isArray(p.scores) ? p.scores[i] : undefined;
-    if (typeof score !== 'number') return null;
+    const raw = Array.isArray(p.scores) ? p.scores[i] : undefined;
     const rated = ratedAt(p, i);
     if (rated === 0) return null;
-    return {
-      name: p.name,
-      score,
-      rated,
-      total,
-      partial: rated !== null && rated < total,
-      me: Boolean(p.me),
-    };
+    const partial = rated !== null && rated < total;
+    const score = !partial && typeof raw === 'number' && isFinite(raw) ? raw : null;
+    // no number and no count is not a seat at this coffee, it is silence
+    if (score === null && rated === null) return null;
+    return { name: p.name, score, rated, total, partial, me: Boolean(p.me) };
   }).filter(Boolean);
 }
 
-// "2 of 8" for a part-scored sheet, empty for a finished one.
+// The entries whose numbers may stand in an average.
+function scoringEntries(entries) {
+  return entries.filter(e => typeof e.score === 'number');
+}
+
+// The panel score for one coffee, or null while no sheet is finished.
+function panelAverage(entries) {
+  const firm = scoringEntries(entries);
+  if (!firm.length) return null;
+  return firm.reduce((a, e) => a + e.score, 0) / firm.length;
+}
+
+// "2 of 8" for a sheet still being scored, empty for a finished one.
 function ratedNote(entry) {
   return entry.partial ? `${entry.rated} of ${entry.total}` : '';
+}
+
+// One cupper's chip: a score, or the mark for its absence and the count
+// that says why. Used wherever the table's seats are listed.
+function cupperChip(entry, avg, cls, bold) {
+  const has = typeof entry.score === 'number';
+  const d = has && avg !== null ? entry.score - avg : null;
+  const delta = d === null ? '' : ` <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em>`;
+  const note = ratedNote(entry);
+  const num = has ? fmt(entry.score) : '—';
+  return `<span class="${cls}${entry.me ? ' me' : ''}${entry.partial ? ' partial' : ''}">${
+    escapeHTML(entry.name)} ${bold ? `<strong>${num}</strong>` : num}${
+    note ? ` <i>${note}</i>` : ''}${delta}</span>`;
 }
 
 // The lineup in score order, each coffee carrying how much of its sheet is
@@ -1116,7 +1172,8 @@ function rankedCoffees() {
   const tier = p => (p.done === 0 ? 2 : p.complete ? 0 : 1);
   return state.coffees
     .map((c, i) => ({ coffee: c, index: i, score: coffeeScore(c), prog: scoreProgress(c) }))
-    .sort((a, b) => tier(a.prog) - tier(b.prog) || b.score - a.score);
+    // only the top tier has scores to sort by; the other two sort by tier
+    .sort((a, b) => tier(a.prog) - tier(b.prog) || (b.score ?? 0) - (a.score ?? 0));
 }
 
 function defectPenalty(c) {
@@ -1169,8 +1226,10 @@ function metaSummary(meta) {
   return bits.join(' · ');
 }
 
+// Scores are nullable now — a sheet that is not finished has no number —
+// and every surface that prints one wants the same mark for its absence.
 function fmt(n) {
-  return n.toFixed(2);
+  return typeof n === 'number' && isFinite(n) ? n.toFixed(2) : '—';
 }
 
 /* ---------- tiny helpers ---------- */
@@ -1630,8 +1689,14 @@ function announceReveal() {
   });
 }
 
+// The null travels. A sheet with no score sends nothing rather than a zero,
+// which every device downstream would otherwise read as a cupper who looked
+// at the coffee and scored it nought.
 function myScores() {
-  return state.coffees.map(c => Math.round(coffeeScore(c) * 100) / 100);
+  return state.coffees.map(c => {
+    const s = coffeeScore(c);
+    return s === null ? null : Math.round(s * 100) / 100;
+  });
 }
 
 function getCupperName() {
@@ -1646,7 +1711,7 @@ async function buildScoreCode() {
   return encodeCode('SCR', {
     v: 1,
     n: getCupperName() || 'Cupper',
-    s: state.coffees.map(c => Math.round(coffeeScore(c) * 100) / 100),
+    s: myScores(),
     // how much of each sheet is real, so the receiving table can weigh it
     r: myRated(),
     t: state.coffees.map((c, i) => coffeeName(c, i)),
@@ -1659,7 +1724,8 @@ async function addTeamScoresFromCode(text) {
   if (obj.s.length !== state.coffees.length) {
     return { ok: false, error: `That code has ${obj.s.length} coffee${obj.s.length > 1 ? 's' : ''}, this session has ${state.coffees.length}.` };
   }
-  const scores = obj.s.map(v => Math.max(0, Math.min(100, Number(v) || 0)));
+  const scores = obj.s.map(v =>
+    typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null);
   // a code from an older build has no `r`; leaving it undefined makes
   // ratedAt return null, which reads as complete rather than as zero
   const rated = Array.isArray(obj.r) && obj.r.length === scores.length
@@ -4391,7 +4457,12 @@ function updateScorebar() {
    range stated. Which one came top is a fact about the ranking below, not
    the headline. */
 function buildSummary(ranked) {
-  const scored = ranked.filter(r => r.prog.done > 0);
+  // Two different sets, and the screen used to run them together: the
+  // sheets with anything on them at all, which decides whether there is a
+  // screen to draw, and the sheets with a score, which is everything the
+  // scale and the figures are built from.
+  const touched = ranked.filter(r => r.prog.done > 0);
+  const scored = ranked.filter(r => r.prog.complete);
   const wrap = $('#summary');
 
   /* Whose scores these are.
@@ -4406,12 +4477,22 @@ function buildSummary(ranked) {
      stacked, both of them true of different things. */
   const live = Boolean(tableCode());
 
-  if (!scored.length) {
+  if (!touched.length) {
     wrap.innerHTML = live
       ? `<div class="summary-head">Your sheet</div>
          <p class="summary-note">You have not rated anything on this device, so there is nothing of yours to place on the scale. The table’s scores are in the card below.</p>`
       : `<div class="summary-head">Nothing scored yet</div>
          <p class="summary-note">No section of any coffee has been rated, so there is nothing to place on the scale.</p>`;
+    return;
+  }
+
+  // Started is not scored. A sheet three sections in has no number to put on
+  // a scale, and the figures below are claims about a set of numbers.
+  if (!scored.length) {
+    const started = touched.length;
+    wrap.innerHTML = `<div class="summary-head">${live ? 'Your sheet' : 'This cupping'}</div>
+      <p class="summary-note">${started} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${
+        started === 1 ? 'is' : 'are'} part-scored and none is finished, so there is nothing to place on the scale yet. A sheet gets its score when its last section is rated.</p>`;
     return;
   }
 
@@ -4422,20 +4503,11 @@ function buildSummary(ranked) {
   const SPECIALTY = 80;
   const pct = v => Math.max(0, Math.min(100, ((v - FLOOR) / (100 - FLOOR)) * 100));
 
-  // Range, median and "at or above 80" describe finished sheets. They used
-  // to be computed over every sheet with a single section rated, so a coffee
-  // whose remaining seven sections were sitting at their default 5 widened
-  // the range and moved the median. A statistic is a claim about a set; this
-  // one has to say which set, and the set has to be the reliable one.
-  //
-  // When nothing is finished there is no reliable set, so rather than print
-  // nothing the figures fall back to every scored sheet and the note below
-  // says plainly that they rest on part-scored ones.
-  const firm = scored.filter(r => r.prog.complete);
-  const basis = firm.length ? firm : scored;
-  const onlyPartial = !firm.length;
-
-  const values = basis.map(r => r.score).sort((a, b) => a - b);
+  // Range, median and "at or above 80" are claims about a set of scores, so
+  // the set is the sheets that have one. They used to be computed over every
+  // sheet with a single section rated, and a coffee whose remaining seven
+  // sections sat at their default 5 widened the range and moved the median.
+  const values = scored.map(r => r.score).sort((a, b) => a - b);
   const low = values[0];
   const high = values[values.length - 1];
   const mid = values.length % 2
@@ -4455,7 +4527,7 @@ function buildSummary(ranked) {
       <div class="summary-rail"></div>
       <div class="summary-span" style="left:${pct(low)}%;right:${100 - pct(high)}%"></div>
       <div class="summary-threshold" style="left:${pct(SPECIALTY)}%"></div>
-      ${scored.map(r => `<i class="summary-mark${r.prog.complete ? '' : ' partial'}" style="left:${pct(r.score)}%" title="${escapeHTML(coffeeName(r.coffee, r.index))} ${fmt(r.score)}${r.prog.complete ? '' : ` · ${r.prog.done} of ${r.prog.total} rated`}"></i>`).join('')}
+      ${scored.map(r => `<i class="summary-mark" style="left:${pct(r.score)}%" title="${escapeHTML(coffeeName(r.coffee, r.index))} ${fmt(r.score)}"></i>`).join('')}
       <span class="summary-tick summary-tick-start">${FLOOR}</span>
       <span class="summary-tick summary-tick-spec" style="left:${pct(SPECIALTY)}%">${SPECIALTY}</span>
       <span class="summary-tick summary-tick-end">100</span>
@@ -4467,9 +4539,7 @@ function buildSummary(ranked) {
       <div><dt>At or above 80</dt><dd>${above} of ${values.length}</dd></div>
     </dl>
     ${complete < ranked.length
-      ? `<p class="summary-note">${onlyPartial
-          ? `No sheet is complete, so the figures above rest on part-scored sheets and will move as you finish them.`
-          : `${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} complete, and the figures above describe ${complete === 1 ? 'that one' : 'those'}. A part-scored sheet is marked hollow on the line, ranks below the finished ones, and carries its count wherever its number appears.`}</p>`
+      ? `<p class="summary-note">${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} finished, and the figures above describe ${complete === 1 ? 'that one' : 'those'}. The rest are not on the scale: an unfinished sheet has no score until its last section is rated, because the sections you have not reached would go into the total at a default nobody chose.</p>`
       : ''}
   `;
 }
@@ -4501,13 +4571,13 @@ function buildResults() {
         <div class="rank-position">${pos + 1}</div>
         <div class="rank-info">
           <div class="rank-name">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
-          <div class="rank-grade">${r.prog.done === 0
-            ? 'not rated'
-            : r.prog.complete
-              ? gradeFor(r.score)
-              : `${gradeFor(r.score)} · ${r.prog.done} of ${r.prog.total} rated`}</div>
+          <div class="rank-grade">${r.prog.complete
+            ? gradeFor(r.score)
+            : r.prog.done === 0
+              ? 'not rated'
+              : `${r.prog.done} of ${r.prog.total} rated`}</div>
         </div>
-        <div class="rank-score${r.prog.complete ? '' : ' partial'}">${r.prog.done === 0 ? '—' : fmt(r.score)}</div>
+        <div class="rank-score${r.prog.complete ? '' : ' partial'}">${fmt(r.score)}</div>
       </div>
       <div class="rank-bar"><div class="rank-bar-fill"></div></div>
       ${meta ? `<div class="rank-meta">${escapeHTML(meta)}</div>` : ''}
@@ -4519,8 +4589,9 @@ function buildResults() {
       // CVA floors at 58, so a raw percentage wastes the left 58% of every
       // bar and compresses the differences that matter into the right third
       const floor = usingCVA() ? 58 : 0;
-      const pct = r.prog.done === 0 ? 0
-        : Math.max(0, Math.min(100, ((r.score - floor) / (100 - floor)) * 100));
+      const pct = r.prog.complete
+        ? Math.max(0, Math.min(100, ((r.score - floor) / (100 - floor)) * 100))
+        : 0;
       card.querySelector('.rank-bar-fill').style.transform = `scaleX(${pct / 100})`;
     });
   });
@@ -4812,35 +4883,54 @@ function refreshLiveTable(data) {
     // sheet nobody touched cannot lend the table a number made of defaults.
     const perCoffee = state.coffees.map((c, i) => {
       const entries = panelEntries(all, i);
-      const avg = entries.reduce((a, e) => a + e.score, 0) / (entries.length || 1);
-      return { name: coffeeName(c, i), avg, index: i, entries };
-    }).sort((a, b) => b.avg - a.avg);
+      return {
+        name: coffeeName(c, i),
+        avg: panelAverage(entries),
+        n: scoringEntries(entries).length,
+        index: i,
+        entries,
+      };
+    }).sort((a, b) => (b.avg === null) - (a.avg === null) || b.avg - a.avg);
 
-    const counted = new Set();
-    perCoffee.forEach(r => r.entries.forEach(e => counted.add(e.name)));
-    const dropped = all.filter(p => !counted.has(p.name));
+    /* Who is in the panel score, and who is only at the table.
 
-    if (!counted.size) {
+       The card used to count both as one thing. It printed "the average of
+       4 independent cuppers" over a row whose own badge said 5, because the
+       headline counted everyone who had touched a sheet while the row
+       counted the seats it drew. Now there is one question — is this sheet
+       finished — and three answers, each with its own sentence. */
+    const counted = new Set();   // sheets standing behind a panel score
+    const scoring = new Set();   // seats part-way through a sheet
+    perCoffee.forEach(r => r.entries.forEach(e => {
+      (typeof e.score === 'number' ? counted : scoring).add(e.name);
+    }));
+    counted.forEach(name => scoring.delete(name));
+    const idle = all.filter(p => !counted.has(p.name) && !scoring.has(p.name)).map(p => p.name);
+    const names = list => list.map(escapeHTML).join(', ');
+
+    if (!counted.size && !scoring.size) {
       wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>` + lateSubmit();
     } else {
-      html += `<p class="live-note">Panel score is the average of ${counted.size} independent cupper${counted.size > 1 ? 's' : ''}.</p>`;
-      if (dropped.length) {
-        html += `<p class="live-note">${dropped.map(p => escapeHTML(p.name)).join(', ')} ${dropped.length > 1 ? 'have' : 'has'} not rated any section yet, so ${dropped.length > 1 ? 'their sheets are' : 'their sheet is'} not in the average.</p>`;
+      html += counted.size
+        ? `<p class="live-note">Panel score is the average of ${counted.size} finished sheet${counted.size > 1 ? 's' : ''}.</p>`
+        : `<p class="live-note">No sheet is finished yet, so there is no panel score.</p>`;
+      if (scoring.size) {
+        const l = [...scoring];
+        html += `<p class="live-note">${names(l)} ${l.length > 1 ? 'are' : 'is'} still scoring. A sheet joins the average when its last section is rated — until then its untouched sections would enter the total at a default nobody chose.</p>`;
+      }
+      if (idle.length) {
+        html += `<p class="live-note">${names(idle)} ${idle.length > 1 ? 'have' : 'has'} not rated any section yet.</p>`;
       }
       html += perCoffee.map(row => `
         <div class="team-coffee-row">
           <div class="team-coffee-top">
             <span class="team-coffee-name">${escapeHTML(row.name)}</span>
-            <span class="team-coffee-avg">${row.entries.length ? fmt(row.avg) : '—'}<small>${row.entries.length
-              ? `PANEL · ${row.entries.length} cupper${row.entries.length > 1 ? 's' : ''}`
+            <span class="team-coffee-avg">${fmt(row.avg)}<small>${row.n
+              ? `PANEL · ${row.n} sheet${row.n > 1 ? 's' : ''}`
               : 'PANEL'}</small></span>
           </div>
-          <div class="team-coffee-cuppers">${row.entries.map(e => {
-            const d = e.score - row.avg;
-            const sign = d >= 0 ? '+' : '−';
-            const note = ratedNote(e);
-            return `<span class="cupper-score${e.me ? ' me' : ''}${e.partial ? ' partial' : ''}">${escapeHTML(e.name)} ${fmt(e.score)}${note ? ` <i>${note}</i>` : ''} <em>${sign}${fmt(Math.abs(d))}</em></span>`;
-          }).join('') || '<span class="cupper-score">nobody has rated this one</span>'}</div>
+          <div class="team-coffee-cuppers">${row.entries.map(e => cupperChip(e, row.n > 1 ? row.avg : null, 'cupper-score')).join('')
+            || '<span class="cupper-score">nobody has rated this one</span>'}</div>
         </div>`).join('');
 
       /* Calibration: who consistently runs high or low against the table.
@@ -4864,7 +4954,7 @@ function refreshLiveTable(data) {
         const diffs = perCoffee
           .map(r => {
             const e = r.entries.find(x => x.name === name);
-            return e && !e.partial ? e.score - r.avg : null;
+            return e && typeof e.score === 'number' && r.avg !== null ? e.score - r.avg : null;
           })
           .filter(v => typeof v === 'number' && !isNaN(v));
         const mean = diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
@@ -5049,8 +5139,15 @@ function presentPanel() {
   if (!all.length) return null;
   return state.coffees.map((c, i) => {
     const cuppers = panelEntries(all, i);
-    const avg = cuppers.reduce((a, v) => a + v.score, 0) / (cuppers.length || 1);
-    return { avg, cuppers: cuppers.sort((a, b) => b.score - a.score) };
+    return {
+      avg: panelAverage(cuppers),
+      // how many finished sheets stand behind that average, and how many
+      // seats are still working — two counts, never one
+      n: scoringEntries(cuppers).length,
+      scoring: cuppers.length - scoringEntries(cuppers).length,
+      // the sheets with a number first, in order; the seats still scoring after
+      cuppers: cuppers.sort((a, b) => (a.score === null) - (b.score === null) || b.score - a.score),
+    };
   });
 }
 
@@ -5092,29 +5189,20 @@ function buildPresent() {
 
     const meta = metaSummary(coffee.meta);
     const row = panel ? panel[i] : null;
-    const mine = coffeeScore(coffee);
-    const shown = row ? row.avg : mine;
-
-    // This is the one surface where a number is read out loud, and it was the
-    // one surface that showed a part-scored number as a finished one: a sheet
-    // rated 3 of 8 printed 88.75 in full ink with no qualifier, beside two
-    // complete sheets drawn identically. Results, History, print and the CSV
-    // all carry the treatment DESIGN.md calls "one treatment, everywhere",
-    // and the Results screen immediately before this one promises in writing
-    // that "a part-scored sheet is marked wherever its number appears".
-    // The live path already had it via row.cuppers; the solo path — the one a
-    // leader without signal is actually on — never got it.
+    /* This is the one surface where a number is read out loud, so it says
+       exactly what stands behind the number and nothing more. A panel row
+       is an average over the finished sheets; a seat still scoring is named
+       below but does not move it. Solo, the row is this device's sheet, and
+       it has a number only when it is done. */
     const own = scoreProgress(coffee);
-    const partial = row ? row.cuppers.some(c => c.partial) : !own.complete;
-    // "nothing rated · 0 of 8 rated" says it twice; the count only adds
-    // something when some of the sheet is real.
-    // "some part-scored" is a warning with no size to it. How many of the
-    // sheets in this average were unfinished is the thing a room needs, and
-    // every other surface in the product gives the count rather than a word.
-    const partCount = row ? row.cuppers.filter(c => c.partial).length : 0;
-    const qualifier = row
-      ? (partCount ? ` · ${partCount} part-scored` : '')
-      : (own.complete || own.done === 0 ? '' : ` · ${own.done} of ${own.total} rated`);
+    const shown = row ? row.avg : coffeeScore(coffee);
+    const caption = row
+      ? (row.n
+          ? `average of ${row.n} finished sheet${row.n > 1 ? 's' : ''}`
+          : 'no sheet finished yet')
+      : (own.complete ? 'your score' : own.done === 0 ? 'nothing rated' : `${own.done} of ${own.total} rated`);
+    // a warning with no size to it is not a warning; the room gets the count
+    const qualifier = row && row.scoring ? ` · ${row.scoring} still scoring` : '';
 
     card.innerHTML = `
       <div class="present-top">
@@ -5124,17 +5212,14 @@ function buildPresent() {
           ${stage && meta ? `<div class="present-meta">${escapeHTML(meta)}</div>` : ''}
         </div>
         ${stage === 2 ? `<div class="present-score">
-          <span class="present-avg${partial ? ' partial' : ''}">${own.done === 0 && !row ? '—' : fmt(shown)}</span>
-          <span class="present-grade">${row
-            ? `average of ${row.cuppers.length} cupper${row.cuppers.length > 1 ? 's' : ''}`
-            : (own.done === 0 ? 'nothing rated' : 'your score')}${qualifier}</span>
+          <span class="present-avg${shown === null ? ' partial' : ''}">${fmt(shown)}</span>
+          <span class="present-grade">${caption}${qualifier}</span>
         </div>` : ''}
       </div>
-      ${stage === 2 && row ? `<div class="present-cuppers">${row.cuppers.map(c => {
-        const d = c.score - row.avg;
-        const note = ratedNote(c);
-        return `<span class="present-cupper${c.partial ? ' partial' : ''}">${escapeHTML(c.name)} <strong>${fmt(c.score)}</strong>${note ? ` <i>${note}</i>` : ''} <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em></span>`;
-      }).join('')}</div>` : ''}
+      ${stage === 2 && row ? `<div class="present-cuppers">${
+        // a difference from an average of one sheet is always zero, and
+        // printing "+0.00" beside the only sheet in it says nothing
+        row.cuppers.map(c => cupperChip(c, row.n > 1 ? row.avg : null, 'present-cupper', true)).join('')}</div>` : ''}
     `;
 
     if (stage < 2) {
@@ -5169,39 +5254,29 @@ function buildPresentFinal(panel) {
 
   const own = state.coffees.map(scoreProgress);
   const rows = state.coffees
-    .map((c, i) => ({
-      name: coffeeName(c, i),
-      score: panel ? panel[i].avg : coffeeScore(c),
-      // no cupper rated a section of this one, so there is no score to show
-      empty: panel ? !panel[i].cuppers.length : own[i].done === 0,
-      partial: panel
-        ? panel[i].cuppers.some(e => e.partial)
-        : own[i].done > 0 && !own[i].complete,
-      // The grey ink said "not reliable" and then declined to say how much of
-      // the sheet was real. Every other ranking in the product carries the
-      // count; this one dropped it.
-      note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
-      // how many cuppers stand behind this row's number, and how many of
-      // them handed in an unfinished sheet
-      n: panel ? panel[i].cuppers.length : 0,
-      partN: panel ? panel[i].cuppers.filter(c => c.partial).length : 0,
-    }))
-    /* Ranked by what the row is.
-
-       Solo, each row is one sheet, so the Results rule holds: complete
-       first, part-scored below them, nothing rated last — a total made
-       mostly of defaults should not outrank one that was earned.
-
-       A panel row is not a sheet. It is an average over the cuppers who
-       rated that coffee, and demoting it because one of them stopped early
-       ranks the coffee by the worst sheet in it. It put a Kenya at 91.08,
-       averaged over three cuppers, below a Brazil at 84.25 that one person
-       rated — while the table card two taps away, which sorts on the score,
-       had them the other way up. The count and the part-scored mark are
-       printed beside every row; the order is the score. */
-    .sort(panel
-      ? (a, b) => (a.empty - b.empty) || (b.score - a.score)
-      : (a, b) => (a.empty - b.empty) || (a.partial - b.partial) || (b.score - a.score));
+    .map((c, i) => {
+      const score = panel ? panel[i].avg : coffeeScore(c);
+      return {
+        name: coffeeName(c, i),
+        score,
+        // nothing finished on this coffee, so there is no score to read out
+        empty: score === null,
+        // The grey ink said "not reliable" and then declined to say how much
+        // of the sheet was real. Every other ranking carries the count.
+        note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
+        // how many finished sheets stand behind this row, and how many
+        // cuppers are still working on it
+        n: panel ? panel[i].n : 0,
+        scoring: panel ? panel[i].scoring : 0,
+      };
+    })
+    /* One rule now, because there is one kind of row: every score in this
+       list is a finished sheet or an average of finished sheets. Rows with
+       no score yet go to the bottom; the rest rank by the number. The old
+       three-way tier existed to keep part-scored sheets from outranking
+       earned ones — they no longer have a number to outrank anything
+       with. */
+    .sort((a, b) => (a.empty - b.empty) || (b.score - a.score));
   /* The denominator is per coffee, and this card used to print one number
      for the whole lineup — the *maximum* across them. A table where four
      people scored the Ethiopia and two got as far as the Brazil announced
@@ -5210,7 +5285,7 @@ function buildPresentFinal(panel) {
      that does not apply to every row in it is not a panel score. Each row
      carries its own count now, and the caption states the spread when the
      coffees do not agree. */
-  const counts = panel ? panel.map(p => p.cuppers.length).filter(Boolean) : [];
+  const counts = panel ? panel.map(p => p.n).filter(Boolean) : [];
   const nLow = counts.length ? Math.min(...counts) : 0;
   const nHigh = counts.length ? Math.max(...counts) : 0;
 
@@ -5218,17 +5293,17 @@ function buildPresentFinal(panel) {
     <h3>The table’s ranking</h3>
     <p class="team-sub">${panel
       ? (nLow === nHigh
-          ? `Panel scores — each the average of ${nHigh} independent cupper${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
-          : `Panel scores — each the average of the cuppers who rated that coffee, ${nLow} to ${nHigh} of them. The count is beside every score.`)
+          ? `Panel scores — each the average of ${nHigh} finished sheet${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
+          : `Panel scores — each the average of the sheets finished for that coffee, ${nLow} to ${nHigh} of them. The count is beside every score.`)
       : 'Your own scores — no other cuppers have submitted.'}</p>
     ${rows.map((r, pos) => `
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.partial ? ' partial' : ''}">${r.empty ? 'not rated' : fmt(r.score)}${
+        <span class="present-final-score${r.empty ? ' partial' : ''}">${r.empty ? 'no score yet' : fmt(r.score)}${
           r.note ? ` <i>${r.note}</i>` : ''}${
-          !r.empty && r.n
-            ? ` <i>${r.n} cupper${r.n > 1 ? 's' : ''}${r.partN ? ` · ${r.partN} part-scored` : ''}</i>`
+          r.n
+            ? ` <i>${r.n} sheet${r.n > 1 ? 's' : ''}${r.scoring ? ` · ${r.scoring} still scoring` : ''}</i>`
             : ''}</span>
       </div>`).join('')}
   `;
@@ -5269,22 +5344,18 @@ function renderTeamTable() {
   const mine = { name: myName, scores: myScores(), rated: myRated(), me: true };
   const rows = state.coffees.map((c, i) => {
     const values = panelEntries([mine, ...state.team], i);
-    const avg = values.reduce((a, v) => a + v.score, 0) / (values.length || 1);
-    return { name: coffeeName(c, i), avg, values };
-  }).sort((a, b) => (a.values.length ? 0 : 1) - (b.values.length ? 0 : 1) || b.avg - a.avg);
+    return { name: coffeeName(c, i), avg: panelAverage(values), values };
+  }).sort((a, b) => (a.avg === null) - (b.avg === null) || b.avg - a.avg);
 
   rows.forEach(r => {
     const row = el('div', 'team-coffee-row');
     row.innerHTML = `
       <div class="team-coffee-top">
         <span class="team-coffee-name">${escapeHTML(r.name)}</span>
-        <span class="team-coffee-avg">${r.values.length ? fmt(r.avg) : '—'}<small>AVG</small></span>
+        <span class="team-coffee-avg">${fmt(r.avg)}<small>AVG</small></span>
       </div>
       <div class="team-coffee-cuppers">${r.values.length
-        ? r.values.map(v => {
-            const note = ratedNote(v);
-            return `<span class="cupper-score${v.me ? ' me' : ''}${v.partial ? ' partial' : ''}">${escapeHTML(v.name)} ${fmt(v.score)}${note ? ` <i>${note}</i>` : ''}</span>`;
-          }).join('')
+        ? r.values.map(v => cupperChip(v, null, 'cupper-score')).join('')
         : '<span class="cupper-score">nobody has rated this one</span>'}</div>
     `;
     results.appendChild(row);
@@ -5478,7 +5549,9 @@ function sharedPanel() {
     return {
       name: coffeeName(c, i),
       entries,
-      avg: entries.reduce((a, e) => a + e.score, 0) / (entries.length || 1),
+      avg: panelAverage(entries),
+      n: scoringEntries(entries).length,
+      scoring: entries.length - scoringEntries(entries).length,
     };
   });
 }
@@ -5490,9 +5563,9 @@ function sharedPanel() {
    out loud shared their own numbers instead of it, labelled as the results
    of the cupping — and a panel average with no denominator beside it is the
    most quotable figure this product makes. The panel leads when there is
-   one, every row carries the count behind it and how many of those sheets
-   were part-scored, and the sheet on this device follows under its own
-   heading. */
+   one, every row carries the count of finished sheets behind it and how
+   many cuppers are still scoring, and the sheet on this device follows
+   under its own heading. */
 function buildShareText() {
   const ranked = rankedCoffees();
   const panel = sharedPanel();
@@ -5500,24 +5573,26 @@ function buildShareText() {
   const lines = [`SCA cupping results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
 
   if (panel) {
-    const rated = panel.filter(r => r.entries.length).sort((a, b) => b.avg - a.avg);
-    const none = panel.filter(r => !r.entries.length);
+    const rated = panel.filter(r => r.avg !== null).sort((a, b) => b.avg - a.avg);
+    const none = panel.filter(r => r.avg === null);
     lines.push('THE TABLE — panel scores');
     rated.forEach((r, pos) => {
-      const n = r.entries.length;
-      const part = r.entries.filter(e => e.partial).length;
-      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · average of ${n} cupper${n > 1 ? 's' : ''}${
-        part ? `, ${part} of them part-scored` : ''}`);
+      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · average of ${r.n} finished sheet${r.n > 1 ? 's' : ''}${
+        r.scoring ? `, ${r.scoring} more still scoring` : ''}`);
     });
-    none.forEach(r => lines.push(`— ${r.name} — not rated by anyone at the table`));
+    none.forEach(r => lines.push(`— ${r.name} — ${r.scoring
+      ? `${r.scoring} sheet${r.scoring > 1 ? 's' : ''} in progress, none finished`
+      : 'not rated by anyone at the table'}`));
     lines.push('');
     lines.push('MY OWN SHEET');
   }
 
   ranked.forEach((r, pos) => {
-    lines.push(r.prog.done === 0
-      ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
-      : `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})${r.prog.complete ? '' : ` · ${r.prog.done} of ${r.prog.total} rated`}`);
+    lines.push(r.prog.complete
+      ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})`
+      : r.prog.done === 0
+        ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
+        : `${pos + 1}. ${coffeeName(r.coffee, r.index)} — no score yet · ${r.prog.done} of ${r.prog.total} rated`);
     const meta = metaSummary(r.coffee.meta);
     if (meta) lines.push(`   ${meta}`);
     if (r.coffee.notes.trim()) lines.push(`   ${r.coffee.notes.trim()}`);
@@ -5631,6 +5706,8 @@ function aggregateBy(coffees, dimKey) {
     groups.get(norm).scores.push(score);
   };
   coffees.forEach(c => {
+    // a coffee whose sheet was never finished has no score to aggregate
+    if (typeof c.score !== 'number') return;
     if (dimKey === 'flavor') {
       // a coffee counts once per descriptor it showed
       (c.descriptors || []).forEach(d => add(d, c.score));
@@ -5665,7 +5742,7 @@ function buildHistory() {
   // written before completeness was tracked have no flag, so they are
   // treated as finished rather than silently dropped from the history
   // someone already has.
-  const scored = coffees.filter(c => c.complete !== false);
+  const scored = coffees.filter(c => c.complete !== false && typeof c.score === 'number');
   const partial = coffees.length - scored.length;
   const allScores = scored.map(c => c.score);
   const avg = allScores.length ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
@@ -5735,7 +5812,7 @@ function buildHistory() {
           ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="hist-item-right">
-          <div class="hist-item-score${c.complete === false ? ' partial' : ''}">${c.rated === 0 ? '—' : fmt(c.score)}</div>
+          <div class="hist-item-score${typeof c.score === 'number' ? '' : ' partial'}">${fmt(c.score)}</div>
           <div class="hist-item-date">${c.complete === false
             ? `${c.rated} of ${c.sections} rated`
             : date}</div>
@@ -5812,8 +5889,10 @@ function historyCSV() {
         // not knowing, where a fabricated "8 of 8" would not be
         typeof c.rated === 'number' ? c.rated : '',
         typeof c.sections === 'number' ? c.sections : '',
-        c.complete === false && c.rated === 0 ? '' : fmt(c.score),
-        c.complete === false && c.rated === 0 ? '' : gradeFor(c.score),
+        // an unfinished sheet has no score, and an empty cell is the only
+        // honest way for a spreadsheet to carry that
+        typeof c.score === 'number' ? fmt(c.score) : '',
+        typeof c.score === 'number' ? gradeFor(c.score) : '',
         m.variety, m.process, m.roast, m.altitude, m.country, m.farm, m.producer,
         (c.descriptors || []).join('; '),
         c.notes,
@@ -5885,14 +5964,9 @@ function printResults() {
   const formName = usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)';
   const who = getCupperName();
 
-  // Same rule as the on-screen summary: the range and the count describe
-  // finished sheets, because a sheet with one section rated carries seven
-  // defaults and would widen both. Falls back to every scored sheet only
-  // when nothing is finished, and the caption says which set it used.
-  const scoredRows = ranked.filter(r => r.prog.done > 0);
-  const firmRows = scoredRows.filter(r => r.prog.complete);
-  const basisRows = firmRows.length ? firmRows : scoredRows;
-  const scored = basisRows.map(r => r.score).sort((a, b) => a - b);
+  // Same rule as the on-screen summary: a range is a claim about a set of
+  // scores, and the set is the sheets that have one.
+  const scored = ranked.filter(r => r.prog.complete).map(r => r.score).sort((a, b) => a - b);
   const anyPartial = ranked.some(r => !r.prog.complete);
 
   const sectionValue = (coffee, attr) => {
@@ -5909,11 +5983,11 @@ function printResults() {
       <div class="p-mark">lento.cafe</div>
     </div>
 
-    ${scored.length ? `<p class="p-summary">${scoredRows.length} of ${ranked.length} coffee${ranked.length > 1 ? 's' : ''} scored ·
-      ${firmRows.length ? `${firmRows.length} complete` : 'none complete'} ·
-      range ${fmt(scored[0])}–${fmt(scored[scored.length - 1])} ·
-      ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80
-      ${firmRows.length ? '(complete sheets only)' : '(part-scored sheets included — none is complete)'}</p>` : ''}
+    ${scored.length
+      ? `<p class="p-summary">${scored.length} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} finished ·
+         ${scored.length > 1 ? `range ${fmt(scored[0])}–${fmt(scored[scored.length - 1])}` : `score ${fmt(scored[0])}`} ·
+         ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80</p>`
+      : `<p class="p-summary">No sheet is finished, so there is no range to state.</p>`}
 
     <table>
       <thead>
@@ -5954,9 +6028,11 @@ function printResults() {
               return `<td class="num">${passed}/${c.cups[a.key].length}</td>`;
             }).join('')}
             <td class="num">${deductions || '–'}</td>
-            <td class="num total${r.prog.complete ? '' : ' partial'}">${r.prog.done === 0
-              ? '–'
-              : `<strong>${fmt(r.score)}</strong>${r.prog.complete ? '' : `<div class="p-sub">${r.prog.done}/${r.prog.total}</div>`}`}</td>
+            <td class="num total${r.prog.complete ? '' : ' partial'}">${r.prog.complete
+              ? `<strong>${fmt(r.score)}</strong>`
+              : r.prog.done === 0
+                ? '–'
+                : `–<div class="p-sub">${r.prog.done}/${r.prog.total}</div>`}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -5967,8 +6043,9 @@ function printResults() {
     } · Def deductions${usingCVA() ? ' (nu non-uniform, df defective)' : ' (t tainted, f faulty)'}.
     Sections are scored ${usingCVA() ? '1–9' : '6.00–10.00'}.</p>
 
-    ${anyPartial ? `<p class="p-foot">A dash means the section was not rated. A total set in grey comes from a sheet that
-      was not finished, and the count beside it says how many of the ${sectionCount()} sections stand behind it.</p>` : ''}
+    ${anyPartial ? `<p class="p-foot">A dash means not rated. A sheet that is not finished has no total: the sections
+      nobody reached would enter it at a default nobody chose, so the count of rated sections stands there instead,
+      out of ${sectionCount()}.</p>` : ''}
 
     <p class="p-foot">Scores recorded with lento.cafe/cupping</p>
   `;
@@ -6218,11 +6295,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-finish').addEventListener('click', () => {
     // There used to be a confirm here admitting that unrated sections were
-    // being counted as 5. They are not any more — an unrated coffee shows no
-    // score at all and a part-scored one says how much of it is real, on
-    // Results and everywhere else. There is nothing left to confess, and
-    // confessing it as an interruption at the moment someone asks for their
-    // results was the worst possible delivery for it.
+    // being counted as 5. They are not any more — a sheet has a score once
+    // it is finished and says how far along it is until then, on Results and
+    // everywhere else. There is nothing left to confess, and confessing it
+    // as an interruption at the moment someone asks for their results was
+    // the worst possible delivery for it.
     buildResults();
     showScreen('#screen-results');
   });
