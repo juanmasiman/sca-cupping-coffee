@@ -18,6 +18,11 @@
    the type ramp's inputs, spacing, radius, easing.
    ============================================================ */
 
+/* Self-hosted, latin subset, 60 KB for the set, precached by every app's
+   service worker. A webfont fetched from a CDN is a webfont that disappears
+   in a basement with one bar of signal, and offline is a binding constraint.
+   Sans ships as one variable file covering every weight; Mono is static per
+   weight, which is how upstream draws them. */
 @font-face {
   font-family: 'Plex Sans';
   src: url('/shared/fonts/plex-sans-var.woff2') format('woff2-variations');
