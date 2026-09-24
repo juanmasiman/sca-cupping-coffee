@@ -55,8 +55,14 @@ function migrate(s) {
   if (!s || typeof s !== 'object') return null;
   (s.coffees || []).forEach(c => {
     if (!c.target) c.target = defaultTarget();
+    if (typeof c.target.temp === 'undefined') c.target.temp = null;
+    if (typeof c.roast !== 'string') c.roast = '';
+    if (typeof c.grindNow !== 'string') c.grindNow = '';
     if (!Array.isArray(c.shots)) c.shots = [];
-    c.shots.forEach(sh => { if (typeof sh.taste === 'undefined') sh.taste = null; });
+    c.shots.forEach(sh => {
+      if (typeof sh.taste === 'undefined') sh.taste = null;
+      if (typeof sh.intent === 'undefined') sh.intent = null;
+    });
   });
   return s;
 }
@@ -75,7 +81,45 @@ function uid() {
    against something, and this app refuses to call one fast without
    saying what it was measured against. */
 function defaultTarget() {
-  return { dose: 18, ratio: 2, timeLo: 25, timeHi: 30 };
+  return { dose: 18, ratio: 2, timeLo: 25, timeHi: 30, temp: null };
+}
+
+/* A starting point from the bag.
+
+   Roast level moves espresso extraction more than anything else printed on
+   a bag: a light roast is denser and less soluble, so it takes more heat
+   and usually a longer ratio to give up the same amount; a dark roast is
+   friable and soluble, so it gives up too much at the same settings.
+
+   Tools in this category typically build a baseline from four bag fields —
+   roast, process, elevation and origin — and the strongest of those, by
+   their own account, is roast. The other three are real but weak, and
+   averaging a weak signal into a strong one does not make the answer more
+   reliable, it makes the confidence harder to read. So this is one
+   variable, the numbers are a place to start rather than a prediction, and
+   the screen says which it is.
+
+   Ranges are the conventional ones; the single figure is the middle of the
+   range this app will actually put in the field. */
+const ROASTS = [
+  { key: 'light',  label: 'Light',       temp: 94, ratio: 2.4, tempRange: '93–95°', ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 93, ratio: 2.2, tempRange: '92–94°', ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',      temp: 92, ratio: 2.0, tempRange: '92–93°', ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark', temp: 91, ratio: 1.9, tempRange: '90–92°', ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',        temp: 90, ratio: 1.8, tempRange: '88–91°', ratioRange: '1:1.7–1:1.9' },
+];
+
+function roastEntry(key) {
+  return ROASTS.find(r => r.key === key) || null;
+}
+
+// Days since the bag was roasted, or null when nobody said.
+function daysSinceRoast(c) {
+  if (!c || !c.roastDate) return null;
+  const d = new Date(c.roastDate + 'T00:00:00');
+  if (isNaN(d)) return null;
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return days >= 0 ? days : null;
 }
 
 function newCoffee(name) {
@@ -84,6 +128,10 @@ function newCoffee(name) {
     name: (name || '').trim(),
     roaster: '',
     roastDate: '',
+    roast: '',
+    // How far the grinder has moved from the dialled-in recipe. The recipe
+    // itself is never rewritten; see the keeper card.
+    grindNow: '',
     target: defaultTarget(),
     shots: [],
   };
@@ -170,6 +218,77 @@ function placeOf(shot, target) {
     ratio: r,
     ratioOff: r === null ? null : r - target.ratio,
   };
+}
+
+/* What you meant to change, checked against what changed.
+
+   A dial-in is a controlled experiment and its commonest failure is not a
+   bad guess — it is moving two things at once, or believing you moved one
+   when you did not. The app already computes the difference between this
+   shot and the last. Recording the intention beside it lets the two be
+   compared, which is the only way software can catch that class of
+   mistake: it knows what the numbers did, and now it knows what you meant
+   them to do.
+
+   Optional throughout. A shot with no intention recorded is not wrong. */
+const INTENTS = [
+  { key: 'finer',    label: 'Finer',        field: 'grind', dir: -1 },
+  { key: 'coarser',  label: 'Coarser',      field: 'grind', dir: 1 },
+  { key: 'hotter',   label: 'Hotter',       field: 'temp',  dir: 1 },
+  { key: 'cooler',   label: 'Cooler',       field: 'temp',  dir: -1 },
+  { key: 'longer',   label: 'Longer ratio', field: 'yield', dir: 1 },
+  { key: 'shorter',  label: 'Shorter ratio', field: 'yield', dir: -1 },
+  { key: 'same',     label: 'Same again',   field: null,    dir: 0 },
+];
+
+function intentEntry(key) {
+  return INTENTS.find(i => i.key === key) || null;
+}
+
+/* Did the shot do what it was told?
+
+   Returns null when there is nothing to check — no intention, or no
+   previous shot to have changed from. Otherwise a sentence about the
+   disagreement, and nothing at all when they agree, because a dial-in that
+   is going to plan does not need narrating. */
+function intentCheck(shot, prev) {
+  const intent = intentEntry(shot.intent);
+  if (!intent || !prev) return null;
+  /* Empty is not zero.
+
+     Grind and temperature are free-text on the sheet, so they arrive as
+     strings, and Number('') is 0 — which is finite, which made a shot with
+     no grind recorded read as a grind of zero. "Finer" against a blank
+     previous shot was then reported as having moved the other way: a
+     confident accusation built on a field nobody filled in. */
+  const read = (o, f) => {
+    const raw = o[f];
+    if (raw === '' || raw === null || typeof raw === 'undefined') return null;
+    const v = Number(raw);
+    return isFinite(v) ? v : null;
+  };
+
+  if (!intent.field) {
+    // "same again" — anything that moved is the thing to point at
+    const moved = ['grind', 'temp', 'dose', 'yield']
+      .filter(f => { const a = read(shot, f), b = read(prev, f); return a !== null && b !== null && a !== b; });
+    return moved.length
+      ? `Marked “same again”, but ${moved.length > 1
+          ? `${moved.slice(0, -1).join(', ')} and ${moved[moved.length - 1]}`
+          : moved[0]} changed since the last shot.`
+      : null;
+  }
+
+  const now = read(shot, intent.field), was = read(prev, intent.field);
+  if (now === null || was === null) {
+    return `Marked “${intent.label.toLowerCase()}”, but no ${intent.field} is recorded on both shots, so there is nothing to compare.`;
+  }
+  const delta = now - was;
+  if (delta === 0) return `Marked “${intent.label.toLowerCase()}”, but the ${intent.field} is the same as the last shot.`;
+  if (Math.sign(delta) !== intent.dir) {
+    return `Marked “${intent.label.toLowerCase()}”, but the ${intent.field} moved the other way.`;
+  }
+  return null;
 }
 
 const TASTE_MIN = -3, TASTE_MAX = 3;
@@ -494,6 +613,14 @@ function renderKeeper(c) {
   if (!keeper) return;
   const r = ratioOf(keeper);
   const ey = extractionOf(keeper);
+  const age = daysSinceRoast(c);
+  const offset = (() => {
+    const was = Number(keeper.grind), now = Number(c.grindNow);
+    if (!isFinite(was) || !isFinite(now) || !c.grindNow || !keeper.grind) return null;
+    const d = now - was;
+    return d === 0 ? null : d;
+  })();
+
   wrap.innerHTML = `
     <span class="keeper-label">The recipe</span>
     <div class="keeper-line">
@@ -505,7 +632,22 @@ function renderKeeper(c) {
     <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · grind ${escapeHTML(String(keeper.grind))}` : ''}${
       keeper.temp ? ` · ${escapeHTML(String(keeper.temp))}°` : ''}${
       ey !== null ? ` · ${fmt1(ey)}% extraction` : ''}</div>
+    ${/* The recipe is not rewritten as the coffee ages. Beans degas, the
+          same setting starts running faster, and the answer is a small
+          move on the grinder — not a new recipe. So the dialled-in figure
+          above stays exactly as it was found, and where the grinder is
+          sitting today is recorded beside it, as a distance from it. */ ''}
+    <button class="keeper-now" id="btn-grind-now" type="button">
+      <span class="keeper-now-label">Grinder today</span>
+      <span class="keeper-now-value">${c.grindNow
+        ? `${escapeHTML(String(c.grindNow))}${offset !== null ? ` · ${offset > 0 ? '+' : '−'}${Math.abs(offset).toFixed(1)} from the recipe` : ' · on the recipe'}`
+        : 'same as the recipe'}</span>
+    </button>
+    ${age !== null ? `<div class="keeper-age">${age === 0 ? 'Roasted today' : age === 1 ? 'One day off roast' : `${age} days off roast`}${
+      age > 0 && age < 4 ? ' — still degassing, so expect it to move.' : ''}</div>` : ''}
   `;
+  const nowBtn = wrap.querySelector('#btn-grind-now');
+  if (nowBtn) nowBtn.addEventListener('click', () => openGrindNow(c, keeper));
 }
 
 function renderTarget(c) {
@@ -516,7 +658,7 @@ function renderTarget(c) {
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
-      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g</span>
+      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp ? ` · ${t.temp}°` : ''}</span>
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   `;
@@ -605,6 +747,8 @@ function shotCard(shot, prev, c, n, newest) {
     ${missing.length ? `<div class="shot-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
     ${timeNote ? `<div class="shot-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="shot-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.intent ? `<div class="shot-intent">meant to: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${intentCheck(shot, prev) ? `<div class="shot-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
     ${shot.taste !== null ? `<div class="shot-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
     ${shot.notes ? `<div class="shot-notes">${escapeHTML(shot.notes)}</div>` : ''}
     ${shot.verdict === 'keeper' ? '<div class="shot-keeper-flag">the keeper</div>' : ''}
@@ -686,6 +830,7 @@ function openShot(shot) {
     time: null,
     taste: null,
     verdict: null,
+    intent: null,
     grind: last ? last.grind : '',
     temp: last ? last.temp : '',
     basket: last ? last.basket : '',
@@ -720,9 +865,31 @@ function buildShotSheet(c) {
   taste.innerHTML = '';
   taste.appendChild(tasteScale(editing.taste, v => { editing.taste = v; renderReadout(c); }));
 
+  buildIntent(c);
   buildVerdict(c);
   buildMore(c);
   renderReadout(c);
+}
+
+/* Stated before the numbers, because that is when you know it. */
+function buildIntent(c) {
+  const wrap = $('#intent');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  INTENTS.forEach(i => {
+    const on = editing.intent === i.key;
+    const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(i.label));
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      editing.intent = on ? null : i.key;
+      haptic();
+      buildIntent(c);
+      renderReadout(c);
+    });
+    wrap.appendChild(b);
+  });
 }
 
 const VERDICTS = [
@@ -857,6 +1024,35 @@ function saveShot() {
    COFFEES
    ============================================================ */
 
+/* Where the grinder is sitting today, which is not the recipe.
+
+   A shot dialled in on day 5 runs faster on day 14: the coffee has
+   degassed and the same setting no longer resists the water the same way.
+   The move is small and it is on the grinder. What must not happen is the
+   recipe being quietly rewritten to match, because then the thing you
+   found is gone and there is nothing to come back to when you open the
+   next bag of the same coffee. */
+function openGrindNow(c, keeper) {
+  const body = $('#edit-body');
+  $('#edit-title').textContent = 'Grinder today';
+  body.innerHTML = `
+    <p class="sheet-note">The recipe stays where you found it: <strong>${escapeHTML(String(keeper.grind || '—'))}</strong>. This is only where the grinder is sitting now, so the distance between them is visible.</p>
+    <div class="target-grid" id="now-grid"></div>
+    <p class="sheet-note">Leave it empty and the board shows the recipe alone.</p>
+  `;
+  const grid = body.querySelector('#now-grid');
+  const start = Number(keeper.grind);
+  grid.appendChild(numField({
+    label: 'Now', unit: '', value: c.grindNow === '' ? null : Number(c.grindNow),
+    min: 0, max: 100, step: 0.1, digits: 1,
+    startAt: isFinite(start) ? start : 0,
+    onChange: v => { c.grindNow = v === null ? '' : String(v); },
+  }));
+  $('#edit-delete').classList.add('hidden');
+  $('#edit-save').onclick = () => { save(); closeModal('#edit-modal'); renderBoard(); };
+  openModal('#edit-modal');
+}
+
 function openCoffees() {
   const list = $('#coffee-list');
   list.innerHTML = '';
@@ -887,6 +1083,8 @@ function openCoffees() {
 function openEdit(c) {
   const body = $('#edit-body');
   const t = c.target;
+  // the grind-today sheet borrows this shell and hides the destructive control
+  $('#edit-delete').classList.remove('hidden');
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
@@ -896,6 +1094,10 @@ function openEdit(c) {
     <label class="field"><span class="field-label">Roast date</span>
       <input class="field-input" id="e-roast" type="date"></label>
 
+    <span class="field-label section">Roast level</span>
+    <div class="chips" id="e-roastlevel" role="radiogroup" aria-label="Roast level"></div>
+    <div id="e-baseline"></div>
+
     <span class="field-label section">What you are aiming at</span>
     <p class="sheet-note">A shot is only fast or slow against a window, so this app will not call one fast until you have said what the window is. 1:2 in 25–30 seconds is where most recipes start, not where they have to stay.</p>
     <div class="target-grid" id="target-grid"></div>
@@ -903,6 +1105,52 @@ function openEdit(c) {
   body.querySelector('#e-name').value = c.name;
   body.querySelector('#e-roaster').value = c.roaster || '';
   body.querySelector('#e-roast').value = c.roastDate || '';
+
+  /* One variable, and it says so.
+
+     Roast level moves espresso extraction more than anything else on a
+     bag: light is dense and less soluble and wants more heat and a longer
+     ratio; dark gives up too much at the same settings. Process, origin
+     and elevation are real and much weaker, and folding them in would not
+     make the answer better — it would make its confidence harder to read.
+
+     It never writes to the target on its own. It offers, the button
+     applies, and the sentence beside it says what it is: a place to start,
+     finished by taste. */
+  const roastWrap = body.querySelector('#e-roastlevel');
+  const baseWrap = body.querySelector('#e-baseline');
+  const renderRoast = () => {
+    roastWrap.innerHTML = '';
+    ROASTS.forEach(r => {
+      const on = c.roast === r.key;
+      const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(r.label));
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
+      roastWrap.appendChild(b);
+    });
+    const e = roastEntry(c.roast);
+    baseWrap.innerHTML = e
+      ? `<div class="baseline">
+           <span class="baseline-head">A place to start</span>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.</p>
+           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${e.temp}° and 1:${e.ratio}</button>
+         </div>`
+      : '';
+    const apply = baseWrap.querySelector('#btn-apply-baseline');
+    if (apply) apply.addEventListener('click', () => {
+      t.ratio = e.ratio;
+      t.temp = e.temp;
+      commit();
+      haptic();
+      toast(`Aiming at 1:${e.ratio}, ${e.temp}°`);
+      closeModal('#edit-modal');
+      save();
+      renderBoard();
+    });
+  };
+  renderRoast();
 
   const grid = body.querySelector('#target-grid');
   grid.appendChild(numField({ label: 'Dose', unit: 'g', value: t.dose, min: 5, max: 40, step: 0.5, digits: 1,
@@ -914,13 +1162,24 @@ function openEdit(c) {
   grid.appendChild(numField({ label: 'To', unit: 's', value: t.timeHi, min: 5, max: 120, step: 1, digits: 0,
     onChange: v => { t.timeHi = v === null ? 30 : v; } }));
 
-  $('#edit-save').onclick = () => {
+  /* Every way out of this sheet commits the same fields.
+
+     The text inputs were read only by Save, and the baseline button closed
+     the sheet on its own — so typing a name and a roast date, then tapping
+     "Start at 94° and 1:2.4", applied the target and threw both away. Two
+     exits, one of them lossy, and the lost fields were the ones the
+     baseline is derived from. */
+  const commit = () => {
     c.name = body.querySelector('#e-name').value;
     c.roaster = body.querySelector('#e-roaster').value;
     c.roastDate = body.querySelector('#e-roast').value;
     if (c.target.timeHi < c.target.timeLo) {
       const lo = c.target.timeHi; c.target.timeHi = c.target.timeLo; c.target.timeLo = lo;
     }
+  };
+
+  $('#edit-save').onclick = () => {
+    commit();
     save();
     closeModal('#edit-modal');
     renderBoard();

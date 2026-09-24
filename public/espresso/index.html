@@ -87,6 +87,13 @@
            will compare them to the last shot's. -->
       <div class="readout" id="readout"></div>
 
+      <!-- Said before the numbers, because that is when you know it. The
+           card compares it afterwards with what actually moved. -->
+      <div class="intent-block">
+        <span class="field-label" id="intent-label">What are you changing?</span>
+        <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
+      </div>
+
       <div class="taste-block">
         <span class="field-label" id="taste-label">How it tasted</span>
         <div id="taste-scale"></div>

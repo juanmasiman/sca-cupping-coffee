@@ -634,6 +634,101 @@ input { font: inherit; color: inherit; }
 }
 .scale-readout.untouched { color: var(--text-faint); font-weight: 400; }
 
+/* ---------- chips ---------- */
+
+.intent-block { display: flex; flex-direction: column; gap: var(--space-3); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip {
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-size: 13px;
+  font-weight: 600;
+}
+.chip.on { background: var(--chrome); border-color: var(--chrome); color: var(--on-chrome); }
+
+/* ---------- the starting point from the bag ---------- */
+
+.baseline {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.baseline-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.baseline-body { font-size: 13px; color: var(--text-dim); }
+.baseline-body strong { color: var(--text); font-weight: 700; }
+
+/* ---------- where the grinder is today ---------- */
+
+.keeper-now {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  text-align: left;
+}
+.keeper-now:active { background: var(--chrome-soft); }
+.keeper-now-label {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.keeper-now-value {
+  flex: 1;
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.keeper-age {
+  margin-top: var(--space-3);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* ---------- intent, on the shot card ---------- */
+
+.shot-intent,
+.shot-mismatch {
+  margin-top: var(--space-2);
+  padding-left: calc(18px + var(--space-3));
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.shot-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
+/* A disagreement between what you meant and what moved is the one thing on
+   this card worth interrupting for, and it earns that with a rule rather
+   than a colour — the same two shapes the suggestion uses. */
+.shot-mismatch {
+  margin-left: calc(18px + var(--space-3));
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--rail);
+}
+
 /* ---------- verdict ---------- */
 
 .verdict { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
