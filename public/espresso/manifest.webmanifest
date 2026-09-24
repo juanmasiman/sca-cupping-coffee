@@ -1,0 +1,15 @@
+{
+  "name": "lento — espresso dial-in",
+  "short_name": "Dial-in",
+  "description": "Dial a shot in and keep the record: dose, yield, time, ratio and flow, with what changed between one shot and the next.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbfaf7",
+  "theme_color": "#fbfaf7",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

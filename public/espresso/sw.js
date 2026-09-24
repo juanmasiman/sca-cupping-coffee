@@ -1,31 +1,31 @@
 /* ============================================================
-   SCA Cupping — service worker
+   lento — espresso dial-in, service worker
 
-   Cupping happens in lab basements, at origin, and in warehouses
-   with one bar of signal, so the whole app is served from cache
-   and works with no network at all. Only the live-code relay
-   needs to reach the internet, and it fails softly when it can't.
+   A bar has a queue and a basement has no signal. The whole app is
+   served from cache and works with nothing at all behind it; there
+   is no relay here and no account, so offline is the normal case
+   rather than the fallback.
    ============================================================ */
 
-const VERSION = 'v23';
-const SHELL_CACHE = `lento-cupping-shell-${VERSION}`;
+const VERSION = 'v1';
+const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
   './',
   './index.html',
   './styles.css',
-  './config.js',
   './app.js',
-  './qrcode.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  // The faces ship with the app for the same reason everything else does:
-  // a font that only arrives with signal is a font the basement never sees.
-  './fonts/plex-sans-var.woff2',
-  './fonts/plex-mono-400.woff2',
-  './fonts/plex-mono-600.woff2',
+  // The design system and its faces are shared across lento's apps and
+  // precached by each of them: a font that only arrives with signal is a
+  // font the bar never sees.
+  '/shared/tokens.css',
+  '/shared/fonts/plex-sans-var.woff2',
+  '/shared/fonts/plex-mono-400.woff2',
+  '/shared/fonts/plex-mono-600.woff2',
 ];
 
 self.addEventListener('install', event => {
@@ -40,7 +40,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(names => Promise.all(
-        names.filter(n => n.startsWith('lento-cupping-') && n !== SHELL_CACHE)
+        names.filter(n => n.startsWith('lento-espresso-') && n !== SHELL_CACHE)
           .map(n => caches.delete(n))
       ))
       .then(() => self.clients.claim())
@@ -53,10 +53,6 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
-  // The relay is live data — never served from cache, and allowed to fail
-  // so the app can fall back to QR and long codes.
-  if (url.pathname.includes('/cupping/api/')) return;
 
   // Navigations: try the network so deploys land promptly, fall back to
   // the cached shell when offline.
