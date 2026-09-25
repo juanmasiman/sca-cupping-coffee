@@ -1068,7 +1068,7 @@ function renderBrews(c) {
 }
 
 function brewCard(brew, prev, c, n, newest) {
-  const card = el('div', 'brew-card');
+  const card = el('div', 'log-card');
   const r = ratioOf(brew);
   const dd = drawdownOf(brew);
   const ey = extractionOf(brew);
@@ -1116,15 +1116,15 @@ function brewCard(brew, prev, c, n, newest) {
     : null;
 
   card.innerHTML = `
-    <div class="brew-top">
-      <span class="brew-n">${n}</span>
-      <span class="brew-headline">
-        ${byWeight() ? `<span class="brew-ratio">${fmtRatio(r)}</span>` : ''}
-        <span class="brew-time ${timeClass}">${fmtTime(brew.time)}</span>
+    <div class="log-top">
+      <span class="log-n">${n}</span>
+      <span class="log-headline">
+        ${byWeight() ? `<span class="log-ratio">${fmtRatio(r)}</span>` : ''}
+        <span class="log-time ${timeClass}">${fmtTime(brew.time)}</span>
       </span>
-      <span class="brew-when">${fmtDate(brew.at)}</span>
+      <span class="log-when">${fmtDate(brew.at)}</span>
     </div>
-    <div class="brew-numbers">
+    <div class="log-numbers">
       ${byWeight()
         ? `${num(brew.dose) === null ? '—' : `${fmt1(num(brew.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
             water === null ? '—' : `${fmt0(water)}<small>g</small>`}`
@@ -1135,16 +1135,16 @@ function brewCard(brew, prev, c, n, newest) {
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
     </div>
     ${(brew.pours || []).length ? `<div class="brew-pours">${pourLine(brew)}</div>` : ''}
-    ${missing.length ? `<div class="brew-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${mismatch ? `<div class="brew-missing">${escapeHTML(mismatch)}</div>` : ''}
-    ${timeNote ? `<div class="brew-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="brew-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${brew.intent ? `<div class="brew-intent">aim: ${escapeHTML((intentEntry(brew.intent) || {}).label || '')}</div>` : ''}
-    ${intentCheck(brew, prev) ? `<div class="brew-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
-    ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="brew-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
-    ${brew.body !== null && typeof brew.body === 'number' ? `<div class="brew-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
-    ${brew.notes ? `<div class="brew-notes">${escapeHTML(brew.notes)}</div>` : ''}
-    ${brew.verdict === 'keeper' ? '<div class="brew-keeper-flag">the recipe</div>' : ''}
+    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
+    ${mismatch ? `<div class="log-missing">${escapeHTML(mismatch)}</div>` : ''}
+    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
+    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${brew.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(brew.intent) || {}).label || '')}</div>` : ''}
+    ${intentCheck(brew, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
+    ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="log-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
+    ${brew.body !== null && typeof brew.body === 'number' ? `<div class="log-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
+    ${brew.notes ? `<div class="log-notes">${escapeHTML(brew.notes)}</div>` : ''}
+    ${brew.verdict === 'keeper' ? '<div class="log-keeper-flag">the recipe</div>' : ''}
     ${newestTip(brew, c, newest)}
   `;
   card.addEventListener('click', () => openBrew(brew));
@@ -1178,12 +1178,12 @@ function newestTip(brew, c, newest) {
   if (!newest) return '';
   const tips = nextMove(brew, c.target);
   const bloom = bloomNote(brew);
-  const bloomHTML = bloom ? tipHTML({ sure: false, move: bloom.move, why: bloom.why }, 'brew-tip') : '';
-  if (tips.length) return tips.map(t => tipHTML(t, 'brew-tip')).join('') + bloomHTML;
+  const bloomHTML = bloom ? tipHTML({ sure: false, move: bloom.move, why: bloom.why }, 'log-tip') : '';
+  if (tips.length) return tips.map(t => tipHTML(t, 'log-tip')).join('') + bloomHTML;
   const why = brew.taste === null && brew.body === null
       ? 'Tap this brew and say how it tasted to get a next move.'
     : null;
-  return (why ? `<div class="brew-tip open"><span class="tip-why">${why}</span></div>` : '') + bloomHTML;
+  return (why ? `<div class="log-tip open"><span class="tip-why">${why}</span></div>` : '') + bloomHTML;
 }
 
 /* ============================================================
@@ -1554,7 +1554,7 @@ function renderReadout(c) {
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
     ${bloomTip ? tipHTML({ sure: false, move: bloomTip.move, why: bloomTip.why }, 'tip') : ''}
-    ${mismatch ? `<div class="brew-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
 

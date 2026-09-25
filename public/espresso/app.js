@@ -987,7 +987,7 @@ function renderShots(c) {
 }
 
 function shotCard(shot, prev, c, n, newest) {
-  const card = el('div', 'shot-card');
+  const card = el('div', 'log-card');
   const r = ratioOf(shot);
   const flow = flowOf(shot);
   const ey = extractionOf(shot);
@@ -1024,30 +1024,30 @@ function shotCard(shot, prev, c, n, newest) {
     : `${Math.round(shot.time - c.target.timeHi)}s slow`;
 
   card.innerHTML = `
-    <div class="shot-top">
-      <span class="shot-n">${n}</span>
-      <span class="shot-headline">
-        <span class="shot-ratio">${fmtRatio(r)}</span>
-        <span class="shot-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
+    <div class="log-top">
+      <span class="log-n">${n}</span>
+      <span class="log-headline">
+        <span class="log-ratio">${fmtRatio(r)}</span>
+        <span class="log-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
       </span>
-      <span class="shot-when">${fmtDate(shot.at)}</span>
+      <span class="log-when">${fmtDate(shot.at)}</span>
     </div>
-    <div class="shot-numbers">
+    <div class="log-numbers">
       ${num(shot.dose) === null ? '—' : `${fmt1(num(shot.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
         num(shot.yield) === null ? '—' : `${fmt1(num(shot.yield))}<small>g</small>`}
       ${flow !== null ? ` · ${fmt2(flow)}<small>g/s</small>` : ''}
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
       ${num(Number(shot.grind)) !== null && shot.grind !== '' ? ` · grind ${escapeHTML(String(shot.grind))}<small>${escapeHTML(grindUnit() === 'clicks' ? ' clicks' : '')}</small>` : ''}
     </div>
-    ${missing.length ? `<div class="shot-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${timeNote ? `<div class="shot-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="shot-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${shot.intent ? `<div class="shot-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
-    ${intentCheck(shot, prev) ? `<div class="shot-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
-    ${shot.taste !== null ? `<div class="shot-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
-    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="shot-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
-    ${shot.notes ? `<div class="shot-notes">${escapeHTML(shot.notes)}</div>` : ''}
-    ${shot.verdict === 'keeper' ? '<div class="shot-keeper-flag">the keeper</div>' : ''}
+    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
+    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
+    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
+    ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
+    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
+    ${shot.notes ? `<div class="log-notes">${escapeHTML(shot.notes)}</div>` : ''}
+    ${shot.verdict === 'keeper' ? '<div class="log-keeper-flag">the keeper</div>' : ''}
     ${newestTip(shot, c, newest)}
   `;
   card.addEventListener('click', () => openShot(shot));
@@ -1077,14 +1077,14 @@ function missingLine(missing) {
 function newestTip(shot, c, newest) {
   if (!newest) return '';
   const tips = nextMove(shot, c.target);
-  if (tips.length) return tips.map(t => tipHTML(t, 'shot-tip')).join('');
+  if (tips.length) return tips.map(t => tipHTML(t, 'log-tip')).join('');
   // Say what is missing rather than nothing: a shot with no taste on it
   // cannot be advised, and the reason is one tap away from being fixed.
   const why = shot.taste === null && shot.body === null
       ? 'Tap this shot and say how it tasted to get a next move.'
     : num(shot.time) === null ? 'Tap this shot and add its time to get a next move.'
     : null;
-  return why ? `<div class="shot-tip open"><span class="tip-why">${why}</span></div>` : '';
+  return why ? `<div class="log-tip open"><span class="tip-why">${why}</span></div>` : '';
 }
 
 // A seven-step run of pips with the taken one filled — the position is the
@@ -1411,7 +1411,7 @@ function renderReadout(c) {
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
-    ${mismatch ? `<div class="shot-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
 

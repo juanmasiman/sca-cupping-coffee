@@ -18,7 +18,7 @@
   <!-- One design system for every app on lento.cafe. DESIGN.md is the law;
        this is the part of it a browser can read. -->
   <link rel="stylesheet" href="/shared/tokens.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/shared/components.css">
 </head>
 <body>
 
@@ -56,7 +56,7 @@
          something, so the window is stated rather than assumed. -->
     <div class="target-card" id="target-card"></div>
 
-    <div class="shots" id="shots"></div>
+    <div class="log-list" id="shots"></div>
 
     <div class="empty hidden" id="empty">
       <div class="empty-title">No shots yet</div>
@@ -73,7 +73,7 @@
 
 <!-- ============ THE SHOT SHEET ============ -->
 <div id="shot-modal" class="modal hidden">
-  <div class="modal-sheet shot-sheet" role="dialog" aria-modal="true" aria-labelledby="shot-title">
+  <div class="modal-sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="shot-title">
     <div class="sheet-head">
       <h3 id="shot-title">This shot</h3>
       <button id="shot-close" class="icon-btn" aria-label="Close without saving">
@@ -81,7 +81,7 @@
       </button>
     </div>
 
-    <div class="shot-scroll">
+    <div class="sheet-scroll">
       <!-- The three numbers. Everything computed on this screen comes from
            these and nothing else. -->
       <div class="num-row" id="num-row"></div>

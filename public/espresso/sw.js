@@ -7,13 +7,12 @@
    rather than the fallback.
    ============================================================ */
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
   './',
   './index.html',
-  './styles.css',
   './app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
@@ -23,6 +22,9 @@ const SHELL = [
   // precached by each of them: a font that only arrives with signal is a
   // font the bar never sees.
   '/shared/tokens.css',
+  // The components both instruments are built from. A stylesheet that only
+  // arrives with signal is a stylesheet the bar never sees.
+  '/shared/components.css',
   '/shared/fonts/plex-sans-var.woff2',
   '/shared/fonts/plex-mono-400.woff2',
   '/shared/fonts/plex-mono-600.woff2',
