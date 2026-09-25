@@ -3,24 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f5efe6">
+  <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
   <title>lento.cafe</title>
-  <meta name="description" content="lento — coffee, taken slowly. Tools for people who cup, roast, and care.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%95%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <meta name="description" content="lento — coffee, taken slowly. Tools for people who cup, pull shots and brew.">
+
+  <!-- A cupping bowl, drawn rather than an emoji, in the ink the rest of the
+       site uses. The emoji favicon rendered in whatever palette the operating
+       system felt like, which is one more place the front door was not this
+       product. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d4f73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10h16a3 3 0 0 1 0 6h-1'/%3E%3Cpath d='M3 10v2a7 7 0 0 0 7 7h2a7 7 0 0 0 7-7v-2'/%3E%3Cpath d='M8 3v3M12 2v4M16 3v3'/%3E%3C/svg%3E">
+
+  <!-- One design system for every page on lento.cafe, this one included. It
+       carried its own copy of the palette — a fourth one, in the cream and
+       copper the three apps had already moved away from — so the front door
+       and the thing one tap behind it were visibly different products. The
+       faces declare font-display: swap, so linking this costs no blocking
+       paint on the page a first visit lands on. -->
+  <link rel="preload" href="/shared/fonts/plex-sans-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/shared/tokens.css">
   <style>
-    :root {
-      --bg: #f5efe6;
-      --bg-card: #fffdf8;
-      --line: #e4d8c4;
-      --text: #2b2117;
-      --text-dim: #7a6a55;
-      --text-faint: #ab9a81;
-      --accent: #b5793a;
-      --accent-deep: #8a5526;
-      --accent-soft: rgba(181, 121, 58, 0.13);
-      --spring: cubic-bezier(0.32, 1.4, 0.45, 1);
-    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+
     body {
       min-height: 100dvh;
       display: flex;
@@ -28,51 +33,89 @@
       justify-content: center;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.45;
       -webkit-font-smoothing: antialiased;
-      padding: 32px 22px;
+      padding: var(--space-8) var(--space-5);
     }
+
     .wrap { width: 100%; max-width: 420px; text-align: center; }
+
+    /* The wordmark was a copper gradient through background-clip: text, which
+       the project's own notes flag as an anti-pattern and which no other
+       surface here does. It is the ink, at the weight the app headers use. */
     .mark {
-      font-size: 52px;
+      font-size: 46px;
       font-weight: 800;
-      letter-spacing: -1.5px;
-      background: linear-gradient(120deg, #e8b06b, var(--accent) 55%, var(--accent-deep));
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.03em;
       line-height: 1.1;
     }
-    .tagline { margin-top: 8px; color: var(--text-dim); font-size: 16px; }
-    .cards { margin-top: 38px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+    .tagline { margin-top: var(--space-2); color: var(--text-dim); }
+
+    .cards {
+      margin-top: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      text-align: left;
+    }
+
     .card {
       display: flex;
       align-items: center;
-      gap: 15px;
+      gap: var(--space-4);
+      min-height: 64px;
       background: var(--bg-card);
       border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 18px;
+      border-radius: var(--radius);
+      padding: var(--space-4);
       text-decoration: none;
       color: inherit;
-      transition: transform 0.2s var(--spring), box-shadow 0.2s;
+      transition: background 0.18s var(--ease);
     }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(95, 65, 25, 0.12); }
-    .card:active { transform: scale(0.98); }
+    .card:active { background: var(--chrome-soft); }
+    @media (hover: hover) {
+      .card:hover { background: var(--chrome-soft); }
+    }
+    .card:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+
+    /* Same treatment as the icon buttons inside the apps: chrome ink on the
+       soft chrome fill. Not the data ink — that one means "a value somebody
+       set", and a launcher icon is not a measurement. */
     .card-icon {
-      width: 46px; height: 46px;
+      width: 44px;
+      height: 44px;
       flex: none;
-      border-radius: 13px;
-      background: var(--accent-soft);
+      border-radius: var(--radius);
+      background: var(--chrome-soft);
+      color: var(--chrome);
       display: grid;
       place-items: center;
-      font-size: 23px;
     }
-    .card-title { font-size: 16.5px; font-weight: 700; }
-    .card-sub { font-size: 13px; color: var(--text-faint); margin-top: 2px; }
-    .card-arrow { margin-left: auto; color: var(--accent); flex: none; }
-    .soon { opacity: 0.55; pointer-events: none; }
-    footer { margin-top: 42px; font-size: 12.5px; color: var(--text-faint); }
+    .card-text { min-width: 0; }
+    .card-title { display: block; font-size: 16px; font-weight: 700; }
+    .card-sub { display: block; font-size: 13px; color: var(--text-dim); margin-top: 1px; }
+    .card-arrow { margin-left: auto; flex: none; color: var(--chrome); }
+
+    /* Not opacity. Half-strength text on this ground measures under 4.5:1,
+       and the project has already been caught doing that once with a
+       disabled button — WCAG exempts an inactive control, and a row that is
+       simply not built yet is not a control. Tertiary ink is measured and it
+       passes, so the card says what it is in words instead. */
+    .soon {
+      background: none;
+      border-style: dashed;
+    }
+    .soon .card-icon { background: none; color: var(--text-faint); }
+    .soon .card-title { color: var(--text-dim); font-weight: 600; }
+    .soon .card-sub { color: var(--text-faint); }
+
+    footer { margin-top: var(--space-8); font-size: 12px; color: var(--text-faint); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -80,36 +123,78 @@
     <h1 class="mark">lento</h1>
     <p class="tagline">coffee, taken slowly.</p>
 
+    <!-- The icons are drawn in the apps' own language — 2px stroke, rounded
+         caps, currentColor — rather than emoji, which arrive in whatever
+         palette and weight the operating system decides. Each one is the
+         instrument rather than a mood: a cupping bowl, a portafilter, a
+         dripper, a roast curve. -->
     <div class="cards">
       <a class="card" href="/cupping/">
-        <span class="card-icon">☕️</span>
-        <span>
+        <span class="card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 10h16a3 3 0 0 1 0 6h-1"/>
+            <path d="M3 10v2a7 7 0 0 0 7 7h2a7 7 0 0 0 7-7v-2"/>
+            <path d="M8 3v3M12 2v4M16 3v3"/>
+          </svg>
+        </span>
+        <span class="card-text">
           <span class="card-title">Cupping</span>
-          <span class="card-sub" style="display:block">SCA scoresheet · solo or with your table</span>
+          <span class="card-sub">SCA scoresheet · solo or with your table</span>
         </span>
-        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
+
       <a class="card" href="/espresso/">
-        <span class="card-icon">⏱️</span>
-        <span>
+        <span class="card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <!-- A tamper. Two attempts at a portafilter both read as a
+                 magnifying glass at 24px — a circle with anything coming
+                 off it does, and shrinking the circle until it did not
+                 left something that was no longer a basket. A tamper is a
+                 simpler silhouette, it is espresso and nothing else, and
+                 it is confusable with nothing else on this page. -->
+            <path d="M12 3v6"/>
+            <path d="M9.5 3h5"/>
+            <rect x="5" y="9" width="14" height="3.4" rx="1.2"/>
+            <path d="M6.5 16.5h11"/>
+            <path d="M8 20h8"/>
+          </svg>
+        </span>
+        <span class="card-text">
           <span class="card-title">Espresso dial-in</span>
-          <span class="card-sub" style="display:block">dose, yield, time · and what changed</span>
+          <span class="card-sub">dose, yield, time · and what changed</span>
         </span>
-        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
+
       <a class="card" href="/filter/">
-        <span class="card-icon">💧</span>
-        <span>
-          <span class="card-title">Filter brew log</span>
-          <span class="card-sub" style="display:block">coffee, water, time · and the pours</span>
+        <span class="card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 5h16l-6 8h-4z"/>
+            <!-- The drop hangs clear of the spout. Touching it, the two read
+                 as one object and the whole glyph became a keyhole. -->
+            <path d="M12 13v1.4"/>
+            <path d="M12 22a2.1 2.1 0 0 1-2.1-2.1c0-1.25 2.1-3.15 2.1-3.15s2.1 1.9 2.1 3.15A2.1 2.1 0 0 1 12 22z"/>
+          </svg>
         </span>
-        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="card-text">
+          <span class="card-title">Filter brew log</span>
+          <span class="card-sub">coffee, water, time · and the pours</span>
+        </span>
+        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
+
       <div class="card soon">
-        <span class="card-icon">🔥</span>
-        <span>
+        <span class="card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 20h18"/>
+            <path d="M3 17c4 0 5-9 9-9 3 0 4 4 8 4"/>
+            <circle cx="12" cy="8" r="1.4" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="card-text">
           <span class="card-title">Roasting log</span>
-          <span class="card-sub" style="display:block">coming later</span>
+          <span class="card-sub">not built yet</span>
         </span>
       </div>
     </div>
