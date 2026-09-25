@@ -575,6 +575,44 @@ function tasteNote(brew, target) {
           side === 'sour' ? 'the pour and the ratio: pour higher and more agitatedly to wet the bed evenly, or give it more water' : 'the pour and the ratio: pour more gently to agitate the bed less, or give it less water'}.` };
 }
 
+/* What the clock alone is worth, before anybody has tasted anything.
+
+   The app used to say nothing here: it printed "22s longer than the
+   window" and stopped, holding the most actionable number in a pour-over
+   behind a taste rating nobody had given. Time is a measurement, not a
+   guess, and in a brewer where the water passes through a bed the grind
+   is what sets it — you do not need to taste a brew to know which way to
+   turn the grinder when it drained in half the time.
+
+   Immersion is the exception, and it is the whole reason the kit asks.
+   There the clock is a number somebody chose, so a steep that ran four
+   minutes ran four minutes because they said so, and there is nothing for
+   the app to read in it. It says that instead of inventing a symptom. */
+function clockAdvice(brew, target) {
+  const place = placeOf(brew, target);
+  if (!percolates()) {
+    // The clock is a decision here, so it carries no diagnosis. Taste does.
+    return { sure: false, move: 'Taste it — the clock cannot help here.',
+      why: `Your brewer steeps, so the ${fmtTime(brew.time)} is the time you set the timer to rather than something the coffee did. It tells the app nothing it can act on. Sour or bitter on the sheet is what points at the grind; thin or strong is what points at the ratio.` };
+  }
+  if (place.time === null) return null;
+  const lo = fmtTime(target.timeLo), hi = fmtTime(target.timeHi);
+  const t = num(brew.time);
+
+  if (place.time === 'fast') {
+    const off = Math.round(target.timeLo - t);
+    return { sure: true, move: 'Grind finer.',
+      why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the lever that does. One step. Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
+  }
+  if (place.time === 'slow') {
+    const off = Math.round(t - target.timeHi);
+    return { sure: true, move: 'Grind coarser.',
+      why: `It ran ${off}s past the ${lo}–${hi} window, so the water spent longer in the bed than the recipe asks for. Coarser opens it up. One step. Say how it tasted and the app can check the one case this does not fix: a brew that is both slow and sour usually means the bed clogged or the water went round it.` };
+  }
+  return { sure: false, move: 'The clock is right. Now taste it.',
+    why: `${fmtTime(t)} is inside the ${lo}–${hi} window, which is the part the grinder controls and the part this app can measure. Whether it is any good is the other half, and nothing but your mouth answers that. Mark it sour or bitter and the next move gets specific; mark it neither and this is your recipe.` };
+}
+
 /* One wall named, and it is the strength one. Grind is not in this
    answer anywhere, and that is the point. */
 function bodyNote(brew) {
@@ -624,14 +662,59 @@ function bloomNote(brew) {
    whole reason the two questions are asked separately and then read
    together. The bloom rides along because it is about the schedule
    rather than the cup, so it does not compete with the move. */
+/* The clock standing in for the tongue.
+
+   One wall named — the strength one — and no taste on the sheet. The body
+   note alone answers it, and it used to answer it while ignoring the
+   clock, which is the same half-answer this app was rightly accused of:
+   a brew that drained short of the window and came out thin is not a
+   ratio problem, it is the under-extraction picture, and the fix is the
+   grinder.
+
+   The clock is evidence about extraction, so where it is decisive it
+   takes the place of the taste axis and the four corners resolve exactly
+   as they do when somebody has tasted it. The copy says where the
+   reading came from: nobody said "sour", the timer did. */
+function clockPair(brew, target) {
+  const b = bodySide(brew.body);
+  if (tasteSide(brew.taste) !== null || b === null || b === 'neither') return null;
+    if (!percolates()) return null;
+const place = placeOf(brew, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return null;
+  const quick = place.time === 'fast';
+  const light = b === 'weak';
+
+  if (quick && light) {
+    return { sure: true, move: 'Grind finer.',
+      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the bed before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.` };
+  }
+  if (!quick && !light) {
+    return { sure: true, move: 'Grind coarser.',
+      why: `It ran past the window and you called it strong. Those are one fault: the water sat in the bed taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
+  }
+  if (quick && !light) {
+    return { sure: true, move: 'More water.',
+      why: `Short of the window and strong is the ratio rather than the grind: the brew was stopped before the water had finished, and what it did take is packed into a small cup. Leave the grinder where it is and more water.` };
+  }
+  return { sure: true, move: 'Less water.',
+    why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and less water.` };
+}
+
 function nextMove(brew, target) {
   const pair = wallPair(brew, target);
   if (pair) return [pair];
   // One wall, and it is the strength one: that note is the whole answer.
+  // Body named, taste not, and a clock that is saying something: the
+  // clock stands in for the taste axis and the pair resolves properly.
+  const cp = clockPair(brew, target);
+  if (cp) return [cp];
   const b = bodyNote(brew);
   if (b) return [{ sure: false, move: b.move, why: b.why }];
   const t = tasteNote(brew, target);
-  return t ? [t] : [];
+  if (t) return [t];
+  // No taste on the sheet: the clock still knows which way the grinder goes.
+  const clock = clockAdvice(brew, target);
+  return clock ? [clock] : [];
 }
 
 function tipHTML(tip, cls) {
@@ -933,8 +1016,62 @@ function renderBoard() {
   logBtn.disabled = false;
 
   renderKeeper(c);
+  renderNext(c);
   renderTarget(c);
   renderBrews(c);
+}
+
+/* The answer, where an answer belongs.
+
+   The next move used to be the last line of the newest brew card, under
+   the numbers, the schedule, the window and the taste pips — a footnote
+   on a record, in a product whose reason to exist is telling you what to
+   change. It goes at the top of the board in its own card, and it is not
+   repeated below: one answer, one place. */
+function renderNext(c) {
+  const wrap = $('#next-card');
+  if (!c) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  const newest = brewsNewestFirst(c)[0];
+
+  /* Before the first brew, the guidance is where to start — including the
+     schedule, which is the part a beginner has no way to guess and the
+     part every recipe on the internet states differently. */
+  if (!newest) {
+    const t = c.target;
+    const water = Math.round(t.dose * t.ratio);
+    const bloom = Math.round(t.dose * 2);
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Where to start</span>
+      <div class="tip open">
+        <span class="tip-move">${byWeight()
+          ? `${fmt1(t.dose)}g coffee, ${water}g water, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
+          : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip.`}</span>
+        <span class="tip-why">${percolates()
+          ? `${byWeight() ? `Bloom with about ${bloom}g — twice the dose — and give it thirty to forty-five seconds, then pour the rest in two or three goes. ` : 'Wet all the grounds first and give them thirty to forty-five seconds, then pour the rest in two or three goes. '}Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser. Nobody can tell you the number — it is different on every grinder — but the window tells you which way.`
+          : `Stir once when the water is in, leave it, and press or decant at the time you set. Grind is what changes the strength of the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.`}</span>
+      </div>`;
+    return;
+  }
+
+  const tips = nextMove(newest, c.target);
+  if (!tips.length) {
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Next</span>
+      <div class="tip open">
+        <span class="tip-move">Add the time to that brew.</span>
+        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grind changes in a brewer that drains, and it decides whether “finer” or “coarser” is the right answer. Tap the brew above and put it in.</span>
+      </div>`;
+    return;
+  }
+  /* The bloom note is about the schedule rather than the cup, so it rides
+     along under the move instead of competing with it. */
+  const bloom = bloomNote(newest);
+  wrap.className = 'next-card';
+  wrap.innerHTML = `<span class="next-label">Next</span>`
+    + tips.map(t => tipHTML(t, 'tip')).join('')
+    + (bloom ? tipHTML({ sure: false, move: bloom.move, why: bloom.why }, 'tip') : '');
 }
 
 /* The recipe you settled on, pinned.
@@ -1048,10 +1185,11 @@ function renderBrews(c) {
       });
       return;
     }
-    empty.innerHTML = c
-      ? `<div class="empty-title">No brews yet</div>
-         <p class="empty-body">Brew one and put the numbers in${byWeight() ? ': coffee, water, time, grind' : ': time and grind'}. Everything else on this screen is built from those and from how it tasted.</p>`
-      : `<div class="empty-title">Nothing on the shelf</div>
+    /* A coffee with no brews needs no empty state: the "Where to start"
+       card at the top of the board already says what to do, with the dose,
+       the window and the schedule in it. */
+    if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
+    empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Add the bag you are brewing and this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
          <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
     return;
@@ -1061,14 +1199,14 @@ function renderBrews(c) {
   rows.forEach((brew, i) => {
     // the brew before this one in time, which is what "changed" means
     const prev = rows[i + 1] || null;
-    // Only the newest carries the suggestion. It is advice about what to
-    // brew next, and there is only one next brew.
-    list.appendChild(brewCard(brew, prev, c, rows.length - i, i === 0));
+    // The advice is not on these cards at all — it is one card, at the top
+    // of the board, about the next brew. See renderNext.
+    list.appendChild(brewCard(brew, prev, c, rows.length - i));
   });
 }
 
-function brewCard(brew, prev, c, n, newest) {
-  const card = el('div', 'brew-card');
+function brewCard(brew, prev, c, n) {
+  const card = el('div', 'log-card');
   const r = ratioOf(brew);
   const dd = drawdownOf(brew);
   const ey = extractionOf(brew);
@@ -1116,15 +1254,15 @@ function brewCard(brew, prev, c, n, newest) {
     : null;
 
   card.innerHTML = `
-    <div class="brew-top">
-      <span class="brew-n">${n}</span>
-      <span class="brew-headline">
-        ${byWeight() ? `<span class="brew-ratio">${fmtRatio(r)}</span>` : ''}
-        <span class="brew-time ${timeClass}">${fmtTime(brew.time)}</span>
+    <div class="log-top">
+      <span class="log-n">${n}</span>
+      <span class="log-headline">
+        ${byWeight() ? `<span class="log-ratio">${fmtRatio(r)}</span>` : ''}
+        <span class="log-time ${timeClass}">${fmtTime(brew.time)}</span>
       </span>
-      <span class="brew-when">${fmtDate(brew.at)}</span>
+      <span class="log-when">${fmtDate(brew.at)}</span>
     </div>
-    <div class="brew-numbers">
+    <div class="log-numbers">
       ${byWeight()
         ? `${num(brew.dose) === null ? '—' : `${fmt1(num(brew.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
             water === null ? '—' : `${fmt0(water)}<small>g</small>`}`
@@ -1135,17 +1273,16 @@ function brewCard(brew, prev, c, n, newest) {
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
     </div>
     ${(brew.pours || []).length ? `<div class="brew-pours">${pourLine(brew)}</div>` : ''}
-    ${missing.length ? `<div class="brew-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${mismatch ? `<div class="brew-missing">${escapeHTML(mismatch)}</div>` : ''}
-    ${timeNote ? `<div class="brew-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="brew-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${brew.intent ? `<div class="brew-intent">aim: ${escapeHTML((intentEntry(brew.intent) || {}).label || '')}</div>` : ''}
-    ${intentCheck(brew, prev) ? `<div class="brew-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
-    ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="brew-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
-    ${brew.body !== null && typeof brew.body === 'number' ? `<div class="brew-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
-    ${brew.notes ? `<div class="brew-notes">${escapeHTML(brew.notes)}</div>` : ''}
-    ${brew.verdict === 'keeper' ? '<div class="brew-keeper-flag">the recipe</div>' : ''}
-    ${newestTip(brew, c, newest)}
+    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
+    ${mismatch ? `<div class="log-missing">${escapeHTML(mismatch)}</div>` : ''}
+    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
+    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${brew.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(brew.intent) || {}).label || '')}</div>` : ''}
+    ${intentCheck(brew, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
+    ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="log-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
+    ${brew.body !== null && typeof brew.body === 'number' ? `<div class="log-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
+    ${brew.notes ? `<div class="log-notes">${escapeHTML(brew.notes)}</div>` : ''}
+    ${brew.verdict === 'keeper' ? '<div class="log-keeper-flag">the recipe</div>' : ''}
   `;
   card.addEventListener('click', () => openBrew(brew));
   return card;
@@ -1168,23 +1305,9 @@ function missingLine(missing) {
     : `No ${names} recorded.`;
 }
 
-/* The next move, on the brew you just made.
-
-   It used to live only inside the sheet in the app this one is modelled
-   on, which meant it was on screen while you were typing and gone by the
-   time you were standing at the grinder. The board is where that
-   decision happens. */
-function newestTip(brew, c, newest) {
-  if (!newest) return '';
-  const tips = nextMove(brew, c.target);
-  const bloom = bloomNote(brew);
-  const bloomHTML = bloom ? tipHTML({ sure: false, move: bloom.move, why: bloom.why }, 'brew-tip') : '';
-  if (tips.length) return tips.map(t => tipHTML(t, 'brew-tip')).join('') + bloomHTML;
-  const why = brew.taste === null && brew.body === null
-      ? 'Tap this brew and say how it tasted to get a next move.'
-    : null;
-  return (why ? `<div class="brew-tip open"><span class="tip-why">${why}</span></div>` : '') + bloomHTML;
-}
+/* The next move used to render here, as the last line of the newest brew
+   card. It has its own card at the top of the board now — see renderNext.
+   A footnote on a record is not where a brew log puts its answer. */
 
 /* ============================================================
    THE BREW SHEET
@@ -1554,7 +1677,7 @@ function renderReadout(c) {
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
     ${bloomTip ? tipHTML({ sure: false, move: bloomTip.move, why: bloomTip.why }, 'tip') : ''}
-    ${mismatch ? `<div class="brew-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
 

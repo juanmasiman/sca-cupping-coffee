@@ -1,15 +1,38 @@
 /* ============================================================
-   lento — espresso dial-in
+   lento — shared components
 
-   Tokens come from /shared/tokens.css. Nothing in this file
-   declares a colour, a face, a spacing step or a radius of its
-   own: DESIGN.md is the law and the token file is the part of it
-   a browser reads.
+   The parts two instruments are built from. The espresso dial-in
+   and the filter brew log draw the same board, the same sheet,
+   the same number field and the same two-ended scale; only what
+   they measure differs. This file is that overlap, and it is the
+   whole of both apps' chrome — each of them keeps only what is
+   genuinely its own (the brew log's pour schedule, for instance).
 
-   The surface this was drawn against is a bar. One wet hand, a
-   shot cooling in a cup, a queue. Every target is at least 44px,
-   the three numbers are the largest things on the sheet, and
-   nothing moves that does not have to.
+   Tokens come from /shared/tokens.css and nothing here declares a
+   colour, a face, a spacing step or a radius of its own. DESIGN.md
+   is the law; the two shared files are the part of it a browser
+   reads.
+
+   **The cupping sheet is deliberately not in here.** It uses the
+   same vocabulary — .btn, .modal-sheet, .scale — and measurement
+   says it means different things by them: of the 27 selectors it
+   shares with this file, 27 have different bodies. Its .screen is
+   position-fixed because it is a full-screen instrument you live
+   inside for an hour with swipeable panels; these two scroll like
+   documents. Its scale knob is 32px and hollow because it carries
+   the number inside it; this one is 28px and solid because it does
+   not. Its sheets are 440px on a card ground; these are 560px on
+   the page ground. Folding it in would mean changing how one of
+   them renders, and a refactor that changes rendering is not a
+   refactor. Two surfaces that are genuinely different are allowed
+   to be different; what is not allowed is two copies of the same
+   one.
+
+   The surface these were drawn against is a bar or a kitchen at
+   seven in the morning. One wet hand, something cooling, no
+   patience. Every target is at least 44px, the numbers are the
+   largest things on the sheet, and nothing moves that does not
+   have to.
    ============================================================ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -166,6 +189,40 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 
+/* ---------- the next move ----------
+
+   The answer card. A dial-in exists to answer "what do I change now?",
+   and that answer used to be the last line of the newest record card,
+   below the numbers, the window, the deltas and the taste pips. It has
+   its own card at the top of the board now, and it is not repeated
+   below: one answer, one place.
+
+   It borrows .tip, which is the same block the sheet shows while you are
+   typing — the same words in the same shape, so the thing you read at the
+   machine is the thing you read on the sheet. */
+.next-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.next-card.hidden { display: none; }
+.next-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* The left rule stays: it is what tells a confident answer from an open
+   one, and DESIGN.md says that difference is carried by the words and the
+   rule and never by colour alone. Only the stacking margin goes, because
+   the card already sets its own gap. */
+.next-card .tip { margin-top: 0; }
+
 /* ---------- the target ---------- */
 
 .target-btn {
@@ -200,11 +257,11 @@ input { font: inherit; color: inherit; }
 }
 .target-btn svg { flex: none; color: var(--text-faint); }
 
-/* ---------- the shot column ---------- */
+/* ---------- the log column ---------- */
 
-.shots { display: flex; flex-direction: column; gap: var(--space-4); }
+.log-list { display: flex; flex-direction: column; gap: var(--space-4); }
 
-.shot-card {
+.log-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -212,15 +269,15 @@ input { font: inherit; color: inherit; }
   cursor: pointer;
   text-align: left;
 }
-.shot-card:active { background: var(--chrome-soft); }
-.shot-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
+.log-card:active { background: var(--chrome-soft); }
+.log-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
 
-.shot-top {
+.log-top {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
 }
-.shot-n {
+.log-n {
   flex: none;
   font-family: var(--mono);
   font-size: 11px;
@@ -228,29 +285,29 @@ input { font: inherit; color: inherit; }
   color: var(--text-faint);
   min-width: 18px;
 }
-.shot-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
-.shot-ratio {
+.log-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
+.log-ratio {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 24px;
   font-weight: 600;
   color: var(--data);
 }
-.shot-time {
+.log-time {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 17px;
   font-weight: 600;
   color: var(--text-dim);
 }
-.shot-when {
+.log-when {
   flex: none;
   font-size: 11px;
   font-family: var(--mono);
   color: var(--text-faint);
 }
 
-.shot-numbers {
+.log-numbers {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-family: var(--mono);
@@ -258,43 +315,43 @@ input { font: inherit; color: inherit; }
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-numbers small { font-size: 11px; color: var(--text-faint); }
+.log-numbers small { font-size: 11px; color: var(--text-faint); }
 
-/* A shot the arithmetic could not finish says which measurement is
+/* A record the arithmetic could not finish says which measurement is
    missing rather than printing a dash and leaving you to guess. */
-.shot-missing,
-.shot-place,
-.shot-diff,
-.shot-notes {
+.log-missing,
+.log-place,
+.log-diff,
+.log-notes {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-missing { color: var(--text-faint); }
-.shot-diff {
+.log-missing { color: var(--text-faint); }
+.log-diff {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-faint);
 }
-.shot-notes { font-style: italic; }
+.log-notes { font-style: italic; }
 
-.shot-place {
+.log-place {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
 }
-.shot-place.in { color: var(--text-dim); }
-.shot-place.out { color: var(--text-faint); }
+.log-place.in { color: var(--text-dim); }
+.log-place.out { color: var(--text-faint); }
 
-/* A part-recorded shot drops to secondary ink, the same treatment a
+/* A part-recorded entry drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
    signal — an incomplete record is not a wrong one. */
-.shot-card.is-partial .shot-ratio,
-.shot-card.is-partial .shot-time { color: var(--text-dim); }
+.log-card.is-partial .log-ratio,
+.log-card.is-partial .log-time { color: var(--text-dim); }
 
-.shot-taste {
+.log-taste {
   margin-top: var(--space-3);
   padding-left: calc(18px + var(--space-3));
   display: flex;
@@ -315,15 +372,15 @@ input { font: inherit; color: inherit; }
 
 /* The same two shapes the sheet uses, indented to the column the rest of
    the card's detail sits in. */
-.shot-tip {
+.log-tip {
   margin-top: var(--space-4);
   margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
 }
-.shot-tip.sure { border-left-color: var(--data); }
+.log-tip.sure { border-left-color: var(--data); }
 
-.shot-keeper-flag {
+.log-keeper-flag {
   margin-top: var(--space-3);
   padding-left: calc(18px + var(--space-3));
   font-size: 11px;
@@ -428,9 +485,9 @@ input { font: inherit; color: inherit; }
   padding: 0 0 var(--space-3);
 }
 
-/* ---------- the shot sheet ---------- */
+/* ---------- the record sheet ---------- */
 
-.shot-scroll {
+.sheet-scroll {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);
@@ -621,7 +678,7 @@ input { font: inherit; color: inherit; }
   border-radius: 999px;
 }
 /* The one tick that carries a meaning of its own — the middle, where a
-   shot tastes of neither wall — sits above the rail rather than below it. */
+   cup tastes of neither wall — sits above the rail rather than below it. */
 .scale-mid {
   position: absolute;
   left: 50%;
@@ -740,20 +797,20 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 
-/* ---------- intent, on the shot card ---------- */
+/* ---------- intent, on the log card ---------- */
 
-.shot-intent,
-.shot-mismatch {
+.log-intent,
+.log-mismatch {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
+.log-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */
-.shot-mismatch {
+.log-mismatch {
   margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
@@ -910,7 +967,7 @@ input { font: inherit; color: inherit; }
 .kit-body { gap: var(--space-5); }
 .kit-row { display: flex; flex-direction: column; gap: var(--space-2); }
 /* Why the question is being asked. Somebody answering "it has one" should
-   know it takes a field off every shot sheet from here on. */
+   know it takes a field off every sheet from here on. */
 .kit-sub {
   font-size: 13px;
   line-height: 1.4;

@@ -403,6 +403,53 @@ function bodySide(v) {
   return 'neither';
 }
 
+/* What the clock alone is worth, before anybody has tasted anything.
+
+   The app used to say nothing at all here. It would print "6s under the
+   window" and stop — the single most actionable number in espresso, held
+   back behind a taste rating the user had not given. Three shots into a
+   first session it had offered exactly one piece of guidance, and that
+   piece was "tap this shot and say how it tasted to get a next move":
+   the app asking for work before it would help, while sitting on the
+   answer.
+
+   Time is a measurement, not a guess. A shot that came in short of the
+   window got through the puck too quickly, and grind is the lever that
+   changes that — you do not need to taste it to know which way to turn
+   the grinder. So the clock gets its own advice, and taste upgrades it
+   rather than unlocking it.
+
+   The one case the clock cannot see is named rather than hidden: fast
+   *and bitter* is channelling, not a coarse grind, and going finer will
+   not fix it. That is exactly what the taste scale adds, and saying so
+   is a better argument for using it than withholding the whole answer
+   was. */
+function clockAdvice(shot, target) {
+  const place = placeOf(shot, target);
+  if (place.time === null) return null;
+  const lo = Math.round(target.timeLo), hi = Math.round(target.timeHi);
+  const t = num(shot.time);
+
+  if (place.time === 'fast') {
+    const off = Math.round(lo - t);
+    return { sure: true, move: 'Grind finer.',
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only lever that does. Go one small step — you are after a few seconds, not ten. Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+  }
+  if (place.time === 'slow') {
+    const off = Math.round(t - hi);
+    return { sure: true, move: 'Grind coarser.',
+      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up. One small step. Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
+  }
+  /* In the window, and nobody has said how it tastes.
+
+     This is not a nag, it is the honest state of the board: the clock is
+     the half grind controls and it is where it should be. What is left is
+     the half only a mouth can answer, and it is the half that decides
+     whether this is the recipe. */
+  return { sure: false, move: 'The clock is right. Now taste it.',
+    why: `${Math.round(t)}s is inside the ${lo}–${hi}s window, which is the part the grinder controls and the part this app can measure. Whether it is any good is the other half, and nothing but your mouth answers that. Mark it sour or bitter on the sheet and the next move gets specific; mark it neither and this is your recipe.` };
+}
+
 /* What to try next.
 
    Espresso has one dominant variable and it is grind, but it is dominant
@@ -575,6 +622,43 @@ function bodyNote(shot) {
    One list, so the sheet and the board cannot disagree, and at most one
    entry when the cup named both walls — that is the whole point of asking
    them separately and then reading them together. */
+/* The clock standing in for the tongue.
+
+   One wall named — the strength one — and no taste on the sheet. The body
+   note alone answers it, and it used to answer it while ignoring the
+   clock, which is the same half-answer this app was rightly accused of:
+   a shot that drained short of the window and came out thin is not a
+   ratio problem, it is the under-extraction picture, and the fix is the
+   grinder.
+
+   The clock is evidence about extraction, so where it is decisive it
+   takes the place of the taste axis and the four corners resolve exactly
+   as they do when somebody has tasted it. The copy says where the
+   reading came from: nobody said "sour", the timer did. */
+function clockPair(shot, target) {
+  const b = bodySide(shot.body);
+  if (tasteSide(shot.taste) !== null || b === null || b === 'neither') return null;
+  const place = placeOf(shot, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return null;
+  const quick = place.time === 'fast';
+  const light = b === 'watery';
+
+  if (quick && light) {
+    return { sure: true, move: 'Grind finer.',
+      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.` };
+  }
+  if (!quick && !light) {
+    return { sure: true, move: 'Grind coarser.',
+      why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
+  }
+  if (quick && !light) {
+    return { sure: true, move: 'Let it run longer.',
+      why: `Short of the window and heavy is the ratio rather than the grind: the shot was stopped before the water had finished, and what it did take is packed into a small cup. Leave the grinder where it is and let it run longer.` };
+  }
+  return { sure: true, move: 'Stop it shorter.',
+    why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and stop it shorter.` };
+}
+
 function nextMove(shot, target) {
   const pair = wallPair(shot, target);
   if (pair) return [pair];
@@ -585,10 +669,17 @@ function nextMove(shot, target) {
      with itself about which half of the cup counts, and the first line is
      not even true: something is wrong, it is just not on the axis grind
      works on. */
+  // Body named, taste not, and a clock that is saying something: the
+  // clock stands in for the taste axis and the pair resolves properly.
+  const cp = clockPair(shot, target);
+  if (cp) return [cp];
   const b = bodyNote(shot);
   if (b) return [{ sure: false, move: b.move, why: b.why }];
   const t = suggest(shot, target);
-  return t ? [t] : [];
+  if (t) return [t];
+  // No taste on the sheet: the clock still knows which way the grinder goes.
+  const clock = clockAdvice(shot, target);
+  return clock ? [clock] : [];
 }
 
 function tipHTML(tip, cls) {
@@ -868,8 +959,68 @@ function renderBoard() {
   logBtn.disabled = false;
 
   renderKeeper(c);
+  renderNext(c);
   renderTarget(c);
   renderShots(c);
+}
+
+/* The answer, where an answer belongs.
+
+   The next move used to be the last line of the newest shot card, under
+   the numbers, the window, the deltas and the taste pips — a footnote on
+   a record, in a product whose entire reason to exist is telling you what
+   to change. A dial-in is a question ("what do I do now?") and this is the
+   app's answer to it, so it goes at the top of the board in its own card.
+
+   It is not duplicated on the card below. One answer, one place.
+
+   When a recipe is pinned the keeper card above is the answer, and this
+   one only speaks if the newest shot has drifted off it. */
+function renderNext(c) {
+  const wrap = $('#next-card');
+  if (!c) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+
+  const newest = shotsNewestFirst(c)[0];
+
+  /* Before the first shot, the guidance is where to start.
+
+     The board said "pull one and put four numbers in", which tells a
+     beginner what to type and nothing about what to do at the machine.
+     The dose comes from the basket they told us about, the ratio from the
+     roast if they picked one, and the grind gets the only honest
+     instruction there is: your grinder's numbers mean nothing to anyone
+     else, so aim at the window and move from there. */
+  if (!newest) {
+    const t = c.target;
+    const out = Math.round(t.dose * t.ratio);
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Where to start</span>
+      <div class="tip open">
+        <span class="tip-move">${fmt1(t.dose)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
+        <span class="tip-why">Set the grinder wherever it is and pull one. If it gushes out in ten seconds, go finer; if it drips past forty, go coarser. Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works.</span>
+      </div>`;
+    return;
+  }
+
+  const tips = nextMove(newest, c.target);
+  if (!tips.length) {
+    // Nothing to say is still worth saying, when what is missing is one tap
+    // away. The clock covers most of this now; this is the case with no
+    // time on the sheet at all.
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Next</span>
+      <div class="tip open">
+        <span class="tip-move">Add the time to that shot.</span>
+        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grinder changes, and it is what decides whether "finer" or "coarser" is the right answer. Tap the shot above and put it in.</span>
+      </div>`;
+    return;
+  }
+
+  wrap.className = 'next-card';
+  wrap.innerHTML = `<span class="next-label">Next</span>`
+    + tips.map(t => tipHTML(t, 'tip')).join('');
 }
 
 /* The keeper.
@@ -966,10 +1117,15 @@ function renderShots(c) {
       });
       return;
     }
-    empty.innerHTML = c
-      ? `<div class="empty-title">No shots yet</div>
-         <p class="empty-body">Pull one and put four numbers in: what went in, what came out, how long it took, where the grinder was. Everything else on this screen is built from those.</p>`
-      : `<div class="empty-title">Nothing on the shelf</div>
+    /* A coffee with no shots needs no empty state.
+
+       The "Where to start" card at the top of the board already says what
+       to do, with the dose and the window in it; "pull one and put four
+       numbers in" underneath was a weaker version of the same sentence
+       taking half a screen. The other two cases are genuinely different
+       situations and keep theirs. */
+    if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
+    empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
          <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
     return;
@@ -979,15 +1135,14 @@ function renderShots(c) {
   rows.forEach((shot, i) => {
     // the shot before this one in time, which is what "changed" means
     const prev = rows[i + 1] || null;
-    // Only the newest carries the suggestion. It is advice about what to
-    // pull next, and there is only one next shot — repeating it down a
-    // column of history would be four answers to a question with one.
-    list.appendChild(shotCard(shot, prev, c, rows.length - i, i === 0));
+    // The advice is not on these cards at all — it is one card, at the top
+    // of the board, about the next shot. See renderNext.
+    list.appendChild(shotCard(shot, prev, c, rows.length - i));
   });
 }
 
-function shotCard(shot, prev, c, n, newest) {
-  const card = el('div', 'shot-card');
+function shotCard(shot, prev, c, n) {
+  const card = el('div', 'log-card');
   const r = ratioOf(shot);
   const flow = flowOf(shot);
   const ey = extractionOf(shot);
@@ -1024,31 +1179,30 @@ function shotCard(shot, prev, c, n, newest) {
     : `${Math.round(shot.time - c.target.timeHi)}s slow`;
 
   card.innerHTML = `
-    <div class="shot-top">
-      <span class="shot-n">${n}</span>
-      <span class="shot-headline">
-        <span class="shot-ratio">${fmtRatio(r)}</span>
-        <span class="shot-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
+    <div class="log-top">
+      <span class="log-n">${n}</span>
+      <span class="log-headline">
+        <span class="log-ratio">${fmtRatio(r)}</span>
+        <span class="log-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
       </span>
-      <span class="shot-when">${fmtDate(shot.at)}</span>
+      <span class="log-when">${fmtDate(shot.at)}</span>
     </div>
-    <div class="shot-numbers">
+    <div class="log-numbers">
       ${num(shot.dose) === null ? '—' : `${fmt1(num(shot.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
         num(shot.yield) === null ? '—' : `${fmt1(num(shot.yield))}<small>g</small>`}
       ${flow !== null ? ` · ${fmt2(flow)}<small>g/s</small>` : ''}
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
       ${num(Number(shot.grind)) !== null && shot.grind !== '' ? ` · grind ${escapeHTML(String(shot.grind))}<small>${escapeHTML(grindUnit() === 'clicks' ? ' clicks' : '')}</small>` : ''}
     </div>
-    ${missing.length ? `<div class="shot-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${timeNote ? `<div class="shot-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="shot-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${shot.intent ? `<div class="shot-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
-    ${intentCheck(shot, prev) ? `<div class="shot-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
-    ${shot.taste !== null ? `<div class="shot-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
-    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="shot-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
-    ${shot.notes ? `<div class="shot-notes">${escapeHTML(shot.notes)}</div>` : ''}
-    ${shot.verdict === 'keeper' ? '<div class="shot-keeper-flag">the keeper</div>' : ''}
-    ${newestTip(shot, c, newest)}
+    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
+    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
+    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
+    ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
+    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
+    ${shot.notes ? `<div class="log-notes">${escapeHTML(shot.notes)}</div>` : ''}
+    ${shot.verdict === 'keeper' ? '<div class="log-keeper-flag">the keeper</div>' : ''}
   `;
   card.addEventListener('click', () => openShot(shot));
   return card;
@@ -1069,23 +1223,9 @@ function missingLine(missing) {
   return `No ${names} recorded, so this shot has no ${cost}.`;
 }
 
-/* The next move, on the shot you just pulled.
-
-   It lived only inside the sheet, which meant it was on screen while you
-   were typing the numbers and gone by the time you were standing at the
-   grinder deciding what to do. The board is where that decision happens. */
-function newestTip(shot, c, newest) {
-  if (!newest) return '';
-  const tips = nextMove(shot, c.target);
-  if (tips.length) return tips.map(t => tipHTML(t, 'shot-tip')).join('');
-  // Say what is missing rather than nothing: a shot with no taste on it
-  // cannot be advised, and the reason is one tap away from being fixed.
-  const why = shot.taste === null && shot.body === null
-      ? 'Tap this shot and say how it tasted to get a next move.'
-    : num(shot.time) === null ? 'Tap this shot and add its time to get a next move.'
-    : null;
-  return why ? `<div class="shot-tip open"><span class="tip-why">${why}</span></div>` : '';
-}
+/* The next move used to render here, as the last line of the newest shot
+   card. It has its own card at the top of the board now — see renderNext.
+   A footnote on a record is not where a dial-in puts its answer. */
 
 // A seven-step run of pips with the taken one filled — the position is the
 // meaning, exactly as on the scale that produced it.
@@ -1411,7 +1551,7 @@ function renderReadout(c) {
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
-    ${mismatch ? `<div class="shot-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
 

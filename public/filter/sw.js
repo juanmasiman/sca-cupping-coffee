@@ -8,7 +8,7 @@
    fallback.
    ============================================================ */
 
-const VERSION = 'v1';
+const VERSION = 'v3';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
@@ -24,6 +24,9 @@ const SHELL = [
   // precached by each of them: a font that only arrives with signal is a
   // font the bar never sees.
   '/shared/tokens.css',
+  // The components both instruments are built from. A stylesheet that only
+  // arrives with signal is a stylesheet the bar never sees.
+  '/shared/components.css',
   '/shared/fonts/plex-sans-var.woff2',
   '/shared/fonts/plex-mono-400.woff2',
   '/shared/fonts/plex-mono-600.woff2',
