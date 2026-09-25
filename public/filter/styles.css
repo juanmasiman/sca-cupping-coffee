@@ -1,15 +1,21 @@
 /* ============================================================
-   lento — espresso dial-in
+   lento — filter brew log
 
    Tokens come from /shared/tokens.css. Nothing in this file
    declares a colour, a face, a spacing step or a radius of its
    own: DESIGN.md is the law and the token file is the part of it
    a browser reads.
 
-   The surface this was drawn against is a bar. One wet hand, a
-   shot cooling in a cup, a queue. Every target is at least 44px,
-   the three numbers are the largest things on the sheet, and
-   nothing moves that does not have to.
+   The components here are the dial-in's, deliberately: two
+   instruments on the same bench should be built from the same
+   parts, and a brewer who uses both should not have to learn a
+   second set of controls. What differs is what they measure.
+
+   The surface this was drawn against is a kitchen at seven in
+   the morning. One hand on a kettle, a timer running, no
+   patience. Every target is at least 44px, the numbers are the
+   largest things on the sheet, and nothing moves that does not
+   have to.
    ============================================================ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -200,11 +206,11 @@ input { font: inherit; color: inherit; }
 }
 .target-btn svg { flex: none; color: var(--text-faint); }
 
-/* ---------- the shot column ---------- */
+/* ---------- the brew column ---------- */
 
-.shots { display: flex; flex-direction: column; gap: var(--space-4); }
+.brews { display: flex; flex-direction: column; gap: var(--space-4); }
 
-.shot-card {
+.brew-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -212,15 +218,15 @@ input { font: inherit; color: inherit; }
   cursor: pointer;
   text-align: left;
 }
-.shot-card:active { background: var(--chrome-soft); }
-.shot-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
+.brew-card:active { background: var(--chrome-soft); }
+.brew-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
 
-.shot-top {
+.brew-top {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
 }
-.shot-n {
+.brew-n {
   flex: none;
   font-family: var(--mono);
   font-size: 11px;
@@ -228,29 +234,29 @@ input { font: inherit; color: inherit; }
   color: var(--text-faint);
   min-width: 18px;
 }
-.shot-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
-.shot-ratio {
+.brew-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
+.brew-ratio {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 24px;
   font-weight: 600;
   color: var(--data);
 }
-.shot-time {
+.brew-time {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 17px;
   font-weight: 600;
   color: var(--text-dim);
 }
-.shot-when {
+.brew-when {
   flex: none;
   font-size: 11px;
   font-family: var(--mono);
   color: var(--text-faint);
 }
 
-.shot-numbers {
+.brew-numbers {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-family: var(--mono);
@@ -258,43 +264,43 @@ input { font: inherit; color: inherit; }
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-numbers small { font-size: 11px; color: var(--text-faint); }
+.brew-numbers small { font-size: 11px; color: var(--text-faint); }
 
-/* A shot the arithmetic could not finish says which measurement is
+/* A brew the arithmetic could not finish says which measurement is
    missing rather than printing a dash and leaving you to guess. */
-.shot-missing,
-.shot-place,
-.shot-diff,
-.shot-notes {
+.brew-missing,
+.brew-place,
+.brew-diff,
+.brew-notes {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-missing { color: var(--text-faint); }
-.shot-diff {
+.brew-missing { color: var(--text-faint); }
+.brew-diff {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-faint);
 }
-.shot-notes { font-style: italic; }
+.brew-notes { font-style: italic; }
 
-.shot-place {
+.brew-place {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
 }
-.shot-place.in { color: var(--text-dim); }
-.shot-place.out { color: var(--text-faint); }
+.brew-place.in { color: var(--text-dim); }
+.brew-place.out { color: var(--text-faint); }
 
-/* A part-recorded shot drops to secondary ink, the same treatment a
+/* A part-recorded brew drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
    signal — an incomplete record is not a wrong one. */
-.shot-card.is-partial .shot-ratio,
-.shot-card.is-partial .shot-time { color: var(--text-dim); }
+.brew-card.is-partial .brew-ratio,
+.brew-card.is-partial .brew-time { color: var(--text-dim); }
 
-.shot-taste {
+.brew-taste {
   margin-top: var(--space-3);
   padding-left: calc(18px + var(--space-3));
   display: flex;
@@ -315,15 +321,15 @@ input { font: inherit; color: inherit; }
 
 /* The same two shapes the sheet uses, indented to the column the rest of
    the card's detail sits in. */
-.shot-tip {
+.brew-tip {
   margin-top: var(--space-4);
   margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
 }
-.shot-tip.sure { border-left-color: var(--data); }
+.brew-tip.sure { border-left-color: var(--data); }
 
-.shot-keeper-flag {
+.brew-keeper-flag {
   margin-top: var(--space-3);
   padding-left: calc(18px + var(--space-3));
   font-size: 11px;
@@ -428,9 +434,9 @@ input { font: inherit; color: inherit; }
   padding: 0 0 var(--space-3);
 }
 
-/* ---------- the shot sheet ---------- */
+/* ---------- the brew sheet ---------- */
 
-.shot-scroll {
+.brew-scroll {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);
@@ -621,7 +627,7 @@ input { font: inherit; color: inherit; }
   border-radius: 999px;
 }
 /* The one tick that carries a meaning of its own — the middle, where a
-   shot tastes of neither wall — sits above the rail rather than below it. */
+   brew tastes of neither wall — sits above the rail rather than below it. */
 .scale-mid {
   position: absolute;
   left: 50%;
@@ -740,20 +746,20 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 
-/* ---------- intent, on the shot card ---------- */
+/* ---------- intent, on the brew card ---------- */
 
-.shot-intent,
-.shot-mismatch {
+.brew-intent,
+.brew-mismatch {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.shot-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
+.brew-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */
-.shot-mismatch {
+.brew-mismatch {
   margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
@@ -910,7 +916,7 @@ input { font: inherit; color: inherit; }
 .kit-body { gap: var(--space-5); }
 .kit-row { display: flex; flex-direction: column; gap: var(--space-2); }
 /* Why the question is being asked. Somebody answering "it has one" should
-   know it takes a field off every shot sheet from here on. */
+   know it takes a field off every brew sheet from here on. */
 .kit-sub {
   font-size: 13px;
   line-height: 1.4;
@@ -971,3 +977,98 @@ input { font: inherit; color: inherit; }
   .modal { align-items: center; padding: var(--space-5); }
   .modal-sheet { border-radius: var(--radius); border-bottom: 1px solid var(--line); }
 }
+
+/* ============================================================
+   THE POUR SCHEDULE
+
+   The block this app has and the dial-in does not. A shot is one
+   event; a pour-over is five, and which five is the recipe — so
+   the schedule is a record with its own fields rather than a
+   sentence in a notes box.
+   ============================================================ */
+
+.pour-block { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.pour-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Bloom, Pour 1, Pour 2 — a fixed gutter so the fields line up down the
+   column and the times can be read as a sequence rather than as rows. */
+.pour-label {
+  flex: none;
+  width: 52px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* A number field with no steppers, for the ones that repeat.
+
+   Three pours at full size came to 450px, with the two 44px steppers
+   wrapping onto a second line inside each field and clipping "0:00" to
+   "0:0" in what was left. The steppers earn their place on the numbers
+   you take one at a time with a kettle in the other hand; a schedule is
+   five pairs typed in one sitting. Everything that makes the control
+   trustworthy — the parse, the range check, the refusal to hold a value
+   nobody typed — is unchanged. */
+.num-field.compact {
+  flex-wrap: wrap;
+  min-height: 46px;
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+}
+.num-field.compact .num-label { width: auto; flex: none; font-size: 10px; }
+.num-field.compact .num-value { font-size: 17px; padding: var(--space-2) 0; }
+.num-field.compact .num-unit { font-size: 10px; }
+.num-field.compact .num-note { font-size: 12px; padding-bottom: var(--space-2); margin-top: 0; }
+
+.pour-field { flex: 1; min-width: 0; }
+
+.pour-remove {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--chrome);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pour-remove:active { background: var(--chrome-soft); }
+
+.pour-add { width: 100%; }
+
+/* The schedule as one line, on a card. Mono, because it is read as a
+   sequence of times and a reader compares it to the last brew's. */
+.brew-pours,
+.keeper-pours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.pour-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.pour-chip i { font-style: normal; color: var(--text-faint); }
+
+/* Brewing by eye. Not an error and not a gap — a statement about the
+   kit, in the ink the app uses for things it was told rather than things
+   it measured. */
+.brew-noscale { color: var(--text-faint); font-family: var(--sans); font-size: 13px; }

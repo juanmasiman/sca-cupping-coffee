@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
   <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
-  <title>Espresso dial-in — lento</title>
-  <meta name="description" content="Dial a shot in and keep the record: dose, yield, time, ratio and flow, with what changed between one shot and the next.">
+  <title>Filter brew log — lento</title>
+  <meta name="description" content="Keep the record of a pour-over: coffee, water, time, grind and the pour schedule, with what changed between one brew and the next.">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -22,12 +22,12 @@
 </head>
 <body>
 
-<!-- ============ THE BOARD — one coffee, its shots ============ -->
+<!-- ============ THE BOARD — one coffee, its brews ============ -->
 <section id="screen-board" class="screen active">
   <header class="board-header">
-    <!-- The coffee is the thing you switch, so it is the button. A bar runs
-         one or two bags at a time; a shelf behind a menu costs a tap on
-         every shot and earns nothing. -->
+    <!-- The coffee is the thing you switch, so it is the button. A kitchen
+         has one or two bags open; a shelf behind a menu costs a tap every
+         morning and earns nothing. -->
     <button id="btn-coffee" class="coffee-btn" aria-haspopup="dialog">
       <span class="coffee-btn-text">
         <span class="coffee-name" id="coffee-name">No coffee yet</span>
@@ -36,7 +36,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <button id="btn-settings" class="icon-btn" aria-label="Settings">
-      <!-- Sliders, not a cog. A circle with eight spokes at 21px is a sun,
+      <!-- Sliders, not a cog: a circle with eight spokes at 21px is a sun,
            and this button is not the theme switch. -->
       <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
         <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -52,42 +52,47 @@
          because it is the answer the whole board exists to find. -->
     <div class="keeper hidden" id="keeper"></div>
 
-    <!-- What you are aiming at. A shot is only fast or slow against
+    <!-- What you are aiming at. A brew is only quick or long against
          something, so the window is stated rather than assumed. -->
     <div class="target-card" id="target-card"></div>
 
-    <div class="shots" id="shots"></div>
+    <div class="brews" id="brews"></div>
 
-    <div class="empty hidden" id="empty">
-      <div class="empty-title">No shots yet</div>
-      <p class="empty-body">Pull one and put three numbers in: what went in, what came out, how long it took. Everything else on this screen is built from those.</p>
-    </div>
+    <div class="empty hidden" id="empty"></div>
 
     <div class="board-footpad"></div>
   </div>
 
   <div class="board-action">
-    <button id="btn-log" class="btn btn-primary">Log a shot</button>
+    <button id="btn-log" class="btn btn-primary">Log a brew</button>
   </div>
 </section>
 
-<!-- ============ THE SHOT SHEET ============ -->
-<div id="shot-modal" class="modal hidden">
-  <div class="modal-sheet shot-sheet" role="dialog" aria-modal="true" aria-labelledby="shot-title">
+<!-- ============ THE BREW SHEET ============ -->
+<div id="brew-modal" class="modal hidden">
+  <div class="modal-sheet brew-sheet" role="dialog" aria-modal="true" aria-labelledby="brew-title">
     <div class="sheet-head">
-      <h3 id="shot-title">This shot</h3>
-      <button id="shot-close" class="icon-btn" aria-label="Close without saving">
+      <h3 id="brew-title">This brew</h3>
+      <button id="brew-close" class="icon-btn" aria-label="Close without saving">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       </button>
     </div>
 
-    <div class="shot-scroll">
-      <!-- The three numbers. Everything computed on this screen comes from
-           these and nothing else. -->
+    <div class="brew-scroll">
+      <!-- The numbers. Everything computed on this screen comes from these
+           and from the schedule below, and nothing else. -->
       <div class="num-row" id="num-row"></div>
 
-      <!-- Read out of the three above, never typed. Mono, because a reader
-           will compare them to the last shot's. -->
+      <!-- The pour schedule: the record that makes this a brew log and not
+           a dial-in with different words. An espresso is one event; a
+           pour-over is five, and which five is the thing you change. -->
+      <div class="pour-block" id="pour-block">
+        <span class="field-label" id="pour-label">The pours</span>
+        <div id="pours"></div>
+      </div>
+
+      <!-- Read out of the numbers above, never typed. Mono, because a
+           reader will compare them to the last brew's. -->
       <div class="readout" id="readout"></div>
 
       <!-- Said before the numbers, because that is when you know it. The
@@ -97,13 +102,13 @@
         <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
       </div>
 
-      <!-- Two walls, asked separately. Grind answers the first; ratio and
-           dose answer the second. Asking them as one "how was it" is what
-           makes espresso advice feel like guesswork. -->
+      <!-- Two walls, asked separately. Grind answers the first; the ratio
+           answers the second. Asking them as one "how was it" is what
+           makes brewing advice feel like guesswork. -->
       <div class="taste-block">
         <span class="field-label" id="taste-label">Sour or bitter?</span>
         <div id="taste-scale"></div>
-        <span class="field-label" id="body-label">Watery or muddy?</span>
+        <span class="field-label" id="body-label">Thin or strong?</span>
         <div id="body-scale"></div>
       </div>
 
@@ -112,21 +117,17 @@
         <div class="verdict" id="verdict" role="radiogroup" aria-label="Keep it?"></div>
       </div>
 
-      <!-- Everything you change less often than the numbers above, and only
-           what your kit can change: a brew-temperature field on a machine
-           with one brew temperature is an invitation to write down a number
-           you did not set. The summary is rewritten from the kit. -->
       <details class="more" id="more">
-        <summary>Basket, notes and the rest</summary>
+        <summary>Notes and the rest</summary>
         <div class="more-body" id="more-body"></div>
       </details>
     </div>
 
     <div class="sheet-actions">
-      <!-- Only on a shot that exists; there is nothing to remove from a
+      <!-- Only on a brew that exists; there is nothing to remove from a
            sheet nobody has saved. -->
-      <button id="shot-delete" class="btn btn-ghost btn-danger hidden">Remove this shot</button>
-      <button id="shot-save" class="btn btn-primary">Save the shot</button>
+      <button id="brew-delete" class="btn btn-ghost btn-danger hidden">Remove this brew</button>
+      <button id="brew-save" class="btn btn-primary">Save the brew</button>
     </div>
   </div>
 </div>
@@ -165,9 +166,10 @@
 </div>
 
 <!-- ============ YOUR KIT ============ -->
-<!-- Asked once, before the first shot. What the app needs is not the
-     machine's name — a brand table goes stale in a year and is wrong about
-     anything modded — but what the machine can change. -->
+<!-- Asked once, before the first brew. What the app needs is not the
+     brewer's name — a brand table goes stale in a year and is wrong about
+     every hybrid on the shelf — but what the kit can change, and whether
+     the water passes through the bed or the coffee sits in it. -->
 <div id="kit-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="kit-title">
     <div class="sheet-head">

@@ -1,14 +1,15 @@
 /* ============================================================
-   lento — espresso dial-in, service worker
+   lento — filter brew log, service worker
 
-   A bar has a queue and a basement has no signal. The whole app is
-   served from cache and works with nothing at all behind it; there
-   is no relay here and no account, so offline is the normal case
-   rather than the fallback.
+   A kitchen at seven in the morning may have signal and may not,
+   and nothing here needs it: the whole app is served from cache
+   and works with nothing behind it. There is no relay and no
+   account, so offline is the normal case rather than the
+   fallback.
    ============================================================ */
 
-const VERSION = 'v3';
-const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
+const VERSION = 'v1';
+const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
   './',
@@ -40,7 +41,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(names => Promise.all(
-        names.filter(n => n.startsWith('lento-espresso-') && n !== SHELL_CACHE)
+        names.filter(n => n.startsWith('lento-filter-') && n !== SHELL_CACHE)
           .map(n => caches.delete(n))
       ))
       .then(() => self.clients.claim())

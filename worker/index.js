@@ -171,9 +171,36 @@ async function handleApi(request, env, path, cors) {
     const { body, error } = await readPayload(request, json);
     if (error) return error;
 
+    /* null is a value here, and the only one that survives the round trip.
+
+       A sheet that is not finished has no score — the sections nobody
+       reached would enter the total at their stored default — so the client
+       sends null for it. Coercing that to 0 would hand every device at the
+       table a cupper who looked at the coffee and scored it nought, which is
+       a worse lie than the one the null exists to stop. */
     const scores = Array.isArray(body && body.scores)
-      ? body.scores.slice(0, 10).map(v => Math.max(0, Math.min(100, Number(v) || 0)))
+      ? body.scores.slice(0, 10).map(v =>
+          typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null)
       : null;
+
+    /* A name on its own, with no scores attached.
+
+       Somebody's name on the roster is not something they should have to
+       submit a scoresheet to correct. The leader in particular was never
+       asked for one — the roster read "Host" for a whole cupping, the field
+       to fix it lived on Results, and typing in it changed nothing at the
+       table until scores went in behind it. So a PUT carrying a name and no
+       scores renames the seat and leaves everything else exactly as it was,
+       including whether it counts as submitted. */
+    if (!scores && body && typeof body.name === 'string') {
+      const was = existing.metadata || {};
+      await env.CUPPINGS.put(key, '', {
+        expirationTtl: TTL_SECONDS,
+        metadata: { ...was, name: body.name.trim().slice(0, 24) || was.name || 'Cupper' },
+      });
+      return json({ ok: true, renamed: true });
+    }
+
     if (!scores || !scores.length) return json({ error: 'No scores supplied' }, 400);
 
     /* How much of each sheet is real, carried alongside the scores.
