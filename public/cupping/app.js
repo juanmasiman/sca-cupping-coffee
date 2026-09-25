@@ -200,6 +200,27 @@ const HELP = {
     title: 'The 1–9 quality scale',
     body: 'You are rating your impression of quality, not how strong something is. 5 means neither high nor low — a perfectly ordinary coffee sits there. Above 5 is where quality rises, below 5 is where it falls. Most specialty coffees land between 6 and 8; reserve 9 for something remarkable.',
   },
+  /* Results had no help at all.
+
+     Every loaded word in this app has a "?" beside it, and a first-time
+     cupper said so in as many words — it was the thing that made the
+     sheet survivable. Then she reached Results, which is where "panel",
+     "calibration" and "average difference from the panel" live, and the
+     support stopped: not one help mark on the whole screen. The scaffolding
+     disappeared exactly where somebody new is most exposed, in front of
+     other people, reading a number about their own palate. */
+  panel: {
+    title: 'The panel score',
+    body: 'The coffee’s score as the table reads it: the average of the cuppers who finished a sheet for it, each of them scored independently before anyone saw anyone else’s. That independence is what the average is worth — it is why the standard asks you not to compare notes while scoring. A sheet that was not finished is not in it, because the sections nobody reached would enter the total at a default nobody chose. Every row says how many finished sheets stand behind it, and the count is per coffee: people drop off down a lineup, so the last coffee often has fewer than the first.',
+  },
+  calibration: {
+    title: 'Calibration',
+    body: 'How far your scores sit from the table’s, averaged over the coffees you finished. It is a statement about a palate rather than about a coffee, which is why it is built only from finished sheets. Direction is a habit, not a verdict: running high is not better than running low, and both are useful to know about yourself before you buy on your own numbers. Cuppers on a calibrated panel usually sit within about 1.5 points of the panel score — the band behind the bar is that range, so a number can be read against something other than the room.',
+  },
+  grade: {
+    title: 'The grade beside a score',
+    body: 'A word for where a score falls on the scale, so a number has something to mean. 80 is the specialty line. The scale itself starts at 58 rather than 0 on the CVA form, because eight sections at 5 — neither high nor low, all the way down — already come to 79.00. That is the formula, not flattery, and it is why the numbers here sit high. Every score is rounded to the nearest quarter point, as the standard prescribes.',
+  },
   score: {
     title: 'What the score means',
     body: 'The CVA score runs from 58 to 100: it is 0.65625 × the sum of your eight section scores, plus 52.75, minus 2 points per non-uniform cup and 4 per defective cup. By long convention 80+ is considered specialty grade. It is a measure of quality impression, not of how much you personally liked the coffee.\n\nThe scale starts at 58 rather than 0, so the numbers sit high and a careful sheet can come out sounding more enthusiastic than you felt. Eight sections at 6 is 84.25. Eight at 7 is 89.50. Eight at 5 — neither high nor low, all the way down — is 79.00. That is the formula, not flattery: what the grade beside the number is naming is where the arithmetic landed, not how impressed you were.',
@@ -1171,12 +1192,23 @@ function ratedNote(entry) {
 function cupperChip(entry, avg, cls, bold) {
   const has = typeof entry.score === 'number';
   const d = has && avg !== null ? entry.score - avg : null;
-  const delta = d === null ? '' : ` <em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em>`;
   const note = ratedNote(entry);
   const num = has ? fmt(entry.score) : '—';
-  return `<span class="${cls}${entry.me ? ' me' : ''}${entry.partial ? ' partial' : ''}">${
-    escapeHTML(entry.name)} ${bold ? `<strong>${num}</strong>` : num}${
-    note ? ` <i>${note}</i>` : ''}${delta}</span>`;
+  /* Three cells, always, so a column of these lines up.
+
+     The name, the score, and then either the difference from the panel or
+     — for a sheet that has no score to differ by — the count of what is
+     real in it. They were bare text nodes inside one span, which is why
+     the rows reflowed as running text with the numbers landing wherever
+     the names happened to end. */
+  const third = d !== null
+    ? `<em>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</em>`
+    : note ? `<i>${note}</i>` : '<em></em>';
+  return `<span class="${cls}${entry.me ? ' me' : ''}${entry.partial ? ' partial' : ''}">`
+    + `<span class="cupper-name">${escapeHTML(entry.name)}</span>`
+    + `<span class="cupper-num">${bold ? `<strong>${num}</strong>` : num}</span>`
+    + third
+    + '</span>';
 }
 
 // The lineup in score order, each coffee carrying how much of its sheet is
@@ -2141,14 +2173,36 @@ async function takeSeat(code) {
 
    Nothing is archived until Results, so there is genuinely nothing to
    recover. It asks now, and it names what is at stake. */
-async function joinWouldDestroyWork() {
+async function joinWouldDestroyWork(code) {
   if (!state || !state.coffees || !state.coffees.length) return false;
+
+  /* Your own table is not somebody else's.
+
+     Typing the code you are already sitting at is what a person does when
+     they cannot find the way back in — and until now the app read it as
+     joining a stranger, offered to throw the session away, and did exactly
+     that if you agreed. One tester accepted, lost four coffees of scoring,
+     and came back as a second seat under the same name that quietly moved
+     the panel average. The seat store fixed the duplicate; this is the
+     other half. There is nothing to confirm, because there is nothing to
+     replace: it is the same cupping. */
+  if (code && code === tableCode()) return false;
+
   const p = sessionProgress();
   const scored = state.coffees.length - p.untouched;
   if (scored === 0) return false;
+  /* Started is not finished, here as everywhere else. This sheet said
+     "2 coffees scored" over one finished sheet and one three-eighths
+     done — the same overcount that was fixed on the resume label and the
+     send line and missed here. */
+  const finished = state.coffees.length - p.untouched - p.partial;
+  const tally = [];
+  if (finished) tally.push(`${finished} finished`);
+  if (p.partial) tally.push(`${p.partial} part-scored`);
   return !(await confirmSheet({
     title: 'Join this table and leave your cupping?',
-    body: `You have ${scored} coffee${scored > 1 ? 's' : ''} scored in a cupping that has not been finished, so it is not in History yet.`,
+    body: `You have a cupping that has not been finished — ${tally.join(' and ')} of ${
+      state.coffees.length} — so it is not in History yet.`,
     effects: ['Joining replaces it. That scoring is discarded.'],
     cta: 'Leave it and join',
     danger: true,
@@ -2156,6 +2210,10 @@ async function joinWouldDestroyWork() {
 }
 
 function askNameThenJoin(payload, code) {
+  // The table this join actually lands on. An offline long-code join passes
+  // no `code` but carries the leader's in the payload, and takeSeat already
+  // reads it that way — the "is this my own table" check has to agree.
+  const table = code || (payload && payload.lc) || null;
   const finish = async name => {
     // register under the name they gave, and keep the roster and the
     // submitted scores agreeing on it
@@ -2192,7 +2250,7 @@ function askNameThenJoin(payload, code) {
 
   const known = getCupperName();
   if (known) {
-    joinWouldDestroyWork().then(blocked => { if (!blocked) finish(known); });
+    joinWouldDestroyWork(table).then(blocked => { if (!blocked) finish(known); });
     return;
   }
 
@@ -2231,7 +2289,7 @@ function askNameThenJoin(payload, code) {
   const close = () => { closeSheet(modal); modal.onclick = null; };
   const go = async name => {
     close();
-    if (await joinWouldDestroyWork()) return;
+    if (await joinWouldDestroyWork(table)) return;
     finish(name);
   };
 
@@ -2797,9 +2855,14 @@ function initStepper(rootId, valueId, key, limitKey) {
 function renderCupsPreview() {
   const wrap = $('#cups-preview');
   wrap.innerHTML = '';
+  /* The row used to open with a 7px near-black dot marking "one coffee".
+     Beside five cup shapes it read as a list bullet — a tester wrote it up
+     as a missing `list-style: none`, which it never was, and that misread
+     is the finding: the dot said nothing the row was not already saying,
+     and said it in the shape of markup. Three rows of five cups are three
+     coffees of five cups. */
   for (let i = 0; i < setup.coffees; i++) {
     const row = el('div', 'preview-row');
-    row.appendChild(el('span', 'preview-coffee-dot'));
     const cups = el('div', 'preview-cups');
     for (let j = 0; j < setup.cups; j++) {
       const cup = el('span', 'preview-cup');
@@ -2884,8 +2947,16 @@ function refreshTabs() {
     badge.classList.toggle('all-in', counts.submitted === counts.joined);
   }
 
+  /* The badge reads "2/4" and the label used to read "4 at the table",
+     so the two said different things about the same number — a third
+     meaning, on top of the two a tester had already counted. The label
+     says what the badge counts. */
   invite.setAttribute('aria-label', live
-    ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined ? `, ${counts.joined} at the table` : ''} — open the code`
+    ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined
+        ? (counts.submitted
+            ? `, ${counts.submitted} of ${counts.joined} at the table have sent their scores`
+            : `, ${counts.joined} at the table, nobody has sent scores yet`)
+        : ''} — open the code`
     : 'Invite cuppers to this session');
 
   // The score and the progress moved into the header's own score block, so
@@ -4640,6 +4711,25 @@ function updateScorebar() {
    placed on the same line, the specialty threshold marked on it, and the
    range stated. Which one came top is a fact about the ranking below, not
    the headline. */
+/* The help marks on Results.
+
+   Attached after each render because the cards are rebuilt from scratch
+   every time the roster moves, and a mark appended to a node that is about
+   to be replaced is a mark nobody sees. */
+function addResultsHelp() {
+  const pairs = [
+    ['#summary .summary-head', 'score'],
+    ['#ranking-head', 'grade'],
+    ['#team-card h3', 'panel'],
+    ['#live-table .calib .detail-label', 'calibration'],
+  ];
+  pairs.forEach(([sel, id]) => {
+    const el = document.querySelector(sel);
+    if (!el || el.querySelector('.help-btn')) return;
+    addHelp(el, id);
+  });
+}
+
 function buildSummary(ranked) {
   // Two different sets, and the screen used to run them together: the
   // sheets with anything on them at all, which decides whether there is a
@@ -4786,6 +4876,7 @@ function buildResults() {
   });
 
   renderTeamCard();
+  addResultsHelp();
 
   // every visit to Results refreshes the archived snapshot
   archiveSession();
@@ -4949,6 +5040,9 @@ async function pollResults() {
   if (sig !== liveSig) {
     liveSig = sig;
     refreshLiveTable(data);
+    // the card and the calibration block are rebuilt from scratch on every
+    // roster change, which takes their help marks with them
+    addResultsHelp();
   }
   return sig;
 }
@@ -6406,10 +6500,12 @@ function watchConnection() {
 // Offered whenever a session exists, not only at page load — leaving the
 // cupping screen used to hide the only route back to it.
 function refreshResumeButton() {
+  const card = $('#resume-card');
+  const label = $('#resume-label');
   const btn = $('#btn-resume');
   const start = $('#btn-start');
   const n = state && state.coffees ? state.coffees.length : 0;
-  btn.classList.toggle('hidden', !n);
+  card.classList.toggle('hidden', !n);
 
   /* The emphasis follows what is at stake.
 
@@ -6441,13 +6537,22 @@ function refreshResumeButton() {
      fixed that one, two hundred lines apart. A cupper reloaded, read
      "2 of 4 coffees scored", and found one finished sheet and one three
      -eighths done. */
+  /* The state goes above the button, not inside it.
+
+     "Resume · 1 of 4 finished · 1 part-scored" is accurate and it is also
+     a forty-character button label, which is what pushed this control a
+     further twenty-four pixels down a screen it was already below. The
+     card says where you are; the button does one thing and says one word. */
   const p = sessionProgress();
   const finished = n - p.untouched - p.partial;
-  btn.textContent = p.complete
-    ? `Resume · ${n} coffee${n > 1 ? 's' : ''} scored`
-    : finished || p.partial
-      ? `Resume · ${finished} of ${n} finished${p.partial ? ` · ${p.partial} part-scored` : ''}`
-      : `Resume · ${n} coffee${n > 1 ? 's' : ''}`;
+  const tally = [];
+  if (finished) tally.push(`${finished} of ${n} finished`);
+  if (p.partial) tally.push(`${p.partial} part-scored`);
+  if (p.untouched) tally.push(`${p.untouched} not started`);
+  label.textContent = p.complete
+    ? `A cupping of ${n} coffee${n > 1 ? 's' : ''}, all scored`
+    : `A cupping in progress · ${tally.join(' · ')}`;
+  btn.textContent = p.complete ? 'Open it again' : 'Pick up where you left off';
 }
 
 function startCupping() {
