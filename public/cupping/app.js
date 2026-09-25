@@ -1852,7 +1852,12 @@ async function askToReveal() {
     'Every cupper at the table sees every score, on their own device.',
   ];
   if (!state.shareDetails) {
-    effects.push('Origin details — farm, variety, process, altitude — go out with them. This cupping stops being blind.');
+    // It said "origin details" and left out the bigger half: the names go
+    // too. A leader who had typed four origin names on the lineup screen
+    // read this, opened the table, and still did not know whether the names
+    // had gone out — on the one screen whose job is to say what an
+    // irreversible act does.
+    effects.push('The coffees get their names, and their origin details — farm, variety, process, altitude. The table has been cupping them as Coffee 1, 2, 3; that stops here.');
   }
   if (waiting > 0) {
     effects.push(`${waiting} cupper${waiting > 1 ? 's have' : ' has'} not submitted yet. ${waiting > 1 ? 'Their sheets' : 'Their sheet'} can still be added afterwards, but ${waiting > 1 ? 'they' : 'that cupper'} will be scoring with the table’s scores already on screen.`);
@@ -2554,8 +2559,16 @@ function buildLineupRow(coffee, index, locked) {
     <div class="lineup-top">
       <span class="lineup-num">${index + 1}</span>
       <input class="lineup-name" type="text" maxlength="40" autocomplete="off" enterkeyhint="next">
-      <button class="lineup-icon remove" type="button" aria-label="Remove coffee ${index + 1}">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      <!-- A bin, not a cross. An × beside a text field is the glyph for
+           "clear what I typed" everywhere else on a phone, and this one
+           takes the coffee out of the lineup — a leader said she did not
+           dare press it and so never found out which it was. It has always
+           confirmed when there is scoring behind it; the icon now says what
+           it is asking about. -->
+      <button class="lineup-icon remove" type="button" aria-label="Remove coffee ${index + 1} from the lineup">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"/>
+        </svg>
       </button>
       <button class="lineup-icon chev" type="button" aria-label="Details for coffee ${index + 1}">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -2691,7 +2704,39 @@ function openLineupPaste() {
    SETUP SCREEN
    ============================================================ */
 
+/* What Setup opens on.
+
+   It was a constant, so the screen said 3 coffees for ever — including to
+   a leader with a four-coffee cupping running, who read it as the app
+   having lost her session. Setup is for starting a new cupping, not for
+   editing the live one, so it should not mirror it; but somebody who cups
+   four at a time cups four at a time, and the shape they last chose is a
+   better guess than a number in the source. Seeded from the session on
+   this device when there is one, and from the last one started otherwise. */
+const SETUP_KEY = 'sca-cupping-setup-v1';
 const setup = { coffees: 3, cups: 5, form: 'cva' };
+
+function loadSetupDefaults() {
+  try {
+    const raw = localStorage.getItem(SETUP_KEY);
+    const o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o === 'object') {
+      if (Number.isInteger(o.coffees)) setup.coffees = Math.min(LIMITS.coffees[1], Math.max(LIMITS.coffees[0], o.coffees));
+      if (Number.isInteger(o.cups)) setup.cups = Math.min(LIMITS.cups[1], Math.max(LIMITS.cups[0], o.cups));
+      if (o.form === 'legacy' || o.form === 'cva') setup.form = o.form;
+    }
+  } catch (e) { /* the constants above are a fine answer */ }
+  // A live session on this device is the most recent thing they chose.
+  if (state && state.coffees && state.coffees.length) {
+    setup.coffees = Math.min(LIMITS.coffees[1], state.coffees.length);
+    setup.cups = state.cupsPerCoffee;
+    setup.form = state.form === 'legacy' ? 'legacy' : 'cva';
+  }
+}
+
+function saveSetupDefaults() {
+  try { localStorage.setItem(SETUP_KEY, JSON.stringify(setup)); } catch (e) {}
+}
 
 function initFormPicker() {
   const seg = $('#form-seg');
@@ -2706,6 +2751,7 @@ function initFormPicker() {
     btn.setAttribute('aria-pressed', f.id === setup.form ? 'true' : 'false');
     btn.addEventListener('click', () => {
       setup.form = f.id;
+      saveSetupDefaults();
       haptic();
       seg.querySelectorAll('.seg-btn').forEach(b => {
         b.classList.remove('active');
@@ -2742,6 +2788,7 @@ function initStepper(rootId, valueId, key, limitKey) {
     haptic();
     render();
     renderCupsPreview();
+    saveSetupDefaults();
   });
 
   render();
@@ -6417,6 +6464,14 @@ document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   watchConnection();
   applyGuided();
+
+  /* The session is read first, because Setup's defaults are seeded from it.
+     The steppers and the form picker below render from `setup`, so anything
+     that decides what `setup` holds has to have happened by now. */
+  const saved = load();
+  if (saved) state = saved;
+  loadSetupDefaults();
+
   initFormPicker();
 
   // Two switches, one setting: the one on setup and the one that rides with
@@ -6436,9 +6491,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
   renderCupsPreview();
 
-  // resume?
-  const saved = load();
-  if (saved) state = saved;
   $('#btn-resume').addEventListener('click', () => { if (state) startCupping(); });
   refreshResumeButton();
 
