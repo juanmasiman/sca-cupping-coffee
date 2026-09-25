@@ -189,6 +189,40 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 
+/* ---------- the next move ----------
+
+   The answer card. A dial-in exists to answer "what do I change now?",
+   and that answer used to be the last line of the newest record card,
+   below the numbers, the window, the deltas and the taste pips. It has
+   its own card at the top of the board now, and it is not repeated
+   below: one answer, one place.
+
+   It borrows .tip, which is the same block the sheet shows while you are
+   typing — the same words in the same shape, so the thing you read at the
+   machine is the thing you read on the sheet. */
+.next-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.next-card.hidden { display: none; }
+.next-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* The left rule stays: it is what tells a confident answer from an open
+   one, and DESIGN.md says that difference is carried by the words and the
+   rule and never by colour alone. Only the stacking margin goes, because
+   the card already sets its own gap. */
+.next-card .tip { margin-top: 0; }
+
 /* ---------- the target ---------- */
 
 .target-btn {

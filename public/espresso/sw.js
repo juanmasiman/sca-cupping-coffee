@@ -7,7 +7,7 @@
    rather than the fallback.
    ============================================================ */
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [

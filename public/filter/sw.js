@@ -8,7 +8,7 @@
    fallback.
    ============================================================ */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
