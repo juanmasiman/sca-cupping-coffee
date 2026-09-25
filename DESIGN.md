@@ -170,7 +170,7 @@ lento.cafe carries a cupping sheet, an espresso dial-in and a filter brew log. T
 
 What a browser can read lives in two files under **`public/shared/`**.
 
-**`tokens.css`** is the palette for both themes, the two faces, the spacing scale, radius and easing. All three apps link it first and precache it. A second copy of the palette is a second palette inside a month, and the figures in this document were measured once.
+**`tokens.css`** is the palette for both themes, the two faces, the spacing scale, radius and easing. All three apps link it first and precache it — **and so does the landing page**, which for a long time did not. It carried its own inline copy in the cream and copper the apps had already left, so lento.cafe and the tool one tap behind it were visibly different products: different ground, different wordmark treatment, different typeface, 18px corners against 4px. The front door is part of the system or the system is not one. A second copy of the palette is a second palette inside a month, and the figures in this document were measured once.
 
 **`components.css`** is the parts the two instruments are built from — the board, the sheet, the number field, the two-ended scale, the buttons, the modal, the switch, the segmented control, the toast. The espresso dial-in and the filter brew log link it and between them add almost nothing: the dial-in has no stylesheet of its own at all, and the brew log's holds only its pour schedule.
 
