@@ -2565,6 +2565,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 }
 .share-pin.pending { font-size: 15px; font-weight: 600; letter-spacing: 0; text-indent: 0; color: var(--text-faint); padding: var(--space-4) 0; }
 
+/* The leader's own name, at the top of the sheet that hands out the code.
+   Same field as the one on Results; both write through pushCupperName so
+   the roster follows the typing rather than waiting for a submit. */
+.share-name-row { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-5); }
+.share-name-hint { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+
 .share-qr-wrap { display: flex; justify-content: center; margin: var(--space-4) 0 var(--space-2); }
 .share-qr {
   background: #ffffff;
@@ -2944,7 +2950,19 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   line-height: 1.35;
 }
 
+/* The number only. Its caption moved out to .present-basis — see the
+   markup: a sentence in a flex: none column takes the width it wants and
+   the coffee's name is what pays for it. */
 .present-score { flex: none; text-align: right; }
+.present-basis {
+  margin-top: var(--space-3);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
 .present-avg {
   display: block;
   font-size: 24px;
@@ -3018,13 +3036,31 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 }
 .present-final h3 { font-size: 15px; margin-bottom: var(--space-2); }
 .present-final .team-sub { margin-bottom: var(--space-4); }
+/* Position, name, score — and the count on a second line under the name.
+
+   This was a flex row with the count inside the score, so the score cell
+   grew to fit "93.75 2 sheets · 1 still scoring" and the name, the only
+   flexible thing in the row, shrank to 19px. A grid gives the score
+   whatever it needs, the position a fixed gutter, and the rest to the
+   name, which is the one thing on this row somebody has to be able to
+   read aloud. */
 .present-final-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: var(--space-4);
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--line);
   font-size: 15px;
+}
+.present-final-note {
+  grid-column: 2 / -1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  font-family: var(--mono);
 }
 .present-final-row:first-of-type { border-top: none; }
 .present-final-pos {
@@ -3035,7 +3071,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
-.present-final-name { flex: 1; min-width: 0; font-weight: 600; }
+/* It wraps rather than truncating. "Ethiopia Guji — Hambela" clipped to
+   "Ethiopia …" on the card whose job is to be read to a room. */
+.present-final-name { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .present-final-score {
   font-weight: 800;
   font-family: var(--mono);

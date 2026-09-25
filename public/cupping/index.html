@@ -5,6 +5,9 @@
   <!-- No maximum-scale and no user-scalable=no: someone reading this at
        arm's length in bad light has to be allowed to zoom. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- The standard name; Chrome warns on every load that the Apple-prefixed
+       one is deprecated. Both ship, because older iOS reads only the old one. -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Cupping">
@@ -133,7 +136,7 @@
     </header>
 
     <div class="results-scroll">
-      <p class="lineup-intro" id="lineup-intro">Name the coffees before you invite anyone — the table sees these names. Leave a card blank and it stays <strong>Coffee 1</strong>, <strong>Coffee 2</strong>, and you can fill in the rest later.</p>
+      <p class="lineup-intro" id="lineup-intro">Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.</p>
       <div class="lineup-list" id="lineup-list"></div>
       <button id="btn-lineup-add" class="btn btn-ghost lineup-add">＋ Add a coffee</button>
 
@@ -445,6 +448,16 @@
   <div id="share-modal" class="modal hidden">
     <div class="modal-sheet">
       <h3 id="share-title">Invite cuppers</h3>
+      <!-- Asked here because this is the moment the leader becomes a name on
+           everyone else's screen. It used to live only on Results, which is
+           after the cupping: the roster read "Host" for the whole session
+           and the one field that could change it was on a screen nobody
+           reaches until the scoring is done. -->
+      <div class="share-name-row">
+        <label class="detail-label" for="share-name">Your name</label>
+        <input class="detail-field" id="share-name" type="text" maxlength="24" autocomplete="name" placeholder="e.g. Juan">
+        <p class="share-name-hint" id="share-name-hint">This is how the table sees you on the roster and beside your scores.</p>
+      </div>
       <div class="share-pin-wrap" id="share-pin-wrap">
         <span class="detail-label" id="share-pin-label">Cupping code</span>
         <div class="share-pin" id="share-pin"></div>

@@ -182,6 +182,25 @@ async function handleApi(request, env, path, cors) {
       ? body.scores.slice(0, 10).map(v =>
           typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null)
       : null;
+
+    /* A name on its own, with no scores attached.
+
+       Somebody's name on the roster is not something they should have to
+       submit a scoresheet to correct. The leader in particular was never
+       asked for one — the roster read "Host" for a whole cupping, the field
+       to fix it lived on Results, and typing in it changed nothing at the
+       table until scores went in behind it. So a PUT carrying a name and no
+       scores renames the seat and leaves everything else exactly as it was,
+       including whether it counts as submitted. */
+    if (!scores && body && typeof body.name === 'string') {
+      const was = existing.metadata || {};
+      await env.CUPPINGS.put(key, '', {
+        expirationTtl: TTL_SECONDS,
+        metadata: { ...was, name: body.name.trim().slice(0, 24) || was.name || 'Cupper' },
+      });
+      return json({ ok: true, renamed: true });
+    }
+
     if (!scores || !scores.length) return json({ error: 'No scores supplied' }, 400);
 
     /* How much of each sheet is real, carried alongside the scores.

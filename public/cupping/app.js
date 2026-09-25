@@ -10,6 +10,23 @@
 const STORAGE_KEY = 'sca-cupping-session-v1';
 const HISTORY_KEY = 'sca-cupping-history-v1';
 const CUPPER_KEY = 'sca-cupping-cupper-name-v1';
+/* Which seat this device holds at which table.
+
+   It used to live on the session, as `state.participantId`, and that is
+   the wrong place for it: a seat is a fact about this device at table
+   8703, not about the scoresheet currently loaded. Joining rebuilds the
+   session from the leader's lineup — `newSession` makes a fresh object —
+   so by the time `takeSeat` looked for a seat it already held, the thing
+   it was looking at had been wiped two lines earlier. The guard could
+   never fire, and every reopened join link cut another chip onto the
+   leader's roster under the same name, one of them orphaned, with the
+   leader counting heads against the room and coming up one over.
+
+   Keyed by table code, outside the session, so it survives the rebuild —
+   and so a cupper who joins a second table and comes back to the first
+   sits down in their own seat rather than beside it. */
+const SEATS_KEY = 'sca-cupping-seats-v1';
+const SEATS_KEPT = 8; // a device does not need to remember last month's tables
 
 // Derived from wherever the app is served, so QR codes, share links,
 // and sign-in redirects work on any domain (workers.dev, lento.cafe,
@@ -1503,6 +1520,7 @@ async function relaySubmitScores(code, id, name, scores, rated) {
     const fresh = await relayJoinSession(code, name);
     if (!fresh) return { ok: false, reason: 'No connection — your scores are saved here, try again' };
     state.participantId = id = fresh;
+    rememberSeat(code, fresh);
     save();
   }
 
@@ -1699,12 +1717,79 @@ function myScores() {
   });
 }
 
+function loadSeats() {
+  try {
+    const raw = localStorage.getItem(SEATS_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function saveSeats(seats) {
+  try { localStorage.setItem(SEATS_KEY, JSON.stringify(seats)); } catch (e) { /* private mode */ }
+}
+
+function seatAt(code) {
+  if (!code) return null;
+  const id = loadSeats()[String(code)];
+  return typeof id === 'string' && id ? id : null;
+}
+
+function rememberSeat(code, id) {
+  if (!code || !id) return;
+  const seats = loadSeats();
+  // re-insert so the newest table is last, then keep only the recent ones
+  delete seats[String(code)];
+  seats[String(code)] = id;
+  const keys = Object.keys(seats);
+  keys.slice(0, Math.max(0, keys.length - SEATS_KEPT)).forEach(k => delete seats[k]);
+  saveSeats(seats);
+}
+
+function forgetSeat(code) {
+  if (!code) return;
+  const seats = loadSeats();
+  delete seats[String(code)];
+  saveSeats(seats);
+}
+
 function getCupperName() {
   try { return localStorage.getItem(CUPPER_KEY) || ''; } catch (e) { return ''; }
 }
 
 function setCupperName(name) {
   try { localStorage.setItem(CUPPER_KEY, name); } catch (e) {}
+}
+
+/* Your name, as everyone else's screen has it.
+
+   Setting it used to be a local write and nothing else, so a leader who
+   typed "Mara" watched the chip two inches below go on saying "Host" —
+   with no way to tell whether it had saved — until a submit happened to
+   carry the new name along with some scores. Renaming a seat is not
+   something anybody should have to submit a scoresheet to do.
+
+   Debounced, because this runs on every keystroke, and quiet about
+   failure: the name is saved on this device either way, and the next
+   submit carries it. */
+let renameTimer = null;
+function pushCupperName() {
+  clearTimeout(renameTimer);
+  renameTimer = setTimeout(async () => {
+    if (!state) return;
+    const code = tableCode();
+    const id = state.participantId;
+    const name = getCupperName().trim();
+    if (!code || !id || !name) return;
+    await relayFetch(`/sessions/${encodeURIComponent(code)}/participants/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!state) return;
+    liveSig = null;      // the roster this device drew is out of date by its own doing
+    syncPolling();       // which restarts the poll with an immediate tick
+  }, 600);
 }
 
 async function buildScoreCode() {
@@ -2005,10 +2090,15 @@ function openJoinSheet() {
    answers 403 to a stranger's id, which is how an expired or ended seat is
    told apart from a good one — and a request that never reached the relay
    at all keeps the seat too, because a second chip is a worse answer to a
-   dropped connection than a stale one. */
+   dropped connection than a stale one.
+
+   The guard reads the seat store rather than the session, because the join
+   path rebuilds the session from the leader's lineup immediately before
+   calling this — see SEATS_KEY. It looked at its own wiped slate and cut a
+   new seat every single time. */
 async function takeSeat(code) {
   if (!state || !code) return;
-  const held = state.joinedCode === code && state.participantId ? state.participantId : null;
+  const held = seatAt(code);
   state.joinedCode = code;
   save();
 
@@ -2018,11 +2108,13 @@ async function takeSeat(code) {
     if (!state) return;
     // 200: the seat is still ours. 0: we never asked, so assume it is.
     if (seat.ok || seat.status === 0) { state.participantId = held; save(); return; }
+    // the table does not know this id any more, so it is not ours to keep
+    forgetSeat(code);
   }
 
   const id = await relayJoinSession(code, getCupperName() || 'Cupper');
   if (!state) return;
-  if (id) state.participantId = id;
+  if (id) { state.participantId = id; rememberSeat(code, id); }
   else toast('Joined, but the table did not confirm your seat — it will retry when you submit');
   save();
 }
@@ -2204,6 +2296,24 @@ async function openInviteSheet() {
     setShareUrl(shareUrl);
   }
 
+  /* Your name, before the code goes out.
+
+     Everyone joining is asked for one on the way in; the leader never was,
+     so the roster read "Host" all session and the field that could fix it
+     sat on Results, two screens past the end of the cupping. Here it is in
+     front of the person at the moment they become a name on four other
+     people's screens. */
+  const nameField = $('#share-name');
+  if (nameField) {
+    nameField.value = getCupperName();
+    nameField.oninput = () => {
+      setCupperName(nameField.value.trim());
+      pushCupperName();
+      const mirror = $('#cupper-name');
+      if (mirror) mirror.value = nameField.value;
+    };
+  }
+
   toggle.checked = state.shareDetails;
   // One name for one thing, whichever seat you are in. It was "Cupping
   // code" to a guest and "Live code" to the leader: same four digits, two
@@ -2352,9 +2462,12 @@ async function openInviteSheet() {
     refreshTabs(); // surface the code on the header button
     // The leader is a cupper too: register them at their own table so the
     // panel average is computed from the same roster everyone else sees.
+    // The leader is a seat like any other, and a leader who reopens their
+    // own table should sit back down in it rather than beside it.
+    if (!state.participantId) state.participantId = seatAt(live.code);
     if (!state.participantId) {
       const id = await relayJoinSession(live.code, getCupperName() || 'Host');
-      if (id && state) { state.participantId = id; save(); }
+      if (id && state) { state.participantId = id; rememberSeat(live.code, id); save(); }
     }
     pin.classList.remove('pending');
     pin.textContent = live.code;
@@ -2416,7 +2529,7 @@ function buildLineup() {
 
   $('#lineup-intro').innerHTML = locked
     ? 'This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.'
-    : 'Name the coffees before you invite anyone — the table sees these names. Leave a card blank and it stays <strong>Coffee 1</strong>, <strong>Coffee 2</strong>, and you can fill in the rest later.';
+    : 'Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.';
 
   $('#btn-lineup-add').classList.toggle('hidden', locked);
   $('#btn-lineup-paste').classList.toggle('hidden', locked);
@@ -4125,10 +4238,13 @@ function buildCvaDefectsCard(coffee) {
             <span class="defect-name">${d.label}</span>
             <span class="defect-pts">${d.sub}</span>
           </div>
+          <!-- "minus, button" twice over is what these announced. Setup's
+               steppers were labelled; the ones that move a coffee's score
+               were not. -->
           <div class="stepper">
-            <button class="stepper-btn" data-action="dec">−</button>
-            <span class="stepper-value">0</span>
-            <button class="stepper-btn" data-action="inc">+</button>
+            <button class="stepper-btn" data-action="dec" aria-label="One fewer ${d.label.toLowerCase()} cup">−</button>
+            <span class="stepper-value" aria-live="polite" aria-label="${d.label} cups">0</span>
+            <button class="stepper-btn" data-action="inc" aria-label="One more ${d.label.toLowerCase()} cup">+</button>
           </div>
         </div>`).join('')}
     </div>
@@ -4340,9 +4456,9 @@ function buildDefectsCard(coffee) {
           <span class="defect-pts">off-flavor in aroma · −2 pts / cup</span>
         </div>
         <div class="stepper">
-          <button class="stepper-btn" data-action="dec">−</button>
-          <span class="stepper-value">0</span>
-          <button class="stepper-btn" data-action="inc">+</button>
+          <button class="stepper-btn" data-action="dec" aria-label="One fewer tainted cup">−</button>
+          <span class="stepper-value" aria-live="polite" aria-label="Tainted cups">0</span>
+          <button class="stepper-btn" data-action="inc" aria-label="One more tainted cup">+</button>
         </div>
       </div>
       <div class="defect-row" data-kind="faultCups">
@@ -4351,9 +4467,9 @@ function buildDefectsCard(coffee) {
           <span class="defect-pts">off-flavor in taste · −4 pts / cup</span>
         </div>
         <div class="stepper">
-          <button class="stepper-btn" data-action="dec">−</button>
-          <span class="stepper-value">0</span>
-          <button class="stepper-btn" data-action="inc">+</button>
+          <button class="stepper-btn" data-action="dec" aria-label="One fewer faulty cup">−</button>
+          <span class="stepper-value" aria-live="polite" aria-label="Faulty cups">0</span>
+          <button class="stepper-btn" data-action="inc" aria-label="One more faulty cup">+</button>
         </div>
       </div>
     </div>
@@ -4657,7 +4773,10 @@ function renderTeamCard() {
 
   const nameInput = card.querySelector('#cupper-name');
   nameInput.value = getCupperName();
-  nameInput.addEventListener('input', () => setCupperName(nameInput.value.trim()));
+  nameInput.addEventListener('input', () => {
+    setCupperName(nameInput.value.trim());
+    pushCupperName();
+  });
 
   card.querySelector('#btn-share-scores').addEventListener('click', async () => {
     const code = await buildScoreCode();
@@ -5213,9 +5332,19 @@ function buildPresent() {
         </div>
         ${stage === 2 ? `<div class="present-score">
           <span class="present-avg${shown === null ? ' partial' : ''}">${fmt(shown)}</span>
-          <span class="present-grade">${caption}${qualifier}</span>
         </div>` : ''}
       </div>
+      <!-- What stands behind the number, on a line of its own.
+
+           It used to sit under the score in the right-hand column, which is
+           flex: none — so a caption like "average of 2 finished sheets · 1
+           still scoring" claimed whatever width it wanted and squeezed the
+           coffee's name to literally zero, where the text then printed
+           across everything beside it. This is the screen a leader reads a
+           ranking off out loud, and the thing it could not fit was the
+           name of the coffee. A sentence about a number is not a column, it
+           is a line. -->
+      ${stage === 2 ? `<div class="present-basis">${caption}${qualifier}</div>` : ''}
       ${stage === 2 && row ? `<div class="present-cuppers">${
         // a difference from an average of one sheet is always zero, and
         // printing "+0.00" beside the only sheet in it says nothing
@@ -5300,11 +5429,13 @@ function buildPresentFinal(panel) {
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
         <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.empty ? ' partial' : ''}">${r.empty ? 'no score yet' : fmt(r.score)}${
-          r.note ? ` <i>${r.note}</i>` : ''}${
-          r.n
-            ? ` <i>${r.n} sheet${r.n > 1 ? 's' : ''}${r.scoring ? ` · ${r.scoring} still scoring` : ''}</i>`
-            : ''}</span>
+        <span class="present-final-score${r.empty ? ' partial' : ''}">${r.empty ? 'no score yet' : fmt(r.score)}</span>
+        ${(() => {
+          const bits = [];
+          if (r.note) bits.push(r.note);
+          if (r.n) bits.push(`${r.n} sheet${r.n > 1 ? 's' : ''}${r.scoring ? ` · ${r.scoring} still scoring` : ''}`);
+          return bits.length ? `<span class="present-final-note">${bits.join(' · ')}</span>` : '';
+        })()}
       </div>`).join('')}
   `;
 }
