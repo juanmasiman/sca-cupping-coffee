@@ -49,6 +49,20 @@
         <p class="subtitle">SCA cupping · Coffee Value Assessment</p>
       </header>
 
+      <!-- A cupping in progress outranks everything else on this screen.
+
+           Resume lived at the bottom, under the whole new-cupping form, and
+           measured 910px down an 844px viewport: a cupper who reloaded
+           mid-session saw a door into somebody else's table and a form for
+           starting a rival one, and had to scroll past both to get back to
+           their own sheet. Nothing above the fold even said they were in a
+           cupping. This screen has two jobs and which one is on top depends
+           on whether there is work to come back to. -->
+      <div class="resume-card hidden" id="resume-card">
+        <span class="resume-label" id="resume-label"></span>
+        <button id="btn-resume" class="btn btn-primary">Resume</button>
+      </div>
+
       <!-- The front door for the four people out of five who were handed a
            code rather than a lineup. This screen is the leader's console —
            form, coffees, cups — and joining was a ghost button at the very
@@ -113,10 +127,8 @@
       </div>
 
       <div class="setup-actions">
-        <!-- Resume leads when there is something to resume. A reload mid-
-             cupping is routine on a phone, and the loudest button on this
-             screen used to be the one that abandons the session. -->
-        <button id="btn-resume" class="btn btn-primary hidden">Resume last session</button>
+        <!-- Resume is not here any more: it is at the top of the screen,
+             where a session in progress belongs. -->
         <button id="btn-start" class="btn btn-primary">Set the lineup</button>
         <button id="btn-history" class="btn btn-ghost">History</button>
       </div>

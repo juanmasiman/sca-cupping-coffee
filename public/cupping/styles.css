@@ -217,11 +217,6 @@ input, textarea, select { font: inherit; }
 }
 
 .preview-row { display: flex; align-items: center; gap: var(--space-3); }
-.preview-coffee-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--chrome);
-  flex: none;
-}
 .preview-cups { display: flex; gap: var(--space-3); }
 .preview-cup {
   width: 16px; height: 16px;
@@ -242,6 +237,28 @@ input, textarea, select { font: inherit; }
    table is joining rather than leading. It is a card, not a ghost button:
    the other path off this screen is a lineup you build, and those are not
    the same weight of thing. */
+/* A cupping in progress, at the top of the screen that would otherwise
+   offer to replace it. See the markup for why it moved. */
+.resume-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--bg-card);
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+.resume-card.hidden { display: none; }
+.resume-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
 .join-door {
   display: flex;
   align-items: center;
@@ -2050,18 +2067,53 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   justify-content: space-between;
   gap: var(--space-4);
 }
-.team-coffee-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* It wraps. Clipped to about ten characters the panel card read "Kenya
+   Ny…", "Ethiopia …", "Colombia …" — and a first-time cupper said she had
+   to scroll to the bottom of the page to work out which coffee was which,
+   on the card whose job is to tell her. The score column is fixed width;
+   the name gets the rest and takes a second line if it needs one. */
+.team-coffee-name { font-size: 15px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .team-coffee-avg { font-size: 17px; font-weight: 800; font-family: var(--mono);
  font-variant-numeric: tabular-nums; color: var(--chrome); flex: none; }
 .team-coffee-avg small { font-size: 11px; font-weight: 700; color: var(--text-faint); margin-left: var(--space-2); }
-.team-coffee-cuppers {
-  margin-top: var(--space-2);
+/* One cupper per row, in three columns.
+
+   These were inline-block chips inside a line-height, so they reflowed as
+   running text: two cuppers on the first line, one on the second, with the
+   numbers landing wherever the names happened to end. Two testers wrote it
+   up independently — at a table whose whole point is comparing your number
+   to everyone else's, there was no column to run an eye down. */
+.team-coffee-cuppers,
+.present-cuppers {
+  margin-top: var(--space-3);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
   font-size: 13px;
   color: var(--text-dim);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  line-height: 1.5;
 }
+.cupper-score,
+.present-cupper {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  column-gap: var(--space-4);
+}
+/* Subgrid is not everywhere yet. Without it each row keeps its own three
+   columns — still a row per cupper, still better than running text; the
+   columns simply do not align between rows. */
+@supports not (grid-template-columns: subgrid) {
+  .cupper-score,
+  .present-cupper { grid-template-columns: minmax(0, 1fr) auto auto; }
+}
+.cupper-name { min-width: 0; overflow-wrap: anywhere; }
+.cupper-num, .cupper-score > i, .cupper-score > em,
+.present-cupper > i, .present-cupper > em { justify-self: end; }
 
 .team-cuppers-row {
   display: flex;
@@ -2492,8 +2544,6 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .live-table .team-coffee-row { background: var(--bg-card); }
 
 .cupper-score {
-  display: inline-block;
-  margin-right: var(--space-4);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
@@ -3020,12 +3070,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   margin-top: var(--space-2);
 }
 
-.present-cuppers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
+
 .present-cupper {
   display: inline-flex;
   align-items: baseline;
