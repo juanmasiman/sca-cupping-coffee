@@ -647,7 +647,13 @@ function archiveSession() {
       descriptors: usingCVA() && c.desc
         ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor, ...c.desc.cata.tastes, ...c.desc.cata.mouthfeel])]
         : [],
-      intensity: usingCVA() && c.desc ? { ...c.desc.intensity } : null,
+      // Only the sliders somebody moved. Every intensity starts life at a
+      // parking 5 — the card draws those as a dash and says "not rated" —
+      // and this line copied the lot, so a coffee whose Describe block was
+      // never opened archived as seven deliberate 5s and was indistinguishable
+      // in History and the CSV from one somebody had rated 5 across the
+      // board. The same defect as the part-scored score, one layer down.
+      intensity: usingCVA() && c.desc ? touchedIntensity(c.desc) : null,
     })),
   };
   const idx = archive.findIndex(s => s.id === state.id);
@@ -3068,15 +3074,20 @@ function buildSubmitRow() {
     const tally = [`${finished} of ${n} finished`];
     if (p.partial) tally.push(`${p.partial} part-scored`);
     if (p.untouched) tally.push(`${p.untouched} not started`);
+    /* The button sits under one coffee's panel and sends every sheet on
+       the device. "Submit my scores" left which scores to inference; a
+       cupper part-way down the lineup read it as this coffee's. Naming the
+       count is the whole fix. */
+    const all = n === 1 ? 'my sheet' : `all ${n} sheets`;
     row.innerHTML = sent
       ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
-         <button class="btn btn-ghost" type="button">Update my scores</button>`
+         <button class="btn btn-ghost" type="button">Update ${all}</button>`
       : `<p class="submit-note">${rated === 0
             ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
             : `${p.complete
                 ? 'Every coffee is scored.'
                 : `${tally.join(' · ')}.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
-         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Submit my scores</button>`;
+         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Send ${all}</button>`;
     const btn = row.querySelector('button');
     btn.addEventListener('click', async () => {
       btn.disabled = true;
@@ -3659,6 +3670,16 @@ function refreshOpenPanel() {
 /* ---------- CVA Descriptive Assessment (SCA 103-2024) ----------
    Describes the coffee without valuing it: 0–15 intensities and
    check-all-that-apply descriptors. Collapsed by default.        */
+
+// The intensities a cupper actually set, or null when none of them is real.
+function touchedIntensity(desc) {
+  if (!desc) return null;
+  const out = {};
+  DESC_ATTRS.forEach(a => {
+    if (desc.touched && desc.touched[a.key]) out[a.key] = desc.intensity[a.key];
+  });
+  return Object.keys(out).length ? out : null;
+}
 
 function emptyDescriptive() {
   const intensity = {};
@@ -4674,6 +4695,11 @@ function buildResults() {
   // panel sits in the card above them
   const rankHead = $('#ranking-head');
   if (rankHead) rankHead.textContent = tableCode() ? 'Your sheet, coffee by coffee' : 'Coffee by coffee';
+  // The chart is built from the sheets on this device, like everything else
+  // on this screen except the card above it. Under that card it read as the
+  // panel's shape.
+  const radarHead = $('#radar-head');
+  if (radarHead) radarHead.textContent = tableCode() ? 'Your sensory profile' : 'Sensory profile';
   const ranking = $('#ranking');
   ranking.innerHTML = '';
   ranked.forEach((r, pos) => {
@@ -4754,10 +4780,23 @@ function renderTeamCard() {
       <span class="detail-label">Your name</span>
       <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
     </div>
-    <div class="live-table hidden" id="live-table"></div>
+    <!-- Not hidden while the first roster is in flight. It used to be, so
+         a leader opening Results after a reload got five seconds of nothing
+         where the table goes — no spinner, no word — and read it as nobody
+         having joined. -->
+    <div class="live-table${live ? '' : ' hidden'}" id="live-table">${live
+      ? `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(tableCode())}</span></div>
+         <p class="live-note live-waiting">Checking the table…</p>`
+      : ''}</div>
     ${canPresent ? `<button class="btn btn-primary present-cta" id="btn-present">${leader
         ? 'Present to the table'
         : 'Walk the coffees one by one'}</button>` : ''}
+    <!-- The all-at-once reveal, below the recommended path rather than
+         above it. It used to render inside #live-table, which puts the one
+         irreversible act in this product where a thumb reaches first and
+         the reversible one underneath. A leader testing this hit it before
+         she meant to and was saved only by the confirmation sheet. -->
+    <div class="reveal-alt" id="reveal-alt"></div>
     <div class="team-actions${live ? ' hidden' : ''}">
       <button class="btn btn-ghost" id="btn-share-scores">Share my scores</button>
       <button class="btn btn-ghost" id="btn-add-scores">Add cupper’s scores</button>
@@ -4969,13 +5008,23 @@ function refreshLiveTable(data) {
        It is offered here too, under the sentence that says what it does.
        The confirmation sheet is unchanged: four consequences in plain
        words, irreversibility on its own line. */
-    if (isTableLeader()) {
-      html += `<p class="live-note">You are the leader. <strong>Present to the table</strong> below walks the lineup coffee by coffee and opens the scores as it goes — or open them here, all at once, and read the panel off this card.</p>`;
-      html += `<button class="btn btn-ghost" id="btn-reveal-here">Open the scores to the table</button>`;
-    }
     wrap.innerHTML = html;
 
-    const revealHere = wrap.querySelector('#btn-reveal-here');
+    /* The two ways to open the scores, in the order a leader should meet
+       them. Presenting walks the lineup and opens each coffee as it goes,
+       which is the reversible-feeling path and the one the ceremony was
+       built for; opening everything at once is the shortcut, and it is the
+       act in this product that cannot be undone. The shortcut is rendered
+       after the primary button, not before it. */
+    const alt = $('#reveal-alt');
+    if (alt) {
+      alt.innerHTML = isTableLeader()
+        ? `<p class="live-note">Presenting walks the lineup coffee by coffee and opens the scores as it goes. Or open them all at once and read the panel off the card above.</p>
+           <button class="btn btn-ghost" id="btn-reveal-here">Open the scores to the table</button>`
+        : '';
+    }
+
+    const revealHere = alt && alt.querySelector('#btn-reveal-here');
     if (revealHere) {
       revealHere.addEventListener('click', async () => {
         revealHere.disabled = true;
@@ -5562,12 +5611,50 @@ function buildRadar(ranked) {
 
   let svg = `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">`;
 
-  // grid rings
-  for (let ring = 1; ring <= 5; ring++) {
-    const r = (R * ring) / 5;
+  /* Four rings, not five.
+
+     Five divided 1–9 into steps of 1.6, so the rings fell on 2.6, 4.2, 5.8
+     and 7.4 — a ruler whose marks are at no number anybody uses. Four gives
+     steps of 2: 3, 5, 7, 9 on the CVA form and 7, 8, 9, 10 on the 2004 one,
+     every one of them a value a cupper can actually set. It also lands a
+     ring exactly on 5, which is the point the whole scale is built around —
+     "neither high nor low" — so the midpoint of the chart now means the
+     same thing as the midpoint of the sheet. */
+  const RINGS = 4;
+  const ringValue = ring => MIN + ((MAX - MIN) * ring) / RINGS;
+  const mid = RINGS / 2;
+  for (let ring = 1; ring <= RINGS; ring++) {
+    const r = (R * ring) / RINGS;
     const pts = ATTRS.map((_, i) => point(i, r).map(v => v.toFixed(1)).join(',')).join(' ');
-    svg += `<polygon class="radar-grid" points="${pts}" stroke-width="${ring === 5 ? 1.2 : 0.6}"/>`;
+    svg += `<polygon class="radar-grid${ring === mid ? ' radar-grid-mid' : ''}" points="${pts}" stroke-width="${
+      ring === RINGS ? 1.2 : ring === mid ? 0.9 : 0.6}"/>`;
   }
+
+  /* The rings, numbered.
+
+     Five of them and not one said what it was worth, so the distance
+     between two polygons was a shape and not a quantity — a reader could
+     see that one coffee sat further out on Acidity and had no way to know
+     whether that was half a point or three. A radar without a radial scale
+     is a picture of data rather than a reading of it.
+
+     They go in the gap between the first spoke and the last, which with
+     seven axes is the empty wedge at the upper left, so they sit on the
+     grid rather than across an axis label. Two of them — the outer edge
+     and the middle — because five numbers up one radius is a ruler and
+     this only has to establish the units. */
+  const labelAngle = angle(0) - (Math.PI * 2) / N / 2;
+  const at = r => [CX + Math.cos(labelAngle) * r, CY + Math.sin(labelAngle) * r];
+  // Built here, drawn last: SVG has no z-index, so a label emitted with the
+  // grid is painted under every polygon that follows it. The inner one sat
+  // behind four series lines with a halo that did nothing, because the halo
+  // only holds off what is already on the canvas.
+  const ringLabels = [RINGS, mid].map(ring => {
+    const v = ringValue(ring);
+    const [x, y] = at((R * ring) / RINGS);
+    return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" class="radar-ring-label">${
+      Number.isInteger(v) ? v : v.toFixed(1)}</text>`;
+  }).join('');
 
   // spokes + labels
   ATTRS.forEach((attr, i) => {
@@ -5614,12 +5701,14 @@ function buildRadar(ranked) {
       + ` stroke-width="2" stroke-linejoin="round" stroke-dasharray="${dash}" data-coffee="${r.index}"/>`;
   });
 
+  svg += ringLabels;
   svg += '</svg>';
   $('#radar-wrap').innerHTML = svg;
 
   const note = $('#radar-note');
   if (note) {
-    const bits = [`Seven spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`];
+    const bits = [`Rings run ${MIN} at the centre to ${MAX} at the edge, in steps of ${
+      ringValue(1) - MIN}. Seven spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`];
     if (undrawn.length) {
       bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
         undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${

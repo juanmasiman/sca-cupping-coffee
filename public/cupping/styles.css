@@ -1699,6 +1699,25 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .radar-note p { font-size: 13px; color: var(--text-dim); }
 .radar-note p + p { margin-top: var(--space-2); }
 
+/* The radial scale. Smaller and fainter than an axis name, and on the
+   grid rather than on a spoke, so it reads as the ruler the rings are and
+   not as an eighth attribute. */
+/* The midpoint ring carries the one value the scale is built around — 5,
+   neither high nor low — so it is drawn a shade stronger than its
+   neighbours without becoming a second outer edge. */
+.radar-grid-mid { opacity: 0.85; }
+
+.radar-ring-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--text-faint);
+  paint-order: stroke;
+  stroke: var(--bg-card);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
 .radar-axis-label { font-size: 11px; fill: var(--text-dim); font-weight: 600; }
 .radar-grid { stroke: var(--line); fill: none; }
 
@@ -1716,11 +1735,17 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 }
 .legend-line { stroke: var(--c); }
 
+/* Left-aligned and with no row gap of its own — the 44px tap targets
+   already space it. Centred, every row read as its own island, and four
+   long origin names cost 190px of a 656px card before the note explaining
+   the chart came into view. Short names now pair up on a row; a long one
+   still gets a row to itself, because the alternative is truncating the
+   name of the coffee, which is the thing the legend exists to say. */
 .radar-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3) var(--space-5);
-  justify-content: center;
+  column-gap: var(--space-5);
+  justify-content: flex-start;
   margin-top: var(--space-3);
 }
 /* These toggle a series on the chart, so they are controls: the row was
@@ -1750,6 +1775,15 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 /* the series' own line, so the legend carries the pattern as well as the
    hue and the chart does not depend on colour alone */
 .legend-swatch { width: 24px; height: 8px; flex: none; overflow: visible; }
+
+/* The placeholder that stands in for the roster while the first request
+   is in flight. Faint, because it is a statement about the app rather than
+   about the table. */
+.live-waiting { color: var(--text-faint); }
+
+/* The all-at-once reveal, under the primary rather than over it. */
+.reveal-alt { display: flex; flex-direction: column; gap: var(--space-3); }
+.reveal-alt:empty { display: none; }
 
 /* ranking list */
 /* Sits outside the cards it names, so it takes the radar card's heading
