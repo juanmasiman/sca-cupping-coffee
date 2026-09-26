@@ -1396,10 +1396,27 @@ function grindStart(c) {
 }
 
 /* Stated before the numbers, because that is when you know it. */
+/* The shot this one is being compared against, or null when there is not
+   one yet. The intent row and the readout need the same answer. */
+function prevShotOf(c) {
+  const rows = shotsNewestFirst(c);
+  return editingIsNew ? (rows[0] || null) : (rows[rows.indexOf(editing) + 1] || null);
+}
+
 function buildIntent(c) {
   const wrap = $('#intent');
   if (!wrap) return;
   wrap.innerHTML = '';
+
+  /* "What are you changing?" needs something to be changing from. On the
+     first shot of a coffee every answer here is unanswerable — finer than
+     what? — and "Same again" is a claim about a shot that does not exist.
+     The row leaves the sheet until there is a shot behind this one. */
+  const block = wrap.closest('.intent-block');
+  const prev = prevShotOf(c);
+  if (block) block.classList.toggle('hidden', !prev);
+  if (!prev) { editing.intent = null; return; }
+
   // "Hotter" is not an intention on a machine with one temperature, and
   // offering it invites somebody to record a change they did not make.
   INTENTS.filter(i => i.field !== 'temp' || canSetTemp()).forEach(i => {
@@ -1521,11 +1538,7 @@ function renderReadout(c) {
      steps from the grinder, and once it is saved you are reading history.
      The prior shot is the one before this one in the log — the last one
      for a new sheet, the one before it for an edit. */
-  const rows = shotsNewestFirst(c);
-  const prevShot = editingIsNew
-    ? (rows[0] || null)
-    : (rows[rows.indexOf(editing) + 1] || null);
-  const mismatch = intentCheck(editing, prevShot);
+  const mismatch = intentCheck(editing, prevShotOf(c));
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null

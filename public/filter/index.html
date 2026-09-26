@@ -95,6 +95,10 @@
            pour-over is five, and which five is the thing you change. -->
       <div class="pour-block" id="pour-block">
         <span class="field-label" id="pour-label">The pours</span>
+        <!-- Which number the water column wants. Without this line the
+             field takes cumulative from half its readers and incremental
+             from the other half, and the schedule means nothing. -->
+        <span class="pour-hint">Water is the running total on the scale, the way a recipe is written — not the weight of each pour.</span>
         <div id="pours"></div>
       </div>
 

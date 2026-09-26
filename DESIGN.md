@@ -237,6 +237,16 @@ The schedule is also what forced a second form of the number field. Five pairs o
 
 **No scale, no ratio — anywhere.** A great many people brew by eye, and a ratio built from a scoop is not a ratio. Answering that question with "by eye" removes the dose, the water and every ratio in the app, and leaves grind, time and taste, which is still a useful log and an honest one.
 
+**The number a field asks for is the number in front of the person.** The pour schedule was stored as the weight of each pour, and the column said only "water". Every published recipe is written as a running total — "pour to 150g by 0:45" — and the scale on the counter reads totals, so entering a recipe the way it is written made the app accuse a correctly-logged brew of adding up to 390g against its own 240g figure. The schedule is cumulative now, the column says "to", and the weight of each pour is derived and shown. Where the app and the counter disagree about what a number means, the counter is right.
+
+**A warning that fires on correct data is worse than no warning.** It is the one that teaches a reader to skip past the one that matters. The mismatch note earned its place only once the field it reads could be filled in correctly, and the same check now names the pour that goes backwards rather than reporting a total nobody can explain.
+
+**A question the app asks must change something the reader can see.** The kit asks whether the grinder counts clicks or reads a number, and justifies asking by promising to use the brewer's own words — and then the brew log never printed "clicks" anywhere, and showed "grind −5.0" on a grinder that only stops at whole numbers. Either the answer reaches the surface or the question comes off the sheet.
+
+**A comparative question needs something to compare against.** "What are you changing?" has no answer on the first brew of a coffee: finer than what, and "same again" as what? The row leaves the sheet until there is a brew behind this one, in both instruments.
+
+**One word per axis.** The sheet asks thin or strong, the scale is anchored thin↔strong — and the card came back saying "weak", a word the axis does not contain. A reader should never have to work out whether two words are the same judgement.
+
 **The two walls hold, with filter's own second lever.** Sour and bitter are extraction and grind is the lever; thin and strong are concentration and the *amount of water* is the lever. Read together each corner has one move — grind finer, grind coarser, more water, less water — and the diagonal is the pair every brewer learns first. Where the dial-in says "run longer", the brew log says "more water", and they are the same sentence about the same physics. The vocabulary is the act, not the arithmetic: "less water" and "tighten the ratio" are one instruction, and an app that uses both makes a reader wonder whether they are two.
 
 ## Colors

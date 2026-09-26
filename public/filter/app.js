@@ -32,8 +32,15 @@ function load() {
     const raw = localStorage.getItem(STORE);
     if (raw) state = migrate(JSON.parse(raw));
   } catch (e) { /* private mode, or a shape this build cannot read */ }
-  if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null };
+  if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null, pourTotals: true };
   if (!state.kit) state.kit = defaultKit();
+  /* Write the migration back at once, so the converted schedules and the
+     flag that says they are converted land together. Left in memory until
+     the next brew was saved, the stored copy kept the old shape while the
+     screen showed the new one — which is the sort of gap that turns into a
+     double conversion the first time anything reads the store without
+     going through here. */
+  if (migrated) { save(); migrated = false; }
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -50,6 +57,9 @@ function savePrefs() {
 
 // Older shapes get repaired rather than discarded: somebody's brew log is
 // the only copy of a month of mornings.
+// Set when migrate() actually changed something, so load() knows to persist.
+let migrated = false;
+
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
   s.kit = Object.assign(defaultKit(), s.kit || {});
@@ -66,6 +76,24 @@ function migrate(s) {
       if (!Array.isArray(b.pours)) b.pours = [];
     });
   });
+  /* The pour schedule used to hold the weight of each pour; it now holds
+     the running total on the scale (see buildPours). Incremental converts
+     to cumulative by a running sum, which is exactly what those schedules
+     already meant — so this reads somebody's existing log rather than
+     guessing at it, and it runs once. */
+  if (!s.pourTotals) {
+    (s.coffees || []).forEach(c => (c.brews || []).forEach(b => {
+      let run = 0;
+      (b.pours || []).forEach(p => {
+        const w = num(p.water);
+        if (w === null) return;
+        run += w;
+        p.water = run;
+      });
+    }));
+    s.pourTotals = true;
+    migrated = true;
+  }
   return s;
 }
 
@@ -260,12 +288,48 @@ function drawdownOf(brew) {
   return d >= 0 ? d : null;
 }
 
-// Total water poured across the schedule, which should agree with the
-// water figure — and when it does not, the card says so rather than
-// silently preferring one.
+/* Where the scale ends up, which should agree with the water figure — and
+   when it does not, the card says so rather than silently preferring one.
+
+   The schedule is kept as running totals rather than the weight of each
+   pour, so this is the last of them and not their sum. See buildPours for
+   why: it is what the scale reads and how every recipe is written, and
+   summing pours that were entered as totals is how this app used to
+   accuse a correctly-logged brew of adding up to 390g. */
 function pouredTotal(brew) {
   const pours = (brew.pours || []).map(p => num(p.water)).filter(v => v !== null);
-  return pours.length ? pours.reduce((a, b) => a + b, 0) : null;
+  return pours.length ? Math.max(...pours) : null;
+}
+
+/* A schedule whose totals go down is a typo, not a brew: you cannot take
+   water back out of the bed. Named so the sheet can say which pour, since
+   "the schedule is wrong" sends somebody hunting through five rows. */
+function pourBacktrack(brew) {
+  const pours = brew.pours || [];
+  let high = null, highIdx = 0;
+  for (let i = 0; i < pours.length; i++) {
+    const w = num(pours[i].water);
+    if (w === null) continue;
+    if (high !== null && w < high) {
+      return { at: i, label: i === 0 ? 'The bloom' : `Pour ${i}`, value: w,
+               prev: high, prevLabel: highIdx === 0 ? 'the bloom' : `pour ${highIdx}` };
+    }
+    high = w; highIdx = i;
+  }
+  return null;
+}
+
+// What this pour added, for a reader who wants the weight of the pour and
+// not the total. Derived, never typed — the subtraction is the app's job.
+function pourAdded(brew, i) {
+  const pours = brew.pours || [];
+  const w = num((pours[i] || {}).water);
+  if (w === null) return null;
+  for (let k = i - 1; k >= 0; k--) {
+    const before = num(pours[k].water);
+    if (before !== null) return w - before;
+  }
+  return w;
 }
 
 /* Extraction yield needs a refractometer AND a weighed cup.
@@ -417,7 +481,10 @@ const TASTE_WORDS = {
 // filter is muddy — it is thin against heavy, and it is moved by how
 // much water went through the same dose.
 const BODY_WORDS = {
-  '-3': 'thin, watery', '-2': 'weak', '-1': 'a little thin',
+  // "thin" throughout: the field asks thin or strong and the scale is
+  // anchored thin↔strong, so a card that came back saying "weak" was the
+  // app using a word its own axis does not have.
+  '-3': 'thin, watery', '-2': 'thin', '-1': 'a little thin',
   '0': 'neither',
   '1': 'a little strong', '2': 'strong', '3': 'thick, syrupy',
 };
@@ -592,8 +659,13 @@ function clockAdvice(brew, target) {
   const place = placeOf(brew, target);
   if (!percolates()) {
     // The clock is a decision here, so it carries no diagnosis. Taste does.
+    // The time only goes in the sentence when there is one. fmtTime
+    // returns an em dash for null, and "so the — is the time you set the
+    // timer to" is the app showing its seams.
+    const t = num(brew.time);
+    const said = t === null ? 'the steep' : `the ${fmtTime(t)}`;
     return { sure: false, move: 'Taste it — the clock cannot help here.',
-      why: `Your brewer steeps, so the ${fmtTime(brew.time)} is the time you set the timer to rather than something the coffee did. It tells the app nothing it can act on. Sour or bitter on the sheet is what points at the grind; thin or strong is what points at the ratio.` };
+      why: `Your brewer steeps, so ${said} is the time you set the timer to rather than something the coffee did. It tells the app nothing it can act on. Sour or bitter on the sheet is what points at the grind; thin or strong is what points at the ratio.` };
   }
   if (place.time === null) return null;
   const lo = fmtTime(target.timeLo), hi = fmtTime(target.timeHi);
@@ -1224,7 +1296,12 @@ function brewCard(brew, prev, c, n) {
   if (prev) {
     const g = (a, b) => (num(a) !== null && num(b) !== null ? a - b : null);
     const dGrind = g(Number(brew.grind), Number(prev.grind));
-    if (dGrind !== null && dGrind !== 0) diffs.push(`grind ${fmtDelta(dGrind, '', 1)}`);
+    // Clicks are whole. "grind −5.0" on a grinder that only stops at whole
+    // numbers is the app inventing a precision the kit does not have.
+    const stepped = kit().steps === 'stepped';
+    if (dGrind !== null && dGrind !== 0) {
+      diffs.push(`grind ${fmtDelta(dGrind, stepped ? ' clicks' : '', stepped ? 0 : 1)}`);
+    }
     if (byWeight()) {
       const dDose = g(brew.dose, prev.dose);
       if (dDose) diffs.push(`${fmtDelta(dDose, 'g coffee')}`);
@@ -1249,8 +1326,9 @@ function brewCard(brew, prev, c, n) {
   // the card says so rather than quietly preferring one of them.
   const poured = pouredTotal(brew);
   const water = num(brew.water);
+  const back = byWeight() ? pourBacktrack(brew) : null;
   const mismatch = byWeight() && poured !== null && water !== null && Math.abs(poured - water) > 1
-    ? `The schedule adds up to ${fmt0(poured)}g, and the water says ${fmt0(water)}g.`
+    ? `The schedule ends at ${fmt0(poured)}g, and the water says ${fmt0(water)}g.`
     : null;
 
   card.innerHTML = `
@@ -1267,13 +1345,15 @@ function brewCard(brew, prev, c, n) {
         ? `${num(brew.dose) === null ? '—' : `${fmt1(num(brew.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
             water === null ? '—' : `${fmt0(water)}<small>g</small>`}`
         : '<span class="brew-noscale">no scale</span>'}
-      ${num(Number(brew.grind)) !== null && brew.grind !== '' ? ` · grind ${escapeHTML(String(brew.grind))}` : ''}
+      ${num(Number(brew.grind)) !== null && brew.grind !== '' ? ` · grind ${escapeHTML(String(brew.grind))}${grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}` : ''}
       ${canSetTemp() && num(Number(brew.temp)) !== null && brew.temp !== '' ? ` · ${escapeHTML(String(brew.temp))}<small>°</small>` : ''}
       ${dd !== null ? ` · ${fmtTime(dd)}<small> drawdown</small>` : ''}
       ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
     </div>
     ${(brew.pours || []).length ? `<div class="brew-pours">${pourLine(brew)}</div>` : ''}
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
+    ${back ? `<div class="log-missing">${escapeHTML(
+      `${back.label} says ${fmt0(back.value)}g, below ${back.prevLabel} at ${fmt0(back.prev)}g — the schedule is a running total.`)}</div>` : ''}
     ${mismatch ? `<div class="log-missing">${escapeHTML(mismatch)}</div>` : ''}
     ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
@@ -1315,6 +1395,9 @@ function missingLine(missing) {
 
 let editing = null;      // the brew being edited, or a fresh one
 let editingIsNew = false;
+// The schedule as it was when the sheet opened, so an edit to it can be
+// told from the copy that was carried over. See brewHasContent.
+let pourSeed = '[]';
 
 /* Where the grinder is, as far as this app knows.
 
@@ -1360,6 +1443,7 @@ function openBrew(brew) {
     beverage: null,
   };
   if (editing.grind === undefined) editing.grind = '';
+  pourSeed = pourSchedule(editing.pours);
 
   $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${c.brews.indexOf(brew) + 1}`;
 
@@ -1388,8 +1472,21 @@ function openBrew(brew) {
 // costs the person anything.
 function brewHasContent() {
   if (!editing) return false;
-  return ['water', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
+  const typed = ['water', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
     .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+  /* The schedule counts too, and only when it has been changed.
+     It arrives carried over from the last brew, so its mere presence is
+     not somebody's work — but editing it is, and this app calls the
+     schedule the recipe. Closing the sheet used to drop a reworked
+     schedule without asking, while it would stop and ask over a
+     half-typed note. */
+  return typed || pourSchedule(editing.pours) !== pourSeed;
+}
+
+// The schedule as one comparable string, so "has it been touched?" is not
+// five nullable comparisons at every keystroke.
+function pourSchedule(pours) {
+  return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water)]));
 }
 
 function closeBrewSheet() {
@@ -1466,6 +1563,19 @@ function buildBrewSheet(c) {
    the next. Writing "bloom, then three pours" in a notes field loses the
    times, and the times are the recipe.
 
+   The water column is the running total on the scale — "to 150g" — and
+   not the weight of that pour. Both are defensible in the abstract; only
+   one is what the brewer is looking at. The scale on the counter reads
+   cumulative, every published recipe is written cumulatively ("pour to
+   150g by 0:45"), and asking for increments means doing subtraction at
+   seven in the morning, which is the thing this app says elsewhere it
+   will not make anybody do. It cost a real bug to find out: entering a
+   V60 recipe the way it is written got the brew accused of adding up to
+   390g against a 240g figure, and a warning that fires on correct data
+   is worse than no warning, because it teaches the reader to ignore the
+   one that matters. So the column says which number it wants, and the
+   increment is derived and shown rather than asked for.
+
    Immersion gets one addition and a steep, so the block says that
    instead of drawing an empty timeline nobody will fill in. */
 function buildPours(c) {
@@ -1491,9 +1601,11 @@ function buildPours(c) {
     line.appendChild(at);
     if (byWeight()) {
       const w = numField({
-        label: 'Water', unit: 'g', compact: true,
+        // "To", because it is where the scale should read when this pour
+        // finishes, not what this pour weighs.
+        label: 'To', unit: 'g', compact: true,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
-        onChange: v => { p.water = v; renderReadout(c); },
+        onChange: v => { p.water = v; buildPours(c); renderReadout(c); },
       });
       w.classList.add('pour-field');
       line.appendChild(w);
@@ -1509,6 +1621,22 @@ function buildPours(c) {
     });
     line.appendChild(rm);
     wrap.appendChild(line);
+
+    /* What the pour itself weighed. Derived from the totals either side of
+       it so the reader gets both readings and types only the one the scale
+       gives them. Absent on the bloom, where the total and the pour are
+       the same number and saying "+30g" twice explains nothing. */
+    if (byWeight() && i > 0) {
+      const added = pourAdded(editing, i);
+      if (added !== null) {
+        // Nothing signed on the way down: the readout names both figures,
+        // and "−30g in this pour" describes water leaving the bed.
+        wrap.appendChild(el('span', 'pour-added' + (added < 0 ? ' bad' : ''),
+          added > 0 ? `+${fmt0(added)}g in this pour`
+          : added === 0 ? 'nothing added in this pour'
+          : 'below the total before it'));
+      }
+    }
   });
 
   const add = el('button', 'btn btn-ghost pour-add',
@@ -1531,10 +1659,29 @@ function buildPours(c) {
 }
 
 /* Stated before the numbers, because that is when you know it. */
+/* The brew this one is being compared against — the previous one for this
+   coffee, or null when there is not one yet. Both the intent block and the
+   readout need the same answer, and they used to work it out separately. */
+function prevBrewOf(c) {
+  const rows = brewsNewestFirst(c);
+  return editingIsNew ? (rows[0] || null) : (rows[rows.indexOf(editing) + 1] || null);
+}
+
 function buildIntent(c) {
   const wrap = $('#intent');
   if (!wrap) return;
   wrap.innerHTML = '';
+
+  /* "What are you changing?" needs something to be changing from. On the
+     first brew of a coffee every answer on this row is unanswerable —
+     finer than what? — and "Same again" is a claim about a brew that does
+     not exist. The block leaves the sheet until there is a brew behind
+     this one, and the card's own check already stays silent in that case,
+     so nothing downstream is waiting on it. */
+  const block = wrap.closest('.intent-block');
+  const prev = prevBrewOf(c);
+  if (block) block.classList.toggle('hidden', !prev);
+  if (!prev) { editing.intent = null; return; }
   liveIntents().forEach(i => {
     const on = editing.intent === i.key;
     const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(i.label));
@@ -1631,13 +1778,10 @@ function renderReadout(c) {
   const tips = nextMove(editing, c.target);
   const bloomTip = bloomNote(editing);
 
-  const rows = brewsNewestFirst(c);
-  const prevBrew = editingIsNew
-    ? (rows[0] || null)
-    : (rows[rows.indexOf(editing) + 1] || null);
   // Live, because the one moment this can be acted on is while the sheet
   // is open and the grinder is two steps away.
-  const mismatch = intentCheck(editing, prevBrew);
+  const mismatch = intentCheck(editing, prevBrewOf(c));
+  const back = pourBacktrack(editing);
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null
@@ -1677,6 +1821,8 @@ function renderReadout(c) {
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
     ${bloomTip ? tipHTML({ sure: false, move: bloomTip.move, why: bloomTip.why }, 'tip') : ''}
+    ${back ? `<div class="log-mismatch">${escapeHTML(
+      `${back.label} says ${fmt0(back.value)}g, which is below ${back.prevLabel} at ${fmt0(back.prev)}g. The column is the running total, so it only goes up.`)}</div>` : ''}
     ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
 }
@@ -2070,6 +2216,7 @@ function openHelp() {
   $('#help-body').innerHTML = `
     <p><strong>Ratio</strong> is water divided by coffee. 15g and 250g is 1:16.7. It describes the brew; it is not a measure of how much was taken out of the bed.</p>
     <p><strong>Drawdown</strong> is the time between your last pour landing and the bed running dry. It is the number that moves first when the grind moves, and a bed that takes ninety seconds to clear is telling you something the taste will not say for another minute.</p>
+    <p><strong>The pours</strong> are kept as the running total on the scale, the way a recipe is written: a bloom to 30g, then to 150g, then to 240g. Not the weight of each pour — that is the number the app works out and shows you, because the scale on your counter is already doing the adding.</p>
     <p><strong>The bloom</strong> is the first pour, and what matters is its size against the dose — two to three times is the working range. Less and part of the bed never wets; more and you are brewing before the coffee has finished degassing.</p>
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup. It needs a refractometer <em>and</em> the cup on a scale: the bed keeps roughly twice its own weight, so the water you poured is not the drink you got. Every tool that computes filter yield from coffee and water alone is estimating that retention and printing it as a reading. This one returns nothing without both.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a brew quick or long until you have said what it is being measured against.</p>
@@ -2170,7 +2317,12 @@ function boot() {
   applyTheme();
   wire();
   renderBoard();
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  /* No protocol test. serviceWorker is only exposed in a secure context
+     to begin with, so the check added nothing on the deployed site — and
+     it excluded localhost, which is a secure context, meaning this app's
+     offline path had never once run anywhere it could be watched. The
+     other two apps never had it. */
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline is the normal case here anyway */ });
   }
 }
