@@ -485,7 +485,14 @@ function intentCheck(brew, prev) {
 const GRIND = makeGrind({
   logs: () => ((state && state.coffees) || []).map(c => c.brews || []),
   stepped: () => kit().steps === 'stepped',
-  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'step'),
+  /* 'step' was wrong on a stepless dial in the one place it mattered
+     most — the sentence that promises to replace "a step" with a number.
+     A numeric collar has no clicks, and the sensitivity figure is seconds
+     per whole number on that collar — so that is what it is called. Not
+     "a tenth": moves are quoted in tenths, but 2.0s is what a whole point
+     is worth, and naming the smaller unit would understate the grinder
+     tenfold in the one sentence the reader checks the estimate against. */
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'),
   itemWord: () => 'brew',
   enabled: () => percolates(),
   fmtTime: v => fmtTime(v),

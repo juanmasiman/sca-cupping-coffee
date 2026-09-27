@@ -95,6 +95,33 @@ function makeGrind(env) {
     return out;
   }
 
+  /* How many times the grinder has actually been moved, across the same
+     windows the pairs are drawn from.
+
+     This exists because the figure quoted to the reader used to be the
+     number of PAIRS, and pairs grow as the square of the log: three moves
+     of the grinder reported "over 3 grind changes", then 6, then 11, with
+     the count climbing across two shots at an unchanged setting. It is the
+     one sentence in the card meant to make the estimate trustworthy, and
+     it was the least trustworthy thing on the screen.
+
+     Consecutive differences, which is literally the number of times a hand
+     went to the dial. */
+  function moves() {
+    let count = 0;
+    env.logs().forEach(rows => {
+      const win = rows.slice(-8);
+      let prev = null;
+      win.forEach(r => {
+        const g = env.grindOf(r);
+        if (g === null) return;
+        if (prev !== null && g !== prev) count++;
+        prev = g;
+      });
+    });
+    return count;
+  }
+
   /* Seconds of brew time per step of the dial.
 
      The median of the per-pair slopes rather than a line fitted through
@@ -106,10 +133,45 @@ function makeGrind(env) {
      floor — one pair is an anecdote — and a grinder whose pairs cannot
      agree on which way it even runs is telling you something real about
      retention or backlash that a confident number would paper over. */
+  /* Why there is no figure yet, where the honest answer is an instruction
+     rather than an apology.
+
+     'small' — there are pairs, and every one of them is a grind move the
+     clock barely reacted to. Repeating the generic promise there is worse
+     than useless: the reader has done exactly what it asked and is being
+     told to wait. What they need is "move it further", which is also the
+     method — a dial-in takes nine shots when the moves are timid. */
+  function stall() {
+    if (env.enabled && !env.enabled()) return null;
+    const ps = pairs();
+    const floor = env.noiseFloor || 0;
+    if (!ps.length || !floor) return null;
+    return ps.every(pr => Math.abs(pr.dt) < 2 * floor) ? 'small' : null;
+  }
+
   function sensitivity() {
     if (env.enabled && !env.enabled()) return null;
     const ps = pairs();
-    if (ps.length < 2) return null;
+    if (!ps.length) return null;
+    /* One pair used to be refused outright as an anecdote, and the card
+       above it promised a number "once two brews differ only in grind" —
+       so the app watched its own condition come true and repeated the
+       promise instead of keeping it, for one more brew.
+
+       The thing the refusal was protecting against is a backwards sign,
+       which costs a whole bag. A pair clear of the noise floor — twice it,
+       not the one time a pair needs to be counted at all — is not ambiguous
+       about which way the clock moved. Below that, two pairs and the
+       agreement rule still stand.
+
+       Twice and not three times because three was refusing real work: a
+       two-point move on a grinder worth 1.8s a point shifts the clock 3.6
+       seconds, which is a measurement by any reading, and the board was
+       telling the person who made it that their moves were too small. */
+    if (ps.length < 2) {
+      const floor = env.noiseFloor || 0;
+      if (!(Math.abs(ps[0].dt) >= 2 * floor)) return null;
+    }
     const slopes = ps.map(p => p.dt / p.dg).filter(v => isFinite(v) && v !== 0);
     const up = slopes.filter(v => v > 0).length;
     const down = slopes.length - up;
@@ -119,15 +181,26 @@ function makeGrind(env) {
        cannot make two thirds of its measurements point the same way has
        not been measured, it has been guessed at, and the honest answer
        there is "one step" rather than a number whose sign may be
-       backwards — which is the one kind of wrong that costs a whole bag. */
-    if (agree < 2 || agree / slopes.length < 2 / 3) return null;
+       backwards — which is the one kind of wrong that costs a whole bag.
+
+       The floor is one where there is only one pair to have, because that
+       pair has already been through the size test above and a lone pair
+       cannot fail an agreement test with itself. Leaving the floor at two
+       here quietly re-imposed the three-shot wait the size test was added
+       to remove — the promise kept firing a shot late for a second
+       reason after the first was fixed. */
+    if (agree < Math.min(2, slopes.length) || agree / slopes.length < 2 / 3) return null;
     const sign = up > down ? 1 : -1;
     const kept = slopes.filter(v => Math.sign(v) === sign).map(Math.abs).sort((a, b) => a - b);
     const mid = kept.length % 2
       ? kept[(kept.length - 1) / 2]
       : (kept[kept.length / 2 - 1] + kept[kept.length / 2]) / 2;
     if (!isFinite(mid) || mid <= 0) return null;
-    return { secPerStep: mid, finerIsUp: sign > 0, n: kept.length, mixed: agree < slopes.length };
+    /* n is the number of times the grinder moved, not the number of pairs
+       compared. The reader is being told what the estimate rests on, and
+       what it rests on is their own hand on the dial. */
+    return { secPerStep: mid, finerIsUp: sign > 0, n: moves(),
+             pairsUsed: kept.length, mixed: agree < slopes.length };
   }
 
   const grain = () => (env.stepped() ? 1 : 0.1);
@@ -182,7 +255,7 @@ function makeGrind(env) {
         })();
 
     return { steps, finer, dialUp, to, halve, words: fmtSteps(steps),
-             secPerStep: s.secPerStep, n: s.n, mixed: s.mixed };
+             secPerStep: s.secPerStep, n: s.n, pairsUsed: s.pairsUsed, mixed: s.mixed };
   }
 
   /* The two halves of the instruction, because they belong in two
@@ -206,11 +279,35 @@ function makeGrind(env) {
          undertaking this cannot honour. The instruction is still the
          true one; it just arrives without a prospectus. */
       const willLearn = !env.enabled || env.enabled();
+      const small = stall() === 'small';
+      const item = env.itemWord ? env.itemWord() : 'brew';
+      /* A stepless dial has no smallest move, and telling somebody with a
+         numeric collar to make "one step, the smallest your grinder makes"
+         hands them back the guess this whole file exists to remove. What is
+         true on a stepless dial is that the move wants to be small and
+         findable again — you move it until you can see you moved it, and
+         you can get back. On a clicked grinder the click IS the answer. */
       return {
-        move: ` — one ${unit}, the smallest your grinder makes`,
-        why: willLearn
-          ? ` How far is the question every tool like this dodges, and this one does too until it has grounds to answer: once two ${env.itemWord ? env.itemWord() : 'brew'}s on this board differ only in grind, it works out what a ${unit} is worth in seconds on your grinder and tells you how many, instead of "a step".`
-          : '',
+        move: env.stepped()
+          ? ` — one click, the smallest your grinder makes`
+          : ` — far enough to show in the clock, and note where the dial is now so you can get back`,
+        /* Cut from sixty words to thirty-five, and the condition made
+           honest: it used to promise a number "once two brews differ only
+           in grind" without the clause that actually gates it — the clock
+           has to have moved enough to read — so a reader could watch the
+           condition come true, on the same screen, and still be told "a
+           step". It was also the longest sentence in the app, on three
+           separate screens.
+
+           Where the pairs exist but every move was too small to read, it is
+           not a promise at all. Repeating "once two differ only in grind"
+           to somebody who has just done that twice is the same bug wearing
+           a different hat. There the true line is a reason and a request. */
+        why: !willLearn
+          ? ''
+          : small
+            ? ` The grind moves on this board so far are too small for the clock to tell from ordinary ${item}-to-${item} variation, so there is nothing to measure yet. Make this one decisive enough to show in the time and the board can say what a ${unit} is worth on your grinder from here on.`
+            : ` How far, it cannot say yet. Once two ${item}s differ only in grind and the clock moves several seconds with it, the board works out what a ${unit} is worth on your grinder and tells you how many.`,
       };
     }
 
@@ -238,5 +335,5 @@ function makeGrind(env) {
     };
   }
 
-  return { pairs, sensitivity, move, parts };
+  return { pairs, moves, stall, sensitivity, move, parts };
 }

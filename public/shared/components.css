@@ -478,6 +478,20 @@ input { font: inherit; color: inherit; }
   border-top: 1px solid var(--line);
 }
 .sheet-actions .btn { flex: 1; }
+/* A destructive control is not the peer of Save.
+
+   "Remove this coffee" sat beside "Save" at equal width in a sticky
+   footer — two full-size targets, one of which takes the bag and every
+   shot on it. Equal width is a claim that they are equally likely to be
+   what you meant, and they are not. It shrinks to its own text, Save
+   takes the rest of the bar, and the gap between them widens. */
+.sheet-actions .btn-danger {
+  flex: 0 0 auto;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
 
 .sheet-note {
   font-size: 13px;
@@ -943,6 +957,32 @@ select.field-input {
 .dose-outcome-label { font-size: 15px; font-weight: 700; }
 .dose-outcome-sub { font-size: 13px; color: var(--text-dim); }
 
+/* The same three-row shape, for rows that only tell you something.
+
+   The pinch test and the salami test list what you might see, and they
+   used the class above — a bordered card with a bold title, a hover state
+   and a pointer cursor, identical to the coin-test rows that change your
+   dose and close the sheet. A first-time user tapped one, expecting the
+   dose to move, and got nothing at all: no highlight, no toast, no change.
+   Nothing was broken; the row had simply promised to be a button.
+
+   No box, no cursor, a rule down the left instead. It reads as a list of
+   observations, which is what it is. */
+.dose-read {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px var(--space-4);
+  border-left: 2px solid var(--line);
+}
+.dose-read-label { font-size: 14px; font-weight: 700; }
+.dose-read-sub { font-size: 13px; color: var(--text-dim); }
+
+/* A scale whose question has been answered another way. Dimmed rather than
+   disabled: it still takes a value, because somebody may want to say which
+   wall the cup leaned towards as well as that it hit both. */
+.scale-superseded { opacity: 0.55; }
+
 /* The action a tip carries. Outlined rather than filled: the card's
    instruction is the thing to do, and this is the shortcut to the screen
    that helps with it — a second primary button would compete with the
@@ -1076,6 +1116,30 @@ select.field-input {
 .kit-basket { display: flex; gap: var(--space-3); align-items: flex-end; }
 .kit-basket .field { flex: 1; }
 .field-narrow { flex: 0 0 88px !important; }
+/* What the coin test found, shown where the dose is set. */
+.kit-fits {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-left: 2px solid var(--data);
+  background: var(--chrome-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.kit-fits-text { flex: 1; font-size: 13px; line-height: 1.5; }
+.kit-fits-clear {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
 
 /* The way back into the setup, from Settings. Two lines: what it is, and
    what is currently in it. */
