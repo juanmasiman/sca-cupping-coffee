@@ -639,6 +639,7 @@ instrument once the clock is roughly right.
 | Ratio carries the adjustment, temperature only comes down | `startingPoint` never raises temperature above the roast figure | **built** |
 | Pinch test for a starting grind | `openPinchTest` — offered on the first-shot card and in Settings | **built** |
 | Salami shot for learning the taste axis | `openSalami` — in Settings | **built** |
+| The app notices its own advice failed | `yieldTried` — when the yield moved as asked and the wall stayed, the next card says so and moves to the dose | **built** |
 | Kit decides legal advice | Asks temperature / pressure / grind-dial capability, suppresses advice naming absent variables | **built** |
 | Machine list prefills capability | 25 machines, 17 grinders, all answers editable | **built** |
 | Portafilter type decides the channelling question | Asked in the kit; the run options follow from it | **built** |
@@ -663,6 +664,37 @@ instrument once the clock is roughly right.
 | Temperature set outside the roast's band | `tempFault` — caught on the first shot, corrects the whole way | **built** |
 | Roast age | Appended to whichever move wins | **built** |
 | A light roast will taste acidic, and that is the coffee | `roastNote` — on a sour light roast with the clock already right | **built** |
+
+## What walking a whole dial-in found
+
+Every piece of advice in the app had been checked on its own, against a fixture
+built to trigger it. Then a complete session was driven end to end — kit, coffee,
+starting point, seven shots, and the taste phase after — and three things came
+out that no amount of testing a function in isolation would have shown.
+
+**A note in an outranking slot silences everything below it.** Underdosing had
+been correctly demoted from a fault to a note, and left in the tier that
+outranks the rest of the board. Seven shots into the session the app had not
+said one word about the clock, because it was busy repeating on every single
+shot that the dose was fine. Worse, it was arguing with itself: the app's own
+starting point recommends going under the basket's figure for a lighter roast,
+so it recommended 16.5g in an 18g basket and then flagged 16.5g as underdosed.
+**A thing worth saying once is not a thing worth returning from a function whose
+job is to decide what matters most.**
+
+**The app repeated advice it had already watched fail.** Told to extend the
+yield, the session did, 42g to 46g; the shot was still sour; the board gave the
+identical paragraph again with the evidence of its own failed suggestion sitting
+in the log directly above it. The grinder calibration closes this loop for grind
+and nothing closed it for yield. It does now, and the escalation goes to the dose
+rather than round the ratio again.
+
+**Prose grows by accretion and nobody measures it.** The first-shot card had
+reached 216 words and 533px — nearly two thirds of a phone screen — because four
+separate commits each added one true and useful sentence. Every one of them
+deserved saying; the paragraph no longer deserved reading.
+
+---
 
 ## Open questions
 

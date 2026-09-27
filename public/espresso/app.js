@@ -957,6 +957,13 @@ function grindIsFor(shot, target) {
    still the variable that moves time; this is the way to avoid paying
    for it. */
 function doseNudge(shot, target) {
+  /* The whole argument for this is that a grind change costs a purge.
+     On a single-doser it does not, and offering it anyway produced a
+     sentence that talked itself out of its own suggestion — "a cheaper
+     option than the grinder ... though moving the grind costs you no
+     coffee either". If there is no purge to avoid, there is nothing
+     here worth saying. */
+  if (!retains()) return '';
   const t = num(shot && shot.time);
   if (t === null) return '';
   const place = placeOf(shot, target);
@@ -971,9 +978,9 @@ function doseNudge(shot, target) {
   if (place.time === 'fast') {
     // More coffee, more resistance — but only if the basket has room.
     if (ceiling !== null && dose + 0.5 > ceiling + 0.1) return '';
-    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''}${retains() ? ' — and it costs nothing, where a grind change costs a purge' : ', which is one way to do it — though your grinder holds almost nothing back, so moving the grind costs you no coffee either'}.`;
+    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''} — and it costs nothing, where a grind change costs a purge.`;
   }
-  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well.${retains() ? ' It costs nothing, where a grind change costs a purge.' : ' Your grinder holds almost nothing back, though, so moving the grind is just as cheap here.'}`;
+  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well. It costs nothing, where a grind change costs a purge.`;
 }
 
 /* What the bag says about the instruction the app is about to give.
@@ -1047,6 +1054,41 @@ function clockAdvice(shot, target, c) {
    So: two corners get an instruction, two get a list and no pick, and
    the app says which kind of answer it is giving. It takes the cupping
    sheet's line on this — direction is a habit, not a verdict. */
+// The shot logged immediately before this one, chronologically.
+function shotBefore(c, shot) {
+  const rows = (c && c.shots) || [];
+  const i = rows.indexOf(shot);
+  return i > 0 ? rows[i - 1] : null;
+}
+
+/* Did they already take the app's advice, and did it not work?
+
+   The most important thing a dial-in tool can notice, and this one did
+   not. Walking a whole session found it: the board said "let it run 2 to
+   4g further", the yield went from 42g to 46g, the shot still tasted
+   sour — and the board said "let it run 2 to 4g further" again, word for
+   word, with the evidence of its own failed suggestion sitting in the
+   log above it.
+
+   The grinder calibration closes this loop for grind. Nothing closed it
+   for yield. Returns the move that was made when the yield went the way
+   the app asked and the wall did not shift, so the next answer can start
+   by admitting the last one did not land.
+
+   Ratio rather than grams, because the dose may have moved too and
+   0.08 of a ratio is about a gram and a half on a normal dose. */
+function yieldTried(c, shot, side) {
+  const prev = shotBefore(c, shot);
+  if (!prev || !side || side === 'neither') return null;
+  if (tasteSide(prev.taste) !== side) return null;
+  const r0 = ratioOf(prev), r1 = ratioOf(shot);
+  if (r0 === null || r1 === null) return null;
+  const want = side === 'sour' ? 1 : -1;
+  if ((r1 - r0) * want < 0.08) return null;
+  const g0 = num(prev.yield), g1 = num(shot.yield);
+  return { from: r0, to: r1, grams: (g0 !== null && g1 !== null) ? Math.abs(g1 - g0) : null };
+}
+
 /* Has this wall shown up before, or is this one cup?
 
    Temperature earns a change only when a fault persists: the same slight
@@ -1132,6 +1174,30 @@ function suggest(shot, target, c) {
      So bitter and persistent gets the instruction; sour and persistent
      gets the yield, with temperature named as the second thing to try
      and the disagreement stated rather than hidden. */
+  /* The yield was already moved the way the app asked, and the wall is
+     still there. Saying the same thing again is the app not reading its
+     own log — so this admits the last suggestion did not land, and moves
+     on to the next variable rather than round the same one. */
+  const tried = yieldTried(c, shot, side);
+  if (tried) {
+    const took = tried.grams ? `${fmtDose(tried.grams)}g` : `from 1:${tried.from.toFixed(1)} to 1:${tried.to.toFixed(1)}`;
+    const e = roastEntry(c && c.roast);
+    const lighter = e && e.dose <= -1;
+    const next = side === 'sour'
+      ? (lighter
+          ? `Drop the dose half a gram instead, keeping the yield where it is now. Less coffee is less to extract, which is the same direction a lighter roast wants anyway, and it gets there without diluting the cup further.`
+          : `Drop the dose half a gram instead, keeping the yield where it is now — less coffee is less to extract, and it gets there without watering the shot down any more.`)
+      : `Bring the dose up half a gram instead, keeping the yield where it is. More coffee under the same water is less extraction per gram, and it does not cost you any more of the cup.`;
+    const heat = canSetTemp()
+      ? ` Your machine can also move ${side === 'sour' ? 'hotter' : 'cooler'} by a degree, and with the yield already spent this is the point where that is worth trying.`
+      : '';
+    return { sure: false, move: 'That did not land — try the dose instead.',
+      // No light-roast note here: roastNote already appends one to
+      // whatever move wins, and saying it twice in one card was the two
+      // halves of the app talking over each other.
+      why: `You already took the yield ${took} and it still tastes ${side}, so the ratio is not the answer here. ${next}${heat}` };
+  }
+
   if (canSetTemp() && persists && side === 'bitter') {
     return { sure: false, move: 'Try it a degree cooler.',
       why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste bitter, which makes it a temperature question rather than a one-off. Cooler extracts less, and it is the reliable direction — darker roasts, heavily processed coffees and older bags all want less heat than the dial probably has. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
@@ -1326,24 +1392,24 @@ function basketFault(shot) {
       why: `${fmtDose(got)}g is ${fmtDose(off)}g over what ${named} is built for, and that figure is an upper limit. Overfilled, the puck meets the shower screen before the pump gets going and channels around the edge however the grinder is set, which makes the clock and the cup both untrustworthy. This one is worth fixing before anything else.` };
   }
 
-  /* Under it is NOT a fault, and this app used to say it was.
+  /* Under the basket's figure used to return a note here, and that was
+     wrong twice over — found by walking a whole dial-in rather than by
+     testing this function.
 
-     The claim was that headspace above the bed makes the puck lift and
-     break, so underdosing channels — which came from a retailer's article
-     and outranked every other piece of advice on the board. The series is
-     clear that the printed figure is an upper limit with no lower one: 14g
-     in an 18g basket is fine for quality. What you actually get is a
-     soupy, blown-apart puck at the end of the shot, because the space
-     above the coffee lets the pressure dump into it — irritating to clean
-     and useless to read, but not a bad drink.
+     basketFault is in the outranking tier, so a note returned from here
+     suppressed every other piece of advice on the board. Seven shots
+     into a dial-in the app had said nothing about the clock even once,
+     because it was busy repeating that the dose was fine.
 
-     So it is a note rather than an instruction, it does not claim the
-     shot is wrong, and it no longer outranks the grinder. See DIALIN.md
-     step 1. */
-  if (off < -1.1) {
-    return { sure: false, move: 'Nothing wrong with that dose — expect a messy puck.',
-      why: `${fmtDose(got)}g is ${fmtDose(Math.abs(off))}g under what ${named} is marked for. That figure is an upper limit and there is no lower one: this will taste perfectly good. What it will do is leave room above the coffee, so when the pressure dumps at the end of the shot the puck gets blown into a soup that tells you nothing and is a nuisance to knock out. If that bothers you more than the extra gram costs, come up to about ${fmtDose(want)}g. Otherwise carry on — and note that a lighter roast is easier to extract at a lower dose, so this may be doing you a favour.` };
-  }
+     Worse, it was arguing with itself: doseStart recommends going under
+     the basket's figure for a lighter roast, so the app recommended
+     16.5g in an 18g basket and then flagged 16.5g as underdosed. One
+     half was answering the other.
+
+     Underdosing is not a fault — the printed figure is a ceiling, and a
+     low dose tastes fine — so it was never a move. It is expectation
+     setting, and it belongs with the recommendation that causes it, said
+     once on the start card. See renderNext. */
   return null;
 }
 
@@ -1850,16 +1916,21 @@ function renderNext(c) {
        It was written for light roasts and fired for medium ones too,
        which had the card telling somebody with a medium roast about what
        a light roast does in a full basket. */
+    /* Kept short on purpose. This had reached 216 words and 533px —
+       nearly two thirds of the screen — because four separate commits
+       each added one more true and useful sentence to it. Every one of
+       them was worth saying and the paragraph was no longer worth
+       reading. The detail lives in the pinch-test sheet and the help;
+       this is the instruction. */
     const why = e && basket !== null && e.dose < 0
-      ? ` A ${e.label.toLowerCase()} roast takes more work to extract than a darker one, so it starts under the ${fmtDose(basket)}g the basket is marked for: less coffee is less work.${
-          e.dose <= -1 ? ' Fill the basket with a roast this light and it comes out sour and thin however it is dialled.' : ''}`
+      ? ` That is under the ${fmtDose(basket)}g on the basket because a ${e.label.toLowerCase()} roast is harder to extract, and less coffee is less work. Expect the puck to blow apart at the end — messy, harmless.`
       : '';
     wrap.className = 'next-card';
     wrap.innerHTML = `
       <span class="next-label">Where to start</span>
       <div class="tip open">
         <span class="tip-move">${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
-        <span class="tip-why">Start on the coarse side of where you think it should be and come finer — a coarse bed lets water through more evenly, so you learn more from the shot, and coming down to the right setting is quicker than climbing back out of a choked one. Then use the time to tell you which way to move.${why} Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works. If it gushes out in ten seconds there is no point tasting it; fix the flow first.</span>
+        <span class="tip-why">Start on the coarse side and come finer — a coarse bed flows more evenly, so the shot teaches you more than a choked one does. Then let the clock tell you which way to move.${why} If it gushes out in ten seconds, do not bother tasting it; fix the flow first.</span>
         <button type="button" class="tip-act" data-act="pinch">Find a starting grind</button>
       </div>`;
     bindTipActions(wrap);
