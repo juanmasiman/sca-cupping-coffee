@@ -983,6 +983,25 @@ select.field-input {
    wall the cup leaned towards as well as that it hit both. */
 .scale-superseded { opacity: 0.55; }
 
+/* Closing the gap between where you aimed and where you landed. Quiet: it
+   is an offer, and the target above it is not wrong, only stale. */
+.target-adopt {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text-dim);
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.target-adopt:active { background: var(--chrome-soft); }
+
 /* The action a tip carries. Outlined rather than filled: the card's
    instruction is the thing to do, and this is the shortcut to the screen
    that helps with it — a second primary button would compete with the

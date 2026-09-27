@@ -650,7 +650,7 @@ instrument once the clock is roughly right.
 | A shot can hit the numbers and still channel | `runFault` and `harshFault` ask rather than infer | **built** |
 | Channelling looks different on a spouted portafilter | Bottomless offers "sprayed"; spouted offers "gushed near the end", with its own diagnosis | **built** |
 | Ratio 2–4g at a time, with a ceiling | Both in the yield advice | **built** |
-| Ratio bands that name the drink | `ratioBand` — the readout says ristretto or lungo when the shot leaves the espresso band, and stays quiet inside it | **built** |
+| Ratio bands that name the drink | `bandDrift` — the readout names the band when the shot leaves the band the *target* sits in, and stays quiet otherwise. Against the target rather than the scale: a light roast starts around 1:2.6 here, which is over the lungo line, so naming it on every card told the reader only that the app had not been introduced to itself | **built** |
 | Grind for big moves, dose/yield for small | `grindIsFor` states it on a correction over 5s; `doseNudge` offers the alternative under it; the help says it plainly | **built** |
 | Purge 5–10g | `stuckNote` | **built** |
 | Purge cost depends on grinder retention | Asked in the kit and prefilled by the grinder list; the purge advice and the half-gram pitch both change on a single-doser | **built** |
@@ -658,7 +658,7 @@ instrument once the clock is roughly right.
 | One flow variable at a time | `twoVariables` — names both moves and says the next clock reading cannot attribute either | **built** |
 | Time is an output, not a target | In-window shots get "the clock is right, now taste it" | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
-| How far to move the grinder | Measured from the log, in the user's own units, halved when large | **built, beyond the method** |
+| How far to move the grinder | Measured from the log, in the user's own units, halved when large. One pair clear of twice the noise floor is enough, so it arrives on the shot the promise names; where the pairs exist but every move was too small to read, the card asks for a decisive one instead of repeating the promise | **built, beyond the method** |
 | Temperature ranges by roast | `ROASTS`, with explicit bands | **built** |
 | Temperature after ratio when in band | `suggest()` | **built** |
 | Temperature set outside the roast's band | `tempFault` — caught on the first shot, corrects the whole way | **built** |
@@ -693,6 +693,51 @@ rather than round the ratio again.
 reached 216 words and 533px — nearly two thirds of a phone screen — because four
 separate commits each added one true and useful sentence. Every one of them
 deserved saying; the paragraph no longer deserved reading.
+
+## What a first-run barista found
+
+The dial-in above was walked by the app's author, who knew what every screen was
+for. A second run was given to somebody who did not: a simulated home barista
+with a Bambino Plus, a DF64, spouts, an 18g basket and a bag of washed Ethiopian
+light, told to dial it in and to write down anything that confused or annoyed
+them. It got there in six shots. It also found four things the author's own
+walk-through could not, because they are only visible to somebody who has not
+already agreed with the app about what its words mean.
+
+**One field doing two jobs will eventually say both out loud.** `basketDose`
+held the number printed on the basket *and* the working dose the coin test
+adjusts. The coin test wrote 19 into it, and the board then explained that
+17.5g was "under the 19g on the basket" to somebody whose basket says 18 — the
+app arguing against its own advice and blaming the hardware for it. Meanwhile
+the target row kept 19.0g, the shot sheet pre-filled 19, and the recipe it
+eventually declared was 17.5g. Four surfaces, four numbers. Every one of them
+was correct about something; none of them agreed. **The fix was not better
+wording, it was a second field.**
+
+**A statistic offered as evidence is the first thing a sceptical reader checks.**
+"Your grinder has been worth about 2.0s a step over 3 grind changes" became 6,
+then 11, on a board where the grinder had moved three times and the last two
+shots shared a setting. It was counting comparison *pairs*, which grow as the
+square of the log. The seconds-per-step figure was right and the sentence meant
+to make it trustworthy was visibly wrong, which is worse than not offering one.
+
+**A promise with an unstated condition is a promise you will be caught
+breaking.** "Once two shots differ only in grind, it works out what a step is
+worth" needed two pairs — three shots. The reader watched the stated condition
+come true, on a card printing `grind −1.0 · +2s` in its own summary, and was
+told "a step" again. The real gate was never two shots; it was enough
+signal to clear the noise. Both now say so, and the threshold came down to
+where two honest shots actually reach it.
+
+**An affordance is a promise too.** Three reference rows in the pinch-test
+sheet used the same bordered, bold-titled, tappable-looking card as the
+coin-test rows that change your dose and close the sheet. Tapping one did
+nothing, because there was nothing to do — and nothing being broken is not the
+same as nothing being wrong.
+
+The report's own summary of the app was that the reasoning was better than
+anything it had used and the bookkeeping around it was not. That is the right
+way round to have the problem, and it is not a reason to leave it.
 
 ---
 

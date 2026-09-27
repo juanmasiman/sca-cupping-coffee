@@ -2102,19 +2102,60 @@ function renderKeeper(c) {
   if (nowBtn) nowBtn.addEventListener('click', () => openGrindNow(c, keeper));
 }
 
+/* Whether the target still describes something other than the recipe.
+
+   A board that has declared a keeper and still says "aiming at 1:2.6 ·
+   19.0g" is showing two answers to one question, and a first-run test read
+   it as the app failing to notice what it had just concluded. The target is
+   not wrong — it is where you were aiming, and you landed a little past it
+   — but once there is a recipe, the aim is a loose end rather than a plan,
+   and the reader should be able to close it in one tap. */
+function targetDrift(c) {
+  const keeper = c && c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
+  if (!keeper) return null;
+  const r = ratioOf(keeper), d = num(keeper.dose), t = num(keeper.time);
+  if (r === null || d === null) return null;
+  const ratio = Math.round(r * 10) / 10;
+  const off = Math.abs(ratio - num(c.target.ratio)) >= 0.05
+    || Math.abs(d - num(c.target.dose)) >= 0.05
+    || (t !== null && (t < c.target.timeLo || t > c.target.timeHi));
+  if (!off) return null;
+  return { keeper, ratio, dose: d, time: t };
+}
+
 function renderTarget(c) {
   const wrap = $('#target-card');
   wrap.classList.toggle('hidden', !c);
   if (!c) { wrap.innerHTML = ''; return; }
   const t = c.target;
+  const drift = targetDrift(c);
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
       <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp && canSetTemp() ? ` · ${t.temp}°` : ''}</span>
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    ${drift ? `<button class="target-adopt" id="btn-adopt" type="button">Aim at the recipe instead — ${fmtDose(drift.dose)}g, 1:${drift.ratio}${
+      drift.time === null ? '' : `, ${Math.round(drift.time)}s`}</button>` : ''}
   `;
   wrap.querySelector('#btn-target').addEventListener('click', () => openEdit(c));
+  const adopt = wrap.querySelector('#btn-adopt');
+  if (adopt) adopt.addEventListener('click', () => {
+    /* The window around the keeper's own time rather than the keeper's time
+       exactly: a target of "22s" is a target nobody hits twice, and the
+       board judges every later shot against this. Three seconds either
+       side is about the spread of a well-behaved machine. */
+    c.target.dose = drift.dose;
+    c.target.ratio = drift.ratio;
+    if (drift.time !== null) {
+      c.target.timeLo = Math.max(5, Math.round(drift.time) - 3);
+      c.target.timeHi = Math.round(drift.time) + 3;
+    }
+    save();
+    haptic();
+    renderBoard();
+    toast('The recipe is the target now');
+  });
 }
 
 function renderShots(c) {
@@ -2692,13 +2733,21 @@ function renderReadout(c) {
       </div>` : ''}
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
-    ${tips.map(t => tipHTML(t, 'tip')).join('')}
-    ${twoVars ? `<div class="log-mismatch">${escapeHTML(twoVars)}</div>` : ''}
-    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
-  // The sheet's own copy of the advice carries the same action, and a
-  // button that does nothing is worse than no button.
-  bindTipActions(wrap);
+
+  /* The advice goes in its own block further down the sheet, after the
+     chips that can change it. See the comment on #live-advice. */
+  const live = $('#live-advice');
+  if (live) {
+    live.innerHTML = `
+      ${tips.map(t => tipHTML(t, 'tip')).join('')}
+      ${twoVars ? `<div class="log-mismatch">${escapeHTML(twoVars)}</div>` : ''}
+      ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    `;
+    // The sheet's own copy of the advice carries the same action, and a
+    // button that does nothing is worse than no button.
+    bindTipActions(live);
+  }
 }
 
 function saveShot() {
