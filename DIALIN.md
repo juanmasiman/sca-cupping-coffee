@@ -266,6 +266,36 @@ is not.
 
 ---
 
+### Naming the middle
+
+The sheet asks for a position between sour and bitter, and for a long time the
+middle of that scale was labelled **"neither"** — the absence of two faults.
+Every one of the seven labels on it was a defect or a negation, so the app had
+no word for a shot being *right*, and "good" had to be inferred from the clock.
+That is the whole reason it behaved like a dial-by-clock tool with a taste check
+bolted on: **you cannot dial by taste on a scale that has no name for arriving.**
+
+The word was already in this document. Extraction runs in a fixed order — sour
+first, **sweet and balanced through the middle**, bitter last — so the middle of
+the scale is not "neither", it is the middle of the extraction, and it tastes of
+something. The concentration axis has the same shape: thin and muddy are the two
+ways of missing a texture that baristas call **syrupy**.
+
+Two consequences follow, and they are the difference between the two kinds of
+tool:
+
+- **A sweet, syrupy shot is the recipe whatever the clock says.** The window is a
+  guess written down before the first shot; the cup is a measurement of the
+  coffee actually in the basket. When they disagree the guess is what gives.
+- **Acidity is not sourness, and the scale cannot tell them apart.** A washed
+  Ethiopian pulled correctly is bright, and bright has nowhere to land on a
+  sour–sweet–bitter axis but the sour half — so the app read a correct shot as
+  under-extracted and sent the drinker finer, longer and hotter after an acidity
+  that was never going to leave. The fix is to let them say it, not to argue
+  them out of the answer afterwards.
+
+---
+
 ## Step 3 — Ratio: pick one, then mostly leave it
 
 **Weigh the liquid out. Never measure it by volume.** Crema is largely CO2, so a
@@ -657,6 +687,10 @@ instrument once the clock is roughly right.
 | Round to the finer step on a coarse stepped grinder | `grindMove` | **built** |
 | One flow variable at a time | `twoVariables` — names both moves and says the next clock reading cannot attribute either | **built** |
 | Time is an output, not a target | In-window shots get "the clock is right, now taste it" | **built** |
+| Sweetness is the target, not the absence of two faults | Both scales are anchored at the middle as well as the ends — `sour · sweet · bitter` and `watery · syrupy · muddy`. The middle read "neither" until a taste-first pass renamed it, which is why the clock had been standing in for "good" | **built** |
+| The cup outranks the window | A shot that is sweet and syrupy is the recipe at any clock reading, and the card says the window is the part that is wrong, with one tap to move it onto that shot | **built** |
+| Acidity is not sourness | A "bright, not sour" chip on the roasts where the confusion is real. The position still records how sharp the cup was; the advice stops treating it as under-extraction | **built** |
+| The taste guide belongs at the taste question | The salami test opens from the shot sheet's own taste label, not from three taps into Settings | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
 | How far to move the grinder | Measured from the log, in the user's own units, halved when large. One pair clear of twice the noise floor is enough, so it arrives on the shot the promise names; where the pairs exist but every move was too small to read, the card asks for a decisive one instead of repeating the promise | **built, beyond the method** |
 | Temperature ranges by roast | `ROASTS`, with explicit bands | **built** |

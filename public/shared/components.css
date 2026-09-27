@@ -487,6 +487,29 @@ input { font: inherit; color: inherit; }
    testers hit it independently. The bar now holds one action; the
    destructive one sits at the foot of the sheet it belongs to, right
    aligned, quiet, and nowhere near a thumb going for Save. */
+/* A label with its own help, on one line. The help is quiet — it is for
+   the person who needs it and invisible to the person who does not, which
+   is the whole scaffolding rule. */
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.field-help {
+  flex: 0 0 auto;
+  padding: var(--space-2) 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--data);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  cursor: pointer;
+}
+.field-help:focus-visible { outline: 2px solid var(--data); outline-offset: 3px; }
+
 /* Nothing behind a sheet moves while the sheet is open. */
 html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
 

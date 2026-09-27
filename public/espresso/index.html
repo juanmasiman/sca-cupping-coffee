@@ -124,7 +124,20 @@
            dose answer the second. Asking them as one "how was it" is what
            makes espresso advice feel like guesswork. -->
       <div class="taste-block">
-        <span class="field-label" id="taste-label">Sour or bitter?</span>
+        <!-- The question names the target, not the two failures. "Sour or
+             bitter?" asks which way it went wrong and presumes it did;
+             a dial-in ends when the answer is neither, and the middle of
+             this scale now has a word for that. -->
+        <!-- The help goes where the question is. The salami test — split
+             one shot into three glasses and taste the sour, the sweet and
+             the bitter thirds apart — is the single best thing in the app
+             for learning this axis, and it was three taps deep in
+             Settings, which is nowhere at all when you are standing over
+             a cooling cup trying to name what you just drank. -->
+        <div class="field-label-row">
+          <span class="field-label" id="taste-label">How sweet is it?</span>
+          <button type="button" class="field-help" id="taste-help">What am I tasting?</button>
+        </div>
         <div id="taste-scale"></div>
         <!-- The escape from the axis. Sour and bitter at once is the
              single most diagnostic thing a shot can taste like — it is
@@ -133,8 +146,13 @@
              cannot say it. Somebody who drank the shot without watching
              it pour had no way to tell the app the most useful thing
              they knew. -->
+        <!-- Two escapes from the axis, and they are different claims.
+             Both-at-once says the scale does not apply — the cup is two
+             extractions and the position between them is meaningless.
+             Bright says the scale applies and reads a fault that is not
+             one: this is a light roast doing what a light roast does. -->
         <div class="chips" id="harsh"></div>
-        <span class="field-label" id="body-label">Watery or muddy?</span>
+        <span class="field-label" id="body-label">How does it feel?</span>
         <div id="body-scale"></div>
       </div>
 

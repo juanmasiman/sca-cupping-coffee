@@ -70,6 +70,7 @@ function migrate(s) {
       if (typeof sh.intent === 'undefined') sh.intent = null;
       if (typeof sh.run === 'undefined') sh.run = null;
       if (typeof sh.harsh === 'undefined') sh.harsh = false;
+      if (typeof sh.bright === 'undefined') sh.bright = false;
     });
   });
   return s;
@@ -976,14 +977,27 @@ function intentCheck(shot, prev) {
 
 const TASTE_MIN = -3, TASTE_MAX = 3;
 
-// The taste axis, named. Sour and bitter are the two walls a dial-in runs
-// into, and the middle is not "good" — it is "neither", which is where a
-// shot has to be before anything else about it is worth discussing.
+/* The taste axis, named at both ends AND in the middle.
+
+   The middle used to read "neither", and that was the thing standing
+   between this app and a tool you dial by taste. An anchored scale whose
+   middle anchor names the absence of two faults can only ever tell you
+   which way you missed; it has no word for arriving. Every one of the
+   seven labels was a defect or a negation, so "good" was undefined and
+   the clock had to stand in for it.
+
+   The word was in DIALIN.md the whole time. Extraction runs in a fixed
+   order — the sour compounds come out first, THE SWEET AND BALANCED ONES
+   THROUGH THE MIDDLE, the bitter ones last. Sour and bitter are not two
+   ends of a preference; they are the two ways of missing the middle of
+   the extraction, and the middle has a taste. Naming it turns the scale
+   from a fault report into a target you can aim at, and it is the same
+   thing the salami test teaches with three glasses. */
 const TASTE_WORDS = {
   '-3': 'sharp, sour',
   '-2': 'sour',
   '-1': 'a little sour',
-  '0': 'neither',
+  '0': 'sweet, balanced',
   '1': 'a little bitter',
   '2': 'bitter',
   '3': 'harsh, drying',
@@ -1000,7 +1014,36 @@ function tasteSide(v) {
   return 'neither';
 }
 
-/* The other wall.
+/* Acidity is not sourness, and the scale cannot tell them apart.
+
+   A washed Ethiopian pulled correctly is bright, and bright lands on the
+   sour half of a sour–sweet–bitter axis because there is nowhere else for
+   it to go. The app then read that as under-extraction and sent the
+   drinker finer, longer and hotter after an acidity that was never going
+   to leave — which is a real way to lose a bag, and why roastNote exists
+   to argue the reader out of the answer the app had just made them give.
+
+   Better to let them say it. The chip means "the acid is there and I like
+   it": the position still records how sharp the cup was, and the advice
+   stops treating it as a fault. It is the counterpart of the both-at-once
+   chip — one says the scale does not apply, the other says the scale
+   reads a fault where there is none. */
+const tasteFault = shot => {
+  const side = tasteSide(shot && shot.taste);
+  // Only on the sour half. Brightness is an acidity somebody is enjoying;
+  // it is not a licence for a bitter cup, and a chip that excused both
+  // halves would be a way to switch the diagnosis off.
+  if (shot && shot.bright && side === 'sour') return 'neither';
+  return side;
+};
+
+/* The other wall, named the same way.
+
+   Thin and muddy are the two ways of missing the middle of the
+   concentration, and that middle is not "neither" either — it is the
+   texture an espresso is drunk for, which every barista calls syrupy. A
+   shot can sit dead centre of the extraction axis and still be watery,
+   because thin is about how much coffee ended up in the cup.
 
    Sour and bitter are what extraction does. Watery and muddy are what
    concentration does, and they move on different variables: grind changes how
@@ -1016,7 +1059,7 @@ const BODY_WORDS = {
   '-3': 'thin, watery',
   '-2': 'watery',
   '-1': 'a little thin',
-  '0': 'neither',
+  '0': 'syrupy',
   '1': 'a little heavy',
   '2': 'heavy, muddy',
   '3': 'thick, sludgy',
@@ -1249,7 +1292,7 @@ function shotBefore(c, shot) {
 function yieldTried(c, shot, side) {
   const prev = shotBefore(c, shot);
   if (!prev || !side || side === 'neither') return null;
-  if (tasteSide(prev.taste) !== side) return null;
+  if (tasteFault(prev) !== side) return null;
   const r0 = ratioOf(prev), r1 = ratioOf(shot);
   if (r0 === null || r1 === null) return null;
   const want = side === 'sour' ? 1 : -1;
@@ -1268,14 +1311,14 @@ function yieldTried(c, shot, side) {
 function wallPersists(c, side) {
   if (!c || !side || side === 'neither') return false;
   const seen = (c.shots || [])
-    .filter(sh => tasteSide(sh.taste) === side)
+    .filter(sh => tasteFault(sh) === side)
     .length;
   return seen >= 2;
 }
 
 function suggest(shot, target, c) {
   const place = placeOf(shot, target);
-  const side = tasteSide(shot.taste);
+  const side = tasteFault(shot);
   if (side === null || place.time === null) return null;
 
   if (side === 'sour' && place.time === 'fast') {
@@ -1297,18 +1340,47 @@ function suggest(shot, target, c) {
   }
   // "This is the one" over a cup somebody has just called muddy is the app
   // not reading its own sheet. Both walls have to be quiet for this.
-  if (side === 'neither' && place.time === 'in' && bodySide(shot.body) !== 'muddy' && bodySide(shot.body) !== 'watery') {
+  if (side === 'neither' && place.time === 'in' && bodySide(shot.body) === 'neither') {
     // Once it has been marked, saying "mark it" is the app not reading its
     // own screen — the keeper card is pinned six inches above this line.
     return shot.verdict === 'keeper'
       ? { sure: true, move: 'Dialled in.',
-          why: 'In the window and tasting of neither wall. This is the recipe at the top of the board; pull the next one to it and change nothing.' }
+          why: `${shot.bright
+            ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
+            : 'In the window and tasting of neither wall.'} This is the recipe at the top of the board; pull the next one to it and change nothing.` }
       : { sure: true, move: 'This is the one.',
-          why: 'In the window and tasting of neither wall. Mark it as the keeper and the recipe pins to the top of this board.' };
+          why: `${shot.bright
+            ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
+            : 'In the window and tasting of neither wall.'} Mark it as the keeper and the recipe pins to the top of this board.` };
   }
+  /* Out of the window and right in the cup.
+
+     This is the case the whole app exists to get right and it used to end
+     in a shrug: "either move the window to fit the coffee, or change the
+     ratio and see whether the cup follows" — two options, no
+     recommendation, and nothing to tap. The window is a starting guess
+     written down before the first shot; the cup is a measurement of the
+     actual coffee. When they disagree the guess is what gives, and the
+     app should say which one it trusts and then offer to act on it.
+
+     A dial-in ends at a shot you want to drink again, not at a number
+     between 20 and 28. */
   if (side === 'neither') {
-    return { sure: false, move: 'Taste says nothing is wrong.',
-      why: `It is ${place.time === 'fast' ? 'faster' : 'slower'} than the window but tastes of neither wall, which is worth more than the window is. Either move the window to fit the coffee, or change the ratio and see whether the cup follows.` };
+    const secs = Math.round(num(shot.time));
+    const win = `${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s`;
+    const off = place.time === 'in' ? null : (place.time === 'fast' ? 'quicker' : 'slower');
+    if (bodySide(shot.body) === null) {
+      return { sure: false, move: 'Sweet. Say how it feels and this is done.',
+        why: off === null
+          ? `Sweet is the middle of the extraction and it is where a dial-in ends — the sour compounds come out first, the sweet ones through the middle, the bitter ones last. Mark watery or muddy as well and this is your recipe.`
+          : `At ${secs}s it is ${off} than the ${win} you wrote down, and the cup does not care: sweet is the middle of the extraction and it is where a dial-in ends. Mark watery or muddy as well — if the texture is right too, then the window is what is wrong here, not the shot.` };
+    }
+    // Texture is off but the extraction is not: that is ratio and dose, and
+    // bodyNote owns it. Nothing to say here.
+    if (bodySide(shot.body) !== 'neither') return null;
+    return { sure: true, act: 'window', at: secs,
+      move: `This is the one — at ${secs}s.`,
+      why: `Sweet, and the texture is right. It is ${off} than the ${win} window, and the window is the part that is wrong: those numbers were a guess written down before you had pulled anything, and this cup is a measurement of the coffee actually in front of you. Keep the shot and move the window onto it, and the board judges the next one against something true.` };
   }
   /* In the window, and still tasting of one of the walls.
 
@@ -1408,8 +1480,8 @@ function suggest(shot, target, c) {
    counted when it is not already in the log. */
 function countSide(c, side, shot) {
   const rows = (c && c.shots) || [];
-  let n = rows.filter(sh => tasteSide(sh.taste) === side).length;
-  if (shot && rows.indexOf(shot) < 0 && tasteSide(shot.taste) === side) n += 1;
+  let n = rows.filter(sh => tasteFault(sh) === side).length;
+  if (shot && rows.indexOf(shot) < 0 && tasteFault(shot) === side) n += 1;
   return n;
 }
 const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : `${n}th`);
@@ -1439,7 +1511,7 @@ const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : 
    wrong move on a shot that is already slow however it tastes, and the
    pair says so rather than repeating itself louder. */
 function wallPair(shot, target, c) {
-  const t = tasteSide(shot.taste);
+  const t = tasteFault(shot);
   const b = bodySide(shot.body);
   if (t === null || b === null || t === 'neither' || b === 'neither') return null;
   const place = placeOf(shot, target);
@@ -1535,7 +1607,7 @@ function bodyNote(shot) {
    reading came from: nobody said "sour", the timer did. */
 function clockPair(shot, target, c) {
   const b = bodySide(shot.body);
-  if (tasteSide(shot.taste) !== null || b === null || b === 'neither') return null;
+  if (tasteFault(shot) !== null || b === null || b === 'neither') return null;
   const place = placeOf(shot, target);
   if (place.time !== 'fast' && place.time !== 'slow') return null;
   const quick = place.time === 'fast';
@@ -1739,7 +1811,7 @@ function backToRecipe(shot, target, c) {
   if (was === null || now === null || was === now) return null;
   // Something has to be wrong with this shot, or there is nothing to fix.
   const place = placeOf(shot, target);
-  const t = tasteSide(shot.taste), b = bodySide(shot.body);
+  const t = tasteFault(shot), b = bodySide(shot.body);
   const bad = place.time === 'fast' || place.time === 'slow'
     || (t && t !== 'neither') || (b && b !== 'neither');
   if (!bad) return null;
@@ -1795,7 +1867,7 @@ function nextMove(shot, target, c) {
    the best available on what has been said — it says what is missing. */
 function halfAnswered(tip, shot) {
   if (!tip) return tip;
-  const t = tasteSide(shot && shot.taste);
+  const t = tasteFault(shot);
   const b = bodySide(shot && shot.body);
   if (t === null || t === 'neither' || b !== null) return tip;
   /* Not where the clock has already ruled the grinder out. On a shot that
@@ -1827,7 +1899,7 @@ function roastNote(c, shot, target) {
   if (!c || !shot) return '';
   const e = roastEntry(c.roast);
   if (!e || e.dose > -1) return '';
-  if (tasteSide(shot.taste) !== 'sour') return '';
+  if (tasteFault(shot) !== 'sour') return '';
   if (placeOf(shot, target).time !== 'in') return '';
   return ` And a word about the coffee: a ${e.label.toLowerCase()} roast lands on the acidic end even when it is dialled in well. Some of what you are tasting is the bean rather than the extraction, so if the next change gets it clean and sweet but still bright, that is the shot — not a step on the way to somewhere else.`;
 }
@@ -1855,6 +1927,7 @@ function tipHTML(tip, cls) {
       <span class="tip-why">${escapeHTML(tip.why)}</span>
       ${tip.act === 'dose' ? '<button type="button" class="tip-act" data-act="dose">Check the dose with a coin</button>' : ''}
       ${tip.act === 'pinch' ? '<button type="button" class="tip-act" data-act="pinch">Find a starting grind</button>' : ''}
+      ${tip.act === 'window' ? `<button type="button" class="tip-act" data-act="window" data-secs="${escapeHTML(String(tip.at))}">Move the window onto this shot</button>` : ''}
     </div>`;
 }
 
@@ -1865,6 +1938,31 @@ function bindTipActions(wrap) {
   });
   wrap.querySelectorAll('.tip-act[data-act="pinch"]').forEach(b => {
     b.addEventListener('click', e => { e.stopPropagation(); openPinchTest(); });
+  });
+  /* Dialling by taste, made one tap.
+
+     The card can say the window is the thing that is wrong all it likes;
+     if the only way to act on that is to open a sheet and edit two
+     numbers, nobody does it and the board goes on calling a good shot
+     fast for the rest of the bag. Three seconds either side of the shot
+     that earned it, because a target of "22s" is one nobody hits twice. */
+  wrap.querySelectorAll('.tip-act[data-act="window"]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      /* The time comes off the button, not off `editing` — this binder
+         serves the board's card as well as the open sheet, and on the
+         board `editing` is whatever was last looked at. */
+      const c = activeCoffee();
+      const t = num(Number(b.dataset.secs));
+      if (!c || t === null) return;
+      c.target.timeLo = Math.max(5, Math.round(t) - 3);
+      c.target.timeHi = Math.round(t) + 3;
+      save();
+      haptic();
+      renderBoard();
+      if (editing) renderReadout(c);
+      toast(`The window is ${c.target.timeLo}–${c.target.timeHi}s now`);
+    });
   });
 }
 
@@ -2093,6 +2191,7 @@ function numField(opts) {
    "neither" — a default and a judgement are the same pixel otherwise. */
 function tasteScale(opts) {
   const { value, onChange, words, low, high, labelledBy, empty } = opts;
+  // The middle anchor carries a value of its own — see TASTE_WORDS.
   const wrap = el('div', 'scale');
   wrap.innerHTML = `
     <div class="scale-track" tabindex="0" role="slider"
@@ -2103,7 +2202,7 @@ function tasteScale(opts) {
       <div class="scale-knob"></div>
     </div>
     <div class="scale-anchors">
-      <span>${low}</span><span class="scale-anchor-mid">neither</span><span>${high}</span>
+      <span>${low}</span><span class="scale-anchor-mid">${opts.mid || 'neither'}</span><span>${high}</span>
     </div>
     <div class="scale-readout"></div>
   `;
@@ -2520,6 +2619,7 @@ function shotCard(shot, prev, c, n) {
     ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
     ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
+    ${shot.bright && !shot.harsh ? '<div class="log-run">Bright, not sour</div>' : ''}
     ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
     ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
     ${twoVariables(shot, prev) ? `<div class="log-mismatch">${escapeHTML(twoVariables(shot, prev))}</div>` : ''}
@@ -2600,6 +2700,7 @@ function openShot(shot) {
     // Sour and bitter in the same sip, which is not a point on the
     // sour-to-bitter axis but a statement that the axis does not apply.
     harsh: false,
+    bright: false,
     // where the grinder is as far as anyone has said, which is the board's
     // "grinder today" when it is set and the last shot otherwise
     grind: grindStart(c),
@@ -2660,7 +2761,7 @@ function shotHasContent() {
      closing one you had not touched asked whether you wanted to throw
      away work that did not exist — which is how a confirm dialog gets
      trained out of a person before the one that matters arrives. */
-  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'notes', 'tds']
+  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'bright', 'notes', 'tds']
     .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
   return typed || carriedOf(editing) !== carriedSeed;
 }
@@ -2743,7 +2844,7 @@ function buildShotSheet(c) {
   const body = $('#body-scale');
   body.innerHTML = '';
   body.appendChild(tasteScale({
-    value: editing.body, words: bodyWord, low: 'watery', high: 'muddy',
+    value: editing.body, words: bodyWord, low: 'watery', high: 'muddy', mid: 'syrupy',
     labelledBy: 'body-label', empty: 'not said yet',
     onChange: v => { editing.body = v; renderReadout(c); },
   }));
@@ -2822,12 +2923,15 @@ function buildTaste(c) {
   const taste = $('#taste-scale');
   if (!taste) return;
   const both = Boolean(editing.harsh);
+  const bright = Boolean(editing.bright);
   taste.innerHTML = '';
   taste.classList.toggle('scale-superseded', both && editing.taste === null);
   taste.appendChild(tasteScale({
-    value: editing.taste, words: tasteWord, low: 'sour', high: 'bitter',
+    value: editing.taste, words: v => (bright && v < 0 ? `${tasteWord(v)} — but bright rather than under` : tasteWord(v)),
+    low: 'sour', high: 'bitter', mid: 'sweet',
     labelledBy: 'taste-label',
-    empty: both ? 'both at once — this scale does not apply' : 'not tasted yet',
+    empty: both ? 'both at once — this scale does not apply'
+      : bright ? 'bright, and no fault in it' : 'not tasted yet',
     onChange: v => { editing.taste = v; renderReadout(c); },
   }));
 }
@@ -2843,20 +2947,31 @@ function buildHarsh(c) {
   const wrap = $('#harsh');
   if (!wrap) return;
   wrap.innerHTML = '';
-  const on = Boolean(editing.harsh);
-  const b = el('button', 'chip' + (on ? ' on' : ''), 'Sour and bitter at once');
-  b.type = 'button';
-  b.setAttribute('role', 'checkbox');
-  b.setAttribute('aria-checked', on ? 'true' : 'false');
-  b.addEventListener('click', () => {
-    editing.harsh = !on;
-    haptic();
-    buildHarsh(c);
-    // The scale above has to agree with the chip below it.
-    buildTaste(c);
-    renderReadout(c);
-  });
-  wrap.appendChild(b);
+  const add = (key, label) => {
+    const on = Boolean(editing[key]);
+    const b = el('button', 'chip' + (on ? ' on' : ''), label);
+    b.type = 'button';
+    b.setAttribute('role', 'checkbox');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      editing[key] = !on;
+      /* They are contradictory claims about the same cup: one says the
+         position is meaningless, the other says the position is right and
+         benign. Turning on either clears the other. */
+      if (editing[key]) editing[key === 'harsh' ? 'bright' : 'harsh'] = false;
+      haptic();
+      buildHarsh(c);
+      // The scale above has to agree with the chips below it.
+      buildTaste(c);
+      renderReadout(c);
+    });
+    wrap.appendChild(b);
+  };
+  add('harsh', 'Sour and bitter at once');
+  // Offered on the roasts where the confusion is real. A dark roast that
+  // tastes sour is under-extracted, and the chip would be an excuse.
+  const e = roastEntry(c && c.roast);
+  if (!e || e.dose < 0) add('bright', 'Bright, not sour');
 }
 
 /* The run chips. Tapping the chosen one again clears it, because an
@@ -4128,6 +4243,10 @@ function wire() {
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
   $('#shot-close').addEventListener('click', closeShotSheet);
+  /* The taste guide, opened from the taste question rather than from
+     Settings. The shot sheet stays open underneath: this is a reference
+     consulted mid-answer, not a detour. */
+  $('#taste-help').addEventListener('click', () => { sheetFrom['salami'] = null; openSalami(); });
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
   $('#shot-save').addEventListener('click', saveShot);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
