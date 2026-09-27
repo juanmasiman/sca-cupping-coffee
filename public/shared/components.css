@@ -48,6 +48,34 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+  /* No double-tap zoom.
+
+     Tapping a stepper twice — which is the normal way to put 2g on a dose
+     — was being read as the double-tap-to-zoom gesture, so the board
+     lurched mid dial-in. `manipulation` keeps scrolling and pinch-zoom and
+     drops only the double-tap, which no part of this app uses.
+
+     The cupping sheet has had this on its own body since it was written;
+     the shared component layer the other two instruments are built from
+     never got it, which is why the bug is in the dial-in and the brew log
+     and not in the cupping sheet. Surfaces that manage their own gestures
+     are unaffected: the scale track sets touch-action: none for its drag
+     and is the more specific rule. */
+  touch-action: manipulation;
+  /* iOS enlarges text in landscape without this, which moves every size
+     measured in here. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* And on the controls themselves, not only on body.
+
+   touch-action is not inherited: the effective value for a gesture is the
+   intersection along the ancestor chain, and that walk is truncated by a
+   scrolling ancestor — every sheet in this app scrolls, so a stepper
+   inside one is behind a scroll container that says `auto`. Declaring it
+   where the finger lands removes the question. */
+button, input, select, textarea, summary, label, .chip, .seg-btn, .verdict-btn {
+  touch-action: manipulation;
 }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
@@ -529,8 +557,18 @@ input { font: inherit; color: inherit; }
 }
 .field-help:focus-visible { outline: 2px solid var(--data); outline-offset: 3px; }
 
-/* Nothing behind a sheet moves while the sheet is open. */
-html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
+/* Nothing behind a sheet moves while the sheet is open.
+
+   `touch-action: none` was the first version of this and it is too big a
+   hammer: it disables touch scrolling for every descendant that does not
+   set its own, so any scrollable region inside an open sheet is dead to a
+   finger unless it happens to declare otherwise. Hidden overflow with a
+   contained overscroll stops the board moving underneath without taking
+   the sheet's own scrolling with it. */
+html.sheet-open, html.sheet-open body {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
 
 .sheet-destroy {
   display: flex;
@@ -992,13 +1030,24 @@ html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
 :root[data-theme="light"] { color-scheme: light; }
 
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
+/* 16px, not 15px, and it is not a taste decision.
+
+   iOS Safari zooms the page in when a focused input's text is smaller
+   than 16px — it is trying to help somebody read what they are typing,
+   and the page stays zoomed after the field is dismissed. Every text
+   field in the app was one pixel under the threshold, so typing a
+   coffee's name or a note pulled the board out of shape.
+
+   The alternative is `maximum-scale=1` in the viewport meta, which stops
+   the zoom by taking pinch-zoom away from everyone including the people
+   who need it. Sizing the field correctly costs a pixel. */
 .field-input {
   min-height: 44px;
   padding: var(--space-3);
   border: 1px solid var(--rail);
   border-radius: var(--radius);
   background: var(--bg-card);
-  font-size: 15px;
+  font-size: 16px;
   width: 100%;
 }
 .field-input::placeholder { color: var(--text-faint); }
@@ -1016,7 +1065,9 @@ select.field-input {
      draws needs telling separately, which is what color-scheme does. */
   color: var(--text);
   font: inherit;
-  font-size: 15px;
+  /* Above the threshold too — `font: inherit` resets it back to the body's
+     15px, so the size has to be restated after it. */
+  font-size: 16px;
   padding-right: var(--space-7);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7178' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
