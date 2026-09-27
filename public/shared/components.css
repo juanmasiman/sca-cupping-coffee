@@ -861,6 +861,20 @@ input { font: inherit; color: inherit; }
 .more-body { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-3); }
 .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
 
+/* The platform draws a select's dropdown itself, and it picks the palette
+   from color-scheme rather than from anything this stylesheet says. Stated
+   here so the list matches the app even when somebody has overridden the
+   theme against their system setting — a dark app that opens a white
+   dropdown is the seam showing. It lives in this file rather than in the
+   tokens so it reaches the two instruments and leaves the cupping sheet's
+   rendering alone. */
+:root { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field-input {
   min-height: 44px;
@@ -872,6 +886,85 @@ input { font: inherit; color: inherit; }
   width: 100%;
 }
 .field-input::placeholder { color: var(--text-faint); }
+
+/* A select is a field, not a control from a different century. The native
+   picker is kept — on a phone it is a full-height wheel that beats any
+   list this app could draw — and only the chrome is brought into line,
+   with room made on the right for the chevron the platform draws. */
+select.field-input {
+  appearance: none;
+  -webkit-appearance: none;
+  /* A select does not inherit colour the way an input does. Left alone it
+     came out as the platform's black on the dark ground — about 1.05:1,
+     which is not low contrast, it is invisible. The dropdown the platform
+     draws needs telling separately, which is what color-scheme does. */
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  padding-right: var(--space-7);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7178' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  background-size: 18px 18px;
+}
+
+/* ---------- the dose check ---------- */
+
+.dose-steps { display: flex; flex-direction: column; gap: var(--space-2); }
+.dose-list {
+  margin: 0;
+  padding-left: var(--space-6);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.dose-list li { margin-top: var(--space-2); }
+.dose-outcomes { display: flex; flex-direction: column; gap: var(--space-2); }
+/* One outcome per row with its consequence underneath, because the three
+   answers are a sentence each and a row of chips would make the reader
+   guess which one their coin looked like. */
+.dose-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.dose-outcome:active { background: var(--chrome-soft); }
+@media (hover: hover) { .dose-outcome:hover { background: var(--chrome-soft); } }
+.dose-outcome:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+.dose-outcome-label { font-size: 15px; font-weight: 700; }
+.dose-outcome-sub { font-size: 13px; color: var(--text-dim); }
+
+/* The action a tip carries. Outlined rather than filled: the card's
+   instruction is the thing to do, and this is the shortcut to the screen
+   that helps with it — a second primary button would compete with the
+   sentence above it. */
+.tip-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-3);
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.tip-act:active { background: var(--chrome-soft); }
+@media (hover: hover) { .tip-act:hover { background: var(--chrome-soft); } }
+.tip-act:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 
 /* ---------- coffee list ---------- */
 
@@ -901,7 +994,7 @@ input { font: inherit; color: inherit; }
 
 /* ---------- edit / settings ---------- */
 
-.edit-body, .settings-body, .help-body, .kit-body {
+.edit-body, .settings-body, .help-body, .kit-body, .dose-body {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);

@@ -125,6 +125,14 @@
       <div class="taste-block">
         <span class="field-label" id="taste-label">Sour or bitter?</span>
         <div id="taste-scale"></div>
+        <!-- The escape from the axis. Sour and bitter at once is the
+             single most diagnostic thing a shot can taste like — it is
+             channelling, one part of the bed over-extracted and the rest
+             barely brewed — and a slider running from one to the other
+             cannot say it. Somebody who drank the shot without watching
+             it pour had no way to tell the app the most useful thing
+             they knew. -->
+        <div class="chips" id="harsh"></div>
         <span class="field-label" id="body-label">Watery or muddy?</span>
         <div id="body-scale"></div>
       </div>
@@ -202,6 +210,28 @@
     <div class="sheet-actions">
       <button id="kit-skip" class="btn btn-ghost">Skip</button>
       <button id="kit-save" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ THE DOSE, CHECKED BY VOLUME ============ -->
+<!-- The scale tells you the weight and not the volume, and the basket
+     cares about the volume. Two coffees at the same 18g fill the basket
+     differently — a light roast is denser than a dark one — so the same
+     number can leave the right gap under the screen with one bag and no
+     gap at all with the next. This is the check that costs nothing and
+     settles the one variable everything else is measured against. -->
+<div id="dose-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="dose-title">
+    <div class="sheet-head">
+      <h3 id="dose-title">Check the dose</h3>
+      <button id="dose-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="dose-body"></div>
+    <div class="sheet-actions">
+      <button id="dose-done" class="btn btn-primary">Close</button>
     </div>
   </div>
 </div>

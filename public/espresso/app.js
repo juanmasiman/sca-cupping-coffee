@@ -66,6 +66,7 @@ function migrate(s) {
       if (typeof sh.body === 'undefined') sh.body = null;
       if (typeof sh.intent === 'undefined') sh.intent = null;
       if (typeof sh.run === 'undefined') sh.run = null;
+      if (typeof sh.harsh === 'undefined') sh.harsh = false;
     });
   });
   return s;
@@ -94,6 +95,84 @@ function migrate(s) {
    simplest sheet rather than the fullest one. A field you can see and
    cannot change is a field you will eventually fill in with a guess. */
 
+/* ---------- the machines, and what they can actually do ----------
+
+   The kit screen asks three capability questions, and it used to ask them
+   cold while also collecting the machine's name in a text field it then
+   read nothing out of. That is two taps charged for something the name
+   already answered.
+
+   So the name answers them. Picking a machine fills the three questions
+   in; picking a grinder fills in what its dial counts in.
+
+   THE LIST IS A SHORTCUT, NEVER A SOURCE OF TRUTH. Every answer it fills
+   in stays editable, and "Something else" is always there. A brand table
+   is stale within a year and is wrong about every modified machine — a
+   Gaggia Classic with a PID fitted is still a Gaggia Classic, and a
+   meaningful share of them have one. The app reasons from the
+   capability, never from the name, so somebody whose machine is not
+   listed or is not stock is never worse off than before the list
+   existed. What the list removes is three questions for the majority who
+   own something ordinary and unmodified.
+
+   Entries are only here where the stock capability is not in doubt.
+   Anything uncertain is left off: an absent machine costs three taps,
+   and a wrong one costs trust in every answer that follows. */
+
+const MACHINES = [
+  // name, brew temperature, pressure/flow
+  { name: 'Breville/Sage Bambino',            temp: 'fixed', pressure: 'fixed' },
+  { name: 'Breville/Sage Bambino Plus',       temp: 'fixed', pressure: 'fixed' },
+  { name: 'Breville/Sage Barista Express',    temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Express Impress', temp: 'set', pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Pro',        temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Touch',      temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Dual Boiler',        temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Oracle',             temp: 'set',   pressure: 'gauge' },
+  { name: 'Gaggia Classic (stock)',           temp: 'fixed', pressure: 'fixed' },
+  { name: 'Gaggia Classic Pro (stock)',       temp: 'fixed', pressure: 'fixed' },
+  { name: 'Rancilio Silvia (stock)',          temp: 'fixed', pressure: 'fixed' },
+  { name: 'Rancilio Silvia Pro X',            temp: 'set',   pressure: 'gauge' },
+  { name: 'Rocket Appartamento',              temp: 'fixed', pressure: 'gauge' },
+  { name: 'Lelit Elizabeth',                  temp: 'set',   pressure: 'gauge' },
+  { name: 'Lelit Bianca',                     temp: 'set',   pressure: 'profile' },
+  { name: 'Profitec Pro 500',                 temp: 'set',   pressure: 'gauge' },
+  { name: 'Profitec Pro 600',                 temp: 'set',   pressure: 'gauge' },
+  { name: 'ECM Synchronika',                  temp: 'set',   pressure: 'gauge' },
+  { name: 'La Marzocco Linea Mini',           temp: 'set',   pressure: 'gauge' },
+  { name: 'Decent DE1',                       temp: 'set',   pressure: 'profile' },
+  { name: 'Meticulous',                       temp: 'set',   pressure: 'profile' },
+  // On a manual lever the kettle is the temperature control and the arm is
+  // the pressure profile, so both answers are "you".
+  { name: 'Flair 58',                         temp: 'set',   pressure: 'profile' },
+  { name: 'Flair (Classic, Pro, NEO)',        temp: 'set',   pressure: 'profile' },
+  { name: 'Cafelat Robot',                    temp: 'set',   pressure: 'profile' },
+  { name: 'La Pavoni (lever)',                temp: 'set',   pressure: 'profile' },
+];
+
+const GRINDERS = [
+  { name: 'Niche Zero',                steps: 'stepless' },
+  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless' },
+  { name: 'DF54',                      steps: 'stepless' },
+  { name: 'Turin DF83',                steps: 'stepless' },
+  { name: 'Eureka Mignon',             steps: 'stepless' },
+  { name: 'Mazzer Mini',               steps: 'stepless' },
+  { name: 'Option-O Lagom P64',        steps: 'stepless' },
+  { name: 'Weber Key / EG-1',          steps: 'stepless' },
+  { name: 'Fellow Ode Gen 2',          steps: 'stepped' },
+  { name: 'Baratza Encore / Encore ESP', steps: 'stepped' },
+  { name: 'Baratza Sette 270',         steps: 'stepped' },
+  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped' },
+  { name: 'Breville/Sage built-in grinder',  steps: 'stepped' },
+  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped' },
+  { name: 'Comandante C40',            steps: 'stepped' },
+  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped' },
+  { name: 'Kingrinder (K4, K6)',       steps: 'stepped' },
+];
+
+const machineEntry = name => MACHINES.find(m => m.name === name) || null;
+const grinderEntry = name => GRINDERS.find(g => g.name === name) || null;
+
 function defaultKit() {
   return {
     machine: '',
@@ -104,6 +183,9 @@ function defaultKit() {
     pressure: 'fixed',   // 'fixed' | 'gauge' — you can see it | 'profile' — you can change it
     steps: 'stepless',   // 'stepped' — clicks | 'stepless' — a number on a dial
     basketDose: 18,
+    // When the dose was last checked against the basket by volume. The
+    // weight is only half the answer — see openDoseCheck.
+    doseChecked: null,
     asked: false,        // has anybody answered or skipped this screen
   };
 }
@@ -310,6 +392,24 @@ const RUNS = [
 const runEntry = key => RUNS.find(r => r.key === key) || null;
 const channelled = shot => shot && (shot.run === 'spray' || shot.run === 'stall' || shot.run === 'blonde');
 
+/* Sour and bitter in the same sip.
+
+   DIALIN.md step 2, and the tell both authorities and every guide agree
+   on: it is channelling rather than a grind problem. One part of the bed
+   over-extracted while the rest barely brewed, and the cup carries both
+   at once. Grinding either way makes one half worse — finer tightens the
+   bed around the crack, coarser under-extracts what was already weak.
+
+   It outranks the clock for the same reason a sprayed shot does: the
+   time is a reading of an accident. The difference is only where the
+   evidence came from — the eye or the mouth — so the advice is the same
+   advice. */
+function harshFault(shot) {
+  if (!shot || !shot.harsh) return null;
+  return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+    why: 'Sharp and harsh in the same sip is not a point between sour and bitter — it is two different extractions in one cup. Water went round part of the bed and sat in the rest, so one half gave up too much and the other hardly brewed. No grind setting fixes that, and both directions make one half worse. Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move. Check the dose fits the basket while you are there, because a puck with nowhere to swell into channels however carefully it was prepared.' };
+}
+
 /* The puck, when the puck is the answer.
 
    This outranks everything else the app has to say, including a clock
@@ -325,11 +425,11 @@ function runFault(shot, target) {
   const common = ' Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move, and check nothing is caked on the shower screen. One of those usually does it.';
 
   if (shot.run === 'spray') {
-    return { sure: true, move: 'Fix the puck, not the grinder.',
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
       why: `It sprayed, which means water found a crack and went round the bed rather than through it. Everything else on this shot is a reading of that: the clock is quick because part of the puck offered no resistance, and the cup is sour and harsh at once because one part over-extracted while the rest hardly brewed. Grinding finer tightens the bed and makes the crack worse, so leave the grinder exactly where it is and pull another.${common}` };
   }
   if (shot.run === 'stall') {
-    return { sure: true, move: 'Fix the puck, not the grinder.',
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
       why: `It hesitated and then rushed, which is a bed that resisted until the water found a way through and then gave up all at once. That is channelling, and it makes the clock meaningless — the seconds at the start and the seconds after the break are not measuring the same shot. Leave the grinder where it is and pull another.${common}` };
   }
   return { sure: false, move: 'It blonded early — pull another with the grinder untouched.',
@@ -810,9 +910,9 @@ function basketFault(shot) {
   const basket = (kit().basket || '').trim();
   const named = basket ? `your ${basket}` : `a ${fmtDose(want)}g basket`;
   return off > 0
-    ? { sure: true, move: `Drop the dose to about ${fmtDose(want)}g.`,
+    ? { sure: true, act: 'dose', move: `Drop the dose to about ${fmtDose(want)}g.`,
         why: `${fmtDose(got)}g is ${fmtDose(off)}g over what ${named} is built for. Overfilled, the puck meets the shower screen before the pump gets going, and it channels around the edge however the grinder is set — which makes the clock and the cup both untrustworthy. Get the dose right first; it is the one number that has to be settled before grind means anything.` }
-    : { sure: true, move: `Bring the dose up to about ${fmtDose(want)}g.`,
+    : { sure: true, act: 'dose', move: `Bring the dose up to about ${fmtDose(want)}g.`,
         why: `${fmtDose(got)}g is ${fmtDose(Math.abs(off))}g under what ${named} is built for. Underfilled there is headspace above the bed, the puck lifts and breaks when the water hits it, and the shot channels however the grinder is set. Get the dose right first; it is the one number that has to be settled before grind means anything.` };
 }
 
@@ -865,8 +965,8 @@ function ageNote(c) {
    what has to be true before the next thing can be measured:
 
      1. the dose fits the basket        or the puck channels regardless
-     2. the shot ran even               or the clock and the cup are
-                                        both readings of an accident
+     2. the shot ran even, and did not  or the clock and the cup are
+        taste of both walls at once      both readings of an accident
      3. the grinder is actually moving  or "finer" is the fourth wrong
                                         answer in a row
      4. the walls, the clock, the cup   the ordinary dial-in
@@ -876,7 +976,7 @@ function ageNote(c) {
    on the end of whichever move wins, because it does not change what to
    do — it changes how much to believe what you are looking at. */
 function nextMove(shot, target, c) {
-  const first = basketFault(shot) || runFault(shot, target) || (c ? stuckNote(c) : null);
+  const first = basketFault(shot) || runFault(shot, target) || harshFault(shot) || (c ? stuckNote(c) : null);
   if (first) return [withAge(first, c)];
 
   const pair = wallPair(shot, target);
@@ -907,11 +1007,23 @@ function withAge(tip, c) {
   return note ? { ...tip, why: tip.why + note } : tip;
 }
 
+/* A tip may carry one action, and it is rendered as a button rather than
+   as a sentence telling somebody to go and find a screen. Advice you can
+   act on where you are reading it is the difference between a tool and a
+   pamphlet; "check the dose with a coin, in Settings" is the pamphlet. */
 function tipHTML(tip, cls) {
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
       <span class="tip-why">${escapeHTML(tip.why)}</span>
+      ${tip.act === 'dose' ? '<button type="button" class="tip-act" data-act="dose">Check the dose with a coin</button>' : ''}
     </div>`;
+}
+
+// Bind whatever actions the tips in a container asked for.
+function bindTipActions(wrap) {
+  wrap.querySelectorAll('.tip-act[data-act="dose"]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); openDoseCheck(); });
+  });
 }
 
 /* ---------- formatting ---------- */
@@ -1246,6 +1358,7 @@ function renderNext(c) {
   wrap.className = 'next-card';
   wrap.innerHTML = `<span class="next-label">Next</span>`
     + tips.map(t => tipHTML(t, 'tip')).join('');
+  bindTipActions(wrap);
 }
 
 /* The keeper.
@@ -1422,6 +1535,7 @@ function shotCard(shot, prev, c, n) {
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
     ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
     ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
     ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
     ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
@@ -1497,6 +1611,9 @@ function openShot(shot) {
     // How it looked coming out. Not carried over: it is an observation of
     // one shot, and the last shot's is not evidence about this one.
     run: null,
+    // Sour and bitter in the same sip, which is not a point on the
+    // sour-to-bitter axis but a statement that the axis does not apply.
+    harsh: false,
     // where the grinder is as far as anyone has said, which is the board's
     // "grinder today" when it is set and the last shot otherwise
     grind: grindStart(c),
@@ -1550,7 +1667,7 @@ function shotHasContent() {
      closing one you had not touched asked whether you wanted to throw
      away work that did not exist — which is how a confirm dialog gets
      trained out of a person before the one that matters arrives. */
-  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'notes', 'tds']
+  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'notes', 'tds']
     .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
   return typed || carriedOf(editing) !== carriedSeed;
 }
@@ -1621,6 +1738,7 @@ function buildShotSheet(c) {
   }));
 
   buildIntent(c);
+  buildHarsh(c);
   buildRun(c);
   buildVerdict(c);
   buildMore(c);
@@ -1680,6 +1798,31 @@ function buildIntent(c) {
     });
     wrap.appendChild(b);
   });
+}
+
+/* The "both at once" chip.
+
+   Not a point on the scale above it — a statement that the scale does
+   not apply. A shot that is sharp and harsh in the same sip has not
+   landed somewhere between sour and bitter; part of the bed gave up too
+   much while the rest gave up almost nothing, and averaging that into a
+   position on one axis throws away the finding. */
+function buildHarsh(c) {
+  const wrap = $('#harsh');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const on = Boolean(editing.harsh);
+  const b = el('button', 'chip' + (on ? ' on' : ''), 'Sour and bitter at once');
+  b.type = 'button';
+  b.setAttribute('role', 'checkbox');
+  b.setAttribute('aria-checked', on ? 'true' : 'false');
+  b.addEventListener('click', () => {
+    editing.harsh = !on;
+    haptic();
+    buildHarsh(c);
+    renderReadout(c);
+  });
+  wrap.appendChild(b);
 }
 
 /* The run chips. Tapping the chosen one again clears it, because an
@@ -1836,6 +1979,9 @@ function renderReadout(c) {
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
     ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
+  // The sheet's own copy of the advice carries the same action, and a
+  // button that does nothing is worse than no button.
+  bindTipActions(wrap);
 }
 
 function saveShot() {
@@ -2125,16 +2271,35 @@ function segRow(label, sub, options, current, onPick) {
    field you can see and cannot change is a field you will eventually fill
    in with a guess, and advice that names a lever you do not have is worse
    than no advice. */
+/* The picker options. "Something else" is not a fallback tucked at the
+   bottom of a list somebody has to scroll past — it is the first entry
+   after the blank, because the list is a convenience for the common case
+   and not a claim to be exhaustive. */
+function pickerOptions(items, current) {
+  const known = items.some(i => i.name === current);
+  const other = Boolean(current) && !known;
+  return `<option value=""${!current ? ' selected' : ''}>Choose…</option>`
+    + `<option value="__other"${other ? ' selected' : ''}>Something else</option>`
+    + items.map(i => `<option value="${escapeHTML(i.name)}"${
+        i.name === current ? ' selected' : ''}>${escapeHTML(i.name)}</option>`).join('');
+}
+const machineOptions = cur => pickerOptions(MACHINES, cur);
+const grinderOptions = cur => pickerOptions(GRINDERS, cur);
+
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a lever your machine does not have. The names are your own record — nothing is read out of them.</p>
+    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a lever your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.</p>
     <label class="field"><span class="field-label">Machine</span>
+      <select class="field-input" id="k-machine-pick">${machineOptions(k.machine)}</select></label>
+    <label class="field hidden" id="k-machine-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-machine" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Breville Bambino Plus"></label>
     <div id="k-temp"></div>
     <div id="k-press"></div>
     <label class="field"><span class="field-label">Grinder</span>
+      <select class="field-input" id="k-grinder-pick">${grinderOptions(k.grinder)}</select></label>
+    <label class="field hidden" id="k-grinder-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. DF64"></label>
     <div id="k-steps"></div>
     <div class="kit-basket">
@@ -2143,10 +2308,41 @@ function openKit() {
       <label class="field field-narrow"><span class="field-label">Its dose</span>
         <input class="field-input" id="k-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="18"></label>
     </div>
+    <p class="sheet-note">The number on the side of the basket is a starting point. What settles it is the gap the puck leaves under the shower screen, and that changes with the coffee — so it is worth a minute with a coin before the first shot.</p>
+    <button type="button" class="btn btn-ghost" id="k-dose-check">Check it with a coin</button>
   `;
   body.querySelector('#k-machine').value = k.machine;
   body.querySelector('#k-grinder').value = k.grinder;
   body.querySelector('#k-basket').value = k.basket;
+
+  /* Picking a machine answers the two capability questions below it, and
+     picking a grinder answers the one below that. The answers are then
+     ordinary editable segments: the list has made a suggestion, not a
+     ruling. */
+  const mPick = body.querySelector('#k-machine-pick');
+  const gPick = body.querySelector('#k-grinder-pick');
+  const mOther = body.querySelector('#k-machine-other');
+  const gOther = body.querySelector('#k-grinder-other');
+  const syncOther = () => {
+    mOther.classList.toggle('hidden', mPick.value !== '__other');
+    gOther.classList.toggle('hidden', gPick.value !== '__other');
+  };
+  if (k.machine && !machineEntry(k.machine)) mPick.value = '__other';
+  if (k.grinder && !grinderEntry(k.grinder)) gPick.value = '__other';
+  syncOther();
+
+  mPick.addEventListener('change', () => {
+    syncOther();
+    const e = machineEntry(mPick.value);
+    if (e) { k.temp = e.temp; k.pressure = e.pressure; k.machine = e.name; redraw(); toast('Filled in from your machine'); }
+    else if (mPick.value === '__other') body.querySelector('#k-machine').focus();
+  });
+  gPick.addEventListener('change', () => {
+    syncOther();
+    const e = grinderEntry(gPick.value);
+    if (e) { k.steps = e.steps; k.grinder = e.name; redraw(); toast('Filled in from your grinder'); }
+    else if (gPick.value === '__other') body.querySelector('#k-grinder').focus();
+  });
   body.querySelector('#k-dose').value = k.basketDose === null ? '' : k.basketDose;
 
   const redraw = () => {
@@ -2173,9 +2369,23 @@ function openKit() {
   };
   redraw();
 
+  /* Saves what is on the screen first, so the check runs against the dose
+     just typed rather than the one from before this sheet was opened. */
+  body.querySelector('#k-dose-check').addEventListener('click', () => {
+    const d = Number(body.querySelector('#k-dose').value.replace(',', '.').trim());
+    k.basketDose = isFinite(d) && d > 0 && d <= 60 ? d : k.basketDose;
+    k.basket = body.querySelector('#k-basket').value.trim();
+    state.kit = k;
+    save();
+    closeModal('#kit-modal');
+    openDoseCheck();
+  });
+
   $('#kit-save').onclick = () => {
-    k.machine = body.querySelector('#k-machine').value.trim();
-    k.grinder = body.querySelector('#k-grinder').value.trim();
+    const mv = body.querySelector('#k-machine-pick').value;
+    const gv = body.querySelector('#k-grinder-pick').value;
+    k.machine = (mv && mv !== '__other') ? mv : body.querySelector('#k-machine').value.trim();
+    k.grinder = (gv && gv !== '__other') ? gv : body.querySelector('#k-grinder').value.trim();
     k.basket = body.querySelector('#k-basket').value.trim();
     const d = Number(body.querySelector('#k-dose').value.replace(',', '.').trim());
     k.basketDose = isFinite(d) && d > 0 && d <= 60 ? d : null;
@@ -2204,6 +2414,87 @@ function kitLine() {
   return bits.length ? bits.join(' · ') : 'Not set — the sheet is using the defaults';
 }
 
+/* The dose, checked by volume.
+
+   The scale gives the weight; the basket cares about the volume, and the
+   two only track each other within one bag. A light roast is denser than
+   a dark one and a coarser grind settles differently, so 18g that left
+   the right gap under the shower screen last week can leave none at all
+   with the next coffee — and no gap means the puck meets the screen
+   before the pump does, which channels whatever the grinder is set to.
+
+   The gap has a name, headspace, a working target of about 2mm (3mm if a
+   puck screen is in there, counting its thickness), and a test that needs
+   a coin and nothing else. See DIALIN.md step 1: this is the bottom of
+   the stack, because a dose that does not fit the basket makes every
+   later measurement a reading of an accident.
+
+   The three outcomes each move the dose by a gram, which is the size of
+   step that shows in the gap without being a different recipe. */
+function openDoseCheck() {
+  const k = kit();
+  const dose = num(k.basketDose);
+  const basket = (k.basket || '').trim();
+  const body = $('#dose-body');
+
+  const outcome = (delta, label, sub) => {
+    const b = el('button', 'dose-outcome',
+      `<span class="dose-outcome-label">${escapeHTML(label)}</span><span class="dose-outcome-sub">${escapeHTML(sub)}</span>`);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const cur = num(kit().basketDose);
+      if (delta !== 0 && cur !== null) {
+        state.kit.basketDose = Math.round((cur + delta) * 10) / 10;
+      }
+      state.kit.doseChecked = Date.now();
+      save();
+      haptic();
+      closeModal('#dose-modal');
+      renderBoard();
+      toast(delta === 0
+        ? 'Dose confirmed'
+        : `Dose is now ${fmtDose(num(state.kit.basketDose))}g — pull one and check again`);
+    });
+    return b;
+  };
+
+  body.innerHTML = `
+    <p class="sheet-note">Your scale gives the weight. The basket cares about the volume, and the two only agree within one bag: a light roast is denser than a dark one, so the same ${dose === null ? 'dose' : fmtDose(dose) + 'g'} can leave the right gap under the shower screen with one coffee and none with the next.</p>
+    <p class="sheet-note">That gap is the room the puck needs to swell into — about 2mm, or 3mm if you use a puck screen. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around before it is wet. Both channel, and neither is fixable at the grinder.</p>
+    <div class="dose-steps">
+      <span class="field-label">The coin test</span>
+      <ol class="dose-list">
+        <li>Dose ${dose === null ? 'as usual' : `${fmtDose(dose)}g`}${basket ? ` into your ${escapeHTML(basket)}` : ''} and tamp as you normally would.</li>
+        <li>Lay a coin flat on the puck.</li>
+        <li>Lock the portafilter in, then take it straight back out.</li>
+        <li>Look at the coin and the surface of the puck.</li>
+      </ol>
+    </div>
+    <span class="field-label">What did you find?</span>
+    <div class="dose-outcomes" id="dose-outcomes"></div>
+  `;
+
+  const wrap = body.querySelector('#dose-outcomes');
+  wrap.appendChild(outcome(0, 'The coin is just marked',
+    'Touched but not buried. That is the gap — this dose fits the basket.'));
+  wrap.appendChild(outcome(-1, 'The coin is pressed in',
+    'Or there is a screw imprint on the puck. Too little room: a gram down.'));
+  wrap.appendChild(outcome(1, 'The coin is untouched',
+    'It never reached the screen. Too much room: a gram up.'));
+
+  openModal('#dose-modal');
+}
+
+// When the dose was last checked against the basket by volume, in words.
+function doseCheckLine() {
+  const at = kit().doseChecked;
+  if (!at) return 'The coin test — never done on this setup';
+  const days = Math.floor((Date.now() - at) / 86400000);
+  return days <= 0 ? 'The coin test — done today'
+    : days === 1 ? 'The coin test — done yesterday'
+    : `The coin test — done ${days} days ago`;
+}
+
 function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
@@ -2223,8 +2514,17 @@ function openSettings() {
     <span class="field-label section">Appearance</span>
     <div class="seg" id="theme-seg" role="radiogroup" aria-label="Appearance"></div>
 
+    <button class="btn btn-ghost kit-btn" id="btn-dose-check">
+      <span class="kit-btn-title">Check the dose</span>
+      <span class="kit-btn-sub">${doseCheckLine()}</span>
+    </button>
+
     <button class="btn btn-ghost" id="btn-help">What the numbers mean</button>
   `;
+  body.querySelector('#btn-dose-check').addEventListener('click', () => {
+    closeModal('#settings-modal');
+    openDoseCheck();
+  });
   const tds = body.querySelector('#t-tds');
   tds.checked = prefs.tds;
   tds.addEventListener('change', () => { prefs.tds = tds.checked; savePrefs(); });
@@ -2256,6 +2556,8 @@ function openHelp() {
     <p><strong>Flow</strong> is grams a second. It is the number that moves first when the grind moves, and a fast shot with a coarse-looking puck usually shows up here before it shows up in the taste.</p>
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
     <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
+    <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
+    <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>
     <p><strong>How it ran</strong> is the question that outranks the rest. Most bad espresso at home is water finding a crack and going round the puck instead of through it, and when that happens the clock and the cup are both readings of an accident — so the app stops talking about the grinder until the shot runs even. Grinding finer on a puck that channels tightens the bed and makes it worse.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
@@ -2341,6 +2643,8 @@ function wire() {
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
+  $('#dose-close').addEventListener('click', () => closeModal('#dose-modal'));
+  $('#dose-done').addEventListener('click', () => closeModal('#dose-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {
