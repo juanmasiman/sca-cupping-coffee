@@ -478,6 +478,21 @@ function solubility(c) {
 
   const age = daysSinceRoast(c);
   if (age !== null && age >= 42) {
+    /* The age moved the prose and not the numbers.
+
+       startingPoint says an aged bag "starts shorter, and cooler, than the
+       roast alone would" — and it was setting the plain roast midpoint,
+       because the flag was raised without a shift behind it. A tester with
+       a seven-week-old dark blend was told the app had adjusted for the
+       bag, got 1:1.8 and 87° (dead centre of the dark band, unmoved), and
+       spent six shots walking down to the 1:1.6 the sentence had promised.
+
+       A degassed bag has lost the resistance that kept the water honest
+       and oxidation has already done part of the extracting, so it gives
+       up what is left too easily. That is the same direction as a dark
+       roast, which is what "shorter and cooler" means here. See DIALIN.md
+       step 0.5 and "which way the numbers are allowed to move". */
+    shift += 1;
     flags.aged = true;
     why.push('past six weeks the carbon dioxide that gave the puck its resistance has gone, so it will run fast whatever the grinder says');
   }
@@ -656,6 +671,63 @@ function runOptions() {
 const runEntry = key => RUNS.find(r => r.key === key) || null;
 const channelled = shot => shot && ['spray', 'surge', 'stall', 'blonde'].includes(shot.run);
 
+/* "Ran even" is evidence through a bottomless and an opinion through spouts.
+
+   Four branches of the advice reach for channelling when the clock and the
+   taste disagree, because that disagreement usually is a channel. But a
+   tester with a bottomless portafilter ticked "Ran even" — the one
+   observation that rules a channel out, made on the one portafilter where
+   you can actually make it — and got "look at distribution and tamp
+   before anything else" three shots running, in identical words, roughly
+   200px below the lit chip. Three shots thrown away because the app
+   ignored the only thing it had asked for.
+
+   Through spouts the bed is invisible, so "ran even" there means the
+   stream looked steady, which is genuinely weak evidence. The app says so
+   rather than either ignoring the answer or pretending it settles it. */
+const sawEven = shot => Boolean(shot) && shot.run === 'even';
+const evenSeen = shot => sawEven(shot) && bottomless();
+
+/* Where to look when the puck has been ruled out.
+
+   The clock and the taste disagreeing means the coffee gave up more, or
+   less, than its time suggests. With the bed exonerated, what is left is
+   how soluble the coffee is and how hot the water is — and the ratio is
+   the variable that carries an adjustment, with temperature only ever
+   coming down. See DIALIN.md, "which way the numbers are allowed to move". */
+function notThePuck(shot, target, c, over) {
+  const sol = solubility(c);
+  const bag = [];
+  if (sol.flags.aged) bag.push('the bag is past six weeks and degassed');
+  if (sol.flags.processed) bag.push('a heavily processed lot gives up its solubles readily');
+  const e = c ? roastEntry(c.roast) : null;
+  if (e && over && e.dose >= 0) bag.push(`a ${e.label.toLowerCase()} roast is friable and extracts easily`);
+  if (e && !over && e.dose < 0) bag.push(`a ${e.label.toLowerCase()} roast is dense and hard to extract`);
+  const because = bag.length ? ` — ${bag.join(', and ')}` : '';
+
+  if (over) {
+    return canSetTemp()
+      ? ` This is a coffee giving up more than its time suggests${because}. Take a degree off the brew temperature, and if that is not enough, stop the shot 2 to 3g shorter. Leave the grinder where it is: coarser would only make it faster.`
+      : ` This is a coffee giving up more than its time suggests${because}. Stop the shot 2 to 3g shorter — less water through the same puck takes less of the harsh end with it. Leave the grinder where it is: coarser would only make it faster.`;
+  }
+  return ` This is a coffee giving up less than its time suggests${because}. Let it run 2 to 3g longer — more water takes more with it, and yield is the reliable way to move extraction. Leave the grinder where it is: finer would only make it slower.${
+    canSetTemp() ? ' Hotter would also extract more, but that is the contested move and it brings bitterness on faster than sweetness; try the yield first.' : ''}`;
+}
+
+/* The channelling guess, with the reader's own observation in it.
+
+   `over` is true for the too-much-came-out corner. */
+function puckOrNot(shot, target, c, over) {
+  if (evenSeen(shot)) return notThePuck(shot, target, c, over);
+  if (sawEven(shot)) {
+    return ` You said it ran even, though through spouts the bed is out of sight and a steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
+      notThePuck(shot, target, c, over).replace(/^ This is a coffee/, ' it is a coffee')}`;
+  }
+  return over
+    ? ' This pattern usually means the water found a channel, so look at distribution and tamp before anything else.'
+    : ' This pattern usually means the water went round the puck rather than through it, so look at distribution and tamp before anything else.';
+}
+
 /* Sour and bitter in the same sip.
 
    DIALIN.md step 2, and the tell both authorities and every guide agree
@@ -720,7 +792,30 @@ function runFault(shot, target) {
    somebody made and the same arithmetic would be measuring that. */
 
 const GRIND = makeGrind({
-  logs: () => ((state && state.coffees) || []).map(c => c.shots || []),
+  /* The shot on the open sheet counts as evidence, because it is.
+
+     The calibration read only saved shots, so the shot sheet and the board
+     gave two different answers to the same question a second apart. One
+     tester watched the modal say "How far, it cannot say yet" over a shot
+     whose grind and time were both typed in, pressed Save, and had the
+     board immediately answer "about 3 clicks, up to 51" from that same
+     shot. Another got "1.1 on the dial, down to 29.9" in the sheet and
+     "1.3 on the dial, down to 29.7" on the board. Both were right about
+     their own inputs and the reader saw an app changing its mind.
+
+     A grind and a time that have been entered are a measurement whether or
+     not a button has been pressed. Included once both are there, and only
+     for a new sheet — an existing shot is already in the log below and
+     would otherwise be counted twice. */
+  logs: () => {
+    const rows = ((state && state.coffees) || []).map(c => (c.shots || []).slice());
+    if (editing && editingIsNew && num(editing.time) !== null
+        && editing.grind !== '' && num(Number(editing.grind)) !== null) {
+      const active = (state && state.coffees || []).findIndex(c => c.id === (state && state.activeId));
+      if (active >= 0) rows[active] = rows[active].concat([editing]);
+    }
+    return rows;
+  },
   stepped: () => kit().steps === 'stepped',
   /* 'step' was wrong on a stepless dial in the one place it mattered
      most — the sentence that promises to replace "a step" with a number.
@@ -1172,13 +1267,12 @@ function suggest(shot, target, c) {
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
-      why: `Sour and slow together do not point at grind: going finer would make it slower still. ${canSetTemp()
-        ? 'Look at brew temperature, at whether the puck channelled, and at how long ago it was roasted.'
-        : 'Look at whether the puck channelled, and at how long ago it was roasted.'}` };
+      noGrind: true,
+      why: `Sour and slow together do not point at grind: going finer would make it slower still.${puckOrNot(shot, target, c, false)}` };
   }
   if (side === 'bitter' && place.time === 'fast') {
-    return { sure: false, move: 'Not grind, this time.',
-      why: 'Bitter and fast together do not point at grind: going coarser would make it faster still. This pattern usually means the water found a channel, so look at distribution and tamp before anything else.' };
+    return { sure: false, noGrind: true, move: 'Not grind, this time.',
+      why: `Bitter and fast together do not point at grind: going coarser would make it faster still.${puckOrNot(shot, target, c, true)}` };
   }
   // "This is the one" over a cup somebody has just called muddy is the app
   // not reading its own sheet. Both walls have to be quiet for this.
@@ -1251,13 +1345,31 @@ function suggest(shot, target, c) {
       why: `You already took the yield ${took} and it still tastes ${side}, so the ratio is not the answer here. ${next}${heat}` };
   }
 
+  /* The documented exception to "ratio first, temperature on the second
+     sighting".
+
+     That ordering is right for an ordinary coffee and it was applied to
+     every coffee. A tester on a seven-week-old dark Italian blend, on a
+     machine that had told the app "I set it", got four rounds of ratio and
+     puck advice before temperature was mentioned at all — and cooler was
+     the answer. DIALIN.md is explicit that a coffee which gives up its
+     solubles too easily gets cooled, and dark, aged, heavily processed and
+     decaf are exactly the coffees the bag can say that about in advance.
+     Where the bag has already said it, heat is not a last resort. */
+  const soluble = solubility(c).shift >= 1;
+  if (canSetTemp() && side === 'bitter' && soluble && !persists) {
+    const sol = solubility(c);
+    return { sure: false, move: 'Try it a degree cooler.',
+      why: `Bitter in the window is usually a ratio question, but not on this bag: ${sol.why.join('; ')}. A coffee that gives up its solubles that readily is the one case where heat comes first, and cooler is the direction everyone agrees on. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
+  }
+
   if (canSetTemp() && persists && side === 'bitter') {
     return { sure: false, move: 'Try it a degree cooler.',
-      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste bitter, which makes it a temperature question rather than a one-off. Cooler extracts less, and it is the reliable direction — darker roasts, heavily processed coffees and older bags all want less heat than the dial probably has. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
+      why: `That is the ${nth(countSide(c, side, shot))} shot of this coffee to taste bitter, which makes it a temperature question rather than a one-off. Cooler extracts less, and it is the reliable direction — darker roasts, heavily processed coffees and older bags all want less heat than the dial probably has. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
   }
   if (canSetTemp() && persists) {
     return { sure: false, move: 'More yield before more heat.',
-      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste sour, so it is worth doing something about rather than putting down to one cup. ${yieldMove}${ceiling} Your machine can go hotter and that will extract more, but it is the contested move: the argument against it is that heat brings bitterness on faster than it brings the sweetness you were after, and that yield is the more reliable way to get the extraction up. Try the yield first, and the temperature only if that runs out of room.` };
+      why: `That is the ${nth(countSide(c, side, shot))} shot of this coffee to taste sour, so it is worth doing something about rather than putting down to one cup. ${yieldMove}${ceiling} Your machine can go hotter and that will extract more, but it is the contested move: the argument against it is that heat brings bitterness on faster than it brings the sweetness you were after, and that yield is the more reliable way to get the extraction up. Try the yield first, and the temperature only if that runs out of room.` };
   }
   return { sure: false, move: 'Grind has done its job — move the yield.',
     why: `The shot is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach, so the next variable is how much you let into the cup. ${yieldMove}${ceiling}${
@@ -1266,9 +1378,18 @@ function suggest(shot, target, c) {
         : ' Your machine holds one temperature, so the ratio is where the work happens.'}` };
 }
 
-// How many shots of this coffee have tasted this way, for the prose.
-function countSide(c, side) {
-  return ((c && c.shots) || []).filter(sh => tasteSide(sh.taste) === side).length;
+/* How many shots of this coffee have tasted this way, for the prose.
+
+   Including the one being judged, which is the whole point of the
+   sentence — "that is the 5th shot of this coffee to taste bitter" was
+   said over the sixth, because the shot on the open sheet is not in
+   c.shots until it is saved. Passed in rather than assumed, and only
+   counted when it is not already in the log. */
+function countSide(c, side, shot) {
+  const rows = (c && c.shots) || [];
+  let n = rows.filter(sh => tasteSide(sh.taste) === side).length;
+  if (shot && rows.indexOf(shot) < 0 && tasteSide(shot.taste) === side) n += 1;
+  return n;
 }
 const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : `${n}th`);
 
@@ -1306,16 +1427,16 @@ function wallPair(shot, target, c) {
 
   if (t === 'sour' && b === 'watery') {
     if (place.time === 'slow') {
-      return { sure: false, move: 'Under-extracted — but not for want of grind.',
-        why: 'Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower. Water that runs long and still takes little with it has found a way round the puck rather than through it. Distribution and tamp first.' };
+      return { sure: false, noGrind: true, move: 'Under-extracted — but not for want of grind.',
+        why: `Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower.${puckOrNot(shot, target, c, false)}` };
     }
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
     if (place.time === 'fast') {
-      return { sure: false, move: 'Over-extracted — but not for want of grind.',
-        why: 'Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster. Water that runs quickly and still takes too much is going through part of the puck and not the rest. Distribution and tamp first.' };
+      return { sure: false, noGrind: true, move: 'Over-extracted — but not for want of grind.',
+        why: `Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster.${puckOrNot(shot, target, c, true)}` };
     }
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
       why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
@@ -1594,10 +1715,41 @@ function nextMove(shot, target, c) {
   const b = bodyNote(shot);
   if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c, shot, target)];
   const t = suggest(shot, target, c);
-  if (t) return [withAge(t, c, shot, target)];
+  if (t) return [withAge(halfAnswered(t, shot), c, shot, target)];
   // No taste on the sheet: the clock still knows which way the grinder goes.
   const clock = clockAdvice(shot, target, c);
   return clock ? [withAge(clock, c, shot, target)] : [];
+}
+
+/* An answer given on half the evidence should say so.
+
+   With one wall named and the other blank, wallPair cannot run and the
+   single-axis advice takes over — and delivers a settled-looking verdict.
+   A tester marked a shot sour, read "Grind has done its job — move the
+   yield", then dragged the second slider to "a little thin" and watched
+   the same panel become "Grind finer". The second answer is the right one
+   and the reversal is honest, but the first arrived looking final, and
+   somebody in a hurry acts on what they read first.
+
+   This is the same fault as the run chips sitting below the advice they
+   change, one axis down, and the same remedy: the card names the question
+   that could change it. It does not hedge the instruction — the advice is
+   the best available on what has been said — it says what is missing. */
+function halfAnswered(tip, shot) {
+  if (!tip) return tip;
+  const t = tasteSide(shot && shot.taste);
+  const b = bodySide(shot && shot.body);
+  if (t === null || t === 'neither' || b !== null) return tip;
+  /* Not where the clock has already ruled the grinder out. On a shot that
+     is bitter AND fast, "coarser would make it faster still" and "the
+     answer is the grinder — coarser" are the same card contradicting
+     itself two sentences apart. */
+  if (tip.noGrind) return tip;
+  const other = t === 'sour' ? 'thin' : 'heavy';
+  const instead = t === 'sour' ? 'finer' : 'coarser';
+  return Object.assign({}, tip, {
+    why: `${tip.why} Watery or muddy is still blank, and it is the half that decides this: if the cup is ${other} as well as ${t}, both come from the same fault and the answer is the grinder — ${instead} — rather than the yield.`,
+  });
 }
 
 /* What a light roast is always going to taste like, when the complaint
@@ -1625,7 +1777,13 @@ function roastNote(c, shot, target) {
 // The qualifiers that ride on the end of whatever the move turned out to
 // be. Neither changes what to do; both change how much to read into it.
 function withAge(tip, c, shot, target) {
-  const note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '');
+  let note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '');
+  /* Not twice in one card. The age tail is thirty words and it was landing
+     on every advice state a tester saw — eleven of them, verbatim — which
+     is how a reader learns to skip the last third of every card, including
+     the times it is the new part. Where the advice has already reached for
+     the bag's age in its own reasoning, the tail has nothing to add. */
+  if (note && /six weeks/.test(tip.why)) note = note.replace(ageNote(c) || '\u0000', '');
   return note ? { ...tip, why: tip.why + note } : tip;
 }
 
@@ -2415,7 +2573,9 @@ function closeShotSheet() {
 function buildShotSheet(c) {
   const row = $('#num-row');
   row.innerHTML = '';
-  const refresh = () => { renderReadout(c); };
+  /* The numbers feed the verdict row as well as the readout: the keeper
+     chip unblocks the moment a yield is typed, without a save and reopen. */
+  const refresh = () => { buildVerdict(c); renderReadout(c); };
 
   row.appendChild(numField({
     label: 'In', unit: 'g', value: editing.dose, min: 0, max: 60, step: 0.1, digits: 1,
@@ -2605,16 +2765,46 @@ const VERDICTS = [
   { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
 ];
 
+/* What a shot is missing before it can be called the recipe.
+
+   A recipe is a thing you hand to somebody so they can repeat it, and you
+   cannot repeat "18g in, — out". A first-run test saved a shot with no
+   yield, watched the log say so in as many words — "No yield recorded, so
+   this shot has no ratio and no flow" — and then marked it The one. The
+   board printed THE RECIPE: 18.0g in → —g out, under the heading
+   "Dialled in. Pull the next one to it and change nothing." Pull it to
+   what? The app knew the shot was incomplete in one place and promoted it
+   in another. */
+function keeperMissing(shot) {
+  const want = [];
+  if (num(shot && shot.dose) === null) want.push('a dose');
+  if (num(shot && shot.yield) === null) want.push('a yield');
+  if (num(shot && shot.time) === null) want.push('a time');
+  return want;
+}
+
 function buildVerdict(c) {
   const wrap = $('#verdict');
   wrap.innerHTML = '';
+  const missing = keeperMissing(editing);
   VERDICTS.forEach(v => {
-    const b = el('button', 'verdict-btn' + (editing.verdict === v.key ? ' on' : ''),
-      `<span class="verdict-label">${v.label}</span><span class="verdict-sub">${v.sub}</span>`);
+    const blocked = v.key === 'keeper' && missing.length > 0;
+    /* Not hidden, and not silently inert. A control that is there and does
+       nothing is the same lie as the pinch-test cards were: it says what
+       it needs and comes back the moment it has it. */
+    const sub = blocked ? `needs ${listWords(missing)}` : v.sub;
+    const b = el('button', 'verdict-btn' + (editing.verdict === v.key ? ' on' : '') + (blocked ? ' is-blocked' : ''),
+      `<span class="verdict-label">${v.label}</span><span class="verdict-sub">${escapeHTML(sub)}</span>`);
     b.type = 'button';
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', editing.verdict === v.key ? 'true' : 'false');
+    if (blocked) b.setAttribute('aria-disabled', 'true');
     b.addEventListener('click', () => {
+      if (blocked) {
+        haptic();
+        toast(`A recipe needs ${listWords(missing)} — fill ${missing.length === 1 ? 'it' : 'them'} in and this comes back`);
+        return;
+      }
       // tapping the chosen one again clears it: a verdict you did not give
       // is not "off"
       editing.verdict = editing.verdict === v.key ? null : v.key;
@@ -2624,6 +2814,12 @@ function buildVerdict(c) {
     });
     wrap.appendChild(b);
   });
+}
+
+// "a yield", "a yield and a time", "a dose, a yield and a time"
+function listWords(xs) {
+  if (xs.length <= 1) return xs[0] || '';
+  return xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
 }
 
 /* The drawer holds what your machine can change, and nothing else.
@@ -2761,6 +2957,21 @@ function saveShot() {
   }
   const wasNew = editingIsNew;
   if (wasNew) c.shots.push(editing);
+  /* One recipe to a coffee.
+
+     "The one — this is the recipe" is singular in its own label, and
+     marking a second shot used to leave the first one flagged too. Two
+     testers independently ended a session looking at a board with three
+     cards each headed THE KEEPER while the recipe at the top showed one
+     set of numbers — three contradictory answers to the question the
+     board exists to answer. It survived a reload, because it was in the
+     data rather than the render.
+
+     Demoted to "drinkable" rather than cleared: a shot you once called
+     the recipe was, at minimum, drinkable. */
+  if (editing.verdict === 'keeper') {
+    c.shots.forEach(sh => { if (sh !== editing && sh.verdict === 'keeper') sh.verdict = 'ok'; });
+  }
   save();
   closeModal('#shot-modal');
   renderBoard();
@@ -2936,6 +3147,21 @@ function openEdit(c, opts) {
     chipRow(body.querySelector('#e-altitude'), ALTITUDES, c.altitude,
       k => { c.altitude = k; applyStart(); renderExtras(); renderRoast(); });
   };
+  /* The roast date has to reach the model while the sheet is open.
+
+     c.roastDate was written only by commit(), which runs on Save — so the
+     "A PLACE TO START" panel on the add-a-coffee sheet never knew the bag
+     was seven weeks old, while the identical panel on the edit sheet,
+     opened later on the same coffee, carried three extra sentences about
+     it. Same coffee, same data, two different texts, and the one a new
+     bag is entered on was the wrong one. */
+  const dateBox = body.querySelector('#e-roast');
+  if (dateBox) dateBox.addEventListener('change', () => {
+    c.roastDate = dateBox.value;
+    applyStart();
+    renderRoast();
+  });
+
   const decafBox = body.querySelector('#e-decaf');
   decafBox.checked = Boolean(c.decaf);
   decafBox.addEventListener('change', () => { c.decaf = decafBox.checked; applyStart(); renderRoast(); });

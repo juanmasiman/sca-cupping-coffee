@@ -287,9 +287,24 @@ function makeGrind(env) {
          true on a stepless dial is that the move wants to be small and
          findable again — you move it until you can see you moved it, and
          you can get back. On a clicked grinder the click IS the answer. */
+      /* The opening move has to be big enough to measure, on every grinder.
+
+         "One click, the smallest your grinder makes" was written with a
+         coarse stepped grinder in mind, where one click is a real move. On
+         a 1Zpresso a click is worth about half a second — under the
+         shot-to-shot noise — so a tester who followed it literally made
+         three null moves in a row while the card underneath promised a
+         number "once the clock moves several seconds with it". The
+         instruction and the condition were asking for opposite things: it
+         prescribed a move too small to produce the measurement it wanted.
+
+         The method's own answer is a decisive move, so that is what it
+         asks for. It does not name a distance, because naming one is
+         exactly the guess this file exists to remove — but it says what
+         the move has to achieve, which is a thing the reader can judge. */
       return {
         move: env.stepped()
-          ? ` — one click, the smallest your grinder makes`
+          ? ` — a few clicks, enough to show in the clock; one is usually too small to measure`
           : ` — far enough to show in the clock, and note where the dial is now so you can get back`,
         /* Cut from sixty words to thirty-five, and the condition made
            honest: it used to promise a number "once two brews differ only
@@ -321,10 +336,17 @@ function makeGrind(env) {
     const why = [` Your grinder has been worth about ${m.secPerStep.toFixed(1)}s a ${unit} over ${m.n} grind ${m.n === 1 ? 'change' : 'changes'}${
       m.mixed ? ', though it has not been consistent about it' : ''}.`];
     if (m.halve) {
-      why.push(` That is deliberately half the distance: grind stops behaving in a straight line more than a step or two out, so expect around ${land === null ? 'a partial move' : clock(land)}${
+      why.push(` That is deliberately half the distance: grind stops behaving in a straight line far from where you are, so expect around ${land === null ? 'a partial move' : clock(land)}${
         outside ? ' — still outside the window, but close enough that the next move is measured from nearby' : ''}, and the board re-measures from there.`);
     } else if (land !== null) {
-      why.push(` That should land near ${clock(land)}.`);
+      /* A predicted landing outside the window it is aiming at is worth a
+         word. The board told a tester to go coarser and predicted 24s with
+         "AIMING AT 25–32s" printed directly underneath — a move it expected
+         to miss, presented as the move. Where the grinder cannot get there
+         in one honest step, that is information, not an error. */
+      why.push(outside
+        ? ` That should land near ${clock(land)} — outside the ${clock(lo)}–${clock(hi)} window, which is as close as one grind move gets from here; the rest comes off the yield.`
+        : ` That should land near ${clock(land)}.`);
     }
     return {
       // No direction word: the instruction it attaches to already opens

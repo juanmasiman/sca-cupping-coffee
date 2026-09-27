@@ -1002,6 +1002,12 @@ select.field-input {
 }
 .target-adopt:active { background: var(--chrome-soft); }
 
+/* A verdict the shot is not yet eligible for. Legible, not greyed into
+   invisibility — it has something to tell you, and it says it in its own
+   sub-line rather than waiting to be tapped. */
+.verdict-btn.is-blocked { opacity: 0.5; }
+.verdict-btn.is-blocked .verdict-sub { font-style: italic; }
+
 /* The action a tip carries. Outlined rather than filled: the card's
    instruction is the thing to do, and this is the shortcut to the screen
    that helps with it — a second primary button would compete with the
