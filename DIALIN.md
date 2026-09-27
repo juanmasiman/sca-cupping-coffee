@@ -459,18 +459,18 @@ instrument once the clock is roughly right.
 |---|---|---|
 | Kit decides legal advice | Asks temperature / pressure / grind-dial capability, suppresses advice naming absent variables | **built** |
 | Machine list prefills capability | 25 machines, 17 grinders, all answers editable | **built** |
-| Portafilter type decides the channelling question | — | **to build** |
+| Portafilter type decides the channelling question | Asked in the kit; the run options follow from it | **built** |
 | Dose to basket, ±1g | `basketFault` | **built** |
 | Underdosing is mess, not a fault | A note that says the shot is fine; no longer outranks the grinder | **built** |
 | Lighter roast wants a lower dose | `doseStart` — offset from the basket's rating by roast, never above it | **built** |
 | Half-gram nudge instead of a purge | `doseNudge` — offered when close to the window, and only with headroom under the basket | **built** |
 | A shot can hit the numbers and still channel | `runFault` and `harshFault` ask rather than infer | **built** |
-| Channelling looks different on a spouted portafilter | — | **to build** |
+| Channelling looks different on a spouted portafilter | Bottomless offers "sprayed"; spouted offers "gushed near the end", with its own diagnosis | **built** |
 | Ratio 2–4g at a time, with a ceiling | Both in the yield advice | **built** |
-| Ratio bands that name the drink | — | **to build** |
+| Ratio bands that name the drink | `ratioBand` — the readout says ristretto or lungo when the shot leaves the espresso band, and stays quiet inside it | **built** |
 | Grind for big moves, dose/yield for small | The nudge offers the alternative; the rule is not stated outright | **partial** |
 | Purge 5–10g | `stuckNote` | **built** |
-| Purge cost depends on grinder retention | Kit does not ask whether the grinder retains | **to build** |
+| Purge cost depends on grinder retention | Asked in the kit and prefilled by the grinder list; the purge advice and the half-gram pitch both change on a single-doser | **built** |
 | Round to the finer step on a coarse stepped grinder | `grindMove` | **built** |
 | One flow variable at a time | `intentCheck` catches intent-vs-actual, not grind-and-dose-together | **partial** |
 | Time is an output, not a target | In-window shots get "the clock is right, now taste it" | **built** |
@@ -480,7 +480,7 @@ instrument once the clock is roughly right.
 | Temperature after ratio when in band | `suggest()` | **built** |
 | Temperature set outside the roast's band | `tempFault` — caught on the first shot, corrects the whole way | **built** |
 | Roast age | Appended to whichever move wins | **built** |
-| A light roast will taste acidic, and that is the coffee | — | **to build** |
+| A light roast will taste acidic, and that is the coffee | `roastNote` — on a sour light roast with the clock already right | **built** |
 
 ## Open questions
 

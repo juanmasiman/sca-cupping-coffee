@@ -151,23 +151,23 @@ const MACHINES = [
 ];
 
 const GRINDERS = [
-  { name: 'Niche Zero',                steps: 'stepless' },
-  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless' },
-  { name: 'DF54',                      steps: 'stepless' },
-  { name: 'Turin DF83',                steps: 'stepless' },
-  { name: 'Eureka Mignon',             steps: 'stepless' },
-  { name: 'Mazzer Mini',               steps: 'stepless' },
-  { name: 'Option-O Lagom P64',        steps: 'stepless' },
-  { name: 'Weber Key / EG-1',          steps: 'stepless' },
-  { name: 'Fellow Ode Gen 2',          steps: 'stepped' },
-  { name: 'Baratza Encore / Encore ESP', steps: 'stepped' },
-  { name: 'Baratza Sette 270',         steps: 'stepped' },
-  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped' },
-  { name: 'Breville/Sage built-in grinder',  steps: 'stepped' },
-  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped' },
-  { name: 'Comandante C40',            steps: 'stepped' },
-  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped' },
-  { name: 'Kingrinder (K4, K6)',       steps: 'stepped' },
+  { name: 'Niche Zero',                steps: 'stepless', retains: false },
+  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless', retains: false },
+  { name: 'DF54',                      steps: 'stepless', retains: false },
+  { name: 'Turin DF83',                steps: 'stepless', retains: false },
+  { name: 'Eureka Mignon',             steps: 'stepless', retains: true },
+  { name: 'Mazzer Mini',               steps: 'stepless', retains: true },
+  { name: 'Option-O Lagom P64',        steps: 'stepless', retains: false },
+  { name: 'Weber Key / EG-1',          steps: 'stepless', retains: false },
+  { name: 'Fellow Ode Gen 2',          steps: 'stepped',  retains: false },
+  { name: 'Baratza Encore / Encore ESP', steps: 'stepped', retains: true },
+  { name: 'Baratza Sette 270',         steps: 'stepped',  retains: false },
+  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped', retains: true },
+  { name: 'Breville/Sage built-in grinder',  steps: 'stepped', retains: true },
+  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped',  retains: false },
+  { name: 'Comandante C40',            steps: 'stepped',  retains: false },
+  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped',  retains: false },
+  { name: 'Kingrinder (K4, K6)',       steps: 'stepped',  retains: false },
 ];
 
 const machineEntry = name => MACHINES.find(m => m.name === name) || null;
@@ -182,6 +182,15 @@ function defaultKit() {
     temp: 'fixed',       // 'fixed' — one temperature | 'set' — you choose it
     pressure: 'fixed',   // 'fixed' | 'gauge' — you can see it | 'profile' — you can change it
     steps: 'stepless',   // 'stepped' — clicks | 'stepless' — a number on a dial
+    /* Whether the grinder holds grounds between settings. The whole "use
+       grind for the big moves and dose or yield for the small ones" rule
+       exists because a grind change costs a purge; on a single-doser it
+       costs nothing and the rule relaxes. */
+    retains: true,       // true — needs a purge | false — single dose
+    /* Which portafilter, because it decides whether channelling is
+       visible at all and what it looks like. Sprays are a bottomless
+       observation; with spouts the tell is a late surge in flow. */
+    portafilter: 'spouted',  // 'spouted' | 'bottomless'
     basketDose: 18,
     // When the dose was last checked against the basket by volume. The
     // weight is only half the answer — see openDoseCheck.
@@ -200,6 +209,9 @@ const seesPressure = () => kit().pressure !== 'fixed';
 // dial. Neither number means anything to anyone else, which is why the app
 // only ever suggests a direction.
 const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
+// A grinder that holds grounds makes every grind change cost a purge.
+const retains = () => kit().retains !== false;
+const bottomless = () => kit().portafilter === 'bottomless';
 
 /* ---------- the model ---------- */
 
@@ -416,15 +428,33 @@ function placeOf(shot, target) {
 
    The last three are all the same fault wearing different clothes. */
 
+/* The options depend on which portafilter is on the machine, because the
+   two show channelling completely differently and the old list only
+   described one of them.
+
+   Through a bottomless you watch the bed: the flow goes uneven across
+   the basket, and it jets or splits. With spouts you cannot see the bed
+   at all — what reaches you is a sudden surge in flow late in the shot,
+   coffee gushing from the spouts in the last third or the last half.
+   Asking a spouted user whether it sprayed is asking about something
+   they physically cannot observe, which is how the most diagnostic
+   question in the app became unanswerable for most of its users. */
 const RUNS = [
-  { key: 'even',   label: 'Ran even',      sub: 'steady and dark' },
-  { key: 'spray',  label: 'Sprayed',       sub: 'jets or a split stream' },
-  { key: 'blonde', label: 'Blonded early', sub: 'pale well before the end' },
-  { key: 'stall',  label: 'Dripped, then rushed', sub: 'it hesitated' },
+  { key: 'even',   label: 'Ran even',      sub: 'steady and dark', both: true },
+  { key: 'spray',  label: 'Sprayed',       sub: 'jets, or the stream split', naked: true },
+  { key: 'surge',  label: 'Gushed near the end', sub: 'the flow jumped in the last third', spouted: true },
+  { key: 'blonde', label: 'Blonded early', sub: 'pale well before the end', both: true },
+  { key: 'stall',  label: 'Dripped, then rushed', sub: 'it hesitated', both: true },
 ];
 
+// What to show, given the portafilter. Every key stays in RUNS so a shot
+// logged on one portafilter still reads correctly after a kit change.
+function runOptions() {
+  return RUNS.filter(r => r.both || (bottomless() ? r.naked : r.spouted));
+}
+
 const runEntry = key => RUNS.find(r => r.key === key) || null;
-const channelled = shot => shot && (shot.run === 'spray' || shot.run === 'stall' || shot.run === 'blonde');
+const channelled = shot => shot && ['spray', 'surge', 'stall', 'blonde'].includes(shot.run);
 
 /* Sour and bitter in the same sip.
 
@@ -458,6 +488,10 @@ function runFault(shot, target) {
 
   const common = ' Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move, and check nothing is caked on the shower screen. One of those usually does it.';
 
+  if (shot.run === 'surge') {
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+      why: `Flow that jumps in the last third of the shot is the tell you get through spouts: the bed has given way somewhere and the water is going round it rather than through it. Everything else on this shot is a reading of that — the clock ran on a puck that stopped resisting partway, and the cup will be sour and harsh at once and thinner than its strength suggests. Grinding finer tightens the bed and makes the crack worse, so leave the grinder where it is and pull another.${common}` };
+  }
   if (shot.run === 'spray') {
     return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
       why: `It sprayed, which means water found a crack and went round the bed rather than through it. Everything else on this shot is a reading of that: the clock is quick because part of the puck offered no resistance, and the cup is sour and harsh at once because one part over-extracted while the rest hardly brewed. Grinding finer tightens the bed and makes the crack worse, so leave the grinder exactly where it is and pull another.${common}` };
@@ -717,9 +751,9 @@ function doseNudge(shot, target) {
   if (place.time === 'fast') {
     // More coffee, more resistance — but only if the basket has room.
     if (ceiling !== null && dose + 0.5 > ceiling + 0.1) return '';
-    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''} — and it costs nothing, where a grind change costs a purge.`;
+    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''}${retains() ? ' — and it costs nothing, where a grind change costs a purge' : ', which is one way to do it — though your grinder holds almost nothing back, so moving the grind costs you no coffee either'}.`;
   }
-  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well. It costs nothing, where a grind change costs a purge.`;
+  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well.${retains() ? ' It costs nothing, where a grind change costs a purge.' : ' Your grinder holds almost nothing back, though, so moving the grind is just as cheap here.'}`;
 }
 
 // Shorthands, so each advice site reads as one sentence with a hole in it.
@@ -1105,7 +1139,7 @@ function stuckNote(c) {
   if (moved > 2.5) return null;
   const dist = Math.abs(Number(last[last.length - 1].grind) - Number(last[0].grind));
   return { sure: false, move: 'Three moves and the clock has not answered.',
-    why: `The grinder has gone the same way three times, a total of ${dist % 1 === 0 ? dist : dist.toFixed(1)} on the dial, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, the burrs are probably still holding grounds from the last setting — purge five to ten grams and throw them away, then pull again — and after that, check the dose against the basket and how long ago the bag was roasted.` };
+    why: `The grinder has gone the same way three times, a total of ${dist % 1 === 0 ? dist : dist.toFixed(1)} on the dial, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, ${retains() ? 'the burrs are probably still holding grounds from the last setting — purge five to ten grams and throw them away, then pull again' : 'your grinder holds almost nothing between settings, so it is not stale grounds — which makes it more likely the move itself was too small, or that the burrs are new and have not settled in'} — and after that, check the dose against the basket and how long ago the bag was roasted.` };
 }
 
 /* What the calendar is doing to the shot.
@@ -1144,10 +1178,10 @@ function ageNote(c) {
 function nextMove(shot, target, c) {
   const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
     || tempFault(shot, c) || (c ? stuckNote(c) : null);
-  if (first) return [withAge(first, c)];
+  if (first) return [withAge(first, c, shot, target)];
 
   const pair = wallPair(shot, target);
-  if (pair) return [withAge(pair, c)];
+  if (pair) return [withAge(pair, c, shot, target)];
   /* One wall named, and it is the body one.
 
      The body note is then the whole answer. Printing "Taste says nothing
@@ -1158,19 +1192,42 @@ function nextMove(shot, target, c) {
   // Body named, taste not, and a clock that is saying something: the
   // clock stands in for the taste axis and the pair resolves properly.
   const cp = clockPair(shot, target);
-  if (cp) return [withAge(cp, c)];
+  if (cp) return [withAge(cp, c, shot, target)];
   const b = bodyNote(shot);
-  if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c)];
+  if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c, shot, target)];
   const t = suggest(shot, target, c);
-  if (t) return [withAge(t, c)];
+  if (t) return [withAge(t, c, shot, target)];
   // No taste on the sheet: the clock still knows which way the grinder goes.
   const clock = clockAdvice(shot, target);
-  return clock ? [withAge(clock, c)] : [];
+  return clock ? [withAge(clock, c, shot, target)] : [];
 }
 
-// The roast-age sentence, on the end of whatever the move turned out to be.
-function withAge(tip, c) {
-  const note = c ? ageNote(c) : '';
+/* What a light roast is always going to taste like, when the complaint
+   is that it tastes like that.
+
+   The dial-in episode that finishes on a light single origin ends with
+   the shot on the acidic end and says so plainly: that is the raw
+   material, and the expectation of how much acidity a balanced shot will
+   carry has to be realistic for the coffee. Without this the app happily
+   sends somebody finer, longer and hotter for ever, chasing an acidity
+   that was never going to leave.
+
+   Only on the lighter roasts, only when the complaint is sourness, and
+   only once the clock is where it should be — while the shot is still
+   running fast there is a real fault to fix first. */
+function roastNote(c, shot, target) {
+  if (!c || !shot) return '';
+  const e = roastEntry(c.roast);
+  if (!e || e.dose > -1) return '';
+  if (tasteSide(shot.taste) !== 'sour') return '';
+  if (placeOf(shot, target).time !== 'in') return '';
+  return ` And a word about the coffee: a ${e.label.toLowerCase()} roast lands on the acidic end even when it is dialled in well. Some of what you are tasting is the bean rather than the extraction, so if the next change gets it clean and sweet but still bright, that is the shot — not a step on the way to somewhere else.`;
+}
+
+// The qualifiers that ride on the end of whatever the move turned out to
+// be. Neither changes what to do; both change how much to read into it.
+function withAge(tip, c, shot, target) {
+  const note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '');
   return note ? { ...tip, why: tip.why + note } : tip;
 }
 
@@ -1197,6 +1254,19 @@ function bindTipActions(wrap) {
 
 const fmt1 = v => (v === null ? '—' : v.toFixed(1));
 const fmt2 = v => (v === null ? '—' : v.toFixed(2));
+
+/* What the ratio makes it. The bands are roughly agreed rather than
+   defined — ristretto up to about 1:1.5, espresso through about 1:2.5,
+   lungo beyond — but they are the frame the yield ceiling makes sense
+   inside: past 2 to 4 grams of adjustment you are not dialling the shot
+   any more, you are ordering a different drink. Null inside the espresso
+   band, because naming that one on every card would be noise. */
+function ratioBand(r) {
+  if (r === null || !isFinite(r)) return null;
+  if (r < 1.5) return 'ristretto';
+  if (r > 2.5) return 'lungo';
+  return null;
+}
 
 function fmtRatio(r) {
   return r === null ? '—' : `1:${r.toFixed(2)}`;
@@ -2013,7 +2083,7 @@ function buildRun(c) {
   const wrap = $('#run');
   if (!wrap) return;
   wrap.innerHTML = '';
-  RUNS.forEach(r => {
+  runOptions().forEach(r => {
     const on = editing.run === r.key;
     const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(r.label));
     b.type = 'button';
@@ -2146,7 +2216,7 @@ function renderReadout(c) {
     <div class="readout-row">
       <div class="readout-cell">
         <span class="readout-value">${fmtRatio(r)}</span>
-        <span class="readout-label">ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
+        <span class="readout-label">${ratioBand(r) ? `${ratioBand(r)} · ` : ''}ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
       </div>
       <div class="readout-cell">
         <span class="readout-value">${fmt2(flow)}</span>
@@ -2484,6 +2554,8 @@ function openKit() {
     <label class="field hidden" id="k-grinder-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. DF64"></label>
     <div id="k-steps"></div>
+    <div id="k-retains"></div>
+    <div id="k-porta"></div>
     <div class="kit-basket">
       <label class="field"><span class="field-label">Basket</span>
         <input class="field-input" id="k-basket" type="text" maxlength="60" autocomplete="off" placeholder="e.g. IMS Competizione"></label>
@@ -2522,7 +2594,11 @@ function openKit() {
   gPick.addEventListener('change', () => {
     syncOther();
     const e = grinderEntry(gPick.value);
-    if (e) { k.steps = e.steps; k.grinder = e.name; redraw(); toast('Filled in from your grinder'); }
+    if (e) {
+      k.steps = e.steps; k.grinder = e.name;
+      if (typeof e.retains === 'boolean') k.retains = e.retains;
+      redraw(); toast('Filled in from your grinder');
+    }
     else if (gPick.value === '__other') body.querySelector('#k-grinder').focus();
   });
   body.querySelector('#k-dose').value = k.basketDose === null ? '' : k.basketDose;
@@ -2541,6 +2617,20 @@ function openKit() {
       'A gauge you can read is not the same as a variable you can change.',
       [['fixed', 'Neither'], ['gauge', 'I can see it'], ['profile', 'I can change it']], k.pressure,
       key => { k.pressure = key; redraw(); }));
+
+    const rt = body.querySelector('#k-retains');
+    rt.innerHTML = '';
+    rt.appendChild(segRow('Does it hold on to grounds?',
+      'A grinder that keeps some of the last setting has to be purged before a new one means anything, which is why this app sends you to dose and yield for small changes. A single-doser makes grind cheap to move.',
+      [['yes', 'It needs a purge'], ['no', 'Single dose, almost none']], k.retains === false ? 'no' : 'yes',
+      key => { k.retains = key === 'yes'; redraw(); }));
+
+    const pf = body.querySelector('#k-porta');
+    pf.innerHTML = '';
+    pf.appendChild(segRow('Portafilter',
+      'This decides what channelling looks like. Through a bottomless you see the bed go uneven and spray; with spouts you cannot see it at all, and the tell is a sudden surge of flow late in the shot.',
+      [['spouted', 'Spouted'], ['bottomless', 'Bottomless']], k.portafilter === 'bottomless' ? 'bottomless' : 'spouted',
+      key => { k.portafilter = key; redraw(); }));
 
     const st = body.querySelector('#k-steps');
     st.innerHTML = '';
@@ -2740,6 +2830,8 @@ function openHelp() {
     <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
     <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
     <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>
+    <p><strong>Ristretto, espresso, lungo</strong> are ratios rather than sizes. Up to about 1:1.5 is a ristretto, roughly 1:1.5 to 1:2.5 is espresso, and beyond that you are into lungo territory. The board names it when a shot leaves the middle band, because that is the difference between dialling a shot in and quietly ordering a different drink.</p>
+    <p><strong>Your portafilter decides what you can see.</strong> Through a bottomless you watch the bed itself, and channelling shows as uneven flow and spray. With spouts the bed is hidden, and the tell is a sudden surge of flow in the last third. The sheet asks whichever question you can actually answer.</p>
     <p><strong>How it ran</strong> is the question that outranks the rest. Most bad espresso at home is water finding a crack and going round the puck instead of through it, and when that happens the clock and the cup are both readings of an accident — so the app stops talking about the grinder until the shot runs even. Grinding finer on a puck that channels tightens the bed and makes it worse.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
