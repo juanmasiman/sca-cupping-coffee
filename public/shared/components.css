@@ -487,6 +487,25 @@ input { font: inherit; color: inherit; }
    testers hit it independently. The bar now holds one action; the
    destructive one sits at the foot of the sheet it belongs to, right
    aligned, quiet, and nowhere near a thumb going for Save. */
+/* The notes field, which is the only one on the sheet nobody checks.
+
+   Two rows rather than one line: a preference needs a clause, not a word,
+   and a single-line input tells you to be brief at the exact moment being
+   brief costs you the reason. */
+.notes-block { display: flex; flex-direction: column; gap: var(--space-2); }
+.field-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.notes-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
 /* A label with its own help, on one line. The help is quiet — it is for
    the person who needs it and invisible to the person who does not, which
    is the whole scaffolding rule. */
@@ -691,7 +710,7 @@ html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
 .readout-window.in { color: var(--text-dim); }
 
 /* What to try next. Two shapes, because the app gives two kinds of
-   answer: an instruction when grind is the lever, and a list when it is
+   answer: an instruction when grind is the variable, and a list when it is
    not. The difference is carried by the words and by the rule down the
    side, never by colour alone. */
 .tip {

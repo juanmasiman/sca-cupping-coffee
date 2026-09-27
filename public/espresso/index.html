@@ -170,6 +170,23 @@
            can change it, nothing below it can. -->
       <div id="live-advice"></div>
 
+      <!-- Always asked, never in a drawer.
+
+           Notes lived inside "Basket, notes and the rest", which meant the
+           one field that holds the reason for a decision was two taps
+           behind the ones that hold its arithmetic. A dial-in ends on a
+           preference — this one over that one, and why — and a preference
+           nobody wrote down is gone by the next bag. It is also the only
+           field on the sheet the app will never second-guess: the numbers
+           are checked against each other and against the clock, and this
+           is the part where the board has nothing to say. -->
+      <div class="notes-block">
+        <span class="field-label" id="notes-label">In your words</span>
+        <span class="field-sub" id="notes-sub"></span>
+        <textarea class="field-input notes-input" id="f-notes" rows="2" maxlength="240"
+                  autocomplete="off" aria-labelledby="notes-label"></textarea>
+      </div>
+
       <div class="verdict-block">
         <span class="field-label">Keep it?</span>
         <div class="verdict" id="verdict" role="radiogroup" aria-label="Keep it?"></div>
@@ -180,7 +197,7 @@
            with one brew temperature is an invitation to write down a number
            you did not set. The summary is rewritten from the kit. -->
       <details class="more" id="more">
-        <summary>Basket, notes and the rest</summary>
+        <summary>Basket</summary>
         <div class="more-body" id="more-body"></div>
       </details>
     </div>

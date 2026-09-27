@@ -1879,8 +1879,8 @@ function ageNote(c) {
        compare rather than to correct.
 
    The experiments are walked in order of what they cost and how much they
-   teach: yield first (free, forgiving, the biggest lever on extraction),
-   then dose, then temperature. Each is offered until the log shows it has
+   teach: yield first (free, forgiving, and the variable that moves
+   extraction most reliably), then dose, then temperature. Each is offered until the log shows it has
    been tried, so the board works through the neighbourhood instead of
    repeating itself, and says so when the neighbourhood is explored.
 
@@ -2994,7 +2994,12 @@ function buildShotSheet(c) {
   buildHarsh(c);
   buildRun(c);
   buildVerdict(c);
+  buildNotes(c);
   buildMore(c);
+  /* Notes lives on the sheet now rather than in the drawer, so it binds
+     here alongside the rest. */
+  const notes = $('#f-notes');
+  if (notes) notes.addEventListener('input', () => { editing.notes = notes.value; });
   renderReadout(c);
 }
 
@@ -3189,6 +3194,8 @@ function buildVerdict(c) {
       editing.verdict = editing.verdict === v.key ? null : v.key;
       haptic();
       buildVerdict(c);
+      // Marking this one the recipe changes what the notes field is asking.
+      buildNotes(c);
       renderReadout(c);
     });
     wrap.appendChild(b);
@@ -3214,9 +3221,11 @@ function buildMore(c) {
     const bits = [];
     if (canSetTemp()) bits.push('temperature');
     if (canSetPressure()) bits.push('pressure');
-    summary.textContent = bits.length
-      ? `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())} and the rest`
-      : 'Basket, notes and the rest';
+    // Notes left this drawer for the sheet itself, so the summary stops
+    // advertising them.
+    bits.push('basket');
+    summary.textContent = `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())}${
+      prefs.tds ? ' and the reading' : ''}`;
   }
   body.innerHTML = `
     <div class="more-grid">
@@ -3241,8 +3250,6 @@ function buildMore(c) {
          off the end of the box. -->
     <label class="field"><span class="field-label">Basket</span>
       <input class="field-input" id="f-basket" type="text" autocomplete="off" placeholder="${escapeHTML(kit().basket || 'e.g. 18g IMS')}"></label>
-    <label class="field"><span class="field-label">Notes</span>
-      <input class="field-input" id="f-notes" type="text" maxlength="120" autocomplete="off" placeholder="what you noticed"></label>
   `;
   const bind = (sel, key, asNumber) => {
     const input = body.querySelector(sel);
@@ -3263,12 +3270,43 @@ function buildMore(c) {
   bind('#f-press', 'press', false);
   bind('#f-basket', 'basket', false);
   bind('#f-tds', 'tds', true);
-  bind('#f-notes', 'notes', false);
 
   // Open it and it stays open — whatever is in here, somebody who filled it
   // in on the last shot is filling it in on this one.
   const more = $('#more');
-  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.notes || editing.tds);
+  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.tds);
+}
+
+/* The question the notes field is asking, which is not always the same one.
+
+   A dial-in ends on a preference, and a preference with no reason attached
+   is worth very little next week and nothing on the next bag. Once there
+   is a recipe the board has nothing left to compute — both shots are in
+   the window and both are sweet — so the only thing that decides is what
+   the person drinking them thought, and the sheet should ask for it in
+   those words rather than offering a grey box captioned "what you
+   noticed".
+
+   Before there is a recipe the question is descriptive: what did it taste
+   of. After there is one it is comparative: which, and why. */
+function buildNotes(c) {
+  const box = $('#f-notes');
+  const sub = $('#notes-sub');
+  if (!box) return;
+  const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+  const comparing = Boolean(keeper && keeper !== editing);
+  if (sub) {
+    sub.textContent = comparing
+      ? 'Nothing else on this sheet can separate two good shots. This can.'
+      : 'What it tasted of, and anything the numbers do not hold.';
+  }
+  box.placeholder = comparing
+    ? `Better or worse than the recipe, and what made the difference?`
+    : 'e.g. jasmine, but it falls away fast';
+  // Never clobber what is being typed: this is rebuilt when the verdict
+  // moves, which can happen with a caret sitting in the box.
+  const want = editing.notes || '';
+  if (box.value !== want) box.value = want;
 }
 
 /* Everything read out of the three numbers, and nothing typed.
@@ -4288,13 +4326,13 @@ function openHelp() {
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
     <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many ${grindUnit() === 'clicks' ? 'clicks' : 'points on your dial'} rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
     <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
-    <p><strong>Which lever, and which way.</strong> There are two that move extraction and they are not interchangeable. <strong>Grind</strong> changes how hard it is for water to get through the bed, so it moves the clock and the extraction together — it is the big lever and it overcorrects easily. <strong>Yield</strong> changes how much water you push through, so it moves extraction and strength without touching the grinder — it is the fine lever and it is far more forgiving. The order that follows is: get into the ballpark with grind, then finish with yield. Reaching for the grinder to fix a shot that is already in the window is how a dial-in goes round in circles.</p>
+    <p><strong>Which variable, and which way.</strong> Two of them move extraction and they are not interchangeable. <strong>Grind</strong> changes how hard it is for water to get through the bed, so it moves the clock and the extraction together — it is the coarse variable and it overcorrects easily. <strong>Yield</strong> changes how much water you push through, so it moves extraction and strength without touching the grinder — it is the fine variable and it is far more forgiving. The order that follows is: get into the ballpark with grind, then finish with yield. Reaching for the grinder to fix a shot that is already in the window is how a dial-in goes round in circles.</p>
     <p><strong>What the two answers together tell you.</strong> The clock says where the flow is and the cup says where the extraction is, and it is the pair that names the move — which is why this app asks for both and will not guess one from the other.</p>
     <p><strong>Short and sour</strong> — grind finer, same yield. Under-extracted because the water was through too fast, and grind is the only variable that fixes the clock and the cup at once.<br>
     <strong>Long and bitter</strong> — grind coarser, same yield. Over-extracted for the opposite reason, and again one change moves both.<br>
     <strong>In the window and sour</strong> — leave the grinder alone and take the yield out 2 to 4g on the same dose. The clock is already right, so there is nothing for grind to fix; more water through the same puck takes more with it.<br>
     <strong>In the window and bitter</strong> — leave the grinder alone and stop it 2 to 4g shorter. The harsh end of an extraction comes out last, so ending sooner leaves it in the puck.<br>
-    <strong>Short and bitter</strong>, or <strong>long and sour</strong> — neither lever. Going coarser on a shot that is already fast makes it faster; going finer on one that is already slow makes it slower. These two corners are a channelled puck, a coffee far outside what the window assumed, or water that is too hot — and the board says which it thinks, rather than sending you to the grinder.</p>
+    <strong>Short and bitter</strong>, or <strong>long and sour</strong> — neither variable. Going coarser on a shot that is already fast makes it faster; going finer on one that is already slow makes it slower. These two corners are a channelled puck, a coffee far outside what the window assumed, or water that is too hot — and the board says which it thinks, rather than sending you to the grinder.</p>
     <p><strong>Past four grams you are changing the drink, not dialling it.</strong> Yield is forgiving but it is not free: more water is more dilution, and past about four grams either way you are making a longer or shorter drink rather than a better version of the one you have. The move at that point is the dose — half a gram at a time — because less coffee is less to extract and more coffee is more body.</p>
     <p><strong>Then it stops being arithmetic.</strong> Once a shot is in the window and tastes sweet, every number on the board has said what it can. A 24-second pull can be better than a 28-second one on the same coffee, at the same dose, and nothing here can tell you which — so the board changes its job: it stops correcting and starts suggesting one small experiment at a time, longer, shorter, heavier, cooler, and asks you to drink them side by side and keep the one you want tomorrow morning. The window gets you to a shot worth comparing. Your mouth does the rest.</p>
     <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>

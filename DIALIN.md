@@ -266,13 +266,13 @@ is not.
 
 ---
 
-### Which lever, and which way
+### Which variable, and which way
 
-The two levers are not interchangeable and the difference is the whole method.
+The two are not interchangeable and the difference is the whole method.
 **Grind** changes how hard the water's job is, so it moves the clock and the
-extraction together — the big lever, and it overcorrects easily. **Yield**
+extraction together — the coarse variable, and it overcorrects easily. **Yield**
 changes how much water goes through, so it moves extraction and strength
-without touching the clock — the fine lever, and far more forgiving. Hence the
+without touching the clock — the fine variable, and far more forgiving. Hence the
 order every source agrees on: ballpark with grind, finish with yield.
 
 The pair of answers names the move. This is why the app asks for the clock and
@@ -284,8 +284,8 @@ the cup separately and refuses to infer one from the other:
 | long | bitter | grind coarser, same yield — one change fixes both |
 | in window | sour | yield out 2–4g, same dose and grind |
 | in window | bitter | stop 2–4g shorter, same dose and grind |
-| short | bitter | neither lever — channel, heat, or the coffee |
-| long | sour | neither lever — channel, heat, or the coffee |
+| short | bitter | neither variable — channel, heat, or the coffee |
+| long | sour | neither variable — channel, heat, or the coffee |
 
 The last two corners are the ones a naive tool gets wrong: going coarser on a
 shot that is already fast makes it faster, and finer on one that is already slow
@@ -311,6 +311,15 @@ out of things to say and the mouth decides.
 
 **The window is a means; the cup is the end.** The app implied that for a long
 time and now states it.
+
+And the second phase does not end in a number, so the sheet has to hold the
+reason. Notes were in a drawer labelled "Basket, notes and the rest" — the one
+field that carries *why* one shot beat another, two taps behind the ones that
+carry its arithmetic. It is on the sheet now, always asked, and the question it
+asks depends on where the dial-in is: what it tasted of while there is still a
+window to find, and **"better or worse than the recipe, and what made the
+difference?"** once there is one. A preference nobody wrote down is gone by the
+next bag.
 
 ### Naming the middle
 
@@ -741,6 +750,7 @@ instrument once the clock is roughly right.
 | Yield advice in grams off the scale, not deltas to work out | "Take the yield out to 46g to about 49g" rather than "2 to 4g further" | **built** |
 | A dial-in has two phases and the board says which | `phaseOf` — "Finding the window" until a recipe exists, "Finding the better shot" after | **built, beyond the method** |
 | The recipe is a floor, not a ceiling | `nextExperiment` — one small move at a time (longer, shorter, heavier, cooler), each offered until the log shows it was tried | **built, beyond the method** |
+| The reason lives with the decision | Notes are on the sheet rather than in a drawer, always asked, and the question changes: descriptive before there is a recipe, comparative after — "better or worse than the recipe, and what made the difference?" | **built** |
 | Two good shots are a comparison, not a second find | With a recipe pinned, another sweet in-window shot is framed as "which one?" with both sets of numbers, not "mark it as the keeper" | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
 | How far to move the grinder | Measured from the log, in the user's own units, halved when large. One pair clear of twice the noise floor is enough, so it arrives on the shot the promise names; where the pairs exist but every move was too small to read, the card asks for a decisive one instead of repeating the promise | **built, beyond the method** |
