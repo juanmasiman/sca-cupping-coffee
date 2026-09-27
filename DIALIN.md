@@ -12,6 +12,12 @@ coffees and are where several of the practical rules below come from. Both are
 worked from transcripts directly rather than through summaries. Lance Hedrick's
 taste-first material is still second-hand except where noted.
 
+**Hedrick is now first-hand too.** His espresso dial-in walkthrough has been
+worked from a transcript, alongside a third source — a written dial-in
+walkthrough from Daddy Got Coffee. Where the three disagree, the disagreement is
+recorded rather than averaged: a number halfway between two people who think
+different things is a number nobody holds.
+
 **How confident to be, by claim.** Three tiers, and the document says which:
 
 - **Unmarked** — from the *Understanding Espresso* transcripts. Load-bearing.
@@ -248,6 +254,24 @@ should be read as a starting point.
 
 ---
 
+### The window belongs to the coffee, not to espresso
+
+25–30 seconds is a traditional-espresso window and it is wrong for a light roast.
+Hedrick pulls Nordic-style coffees at 16 to 22 seconds deliberately — coarse, low
+pressure, long ratio — and says he does not really go beyond 20 or 22 with them;
+his ultra-light geisha was 70g out in 20 seconds. Held to 25–30, every one of
+those shots reads as badly under-extracted, and the app would send him finer,
+which is the exact direction he argues against for those coffees.
+
+The starting window therefore widens and shifts earlier as the roast gets
+lighter. **These are not his numbers** — a default of 16–22 would impose one
+person's style on everybody, and he is the first to call it a modern style rather
+than the only one. They are wide enough that a fast light-roast shot stops being
+flagged as a fault, and the window remains a field on the coffee that anyone can
+move.
+
+---
+
 ## Step 4 — Grind: the big moves, and only the big moves
 
 Finer exposes more surface area, which is what makes extraction possible in the
@@ -274,6 +298,21 @@ every grind change costs a purge, and purged coffee is coffee you never drink.
 - **On a stepped grinder with coarse steps, take the finer of the two**, even if
   that means dropping the dose a little. A slightly-too-fine shot is a better
   place to be stuck than a slightly-too-coarse one.
+
+### Which side to approach from — and a tension worth keeping
+
+Hedrick starts **coarser than he thinks he needs** and comes finer, on the
+grounds that a coarse bed flows more evenly, so the shot teaches you more, and
+that coming down is quicker than climbing out of a choked puck. The app says this
+on the first-shot card.
+
+Hoffmann's rule points the other way in one specific situation: stuck between two
+settings on a coarsely-stepped grinder, take the **finer** of the two, even at
+the cost of dropping the dose. Those are not quite the same claim — one is about
+which side to begin the search from, the other about where to land when the dial
+will not give you the point in between — but they lean opposite ways and both are
+implemented. If they ever conflict in practice, the rounding rule is the one to
+drop, because it is the narrower case.
 
 ### One flow-related variable at a time
 
@@ -343,6 +382,27 @@ So there are two paths to a temperature change and they are different:
 
 **Neither path fires on one in-band sour cup.** Too much else varies between two
 shots of the same bag.
+
+### Up and down are not the same move
+
+The three sources agree about cooling and disagree about heating.
+
+**Cooler is uncontested.** Darker roasts, heavily processed coffees and old bags
+all want less heat than the dial probably has. Hedrick runs 90°C as a
+general-purpose setting and goes below it for all three of those; Daddy Got
+Coffee lands on 90–92 and says to err cool. Dropping a degree is how you take
+harshness out.
+
+**Hotter is contested, and the app should say so.** Hoffmann treats it as a
+genuine if small variable. Hedrick argues against reaching for it at all — that
+heat brings bitterness on faster than it brings the sweetness you wanted, and
+that **yield is the number one way to increase extraction**. Daddy Got Coffee
+agrees in direction, warning that maxing the temperature pulls out compounds you
+do not want.
+
+So the app leads with yield on a persistent sour shot, names temperature as the
+second thing to try, and states that it is disputed. It gives the instruction
+outright only for bitter.
 
 **And the band is a starting point, not a verdict.** One roaster's medium is not
 another's — he inspects the beans rather than trusting the label — so a coffee
@@ -554,6 +614,16 @@ James Hoffmann, *Understanding Espresso* and *How I Dial-In Espresso*:
 ### Written, by Hedrick
 
 - [Meticulous × Lance Hedrick espresso onboarding](https://meticuloushome.com/pages/meticulous-x-lance-hedrick-espresso-onboarding) — ratio over grind size on light roasts; lower temperature for a fine-ground dark roast; deeper baskets for dark roasts; fast flow for light roasts; taste over hitting the profile
+
+### Worked from a transcript
+
+- Hedrick — *Dialing in Espresso*, five coffees across the styles: a Nordic-style
+  washed Colombian, an ultra-light geisha, a heavily processed lot, a five-month-old
+  Kenyan, and a dark Italian blend. The source for the window question, the
+  temperature disagreement, the coarse-first approach, the pinch test, and
+  solubility-by-category.
+- *Daddy Got Coffee* — a written dial-in walkthrough. The source for the fixed
+  order of extraction, the salami shot, and solubility as a single model.
 
 ### Hedrick video, not yet worked from
 

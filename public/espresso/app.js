@@ -264,12 +264,29 @@ function defaultTarget() {
    and starts around 1:2–1:2.2 regardless. The mild slope kept here — a
    longer ratio for a lighter roast — follows Hedrick's "ratio over grind
    size" rather than Hoffmann, and is offered as a starting point only. */
+/* The window moves with the roast too, and it used to be 25–30s for
+   everything.
+
+   That default is traditional-espresso shaped, and for a light roast it
+   is actively misleading. Hedrick pulls Nordic-style coffees at 16 to 22
+   seconds on purpose — coarse, low pressure, long ratio — and says he
+   never really goes over 20 or 22 with them. An app holding every coffee
+   to 25–30 would call every one of those shots badly under-extracted and
+   send somebody finer, which is the one direction he argues against for
+   those coffees.
+
+   These are not his numbers: a window of 16–22 would impose one man's
+   style on everybody, and he is the first to say it is a modern style
+   rather than the only one. What they do is widen and shift earlier as
+   the roast gets lighter, so a fast light-roast shot stops being flagged
+   as a fault. The window is a field on the coffee and the person can
+   move it wherever they like; this only decides where it starts. */
 const ROASTS = [
-  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
 ];
 
 /* Where to start the dose, given the roast and the basket.
@@ -921,9 +938,27 @@ function suggest(shot, target, c) {
     ? ' Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead — which is also what a light roast wants, having less to extract.'
     : ' If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.';
 
+  /* Temperature is not symmetric, and the app used to treat it as if it
+     were — "a degree hotter" for sour, "a degree cooler" for bitter.
+
+     Cooler is agreed on by everyone: darker roasts, heavily processed
+     coffees and old coffees all want less heat, and dropping it is how
+     you take harshness out. Hotter is contested. Two of the three
+     sources argue against reaching for it — the view is that heat buys
+     bitterness more readily than it buys the extraction you wanted, and
+     that the extraction should come from yield instead. Hedrick puts it
+     bluntly: yield is the number one way to increase extraction.
+
+     So bitter and persistent gets the instruction; sour and persistent
+     gets the yield, with temperature named as the second thing to try
+     and the disagreement stated rather than hidden. */
+  if (canSetTemp() && persists && side === 'bitter') {
+    return { sure: false, move: 'Try it a degree cooler.',
+      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste bitter, which makes it a temperature question rather than a one-off. Cooler extracts less, and it is the reliable direction — darker roasts, heavily processed coffees and older bags all want less heat than the dial probably has. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
+  }
   if (canSetTemp() && persists) {
-    return { sure: false, move: `Try it a degree ${side === 'sour' ? 'hotter' : 'cooler'}.`,
-      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste ${side}, which is what makes it a temperature question rather than a one-off. Hotter extracts more, cooler extracts less. Move a whole degree — half a degree will not answer anything — and give it a couple of shots before you judge it, because plenty else varies between two shots of the same bag. ${yieldMove}${ceiling}` };
+    return { sure: false, move: 'More yield before more heat.',
+      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste sour, so it is worth doing something about rather than putting down to one cup. ${yieldMove}${ceiling} Your machine can go hotter and that will extract more, but it is the contested move: the argument against it is that heat brings bitterness on faster than it brings the sweetness you were after, and that yield is the more reliable way to get the extraction up. Try the yield first, and the temperature only if that runs out of room.` };
   }
   return { sure: false, move: 'Grind has done its job — move the yield.',
     why: `The shot is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach, so the next variable is how much you let into the cup. ${yieldMove}${ceiling}${
@@ -1640,7 +1675,7 @@ function renderNext(c) {
       <span class="next-label">Where to start</span>
       <div class="tip open">
         <span class="tip-move">${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
-        <span class="tip-why">Set the grinder wherever it is and pull one, then use the time to tell you which way to move it.${why} Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works. If it gushes out in ten seconds there is no point tasting it; fix the flow first.</span>
+        <span class="tip-why">Start on the coarse side of where you think it should be and come finer — a coarse bed lets water through more evenly, so you learn more from the shot, and coming down to the right setting is quicker than climbing back out of a choked one. Then use the time to tell you which way to move.${why} Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works. If it gushes out in ten seconds there is no point tasting it; fix the flow first.</span>
       </div>`;
     return;
   }
@@ -2441,14 +2476,17 @@ function openEdit(c, opts) {
     baseWrap.innerHTML = e
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.${
-             withTemp ? '' : ` Your machine holds one temperature, so the ratio is the part of this you can take.`}</p>
-           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${withTemp ? `${e.temp}° and ` : ''}1:${e.ratio}</button>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.${
+             e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
+             withTemp ? '' : ` Your machine holds one temperature, so the rest of this is the part you can take.`}</p>
+           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${withTemp ? `${e.temp}° and ` : ''}1:${e.ratio}, ${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</button>
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');
     if (apply) apply.addEventListener('click', () => {
       t.ratio = e.ratio;
+      t.timeLo = e.timeLo;
+      t.timeHi = e.timeHi;
       if (withTemp) t.temp = e.temp;
       commit();
       if (!adding) save();
@@ -2457,7 +2495,9 @@ function openEdit(c, opts) {
       // the conversation. It used to close the whole sheet, which is a
       // bigger act than the button admits to and left people unsure
       // whether the name they had just typed had gone in with it.
-      toast(withTemp ? `Aiming at 1:${e.ratio}, ${e.temp}°` : `Aiming at 1:${e.ratio}`);
+      toast(withTemp
+        ? `Aiming at 1:${e.ratio}, ${e.temp}°, ${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s`
+        : `Aiming at 1:${e.ratio}, ${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s`);
       buildTargetGrid();
       renderBoard();
     });
