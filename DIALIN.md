@@ -244,9 +244,9 @@ Kept together because each one can eat a whole bag while somebody turns a dial:
 | Method step | App behaviour | State |
 |---|---|---|
 | 0. Kit decides legal advice | Asks temp / pressure / grind-dial capability; suppresses advice naming absent levers | **built** |
-| 0. Machine list prefills capability | — | **to build** |
+| 0. Machine list prefills capability | 25 machines and 17 grinders fill in the answers above; every one stays editable and "Something else" is always there | **built** |
 | 1. Dose to basket by weight | `basketFault` — flags >1.5g off the basket's rating, outranks everything | **built** |
-| 1. Verify by volume (coin test) | — | **to build** |
+| 1. Verify by volume (coin test) | `openDoseCheck` — the coin test with three outcomes, each moving the dose a gram; offered from setup, from Settings with the date last done, and from a button on the advice itself | **built** |
 | 2. Puck prep gates everything | `runFault` — asks how the shot ran, and channelling outranks grind advice | **built** |
 | 3. Ratio from roast, set not chased | Roast table offers a starting ratio and temperature, never writes the target itself | **built** |
 | 3. Turbo / long-ratio light-roast style | — | **not built, deliberate** — see Open questions |
