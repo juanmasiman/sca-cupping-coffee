@@ -750,6 +750,7 @@ instrument once the clock is roughly right.
 | Yield advice in grams off the scale, not deltas to work out | "Take the yield out to 46g to about 49g" rather than "2 to 4g further" | **built** |
 | A dial-in has two phases and the board says which | `phaseOf` — "Finding the window" until a recipe exists, "Finding the better shot" after | **built, beyond the method** |
 | The recipe is a floor, not a ceiling | `nextExperiment` — one small move at a time (longer, shorter, heavier, cooler), each offered until the log shows it was tried | **built, beyond the method** |
+| One place owns how much there is to read | `splitWhy` in `tipHTML` — the instruction plus about 35 words of reason on the card, everything appended after that behind a "why this" disclosure. Cards were 130–180 words; they are 25–50 | **built** |
 | The reason lives with the decision | Notes are on the sheet rather than in a drawer, always asked, and the question changes: descriptive before there is a recipe, comparative after — "better or worse than the recipe, and what made the difference?" | **built** |
 | Two good shots are a comparison, not a second find | With a recipe pinned, another sweet in-window shot is framed as "which one?" with both sets of numbers, not "mark it as the keeper" | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
@@ -788,6 +789,24 @@ rather than round the ratio again.
 reached 216 words and 533px — nearly two thirds of a phone screen — because four
 separate commits each added one true and useful sentence. Every one of them
 deserved saying; the paragraph no longer deserved reading.
+
+It was cut by hand, and it grew straight back — 95 words within a few weeks, and
+the advice cards with it, to a median of 47 words before the appendices and 130
+to 180 after them. **Trimming text never touches the mechanism that produced
+it.** `why` was a string that six functions appended to — the base reason, the
+calibration figure, the grind-is-for principle, the dose nudge, the processed-lot
+caveat, the roast-age tail, the half-answered note — each true, each added by
+somebody who had just decided it was worth saying, and none of them responsible
+for the total.
+
+The budget lives in `tipHTML` now: the instruction, about thirty-five words of
+reason, and everything after that behind a disclosure. It is the right shape
+anyway — the person at the machine reads the bold line and walks to the grinder,
+and the person who wants to know why the board thinks a click is worth 1.6
+seconds opens it — and it holds whatever gets appended in future without anybody
+having to remember a rule. The one card built outside the mechanism, the
+first-shot card, is the one that had grown twice; it goes through `tipHTML` now
+like everything else.
 
 ## What a first-run barista found
 

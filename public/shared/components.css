@@ -722,6 +722,36 @@ html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
 .tip-move { display: block; font-size: 15px; font-weight: 700; }
 .tip-why { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--text-dim); }
 
+/* The rest of the reasoning, for the reader who wants it. Closed by
+   default and quiet when closed: on a card somebody is reading with a
+   portafilter in one hand, the disclosure must not compete with the
+   instruction above it. */
+.tip-more { margin-top: var(--space-2); }
+.tip-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+}
+.tip-more > summary::-webkit-details-marker { display: none; }
+.tip-more > summary::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.tip-more[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.tip-more > summary:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+.tip-more .tip-why { margin-top: 0; }
+
 /* ---------- the scale ---------- */
 
 .taste-block, .verdict-block { display: flex; flex-direction: column; gap: var(--space-3); }

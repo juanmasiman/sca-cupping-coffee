@@ -314,10 +314,11 @@ function makeGrind(env) {
          asks for. It does not name a distance, because naming one is
          exactly the guess this file exists to remove — but it says what
          the move has to achieve, which is a thing the reader can judge. */
+      /* The bold line is the one somebody reads before walking to the
+         grinder, and it had grown a subordinate clause explaining itself.
+         The explanation is true and it belongs in the paragraph. */
       return {
-        move: env.stepped()
-          ? ` — a few clicks, enough to show in the clock; one is usually too small to measure`
-          : ` — far enough to show in the clock, and note where the dial is now so you can get back`,
+        move: env.stepped() ? ` — two or three clicks` : ` — a decisive move`,
         /* Cut from sixty words to thirty-five, and the condition made
            honest: it used to promise a number "once two brews differ only
            in grind" without the clause that actually gates it — the clock
@@ -333,8 +334,10 @@ function makeGrind(env) {
         why: !willLearn
           ? ''
           : small
-            ? ` The grind moves on this board so far are too small for the clock to tell from ordinary ${item}-to-${item} variation, so there is nothing to measure yet. Make this one decisive enough to show in the time and the board can say what a ${unit} is worth on your grinder from here on.`
-            : ` How far, it cannot say yet. Once two ${item}s differ only in grind and the clock moves several seconds with it, the board works out what a ${unit} is worth on your grinder and tells you how many.`,
+            ? ` The moves so far are too small for the clock to tell from ordinary ${item}-to-${item} variation. Make this one big enough to show in the time${
+                env.stepped() ? '' : ', and note where the dial is so you can get back'} — then the board can say what a ${unit} is worth on your grinder.`
+            : ` How far, it cannot say yet${
+                env.stepped() ? '' : ' — so make it big enough to see, and note where the dial is'}. Once two ${item}s differ only in grind and the clock moves several seconds with it, the board works out what a ${unit} is worth and tells you how many.`,
       };
     }
 

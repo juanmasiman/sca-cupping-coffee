@@ -784,7 +784,7 @@ function runFault(shot, target) {
 
   if (shot.run === 'surge') {
     return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
-      why: `Flow that jumps in the last third of the shot is the tell you get through spouts: the bed has given way somewhere and the water is going round it rather than through it. Everything else on this shot is a reading of that — the clock ran on a puck that stopped resisting partway, and the cup will be sour and harsh at once and thinner than its strength suggests. Grinding finer tightens the bed and makes the crack worse, so leave the grinder where it is and pull another.${common}` };
+      why: `Flow that jumps late is the tell you get through spouts: the bed gave way and the water is going round it. Everything else on this shot is a reading of that — the clock ran on a puck that stopped resisting partway, and the cup will be sour and harsh at once and thinner than its strength suggests. Grinding finer tightens the bed and makes the crack worse, so leave the grinder where it is and pull another.${common}` };
   }
   if (shot.run === 'spray') {
     return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
@@ -794,7 +794,7 @@ function runFault(shot, target) {
     return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
       why: `It hesitated and then rushed, which is a bed that resisted until the water found a way through and then gave up all at once. That is channelling, and it makes the clock meaningless — the seconds at the start and the seconds after the break are not measuring the same shot. Leave the grinder where it is and pull another.${common}` };
   }
-  return { sure: false, move: 'It blonded early — pull another with the grinder untouched.',
+  return { sure: false, move: 'Blonded early — pull another, grinder untouched.',
     why: `Going pale well before the end means the puck was spent early, in part of the bed at least.${
       fast ? ' With a quick clock on top of it, that is water running round the bed rather than through it.' : ''} Leave ${grindThing()} alone for one shot and prepare the puck carefully instead:${common.replace(' One of those usually does it.', '')} If it comes out even, the last one was the prep. If it blondes again the same way, it is the grind or the dose and the board will say which.` };
 }
@@ -1383,8 +1383,13 @@ function suggest(shot, target, c) {
                 ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
                 : 'In the window and sweet.'} You have been longer, shorter and heavier around this one and come back to it, which is as good a reason to trust a recipe as there is. Pull the next one to it and change nothing.` };
           }
+          /* The experiment first, the argument for it second. The
+             preamble explaining why a finished dial-in is not finished is
+             the most interesting sentence on the card and the least
+             actionable, and putting it first pushed the actual
+             instruction behind the disclosure. */
           return { sure: false, move: next.move,
-            why: `This is the recipe and it is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number on this board, and the only way to find out is to pull one and taste them together. ${next.why}` };
+            why: `${next.why} The recipe is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number here, and the only way to find out is to taste them together.` };
         })()
       : (() => {
           /* A second good shot is a comparison, not a first find.
@@ -1426,7 +1431,7 @@ function suggest(shot, target, c) {
     const win = `${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s`;
     const off = place.time === 'in' ? null : (place.time === 'fast' ? 'quicker' : 'slower');
     if (bodySide(shot.body) === null) {
-      return { sure: false, move: 'Sweet. Say how it feels and this is done.',
+      return { sure: false, move: 'Sweet. Now say how it feels.',
         why: off === null
           ? `Sweet is the middle of the extraction and it is where a dial-in ends — the sour compounds come out first, the sweet ones through the middle, the bitter ones last. Mark watery or muddy as well and this is your recipe.`
           : `At ${secs}s it is ${off} than the ${win} you wrote down, and the cup does not care: sweet is the middle of the extraction and it is where a dial-in ends. Mark watery or muddy as well — if the texture is right too, then the window is what is wrong here, not the shot.` };
@@ -1901,26 +1906,26 @@ function nextExperiment(c, keeper) {
   if (ky !== null) {
     const longer = Math.round((ky + 2) * 2) / 2;
     if (!rows.some(sh => num(sh.yield) !== null && num(sh.yield) >= ky + 1.5)) {
-      return { move: `Try it longer — ${fmtDose(longer)}g out, same dose and same grind.`,
-        why: `Two grams more water through the same puck. It is the cheapest experiment you have and the most forgiving: it raises extraction without touching the clock, and if it is worse you have lost one shot and learned the edge of the recipe. Pull it, taste them one after the other, and mark whichever you would rather drink.` };
+      return { move: `Try it longer — ${fmtDose(longer)}g out.`,
+        why: `Same dose, same grind, two grams more water. Pull it and taste them side by side. It is the cheapest experiment you have and the most forgiving: it raises extraction without touching the clock, and if it is worse you have lost one shot and learned the edge of the recipe.` };
     }
     const shorter = Math.round((ky - 2) * 2) / 2;
     if (shorter > 0 && !rows.some(sh => num(sh.yield) !== null && num(sh.yield) <= ky - 1.5)) {
-      return { move: `Now try it shorter — ${fmtDose(shorter)}g out, same dose and same grind.`,
-        why: `You have been longer than the recipe; go the other way before deciding. The last of a shot is the thinnest and most bitter part of it, so stopping earlier concentrates what you have — a shorter pull is often sweeter and always heavier, and which of the three you prefer is a question only you can answer.` };
+      return { move: `Now the other way — ${fmtDose(shorter)}g out.`,
+        why: `Same dose, same grind. You have been longer than the recipe; go shorter before deciding. The last of a shot is its thinnest and most bitter part, so stopping earlier concentrates what you have — a shorter pull is often sweeter and always heavier, and which of the three you want is a question only you can answer.` };
     }
   }
   if (kd !== null) {
     const cap = basketCap();
     const up = Math.round((kd + 0.5) * 2) / 2;
     if ((cap === null || up <= cap + 0.1) && !rows.some(sh => num(sh.dose) !== null && num(sh.dose) >= kd + 0.4)) {
-      return { move: `Try half a gram more coffee — ${fmtDose(up)}g in, same grind, same ${ky === null ? 'yield' : `${fmtDose(ky)}g out`}.`,
-        why: `More coffee under the same water is a shorter ratio without touching the yield: less extraction from each gram, more body in the cup. It will slow the shot a second or two, and that is the point rather than a problem. This is the move for a recipe that tastes right but drinks thin.` };
+      return { move: `Half a gram more — ${fmtDose(up)}g in, nothing else moves.`,
+        why: `The move for a recipe that tastes right but drinks thin. More coffee under the same water is a shorter ratio without touching the yield: less extraction from each gram, more body in the cup. It will slow the shot a second or two, and that is the point rather than a problem.` };
     }
   }
   if (canSetTemp() && kt !== null && !rows.some(sh => num(Number(sh.temp)) !== null && num(Number(sh.temp)) <= kt - 0.5)) {
-    return { move: `Try a degree cooler — ${Math.round(kt - 1)}°, everything else the same.`,
-      why: `Cooler extracts a little less and takes the hard edge off the finish. It is the one temperature move everybody agrees on, and on a recipe that is already good it is a polish rather than a correction. A whole degree — half of one will not tell you anything.` };
+    return { move: `A degree cooler — ${Math.round(kt - 1)}°.`,
+      why: `Everything else stays. Cooler extracts a little less and takes the hard edge off the finish — the one temperature move everybody agrees on, and on a good recipe a polish rather than a correction. A whole degree; half of one tells you nothing.` };
   }
   return null;
 }
@@ -2056,10 +2061,55 @@ function withAge(tip, c, shot, target) {
    as a sentence telling somebody to go and find a screen. Advice you can
    act on where you are reading it is the difference between a tool and a
    pamphlet; "check the dose with a coin, in Settings" is the pamphlet. */
+/* ONE PLACE OWNS HOW MUCH OF THIS YOU HAVE TO READ.
+
+   `why` is a string that six different functions append to — the base
+   reason, the calibration figure, the grind-is-for principle, the dose
+   nudge, the processed-lot caveat, the roast-age tail, the half-answered
+   note. Every one of them is true and every one was written by somebody
+   who had just decided it was worth saying. Nobody owned the total, so
+   the total went where totals go: a first-shot card reached 216 words
+   once, was cut by hand, and grew straight back, because trimming the
+   text never touched the mechanism that produced it.
+
+   The mechanism is here now. A card shows the instruction and about
+   thirty-five words of reason; everything after that goes behind a
+   disclosure. It holds whatever gets appended in future without anybody
+   having to remember a budget, and it is the right shape anyway — the
+   person at the machine reads the bold line and moves, and the person who
+   wants to know why the board thinks a click is worth 1.6 seconds can
+   open it.
+
+   Split on sentence ends, because that is where the appendices join. The
+   first sentences are the base reason by construction; the tail is
+   everything the other five functions added. */
+const WHY_WORDS = 35;
+
+function splitWhy(why) {
+  const text = String(why || '').trim();
+  if (!text) return { head: '', tail: '' };
+  // Not on "1:2.6" or "2.5g" — a full stop only ends a sentence when
+  // whitespace follows it.
+  const parts = text.split(/(?<=[.?!])\s+/);
+  const head = [];
+  let words = 0;
+  for (const part of parts) {
+    const n = part.split(/\s+/).length;
+    // Always at least one sentence, however long: a card that opens with
+    // a disclosure and no reason is worse than a long one.
+    if (head.length && words + n > WHY_WORDS) break;
+    head.push(part);
+    words += n;
+  }
+  return { head: head.join(' '), tail: parts.slice(head.length).join(' ') };
+}
+
 function tipHTML(tip, cls) {
+  const { head, tail } = splitWhy(tip.why);
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
+      <span class="tip-why">${escapeHTML(head)}</span>
+      ${tail ? `<details class="tip-more"><summary>Why this</summary><span class="tip-why">${escapeHTML(tail)}</span></details>` : ''}
       ${tip.act === 'dose' ? '<button type="button" class="tip-act" data-act="dose">Check the dose with a coin</button>' : ''}
       ${tip.act === 'pinch' ? '<button type="button" class="tip-act" data-act="pinch">Find a starting grind</button>' : ''}
       ${tip.act === 'window' ? `<button type="button" class="tip-act" data-act="window" data-secs="${escapeHTML(String(tip.at))}">Move the window onto this shot</button>` : ''}
@@ -2493,14 +2543,17 @@ function renderNext(c) {
     const why = under && told && e && e.dose < 0
       ? ` That is under the ${fmtDose(cap)}g ${measured ? 'you found fits the basket' : 'on the basket'} because a ${e.label.toLowerCase()} roast is harder to extract, and less coffee is less work. Expect the puck to blow apart at the end — messy, harmless.`
       : '';
+    /* Through tipHTML like every other card, so the same word budget
+       applies. Built by hand it had its own paragraph and its own habits,
+       which is how it reached 216 words the first time and 95 the second
+       — a card outside the mechanism is a card that grows. */
     wrap.className = 'next-card';
-    wrap.innerHTML = `
-      <span class="next-label">Where to start</span>
-      <div class="tip open">
-        <span class="tip-move">${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
-        <span class="tip-why">Start on the coarse side and come finer — a coarse bed flows more evenly, so the shot teaches you more than a choked one does. Then let the clock tell you which way to move.${why} If it gushes out in ten seconds, do not bother tasting it; fix the flow first.</span>
-        <button type="button" class="tip-act" data-act="pinch">Find a starting grind</button>
-      </div>`;
+    wrap.innerHTML = `<span class="next-label">Where to start</span>`
+      + tipHTML({
+          act: 'pinch',
+          move: `${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.`,
+          why: `Start coarse and come finer: a coarse bed flows evenly, so the shot teaches you more than a choked one does.${why} If it gushes out in ten seconds, do not taste it — fix the flow first.`,
+        }, 'tip');
     bindTipActions(wrap);
     return;
   }
@@ -3297,8 +3350,8 @@ function buildNotes(c) {
   const comparing = Boolean(keeper && keeper !== editing);
   if (sub) {
     sub.textContent = comparing
-      ? 'Nothing else on this sheet can separate two good shots. This can.'
-      : 'What it tasted of, and anything the numbers do not hold.';
+      ? 'Nothing else here can separate two good shots.'
+      : 'Anything the numbers do not hold.';
   }
   box.placeholder = comparing
     ? `Better or worse than the recipe, and what made the difference?`
@@ -3650,10 +3703,18 @@ function openEdit(c, opts) {
     baseWrap.innerHTML = sp
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>. Roast level is the strongest thing a bag tells you about extraction.${shifted}${
-             e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
-             withTemp ? '' : ' Your machine holds one temperature, so the rest of this is the part you can take.'} Your grinder, water and palate finish the job.</p>
-           ${sp.extra.map(x => `<p class="baseline-body">${escapeHTML(x)}</p>`).join('')}
+           ${/* The numbers, then everything that argues for them behind a
+                disclosure — the same rule the advice cards run on. This was
+                a hundred and five words of unbroken prose with the one
+                actionable line at the bottom, which is the shape a reader
+                skips. */ ''}
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <details class="tip-more"><summary>Why these</summary>
+             <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
+               e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
+               withTemp ? '' : ' Your machine holds one temperature, so the rest of this is the part you can take.'} Your grinder, water and palate finish the job.</p>
+             ${sp.extra.map(x => `<p class="baseline-body">${escapeHTML(x)}</p>`).join('')}
+           </details>
            ${(startApplied(sp, spDose) || c.shots.length)
              /* The button is a starting point, and a coffee with shots
                 against it has started. It sat above a DOSE field reading
