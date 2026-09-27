@@ -870,6 +870,36 @@ function grindMoveParts(shot, target, finer) {
   });
 }
 
+/* An instruction names what stays as well as what moves.
+
+   "Grind finer — about 1.5 on the dial, down to 30.5" leaves the obvious
+   question unanswered: and the yield? The app knows the answer — a
+   dial-in moves one thing at a time, it is the rule the two-variable
+   warning is built on — and it was keeping it to itself on exactly the
+   instruction where somebody reaching for a second knob does the most
+   damage. Three words on the line people actually read.
+
+   The yield advice mostly said its own version of this already ("on the
+   same dose", "leave the grinder where it is"). Now both do. */
+const holdLine = (shot, field) => {
+  if (field === 'grind') {
+    const y = num(shot && shot.yield);
+    return y === null ? ', same yield' : `, same ${fmtDose(y)}g out`;
+  }
+  return ', same grind';
+};
+
+/* A yield instruction in grams, not in deltas.
+
+   "Let it run 2 to 4g further" is arithmetic to do over a cooling shot
+   with one wet hand. The board knows what came out last time. */
+function yieldTo(shot, grams) {
+  const y = num(shot && shot.yield);
+  if (y === null) return null;
+  const to = Math.round((y + grams) * 2) / 2;
+  return to > 0 ? to : null;
+}
+
 
 /* What you meant to change, checked against what changed.
 
@@ -1237,12 +1267,12 @@ function clockAdvice(shot, target, c) {
 
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
-    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)}${grindIsFor(shot, target)}${doseNudge(shot, target)}${finerCaveat(c)} Say how it tasted too: quick and bitter at once is a channel rather than a coarse grind, and finer makes it worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
-    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)}${grindIsFor(shot, target)}${doseNudge(shot, target)} Say how it tasted too: slow and sour at once usually means the water went round the puck rather than through it.` };
   }
   /* In the window, and nobody has said how it tastes.
@@ -1322,11 +1352,11 @@ function suggest(shot, target, c) {
   if (side === null || place.time === null) return null;
 
   if (side === 'sour' && place.time === 'fast') {
-    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (side === 'bitter' && place.time === 'slow') {
-    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `It ran past the window and tasted bitter — water spent too long in the puck. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, false)}` };
   }
   if (side === 'sour' && place.time === 'slow') {
@@ -1344,14 +1374,40 @@ function suggest(shot, target, c) {
     // Once it has been marked, saying "mark it" is the app not reading its
     // own screen — the keeper card is pinned six inches above this line.
     return shot.verdict === 'keeper'
-      ? { sure: true, move: 'Dialled in.',
-          why: `${shot.bright
-            ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
-            : 'In the window and tasting of neither wall.'} This is the recipe at the top of the board; pull the next one to it and change nothing.` }
-      : { sure: true, move: 'This is the one.',
-          why: `${shot.bright
-            ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
-            : 'In the window and tasting of neither wall.'} Mark it as the keeper and the recipe pins to the top of this board.` };
+      ? (() => {
+          /* The recipe is a floor, not a ceiling. */
+          const next = nextExperiment(c, shot);
+          if (!next) {
+            return { sure: true, move: 'Dialled in.',
+              why: `${shot.bright
+                ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
+                : 'In the window and sweet.'} You have been longer, shorter and heavier around this one and come back to it, which is as good a reason to trust a recipe as there is. Pull the next one to it and change nothing.` };
+          }
+          return { sure: false, move: next.move,
+            why: `This is the recipe and it is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number on this board, and the only way to find out is to pull one and taste them together. ${next.why}` };
+        })()
+      : (() => {
+          /* A second good shot is a comparison, not a first find.
+
+             With a recipe already pinned, "Mark it as the keeper" is the
+             board forgetting it has one — and the reader has just run an
+             experiment it asked for, so the question in front of them is
+             not "is this good" but "is this better". Both shots are in
+             the window and both are sweet, which means every number on
+             this board has run out of things to say and the mouth
+             decides. That is the whole point of the second phase. */
+          const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+          if (keeper && keeper !== shot) {
+            const mine = `${fmtDose(num(shot.yield))}g out in ${Math.round(num(shot.time))}s`;
+            const theirs = `${fmtDose(num(keeper.yield))}g out in ${keeper.time === null ? '—' : Math.round(keeper.time)}s`;
+            return { sure: false, move: 'Two good shots. Which one?',
+              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, mark it the one and the recipe moves; if not, leave it and the board offers the next thing to try.` };
+          }
+          return { sure: true, move: 'This is the one.',
+            why: `${shot.bright
+              ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
+              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Mark it as the keeper and the recipe pins to the top of this board — then the board starts looking for something better than it.` };
+        })();
   }
   /* Out of the window and right in the cup.
 
@@ -1393,9 +1449,22 @@ function suggest(shot, target, c) {
      those have failed — so it is offered on the second sighting, not the
      first, and even then as a degree at minimum rather than a nudge. */
   const persists = wallPersists(c, side);
+  /* In grams off the scale, not in deltas to work out.
+
+     "Let it run 2 to 4g further" asks somebody holding a cooling shot to
+     do arithmetic the board could have done: it knows what came out last
+     time. And it names the grinder as parked, because "should I go
+     coarser and keep the yield, or move the yield?" is the question this
+     whole corner of the app exists to answer, and the instruction was
+     answering only half of it. */
+  const yTo = yieldTo(shot, side === 'sour' ? 3 : -3);
+  const yFrom = num(shot.yield);
+  const yNamed = yTo !== null && yFrom !== null
+    ? `${fmtDose(yFrom)}g to about ${fmtDose(yTo)}g`
+    : (side === 'sour' ? '2 to 4g further' : '2 to 4g shorter');
   const yieldMove = side === 'sour'
-    ? 'Let it run 2 to 4g further on the same dose: more water through the same puck takes more with it.'
-    : 'Stop it 2 to 4g shorter and the harsh end of the extraction stays in the puck.';
+    ? `Take the yield out to ${yNamed}, same dose and same grind: more water through the same puck takes more with it, and that is the reliable way to raise extraction.`
+    : `Stop it shorter — ${yNamed}, same dose and same grind: the harsh end of the extraction comes out last, so ending sooner leaves it in the puck.`;
   const ceiling = side === 'sour'
     ? ' Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead — which is also what a light roast wants, having less to extract.'
     : ' If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.';
@@ -1523,7 +1592,7 @@ function wallPair(shot, target, c) {
       return { sure: false, noGrind: true, move: 'Under-extracted — but not for want of grind.',
         why: `Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower.${puckOrNot(shot, target, c, false)}` };
     }
-    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
@@ -1531,7 +1600,7 @@ function wallPair(shot, target, c) {
       return { sure: false, noGrind: true, move: 'Over-extracted — but not for want of grind.',
         why: `Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster.${puckOrNot(shot, target, c, true)}` };
     }
-    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
   }
   /* The two ratio answers move the clock as a side effect, and on a shot
@@ -1614,11 +1683,11 @@ function clockPair(shot, target, c) {
   const light = b === 'watery';
 
   if (quick && light) {
-    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (!quick && !light) {
-    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.${grindWhyLine(shot, target, false)}` };
   }
   if (quick && !light) {
@@ -1790,6 +1859,72 @@ function ageNote(c) {
    mean anything, which is exactly why they come first. Roast age rides
    on the end of whichever move wins, because it does not change what to
    do — it changes how much to believe what you are looking at. */
+/* THE SECOND HALF OF A DIAL-IN.
+
+   The board used to end with "pull the next one to it and change
+   nothing", which is the app telling somebody they are finished. They are
+   not. Getting into the window and out of both walls is the part a
+   machine can reason about; finding the shot you actually want is the
+   part that happens afterwards, by taste, and on a good coffee a 24s pull
+   can beat a 28s one that scores identically against every number here.
+
+   So the dial-in has two phases and the board says which one you are in.
+
+     WINDOW — no shot is sweet yet. One instruction at a time, grind for
+       the clock and yield for the wall, and the target is the target.
+
+     TASTE  — there is a recipe. The target has done its job and the only
+       question left is whether something nearby is better. Moves get
+       small, they are offered one at a time, and the board asks you to
+       compare rather than to correct.
+
+   The experiments are walked in order of what they cost and how much they
+   teach: yield first (free, forgiving, the biggest lever on extraction),
+   then dose, then temperature. Each is offered until the log shows it has
+   been tried, so the board works through the neighbourhood instead of
+   repeating itself, and says so when the neighbourhood is explored.
+
+   This is also where the app finally states the thing it has implied all
+   along: the window is a means, and the cup is the end. */
+function phaseOf(c) {
+  return c && c.shots.some(sh => sh.verdict === 'keeper') ? 'taste' : 'window';
+}
+
+function nextExperiment(c, keeper) {
+  const rows = (c.shots || []).filter(sh => sh !== keeper);
+  const ky = num(keeper.yield), kd = num(keeper.dose), kt = num(Number(keeper.temp));
+  const tried = (read, want) => rows.some(sh => {
+    const v = read(sh);
+    return v !== null && (want > 0 ? v > want : v < -want);
+  });
+
+  if (ky !== null) {
+    const longer = Math.round((ky + 2) * 2) / 2;
+    if (!rows.some(sh => num(sh.yield) !== null && num(sh.yield) >= ky + 1.5)) {
+      return { move: `Try it longer — ${fmtDose(longer)}g out, same dose and same grind.`,
+        why: `Two grams more water through the same puck. It is the cheapest experiment you have and the most forgiving: it raises extraction without touching the clock, and if it is worse you have lost one shot and learned the edge of the recipe. Pull it, taste them one after the other, and mark whichever you would rather drink.` };
+    }
+    const shorter = Math.round((ky - 2) * 2) / 2;
+    if (shorter > 0 && !rows.some(sh => num(sh.yield) !== null && num(sh.yield) <= ky - 1.5)) {
+      return { move: `Now try it shorter — ${fmtDose(shorter)}g out, same dose and same grind.`,
+        why: `You have been longer than the recipe; go the other way before deciding. The last of a shot is the thinnest and most bitter part of it, so stopping earlier concentrates what you have — a shorter pull is often sweeter and always heavier, and which of the three you prefer is a question only you can answer.` };
+    }
+  }
+  if (kd !== null) {
+    const cap = basketCap();
+    const up = Math.round((kd + 0.5) * 2) / 2;
+    if ((cap === null || up <= cap + 0.1) && !rows.some(sh => num(sh.dose) !== null && num(sh.dose) >= kd + 0.4)) {
+      return { move: `Try half a gram more coffee — ${fmtDose(up)}g in, same grind, same ${ky === null ? 'yield' : `${fmtDose(ky)}g out`}.`,
+        why: `More coffee under the same water is a shorter ratio without touching the yield: less extraction from each gram, more body in the cup. It will slow the shot a second or two, and that is the point rather than a problem. This is the move for a recipe that tastes right but drinks thin.` };
+    }
+  }
+  if (canSetTemp() && kt !== null && !rows.some(sh => num(Number(sh.temp)) !== null && num(Number(sh.temp)) <= kt - 0.5)) {
+    return { move: `Try a degree cooler — ${Math.round(kt - 1)}°, everything else the same.`,
+      why: `Cooler extracts a little less and takes the hard edge off the finish. It is the one temperature move everybody agrees on, and on a recipe that is already good it is a polish rather than a correction. A whole degree — half of one will not tell you anything.` };
+  }
+  return null;
+}
+
 /* You already found this. Go back to it.
 
    The board treated every shot as if the dial-in were still running. A
@@ -2386,7 +2521,13 @@ function renderNext(c) {
   }
 
   wrap.className = 'next-card';
-  wrap.innerHTML = `<span class="next-label">Next</span>`
+  /* The label names the half of the dial-in you are in.
+
+     Two phases that want different things from the reader: one is
+     correcting toward a target, the other is exploring around a recipe,
+     and a card headed "Next" for both was hiding the change. */
+  wrap.innerHTML = `<span class="next-label">${
+    phaseOf(c) === 'taste' ? 'Finding the better shot' : 'Finding the window'}</span>`
     + tips.map(t => tipHTML(t, 'tip')).join('');
   bindTipActions(wrap);
 }
@@ -4147,6 +4288,15 @@ function openHelp() {
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
     <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many ${grindUnit() === 'clicks' ? 'clicks' : 'points on your dial'} rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
     <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
+    <p><strong>Which lever, and which way.</strong> There are two that move extraction and they are not interchangeable. <strong>Grind</strong> changes how hard it is for water to get through the bed, so it moves the clock and the extraction together — it is the big lever and it overcorrects easily. <strong>Yield</strong> changes how much water you push through, so it moves extraction and strength without touching the grinder — it is the fine lever and it is far more forgiving. The order that follows is: get into the ballpark with grind, then finish with yield. Reaching for the grinder to fix a shot that is already in the window is how a dial-in goes round in circles.</p>
+    <p><strong>What the two answers together tell you.</strong> The clock says where the flow is and the cup says where the extraction is, and it is the pair that names the move — which is why this app asks for both and will not guess one from the other.</p>
+    <p><strong>Short and sour</strong> — grind finer, same yield. Under-extracted because the water was through too fast, and grind is the only variable that fixes the clock and the cup at once.<br>
+    <strong>Long and bitter</strong> — grind coarser, same yield. Over-extracted for the opposite reason, and again one change moves both.<br>
+    <strong>In the window and sour</strong> — leave the grinder alone and take the yield out 2 to 4g on the same dose. The clock is already right, so there is nothing for grind to fix; more water through the same puck takes more with it.<br>
+    <strong>In the window and bitter</strong> — leave the grinder alone and stop it 2 to 4g shorter. The harsh end of an extraction comes out last, so ending sooner leaves it in the puck.<br>
+    <strong>Short and bitter</strong>, or <strong>long and sour</strong> — neither lever. Going coarser on a shot that is already fast makes it faster; going finer on one that is already slow makes it slower. These two corners are a channelled puck, a coffee far outside what the window assumed, or water that is too hot — and the board says which it thinks, rather than sending you to the grinder.</p>
+    <p><strong>Past four grams you are changing the drink, not dialling it.</strong> Yield is forgiving but it is not free: more water is more dilution, and past about four grams either way you are making a longer or shorter drink rather than a better version of the one you have. The move at that point is the dose — half a gram at a time — because less coffee is less to extract and more coffee is more body.</p>
+    <p><strong>Then it stops being arithmetic.</strong> Once a shot is in the window and tastes sweet, every number on the board has said what it can. A 24-second pull can be better than a 28-second one on the same coffee, at the same dose, and nothing here can tell you which — so the board changes its job: it stops correcting and starts suggesting one small experiment at a time, longer, shorter, heavier, cooler, and asks you to drink them side by side and keep the one you want tomorrow morning. The window gets you to a shot worth comparing. Your mouth does the rest.</p>
     <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>
     <p><strong>How soluble the coffee is</strong> decides how much extraction it needs, and roast level is the biggest part of that but not all of it. Washed and high-grown beans are denser and give up less readily, so they want more; naturals and heavily fermented lots come out more easily, so they want less. Decaf is the odd one — decaffeination opens the bean up, so it extracts more readily <em>and</em> flows faster, which means a tighter ratio but a finer grind. Tell the app what the bag says and the starting point moves accordingly.</p>
     <p><strong>Heavily processed coffees are the exception to "sour means finer".</strong> The flavour you bought is the one the process put there, and pushing extraction burns it off. Sour in one of these is as often a bed that is already too tight — part of it giving up everything while the rest barely brews — so if finer does not fix it, coarser at the same yield is the next thing to try.</p>

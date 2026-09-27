@@ -266,6 +266,52 @@ is not.
 
 ---
 
+### Which lever, and which way
+
+The two levers are not interchangeable and the difference is the whole method.
+**Grind** changes how hard the water's job is, so it moves the clock and the
+extraction together — the big lever, and it overcorrects easily. **Yield**
+changes how much water goes through, so it moves extraction and strength
+without touching the clock — the fine lever, and far more forgiving. Hence the
+order every source agrees on: ballpark with grind, finish with yield.
+
+The pair of answers names the move. This is why the app asks for the clock and
+the cup separately and refuses to infer one from the other:
+
+| clock | cup | move |
+|---|---|---|
+| short | sour | grind finer, same yield — one change fixes both |
+| long | bitter | grind coarser, same yield — one change fixes both |
+| in window | sour | yield out 2–4g, same dose and grind |
+| in window | bitter | stop 2–4g shorter, same dose and grind |
+| short | bitter | neither lever — channel, heat, or the coffee |
+| long | sour | neither lever — channel, heat, or the coffee |
+
+The last two corners are the ones a naive tool gets wrong: going coarser on a
+shot that is already fast makes it faster, and finer on one that is already slow
+makes it slower. Past about 4g of yield either way you are making a different
+drink rather than a better one, and the move becomes the dose, half a gram at a
+time.
+
+### Two phases, and the second one is not arithmetic
+
+Getting into the window and out of both walls is the part a machine can reason
+about. **It is not the end of a dial-in.** On a good coffee a 24-second pull can
+beat a 28-second one at the same dose and the same grind, and nothing on the
+board can tell you which — both score identically against every number it holds.
+
+So the board runs in two phases and says which one you are in. **Finding the
+window** corrects toward a target, one instruction at a time. **Finding the
+better shot** begins the moment a recipe exists: the target has done its job,
+the moves get small, and they are offered one at a time — longer, then shorter,
+then heavier, then cooler — each until the log shows it has been tried. A second
+good shot is then framed as a comparison rather than a fresh find, with both
+sets of numbers side by side and the explicit statement that the board has run
+out of things to say and the mouth decides.
+
+**The window is a means; the cup is the end.** The app implied that for a long
+time and now states it.
+
 ### Naming the middle
 
 The sheet asks for a position between sour and bitter, and for a long time the
@@ -691,6 +737,11 @@ instrument once the clock is roughly right.
 | The cup outranks the window | A shot that is sweet and syrupy is the recipe at any clock reading, and the card says the window is the part that is wrong, with one tap to move it onto that shot | **built** |
 | Acidity is not sourness | A "bright, not sour" chip on the roasts where the confusion is real. The position still records how sharp the cup was; the advice stops treating it as under-extraction | **built** |
 | The taste guide belongs at the taste question | The salami test opens from the shot sheet's own taste label, not from three taps into Settings | **built** |
+| An instruction names what stays, not only what moves | Every grind move ends "same 46g out"; every yield move ends "same dose and same grind" | **built** |
+| Yield advice in grams off the scale, not deltas to work out | "Take the yield out to 46g to about 49g" rather than "2 to 4g further" | **built** |
+| A dial-in has two phases and the board says which | `phaseOf` — "Finding the window" until a recipe exists, "Finding the better shot" after | **built, beyond the method** |
+| The recipe is a floor, not a ceiling | `nextExperiment` — one small move at a time (longer, shorter, heavier, cooler), each offered until the log shows it was tried | **built, beyond the method** |
+| Two good shots are a comparison, not a second find | With a recipe pinned, another sweet in-window shot is framed as "which one?" with both sets of numbers, not "mark it as the keeper" | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
 | How far to move the grinder | Measured from the log, in the user's own units, halved when large. One pair clear of twice the noise floor is enough, so it arrives on the shot the promise names; where the pairs exist but every move was too small to read, the card asks for a decisive one instead of repeating the promise | **built, beyond the method** |
 | Temperature ranges by roast | `ROASTS`, with explicit bands | **built** |
