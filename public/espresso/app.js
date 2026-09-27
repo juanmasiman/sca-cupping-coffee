@@ -253,12 +253,31 @@ function defaultTarget() {
    longer ratio for a lighter roast — follows Hedrick's "ratio over grind
    size" rather than Hoffmann, and is offered as a starting point only. */
 const ROASTS = [
-  { key: 'light',  label: 'Light',        temp: 93, ratio: 2.4, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 92, ratio: 2.2, tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',       temp: 90, ratio: 2.0, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark',  temp: 89, ratio: 1.9, tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',         temp: 87, ratio: 1.8, tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
 ];
+
+/* Where to start the dose, given the roast and the basket.
+
+   Extraction is work, and more coffee is more of it. A light roast is
+   already hard to extract, so starting it with a full basket sets an
+   impossible amount of work and the cup comes out sour and thin however
+   it is dialled. A dark roast gives up its solubles easily and can sit
+   at the basket's figure.
+
+   Expressed as an offset from the basket's own rating rather than as a
+   number, because the basket decides the dose and this only decides
+   where in its range to sit. Never above it: that figure is a ceiling. */
+function doseStart(c) {
+  const basket = num(kit().basketDose);
+  if (basket === null) return null;
+  const e = c ? roastEntry(c.roast) : null;
+  const off = e ? e.dose : 0;
+  return Math.max(1, Math.round((basket + off) * 2) / 2);
+}
 
 function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
@@ -665,6 +684,44 @@ function secondsWanted(shot, target, finer) {
   return (target.timeLo + target.timeHi) / 2 - t;
 }
 
+/* The half-gram instead of the purge.
+
+   Straight out of the dial-in episodes, twice. A shot that is nearly
+   right does not need the grinder: half a gram more coffee adds a little
+   resistance, slows the shot a few seconds, and costs nothing — where
+   changing the grind costs five to ten grams of purge on most grinders,
+   which is coffee nobody drinks. In one episode exactly this move took a
+   shot from 25 seconds to 28 or 29.
+
+   Two conditions, both his. It only applies when already in the
+   neighbourhood of good — a long way out, leave the dose alone and fix
+   the grind. And going up needs room under the basket's figure, which is
+   a ceiling: he notes he could do it because he was nowhere near the top
+   of the range. Coming down has no such limit.
+
+   Offered as an alternative, never as the instruction. The grinder is
+   still the variable that moves time; this is the way to avoid paying
+   for it. */
+function doseNudge(shot, target) {
+  const t = num(shot && shot.time);
+  if (t === null) return '';
+  const place = placeOf(shot, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return '';
+  const off = place.time === 'fast' ? target.timeLo - t : t - target.timeHi;
+  if (off > 5) return '';                       // not in the neighbourhood yet
+
+  const dose = num(shot.dose);
+  if (dose === null) return '';
+  const ceiling = num(kit().basketDose);
+
+  if (place.time === 'fast') {
+    // More coffee, more resistance — but only if the basket has room.
+    if (ceiling !== null && dose + 0.5 > ceiling + 0.1) return '';
+    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''} — and it costs nothing, where a grind change costs a purge.`;
+  }
+  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well. It costs nothing, where a grind change costs a purge.`;
+}
+
 // Shorthands, so each advice site reads as one sentence with a hole in it.
 const grindMoveLine = (shot, target, finer) => grindMoveParts(shot, target, finer).move;
 const grindWhyLine = (shot, target, finer) => grindMoveParts(shot, target, finer).why;
@@ -678,12 +735,12 @@ function clockAdvice(shot, target) {
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
-      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
-      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)} Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
+      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
   }
   /* In the window, and nobody has said how it tastes.
 
@@ -988,6 +1045,43 @@ function basketFault(shot) {
   return null;
 }
 
+/* The temperature is simply set wrong for the coffee.
+
+   This is a different thing from "the shot tastes sour, try a degree
+   hotter", and the dial-in episodes make the difference plain. Twice the
+   fault was not a fault at all but a setting left over from the last
+   coffee: 95°C carried onto a medium roast, and 88°C left on a blend
+   that wanted 93. Both were caught on the first shot, and the fix in the
+   second case was a five-degree jump described as transformative.
+
+   So the trigger is not a taste that keeps coming back. It is arithmetic
+   the app can do before anything is tasted: the roast level gives a
+   band, the sheet gives the setting, and a setting outside the band is
+   worth saying on shot one. The advice is a correction to the band's
+   edge and not a nudge — the same episodes are explicit that a small
+   temperature tweak is rarely the answer, and that these worked because
+   they were large.
+
+   A machine with one temperature cannot act on any of this, so it is
+   never told. */
+function tempFault(shot, c) {
+  if (!canSetTemp() || !shot || !c) return null;
+  const e = roastEntry(c.roast);
+  if (!e) return null;
+  const t = num(Number(shot.temp));
+  if (shot.temp === '' || t === null) return null;
+  if (t >= e.lo && t <= e.hi) return null;
+
+  const hot = t > e.hi;
+  const aim = hot ? e.hi : e.lo;
+  const gap = Math.abs(t - aim);
+  return { sure: true,
+    move: `Bring the temperature ${hot ? 'down' : 'up'} to about ${Math.round(aim)}°.`,
+    why: `You are brewing at ${Math.round(t)}° and a ${e.label.toLowerCase()} roast sits in ${e.tempRange}. That is ${gap < 1.5 ? 'just outside' : `${Math.round(gap)}° outside`} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because ${hot
+      ? 'too hot extracts more than the roast wants and puts a rough, aggressive bitterness up front'
+      : 'too cool cannot reach what is in the bean, and no grind setting makes up for it'}. Move the whole way, not a degree: a small temperature tweak rarely answers anything, and a correction this size can change the shot completely.` };
+}
+
 /* Turning the grinder and getting nowhere.
 
    The failure that wastes a whole bag: three moves in the same direction
@@ -1048,7 +1142,8 @@ function ageNote(c) {
    on the end of whichever move wins, because it does not change what to
    do — it changes how much to believe what you are looking at. */
 function nextMove(shot, target, c) {
-  const first = basketFault(shot) || runFault(shot, target) || harshFault(shot) || (c ? stuckNote(c) : null);
+  const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
+    || tempFault(shot, c) || (c ? stuckNote(c) : null);
   if (first) return [withAge(first, c)];
 
   const pair = wallPair(shot, target);
@@ -1401,13 +1496,28 @@ function renderNext(c) {
      else, so aim at the window and move from there. */
   if (!newest) {
     const t = c.target;
-    const out = Math.round(t.dose * t.ratio);
+    /* The dose comes from the basket and the roast together, because
+       extraction is work and a light roast cannot do as much of it. The
+       basket's figure is the ceiling; this decides where inside its range
+       to start. */
+    const start = doseStart(c) ?? t.dose;
+    const out = Math.round(start * t.ratio);
+    const e = roastEntry(c.roast);
+    const basket = num(kit().basketDose);
+    /* The sentence has to name the roast it is actually talking about.
+       It was written for light roasts and fired for medium ones too,
+       which had the card telling somebody with a medium roast about what
+       a light roast does in a full basket. */
+    const why = e && basket !== null && e.dose < 0
+      ? ` A ${e.label.toLowerCase()} roast takes more work to extract than a darker one, so it starts under the ${fmtDose(basket)}g the basket is marked for: less coffee is less work.${
+          e.dose <= -1 ? ' Fill the basket with a roast this light and it comes out sour and thin however it is dialled.' : ''}`
+      : '';
     wrap.className = 'next-card';
     wrap.innerHTML = `
       <span class="next-label">Where to start</span>
       <div class="tip open">
-        <span class="tip-move">${fmt1(t.dose)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
-        <span class="tip-why">Set the grinder wherever it is and pull one. If it gushes out in ten seconds, go finer; if it drips past forty, go coarser. Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works.</span>
+        <span class="tip-move">${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
+        <span class="tip-why">Set the grinder wherever it is and pull one, then use the time to tell you which way to move it.${why} Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works. If it gushes out in ten seconds there is no point tasting it; fix the flow first.</span>
       </div>`;
     return;
   }

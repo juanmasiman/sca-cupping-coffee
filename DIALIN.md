@@ -6,10 +6,11 @@ app departs from the method it says so and why. `DESIGN.md` governs how the app
 looks and what it is allowed to claim; this governs what it knows about coffee.
 
 **Where it comes from.** James Hoffmann's six-part *Understanding Espresso*
-series, which is the closest thing to a primary text on the subject and which
-this document now works from directly rather than through summaries; Lance
-Hedrick's taste-first material, which is still second-hand except where noted;
-and the community guides that document the consensus.
+series — the closest thing to a primary text on the subject — and the first three
+*How I Dial-In Espresso* episodes, which show the same method applied to real
+coffees and are where several of the practical rules below come from. Both are
+worked from transcripts directly rather than through summaries. Lance Hedrick's
+taste-first material is still second-hand except where noted.
 
 **How confident to be, by claim.** Three tiers, and the document says which:
 
@@ -123,13 +124,25 @@ than lower-grown ones — still roughly holds, but it is a rule of thumb.
 
 **Keep the dose constant.** It is the last variable to change, not the first.
 
-**The exception, and it is a practical one:** when a shot is nearly right and
-coffee is short, nudge the dose by half a gram instead of moving the grinder. A
-touch more coffee adds resistance, lengthens contact time a little, and gets you
-from 25 seconds to 28 or 29 without the purge that a grind change costs. The same
-logic applies in reverse for a shot that ran long. Small tweaks only, and only
-when already in the neighbourhood of good — a long way from good, leave the dose
-alone and fix the grind.
+**The exception, and it is the most useful practical rule in the whole method:**
+when a shot is nearly right, nudge the dose half a gram instead of moving the
+grinder. More coffee is more resistance, which buys a few seconds — in one
+episode exactly this took a shot from 25 seconds to 28 or 29 — and it costs
+nothing, where a grind change costs five to ten grams of purge.
+
+Two conditions, both his:
+
+- **Only in the neighbourhood of good.** A long way out, leave the dose alone and
+  fix the grind.
+- **Going up needs room under the basket's figure.** He notes he could do it
+  because he was nowhere near the top of the range. Coming down has no such
+  limit, and brings the bonus that there is less to extract.
+
+**Dropping the dose is also the last refinement for a light roast.** In the first
+dial-in episode the final move — after grind had found the window and yield had
+been pushed out for extraction — was 18g down to 17g with the yield held, going
+finer at the same time. Less coffee is less work, so it can take a finer grind
+and a longer ratio, and that combination is what made the shot balanced.
 
 **Caffeine is a real constraint on a hobby.** A bigger dose is a bigger dose of
 caffeine. Lower doses mean more shots in a day, which is most of why the Italian
@@ -158,6 +171,13 @@ So it is **uneven extraction wearing over-extraction's clothes**.
 The practical instruction is unchanged — go coarser — but the reason matters,
 because it explains why grinding finer to "fix" a sour shot can make it sour
 *and* bitter rather than fixing anything.
+
+**A shot can hit every number and still be channelling.** In the third dial-in
+episode the brew ratio and the time were both right and the cup still was not,
+and the tell was the flow chart: a sudden uptick in flow late in the shot, even
+as pressure was declining. The clock cannot see this. Only the eye or the mouth
+can, which is the whole reason the app asks how the shot ran rather than
+inferring it.
 
 ### What it looks like, and this depends on your portafilter
 
@@ -258,8 +278,26 @@ every grind change costs a purge, and purged coffee is coffee you never drink.
 ### One flow-related variable at a time
 
 Grind and dose both change how hard it is for water to get through. Change both
-in one shot and neither result means anything. This is the discipline the whole
-method rests on, and it is the one most often broken.
+in one shot and neither result means anything.
+
+**This is the discipline for getting started, not a universal law.** In the
+second dial-in episode he moves three things at once — temperature down two
+degrees, yield in by two grams, grind slightly finer — and explains the finer
+grind as compensating for the extraction the other two give up, then checks the
+clock afterwards to confirm the net came out where he expected. That is a
+coordinated move with a prediction attached, which is a different thing from
+changing two things and hoping. Until you can state the prediction, change one.
+
+### The purge cost is conditional, and the rule above depends on it
+
+"Use grind for big moves only" exists *because* most grinders retain grounds. A
+single-dosing grinder that holds almost nothing removes the reason: in the second
+dial-in episode he notes he does not really need to purge, and dials a coffee in
+using 60g out of a 250g bag. On that kind of grinder, moving the grind is cheap
+and there is much less reason to reach for dose and yield instead.
+
+**A new grinder is a confounder.** Unseasoned burrs are noted as not being on his
+side — a grinder that has not settled in will not behave consistently yet.
 
 ---
 
@@ -285,10 +323,31 @@ temperature problem.
 first. Hoffmann is explicit that he rarely changes brew temperature to improve a
 shot, because ratio and dose have a bigger impact.
 
-**And it is not a one-shot decision.** Temperature earns a change when a fault
-*persists* — the same slight unpleasant acidity shot after shot, after ratio and
-dose have failed to shift it. One sour cup is not evidence about temperature,
-because too many other things vary between two shots of the same coffee.
+**But there is a second trigger, and the dial-in episodes show it twice.**
+Temperature matters most when it is simply *set wrong for the coffee* — a
+setting left behind by the last bag rather than chosen for this one. Once at
+95°C on a medium roast, caught on the first shot; once at 88°C on a blend that
+wanted 93, where the five-degree correction was described as transformative.
+
+That is arithmetic rather than tasting: the roast gives a band, the machine gives
+the setting, and a setting outside the band is worth saying before anything is
+read into the cup. **When it is wrong, correct the whole way — a degree at a time
+is not what fixed either of those shots.**
+
+So there are two paths to a temperature change and they are different:
+
+| Trigger | Evidence needed | Size of move |
+|---|---|---|
+| Setting is outside the roast's band | The numbers alone, first shot | All the way to the band |
+| Setting is in band, cup keeps tasting the same way | The same wall on more than one shot, after ratio and dose | One degree |
+
+**Neither path fires on one in-band sour cup.** Too much else varies between two
+shots of the same bag.
+
+**And the band is a starting point, not a verdict.** One roaster's medium is not
+another's — he inspects the beans rather than trusting the label — so a coffee
+that is marked medium and wants light-roast temperatures is a normal thing, not a
+contradiction. That is what the taste path is for.
 
 **What too hot tastes like:** bitter up front, harsh and aggressive, rough-edged,
 lacking clarity. Distinguishable from the lingering burnt bitterness of a dirty
@@ -366,6 +425,34 @@ and channelling*, not in buying extraction through longer contact.
 
 ---
 
+## The method actually applied
+
+From the first dial-in episode — a light single origin, an 18g basket — because
+the order in which he reaches for things is the clearest statement of the method
+anywhere in the material.
+
+| Shot | Change | Result |
+|---|---|---|
+| 1 | 18g → 40g, as the grinder sat | 34s. Slow, harsh, intensely sour |
+| 2 | Coarser | 25s. Overshot — now under-extracted |
+| 3 | Finer, a smaller move | 27s. Better, not there |
+| 4 | Finer again | 29s at 38–39g. Good, wants more extraction |
+| 5 | **Yield only**, 38 → 42g | Good clarity, traded texture for extraction |
+| 6 | **Dose 18 → 17g**, finer, same 42g out | Sweet, clean, balanced |
+
+Three things to take from it. **Grind found the window, then stopped being the
+tool** — the last two moves were yield and dose. **He overshot on the second
+shot and halved the next correction**, which is why the app's calibration halves
+large moves rather than extrapolating them. And **a light roast will taste
+acidic**: he notes the finished shot sits on the acidic end and that this is the
+raw material rather than a fault left to chase.
+
+**A shot a long way out is not worth tasting.** At 23 seconds in the third
+episode he does not bother — the flow is wrong, fix that first. Taste is the
+instrument once the clock is roughly right.
+
+---
+
 ## What the app does with all this
 
 | Method point | App behaviour | State |
@@ -373,25 +460,27 @@ and channelling*, not in buying extraction through longer contact.
 | Kit decides legal advice | Asks temperature / pressure / grind-dial capability, suppresses advice naming absent variables | **built** |
 | Machine list prefills capability | 25 machines, 17 grinders, all answers editable | **built** |
 | Portafilter type decides the channelling question | — | **to build** |
-| Dose to basket, ±1g | `basketFault` | **built, tolerance corrected** |
-| Underdosing is mess, not a fault | Demoted from an outranking fault to a tidiness note | **corrected** |
-| Lighter roast wants a lower dose | — | **to build** |
-| Half-gram dose nudge instead of a purge | — | **to build** |
-| Channelling outranks grind | `runFault`, `harshFault` | **built** |
+| Dose to basket, ±1g | `basketFault` | **built** |
+| Underdosing is mess, not a fault | A note that says the shot is fine; no longer outranks the grinder | **built** |
+| Lighter roast wants a lower dose | `doseStart` — offset from the basket's rating by roast, never above it | **built** |
+| Half-gram nudge instead of a purge | `doseNudge` — offered when close to the window, and only with headroom under the basket | **built** |
+| A shot can hit the numbers and still channel | `runFault` and `harshFault` ask rather than infer | **built** |
 | Channelling looks different on a spouted portafilter | — | **to build** |
-| Ratio 2–3g at a time, and a ceiling | Step size corrected; ceiling not yet enforced | **partial** |
-| Grind for big moves, dose/yield for small | — | **to build** |
-| Purge 5–10g | `stuckNote` | **built, figure corrected** |
+| Ratio 2–4g at a time, with a ceiling | Both in the yield advice | **built** |
+| Ratio bands that name the drink | — | **to build** |
+| Grind for big moves, dose/yield for small | The nudge offers the alternative; the rule is not stated outright | **partial** |
+| Purge 5–10g | `stuckNote` | **built** |
+| Purge cost depends on grinder retention | Kit does not ask whether the grinder retains | **to build** |
 | Round to the finer step on a coarse stepped grinder | `grindMove` | **built** |
 | One flow variable at a time | `intentCheck` catches intent-vs-actual, not grind-and-dose-together | **partial** |
 | Time is an output, not a target | In-window shots get "the clock is right, now taste it" | **built** |
-| How far to move the grinder | Measured from the log, in the user's own units | **built, beyond the method** |
-| Temperature ranges by roast | `ROASTS` | **built, figures corrected** |
-| Temperature after ratio, not before | `suggest()` | **corrected** |
-| Temperature needs a persistent fault | — | **to build** |
+| A shot far out is not worth tasting | Said on the start card only | **partial** |
+| How far to move the grinder | Measured from the log, in the user's own units, halved when large | **built, beyond the method** |
+| Temperature ranges by roast | `ROASTS`, with explicit bands | **built** |
+| Temperature after ratio when in band | `suggest()` | **built** |
+| Temperature set outside the roast's band | `tempFault` — caught on the first shot, corrects the whole way | **built** |
 | Roast age | Appended to whichever move wins | **built** |
-
----
+| A light roast will taste acidic, and that is the coffee | — | **to build** |
 
 ## Open questions
 
@@ -423,7 +512,7 @@ milk, which changes the ratio somebody should want and is never asked.
 
 ### Primary — transcripts worked from directly
 
-James Hoffmann, *Understanding Espresso*:
+James Hoffmann, *Understanding Espresso* and *How I Dial-In Espresso*:
 
 | Episode | ID |
 |---|---|
@@ -433,6 +522,9 @@ James Hoffmann, *Understanding Espresso*:
 | Grind Size (#4) | `er2voEn8ZDU` |
 | Brew Temperature (#5) | `QAzE-_ocf1U` |
 | Pressure (#6) | `po3oGIicu-8` |
+| How I Dial-In Espresso #1 — light single origin | `lFwJF-_SUr0` |
+| How I Dial-In Espresso #2 — medium, barrel-aged | `1eK0eidOA_U` |
+| How I Dial-In Espresso #3 — blend on a Decent | `aQOKa61YBYc` |
 
 ### Written, by Hedrick
 
