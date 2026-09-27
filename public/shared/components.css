@@ -478,20 +478,38 @@ input { font: inherit; color: inherit; }
   border-top: 1px solid var(--line);
 }
 .sheet-actions .btn { flex: 1; }
-/* A destructive control is not the peer of Save.
+/* A destructive control is not the peer of Save, and the first attempt at
+   saying so made it worse.
 
-   "Remove this coffee" sat beside "Save" at equal width in a sticky
-   footer — two full-size targets, one of which takes the bag and every
-   shot on it. Equal width is a claim that they are equally likely to be
-   what you meant, and they are not. It shrinks to its own text, Save
-   takes the rest of the bar, and the gap between them widens. */
-.sheet-actions .btn-danger {
-  flex: 0 0 auto;
-  padding-left: var(--space-4);
-  padding-right: var(--space-4);
-  font-weight: 600;
-  margin-right: var(--space-2);
+   Giving it `flex: 0 0 auto` in the action bar let "Remove this coffee"
+   claim its full intrinsic 356px of a 390px sheet and push Save off the
+   right edge — about five pixels of a 63px button left reachable. Two
+   testers hit it independently. The bar now holds one action; the
+   destructive one sits at the foot of the sheet it belongs to, right
+   aligned, quiet, and nowhere near a thumb going for Save. */
+.sheet-destroy {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-5) var(--space-4);
 }
+/* No gap on a sheet with nothing to remove — the button carries .hidden on
+   a shot that has not been saved yet. */
+.sheet-destroy:not(:has(button:not(.hidden))) { display: none; }
+.btn-quiet-danger {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--red);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.btn-quiet-danger:active { border-color: var(--red); }
+@media (hover: hover) { .btn-quiet-danger:hover { border-color: var(--red); } }
+.btn-quiet-danger:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 .sheet-note {
   font-size: 13px;

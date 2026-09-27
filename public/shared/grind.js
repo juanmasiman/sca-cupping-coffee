@@ -203,7 +203,14 @@ function makeGrind(env) {
              pairsUsed: kept.length, mixed: agree < slopes.length };
   }
 
-  const grain = () => (env.stepped() ? 1 : 0.1);
+  /* The smallest move worth naming.
+
+     A tenth was false precision on every stepless grinder the app met: a
+     DF64 collar is marked in whole numbers and a Barista Express dial has
+     thirty detents, and two testers independently reported being told to
+     go "down to 29.9" and "down to 11.1" on hardware that cannot express
+     it. Half a unit is a move a hand can actually make and find again. */
+  const grain = () => (env.stepped() ? 1 : 0.5);
 
   const fmtSteps = v => (env.stepped()
     ? `${v} ${v === 1 ? 'click' : 'clicks'}`
@@ -250,8 +257,13 @@ function makeGrind(env) {
     const to = (currentGrind === '' || currentGrind === null || currentGrind === undefined || cur === null)
       ? null
       : (() => {
+          /* Landed on the same grain as the move. "About 1.5 on the dial,
+             down to 30.5" is a pair of numbers a hand can carry out; the
+             old tenths gave "1.1, down to 29.9" on a collar with no 29.9
+             on it. */
           const v = cur + (dialUp ? steps : -steps);
-          return env.stepped() ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
+          if (env.stepped()) return String(Math.round(v));
+          return String(Math.round(v / g) * g);
         })();
 
     return { steps, finer, dialUp, to, halve, words: fmtSteps(steps),

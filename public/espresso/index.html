@@ -167,10 +167,13 @@
       </details>
     </div>
 
+    <!-- Only on a shot that exists; there is nothing to remove from a
+         sheet nobody has saved. At the foot of the sheet rather than in
+         the bar, for the reason on the coffee sheet's copy of this. -->
+    <div class="sheet-destroy">
+      <button id="shot-delete" class="btn-quiet-danger hidden" type="button">Remove this shot</button>
+    </div>
     <div class="sheet-actions">
-      <!-- Only on a shot that exists; there is nothing to remove from a
-           sheet nobody has saved. -->
-      <button id="shot-delete" class="btn btn-ghost btn-danger hidden">Remove this shot</button>
       <button id="shot-save" class="btn btn-primary">Save the shot</button>
     </div>
   </div>
@@ -202,8 +205,19 @@
       </button>
     </div>
     <div class="edit-body" id="edit-body"></div>
+    <!-- Out of the action bar.
+
+         It sat beside Save at equal width, and when it was given its own
+         intrinsic width instead it took all 356px of a 390px sheet and
+         pushed Save to x=385 — five pixels of it reachable, found by two
+         testers independently, one of whom only saved by hitting the
+         sliver. A sticky bar with a primary and a destructive action in it
+         is a bar with one action too many. Remove lives at the foot of
+         what it removes; the bar is Save's. -->
+    <div class="sheet-destroy">
+      <button id="edit-delete" class="btn-quiet-danger" type="button">Remove this coffee</button>
+    </div>
     <div class="sheet-actions">
-      <button id="edit-delete" class="btn btn-ghost btn-danger">Remove this coffee</button>
       <button id="edit-save" class="btn btn-primary">Save</button>
     </div>
   </div>
@@ -308,7 +322,7 @@
 <div id="help-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="sheet-head">
-      <h3 id="help-title">About</h3>
+      <h3 id="help-title">What the numbers mean</h3>
       <button id="help-close" class="icon-btn" aria-label="Close">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       </button>
