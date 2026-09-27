@@ -1459,14 +1459,14 @@ function suggest(shot, target, c) {
      answering only half of it. */
   const yTo = yieldTo(shot, side === 'sour' ? 3 : -3);
   const yFrom = num(shot.yield);
-  const yNamed = yTo !== null && yFrom !== null
-    ? `${fmtDose(yFrom)}g to about ${fmtDose(yTo)}g`
-    : (side === 'sour' ? '2 to 4g further' : '2 to 4g shorter');
+  const named = yTo !== null && yFrom !== null;
   const yieldMove = side === 'sour'
-    ? `Take the yield out to ${yNamed}, same dose and same grind: more water through the same puck takes more with it, and that is the reliable way to raise extraction.`
-    : `Stop it shorter — ${yNamed}, same dose and same grind: the harsh end of the extraction comes out last, so ending sooner leaves it in the puck.`;
+    ? `${named ? `Take it from ${fmtDose(yFrom)}g out to about ${fmtDose(yTo)}g` : 'Let it run 2 to 4g further'}, same dose and same grind: more water through the same puck takes more with it, and that is the reliable way to raise extraction.`
+    : `${named ? `Stop it at about ${fmtDose(yTo)}g instead of ${fmtDose(yFrom)}g` : 'Stop it 2 to 4g shorter'}, same dose and same grind: the harsh end of the extraction comes out last, so ending sooner leaves it in the puck.`;
+  const lighter = (() => { const e = roastEntry(c && c.roast); return Boolean(e && e.dose <= -1); })();
   const ceiling = side === 'sour'
-    ? ' Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead — which is also what a light roast wants, having less to extract.'
+    ? ` Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead${
+        lighter ? ' — which is also what a light roast wants, having less to extract' : ''}.`
     : ' If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.';
 
   /* Temperature is not symmetric, and the app used to treat it as if it
