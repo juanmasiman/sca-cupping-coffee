@@ -487,6 +487,9 @@ input { font: inherit; color: inherit; }
    testers hit it independently. The bar now holds one action; the
    destructive one sits at the foot of the sheet it belongs to, right
    aligned, quiet, and nowhere near a thumb going for Save. */
+/* Nothing behind a sheet moves while the sheet is open. */
+html.sheet-open, html.sheet-open body { overflow: hidden; touch-action: none; }
+
 .sheet-destroy {
   display: flex;
   justify-content: flex-end;
@@ -702,12 +705,19 @@ input { font: inherit; color: inherit; }
   align-items: center;
   touch-action: none;
 }
+/* A band rather than a hairline.
+
+   The track has always been 44px tall and takes a drag anywhere along it,
+   but drawn as a 2px line it read as decoration: a tester described
+   "aiming at a thin line above the word sour" and expected to miss it with
+   a thumb. The hit area is unchanged; it now looks like what it is. */
 .scale-rail {
   position: absolute;
   left: 0; right: 0;
-  height: 2px;
+  height: 4px;
   background: var(--rail);
   border-radius: 999px;
+  opacity: 0.55;
 }
 /* The one tick that carries a meaning of its own — the middle, where a
    cup tastes of neither wall — sits above the rail rather than below it. */
@@ -715,7 +725,7 @@ input { font: inherit; color: inherit; }
   position: absolute;
   left: 50%;
   width: 2px;
-  height: 12px;
+  height: 14px;
   margin-left: -1px;
   background: var(--rail);
 }
@@ -727,7 +737,9 @@ input { font: inherit; color: inherit; }
   background: var(--data);
   box-shadow: var(--shadow);
   transition: left 0.18s var(--settle);
+  cursor: grab;
 }
+.scale-track:active .scale-knob { cursor: grabbing; }
 /* Untouched is drawn hollow and dashed, because a default and a judgement
    must not be the same pixel. */
 .scale-knob.untouched {

@@ -754,8 +754,17 @@ function puckOrNot(shot, target, c, over) {
    advice. */
 function harshFault(shot) {
   if (!shot || !shot.harsh) return null;
+  /* Both at once IS the signature of a channel, and "ran even" says there
+     was not one. A tester had both lit with nothing said about it. The
+     taste is the stronger evidence — you drank it, and through spouts you
+     cannot see the bed at all — so the advice stands and the card says
+     which two answers are pulling against each other. */
+  const evenToo = sawEven(shot)
+    ? ` You marked it as running even, which is the opposite reading${bottomless() ? ', and through a bottomless that is worth something' : ''} — but a cup that is sharp and harsh at the same time is hard to get any other way, so this is the one to act on${bottomless() ? '; watch the underside again on the next pull' : ''}.`
+    : '';
   return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
-    why: 'Sharp and harsh in the same sip is not a point between sour and bitter — it is two different extractions in one cup. Water went round part of the bed and sat in the rest, so one half gave up too much and the other hardly brewed. No grind setting fixes that, and both directions make one half worse. Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move. Check the dose fits the basket while you are there, because a puck with nowhere to swell into channels however carefully it was prepared.' };
+    // The caveat goes after the instruction, not in front of it.
+    why: 'Sharp and harsh in the same sip is not a point between sour and bitter — it is two different extractions in one cup. Water went round part of the bed and sat in the rest, so one half gave up too much and the other hardly brewed. No grind setting fixes that, and both directions make one half worse. Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move. Check the dose fits the basket while you are there, because a puck with nowhere to swell into channels however carefully it was prepared.' + evenToo };
 }
 
 /* The puck, when the puck is the answer.
@@ -1709,10 +1718,44 @@ function ageNote(c) {
    mean anything, which is exactly why they come first. Roast age rides
    on the end of whichever move wins, because it does not change what to
    do — it changes how much to believe what you are looking at. */
+/* You already found this. Go back to it.
+
+   The board treated every shot as if the dial-in were still running. A
+   tester with a pinned recipe at grind 28 pulled one at 31 out of
+   curiosity, got the predictable sour shot, and was told "Grind finer —
+   about 1.3 on the dial, down to 29.7" — a fresh calculation toward a
+   number it had already found and printed six inches higher up the same
+   screen. The obvious sentence, "you have this one; go back to 28", was
+   never available.
+
+   Only where the grinder has actually moved off the recipe and the shot is
+   worse for it. A shot at the recipe's own grind is the recipe being
+   pulled, and a better one is a new recipe worth marking. */
+function backToRecipe(shot, target, c) {
+  const keeper = c && c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
+  if (!keeper || keeper === shot || !keeper.grind) return null;
+  const was = num(Number(keeper.grind));
+  const now = num(Number(shot && shot.grind));
+  if (was === null || now === null || was === now) return null;
+  // Something has to be wrong with this shot, or there is nothing to fix.
+  const place = placeOf(shot, target);
+  const t = tasteSide(shot.taste), b = bodySide(shot.body);
+  const bad = place.time === 'fast' || place.time === 'slow'
+    || (t && t !== 'neither') || (b && b !== 'neither');
+  if (!bad) return null;
+  const dist = fmtSteps(Math.abs(now - was));
+  return { sure: true, move: `Back to ${escapeHTML(String(keeper.grind))} — you already found this.`,
+    why: `The grinder is ${dist} off the recipe at the top of this board, and this shot is worse for it. ${
+      keeper.time === null ? '' : `That setting gave you ${Math.round(keeper.time)}s at ${fmtRatio(ratioOf(keeper))}. `}Put it back before changing anything else: a dial-in you have already finished is not worth running twice, and if the coffee has genuinely moved since — an older bag runs faster — the board will say so from there.` };
+}
+
 function nextMove(shot, target, c) {
   const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
     || tempFault(shot, c) || (c ? stuckNote(c) : null);
   if (first) return [withAge(first, c, shot, target)];
+
+  const back = backToRecipe(shot, target, c);
+  if (back) return [withAge(back, c, shot, target)];
 
   const pair = wallPair(shot, target, c);
   if (pair) return [withAge(pair, c, shot, target)];
@@ -2082,7 +2125,16 @@ function tasteScale(opts) {
 
   const setFromX = clientX => {
     const r = track.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    let frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    /* A detent at the middle.
+
+       "Neither" is not one value among several — it is the answer that
+       means the wall is quiet and the app should stop moving the grinder
+       for it, and it is the one a dial-in ends on. Getting back to it took
+       a tester three attempts, landing on "a little heavy" each time. A
+       few per cent of the track either side snaps to it, which is what the
+       tick above the rail has been promising all along. */
+    if (Math.abs(frac - 0.5) < 0.045) frac = 0.5;
     const next = Math.round(TASTE_MIN + frac * (TASTE_MAX - TASTE_MIN));
     if (next !== v) { v = next; haptic(); render(); onChange(v); }
     else if (v === null) { v = next; render(); onChange(v); }
@@ -2915,8 +2967,14 @@ function buildMore(c) {
       ${canSetTemp() ? `<label class="field"><span class="field-label">Brew temp</span>
         <input class="field-input" id="f-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="${
           num(c && c.target && c.target.temp) === null ? 'e.g. 93' : String(Math.round(c.target.temp))}"></label>` : ''}
-      ${canSetPressure() ? `<label class="field"><span class="field-label">Pressure / flow</span>
-        <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="e.g. 6 bar, 2ml/s"></label>` : ''}
+      ${/* A gauge you can read is worth a field even though it is not a
+            variable you can change: it is the one direct reading anybody
+            gets of what happened inside the puck, and a shot that spiked
+            to 11 bar explains itself. The setup asked the question and
+            then had nowhere to put the answer, which a tester noticed —
+            either ask or do not. */ ''}
+      ${seesPressure() ? `<label class="field"><span class="field-label">${canSetPressure() ? 'Pressure / flow' : 'What the gauge read'}</span>
+        <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="${canSetPressure() ? 'e.g. 6 bar, 2ml/s' : 'e.g. 9 bar, steady'}"></label>` : ''}
       ${prefs.tds ? `<label class="field"><span class="field-label">TDS %</span>
         <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
@@ -3302,9 +3360,14 @@ function openEdit(c, opts) {
              e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
              withTemp ? '' : ' Your machine holds one temperature, so the rest of this is the part you can take.'} Your grinder, water and palate finish the job.</p>
            ${sp.extra.map(x => `<p class="baseline-body">${escapeHTML(x)}</p>`).join('')}
-           ${startApplied(sp, spDose)
+           ${(startApplied(sp, spDose) || c.shots.length)
+             /* The button is a starting point, and a coffee with shots
+                against it has started. It sat above a DOSE field reading
+                18 offering "Start at 16.5g" after six shots and a keeper —
+                one tap from throwing the dial-in away, with no warning. */
              ? `<p class="baseline-body"><strong>${spDose === null ? '' : `${fmtDose(spDose)}g, `}1:${sp.ratio}${
-                  withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</strong> — that is what the target below is set to. Change any of it and it stays changed.</p>`
+                  withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</strong> is where this bag starts from cold.${
+                  c.shots.length ? ` You are ${c.shots.length} shot${c.shots.length === 1 ? '' : 's'} past that — the target below is what the board is judging against, and it is yours to edit.` : ' That is what the target below is set to. Change any of it and it stays changed.'}</p>`
              : `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}${withTemp ? `${sp.temp}° and ` : ''}1:${sp.ratio}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</button>`}
          </div>`
       : '';
@@ -3799,7 +3862,11 @@ function openDoseCheck() {
 // When the dose was last checked against the basket by volume, in words.
 function doseCheckLine() {
   const at = kit().doseChecked;
-  if (!at) return 'The coin test — never done on this setup';
+  /* "Never done on this setup" reads as a gap in the setup, so a tester
+     who had filled the kit in and saved it kept being told something was
+     outstanding. Nothing is outstanding — it is a guide, and the two
+     minutes it costs are worth offering rather than nagging about. */
+  if (!at) return 'A coin, two minutes, and the dose settled by volume as well as weight';
   const days = Math.floor((Date.now() - at) / 86400000);
   return days <= 0 ? 'The coin test — done today'
     : days === 1 ? 'The coin test — done yesterday'
@@ -4022,6 +4089,12 @@ function openModal(sel) {
   const m = $(sel);
   lastFocus = document.activeElement;
   m.classList.remove('hidden');
+  /* The board scrolled behind every open sheet. On a phone that means a
+     drag meant for a slider or a long sheet moves the page underneath it
+     instead, and the "Log a shot" bar stays visible under the Settings
+     modal. Locked while anything is open, released when the last one
+     closes. */
+  document.documentElement.classList.add('sheet-open');
   if (!m.dataset.trapped) {
     m.dataset.trapped = '1';
     m.addEventListener('keydown', e => trapTab(m, e));
@@ -4032,6 +4105,9 @@ function openModal(sel) {
 
 function closeModal(sel) {
   $(sel).classList.add('hidden');
+  if (!document.querySelector('.modal:not(.hidden)')) {
+    document.documentElement.classList.remove('sheet-open');
+  }
   // Focus goes back where it came from. A sheet that dismisses to the top
   // of the document makes a keyboard user walk the page again.
   if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });

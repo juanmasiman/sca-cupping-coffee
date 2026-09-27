@@ -739,6 +739,49 @@ The report's own summary of the app was that the reasoning was better than
 anything it had used and the bookkeeping around it was not. That is the right
 way round to have the problem, and it is not a reason to leave it.
 
+## What three kits found that one could not
+
+The run above was repeated with the same persona as a control and two others:
+a prosumer on a dual-boiler with a settable temperature, a clicked hand
+grinder, a bottomless portafilter and a seven-week-old dark blend; and an
+impatient user on a machine with a built-in grinder, told to skip the setup
+screen, leave fields blank, type nonsense, move two variables at once, edit
+and delete saved shots, and reload halfway through. The control reached a
+drinkable shot in two. The other two did not, and between them they found the
+class of fault that testing one configuration cannot reach.
+
+**Advice written for one kit is wrong for another, and it says so out loud.**
+Four branches reached for channelling whenever the clock and the taste
+disagreed. That is a good guess through spouts, where the bed is invisible.
+Through a bottomless, with "Ran even" lit 200px above, it is the app throwing
+away the one observation that settles the question — and it did it three
+times in identical words while the tester re-tamped a puck that was fine. The
+same shape of error ran through the whole advice layer: "one click, the
+smallest your grinder makes" is a real move on a stepped grinder and a null
+one on a hand grinder where a click is half a second; "the dial" is a thing a
+numbered collar does not have; tenths of a unit are a precision no dial in
+either test could express. **Every one of these was written while looking at
+one grinder.**
+
+**A flag without a number behind it is a lie the prose tells for you.** The
+starting point said an aged bag "starts shorter, and cooler, than the roast
+alone would" and then set the plain roast midpoint, because the age raised a
+flag and moved nothing. The sentence had been true of an intention.
+
+**The careless user is the honest one.** Skipping the setup screen exposed the
+app asserting a basket size it had never been told. Leaving the yield blank
+exposed a recipe that could be pinned with no yield in it. Typing 999 exposed
+a Save that reported success over a value it had discarded. None of these
+needed a clever tester; they needed one who did not cooperate.
+
+**And two of the findings were the tester's, not the app's.** The claim that
+the calibration used the two-variable shot it had just flagged was wrong — the
+dose filter had excluded it and the figure came from stepping across it. The
+claim that the Barista Express autofill was wrong for the machine was wrong
+too: the persona brief was wrong about its own hardware. Both were checked
+before anything was changed, which is the only reason the machine table is
+still correct.
+
 ---
 
 ## Open questions
