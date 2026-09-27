@@ -468,11 +468,11 @@ instrument once the clock is roughly right.
 | Channelling looks different on a spouted portafilter | Bottomless offers "sprayed"; spouted offers "gushed near the end", with its own diagnosis | **built** |
 | Ratio 2–4g at a time, with a ceiling | Both in the yield advice | **built** |
 | Ratio bands that name the drink | `ratioBand` — the readout says ristretto or lungo when the shot leaves the espresso band, and stays quiet inside it | **built** |
-| Grind for big moves, dose/yield for small | The nudge offers the alternative; the rule is not stated outright | **partial** |
+| Grind for big moves, dose/yield for small | `grindIsFor` states it on a correction over 5s; `doseNudge` offers the alternative under it; the help says it plainly | **built** |
 | Purge 5–10g | `stuckNote` | **built** |
 | Purge cost depends on grinder retention | Asked in the kit and prefilled by the grinder list; the purge advice and the half-gram pitch both change on a single-doser | **built** |
 | Round to the finer step on a coarse stepped grinder | `grindMove` | **built** |
-| One flow variable at a time | `intentCheck` catches intent-vs-actual, not grind-and-dose-together | **partial** |
+| One flow variable at a time | `twoVariables` — names both moves and says the next clock reading cannot attribute either | **built** |
 | Time is an output, not a target | In-window shots get "the clock is right, now taste it" | **built** |
 | A shot far out is not worth tasting | Said on the start card only | **partial** |
 | How far to move the grinder | Measured from the log, in the user's own units, halved when large | **built, beyond the method** |
@@ -501,6 +501,31 @@ ordinary route fails, not as a change to the default.
 
 **Hedrick is still second-hand** except for the Meticulous page. The same
 treatment given to Hoffmann here would settle the **[hedrick]** claims.
+
+**A third source is in hand and not yet folded in.** A written dial-in
+walkthrough from Daddy Got Coffee, which independently confirms the grind-then-
+ratio division above — "get in the right ballpark with grind size" because it
+overcorrects easily, then fine-tune with ratio because it is "a lot more
+forgiving". What it adds that nothing here covers:
+
+- **Extraction runs in a fixed order**: sour compounds first, balanced and sweet
+  in the middle, bitter last. This is the mechanism behind the ratio advice —
+  extending a shot adds more of the bitter tail, which is *why* it tempers
+  sourness, and shortening one leaves that tail in the puck.
+- **The salami shot**, which is a training exercise rather than a diagnostic:
+  split one shot into three glasses and taste each third to learn what the sour
+  and bitter ends actually taste like. The app asks people to judge sour against
+  bitter and has never taught them the difference.
+- **Solubility as the unifying model.** How much extraction a coffee needs is set
+  by how soluble it is, and roast level is only the largest of several inputs.
+  Washed and high-grown are denser and less soluble, so they want more; natural
+  and fermented are more soluble, so less; **decaf is markedly more soluble and
+  also flows faster**, wanting a finer grind but a tighter ratio. That is a
+  bigger model than roast alone and the app asks for none of it.
+- Tamping force is close to irrelevant once the bed is compressed — level matters
+  and pressure does not, so the 30lb rule can go. Spin levellers are singled out
+  as the weak option because they do not reach the bottom of the bed.
+- Some machines display a temperature that is not the one they brew at.
 
 **Variables this document still does not cover.** Water chemistry, which is real
 and large. Basket type beyond its dose rating. Whether the shot is going into

@@ -578,6 +578,39 @@ function intentEntry(key) {
    previous shot to have changed from. Otherwise a sentence about the
    disagreement, and nothing at all when they agree, because a dial-in that
    is going to plan does not need narrating. */
+/* Two flow variables moved at once, so neither result means anything.
+
+   His third rule for grind, and the one most often broken: grind and
+   dose both change how hard it is for water to get through the puck.
+   Move both in the same shot and the clock cannot tell you which did
+   what — the shot is not a measurement of either.
+
+   The app already catches the stated intention disagreeing with what
+   moved. It did not catch this, which is the more common mistake,
+   because both changes can be perfectly deliberate and still leave you
+   with an uninterpretable result.
+
+   A dose change under a third of a gram is not counted: that is scale
+   drift rather than a decision, and half the point of the half-gram
+   nudge is that dose moves on its own terms. */
+function twoVariables(shot, prev) {
+  if (!shot || !prev) return null;
+  const n = (o, f) => {
+    const raw = o[f];
+    if (raw === '' || raw === null || typeof raw === 'undefined') return null;
+    const v = Number(raw);
+    return isFinite(v) ? v : null;
+  };
+  const g0 = n(prev, 'grind'), g1 = n(shot, 'grind');
+  const d0 = n(prev, 'dose'), d1 = n(shot, 'dose');
+  if (g0 === null || g1 === null || d0 === null || d1 === null) return null;
+  const dg = g1 - g0, dd = d1 - d0;
+  if (dg === 0 || Math.abs(dd) < 0.3) return null;
+  return `The grind and the dose both moved since the last shot — ${
+    dg > 0 ? 'grind up' : 'grind down'} ${Math.abs(dg) % 1 === 0 ? Math.abs(dg) : Math.abs(dg).toFixed(1)}, dose ${
+    dd > 0 ? 'up' : 'down'} ${fmtDose(Math.abs(dd))}g. Both of those change how hard it is for the water to get through, so whatever the clock says next, it cannot tell you which one did it. Move one at a time and the shot becomes a measurement instead of a guess.`;
+}
+
 function intentCheck(shot, prev) {
   const intent = intentEntry(shot.intent);
   if (!intent || !prev) return null;
@@ -718,6 +751,26 @@ function secondsWanted(shot, target, finer) {
   return (target.timeLo + target.timeHi) / 2 - t;
 }
 
+/* The rule the app had been following without ever saying.
+
+   Grind gets the flow into the ballpark; dose and yield make the small
+   corrections after that. It is stated where it applies rather than in
+   the abstract — on a big correction, so somebody learns what the
+   grinder is for at the moment they are reaching for it.
+
+   Deliberately the complement of doseNudge: that offers the half-gram
+   when the shot is within five seconds of the window, this names the
+   principle when it is further out, and they never both fire. */
+function grindIsFor(shot, target) {
+  const t = num(shot && shot.time);
+  if (t === null) return '';
+  const place = placeOf(shot, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return '';
+  const off = place.time === 'fast' ? target.timeLo - t : t - target.timeHi;
+  if (off <= 5) return '';
+  return ` A correction this size is what the grinder is for. Once it is close, the small moves come from the dose and the yield instead — they cost no purge, and they do not send you back to re-measure the clock.`;
+}
+
 /* The half-gram instead of the purge.
 
    Straight out of the dial-in episodes, twice. A shot that is nearly
@@ -769,12 +822,12 @@ function clockAdvice(shot, target) {
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
-      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)}${grindIsFor(shot, target)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
-      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
+      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)}${grindIsFor(shot, target)}${doseNudge(shot, target)} Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
   }
   /* In the window, and nobody has said how it tastes.
 
@@ -1790,6 +1843,7 @@ function shotCard(shot, prev, c, n) {
     ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
     ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
     ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${twoVariables(shot, prev) ? `<div class="log-mismatch">${escapeHTML(twoVariables(shot, prev))}</div>` : ''}
     ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
     ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
     ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
@@ -2204,6 +2258,7 @@ function renderReadout(c) {
      The prior shot is the one before this one in the log — the last one
      for a new sheet, the one before it for an edit. */
   const mismatch = intentCheck(editing, prevShotOf(c));
+  const twoVars = twoVariables(editing, prevShotOf(c));
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null
@@ -2229,6 +2284,7 @@ function renderReadout(c) {
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
     ${tips.map(t => tipHTML(t, 'tip')).join('')}
+    ${twoVars ? `<div class="log-mismatch">${escapeHTML(twoVars)}</div>` : ''}
     ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
   // The sheet's own copy of the advice carries the same action, and a
@@ -2830,6 +2886,8 @@ function openHelp() {
     <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
     <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
     <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>
+    <p><strong>Grind is for the big moves; dose and yield are for the small ones.</strong> Grind is the only thing that really moves the clock, so it is what gets a shot into the window. After that it is an expensive tool: most grinders hold on to some of the last setting, so every change costs five to ten grams of purge and a shot you cannot read. Once you are close, half a gram of coffee or two of yield will do what you need and cost nothing. If your grinder is a single-doser and holds nothing back, that calculation changes and the app says so.</p>
+    <p><strong>One flow variable at a time.</strong> Grind and dose both change how hard it is for the water to get through. Move both in the same shot and the clock cannot tell you which one did it, so the board says so when it sees it happen.</p>
     <p><strong>Ristretto, espresso, lungo</strong> are ratios rather than sizes. Up to about 1:1.5 is a ristretto, roughly 1:1.5 to 1:2.5 is espresso, and beyond that you are into lungo territory. The board names it when a shot leaves the middle band, because that is the difference between dialling a shot in and quietly ordering a different drink.</p>
     <p><strong>Your portafilter decides what you can see.</strong> Through a bottomless you watch the bed itself, and channelling shows as uneven flow and spray. With spouts the bed is hidden, and the tell is a sudden surge of flow in the last third. The sheet asks whichever question you can actually answer.</p>
     <p><strong>How it ran</strong> is the question that outranks the rest. Most bad espresso at home is water finding a crack and going round the puck instead of through it, and when that happens the clock and the cup are both readings of an accident — so the app stops talking about the grinder until the shot runs even. Grinding finer on a puck that channels tightens the bed and makes it worse.</p>
