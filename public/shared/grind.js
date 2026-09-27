@@ -154,8 +154,23 @@ function makeGrind(env) {
     const halve = raw > (env.stepped() ? 3 : 0.6);
     const use = halve ? raw / 2 : raw;
     const g = grain();
-    const stepped = Math.max(g, Math.round(use / g) * g);
-    const steps = env.stepped() ? Math.round(stepped) : Math.round(stepped * 10) / 10;
+
+    /* A stepped dial lands on the finer of the two clicks either side of
+       the answer, rather than on the nearer one.
+
+       This is Hoffmann's rule for grinders whose steps are coarse: take
+       the finer setting, even if it means dropping the dose a little,
+       because a shot that is slightly too fine is a better place to be
+       stuck than one that is slightly too coarse. Going finer means a
+       bigger move, going coarser means a smaller one — in both cases the
+       resulting grind is the finer of the two candidates. A stepless dial
+       has no such gap to fall into, so it still rounds to nearest. */
+    let steps;
+    if (env.stepped()) {
+      steps = Math.max(1, finer ? Math.ceil(use) : Math.floor(use));
+    } else {
+      steps = Math.round(Math.max(g, Math.round(use / g) * g) * 10) / 10;
+    }
 
     const dialUp = finer === s.finerIsUp;
     const cur = n(Number(currentGrind));

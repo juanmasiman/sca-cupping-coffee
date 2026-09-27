@@ -237,12 +237,27 @@ function defaultTarget() {
 
    Ranges are the conventional ones; the single figure is the middle of the
    range this app will actually put in the field. */
+/* Temperatures are from DIALIN.md step 5, which takes them from the
+   Understanding Espresso series: dark 85–90, medium 88–92, light 90–95.
+   The five levels here interpolate between those three bands, keeping
+   their outer edges.
+
+   They used to run 2–3°C hotter across the board — the old dark band
+   started where this one ends — because they were assembled from general
+   guidance rather than taken from a source. That is the whole argument
+   for writing the method down before writing the advice.
+
+   The ratios are NOT from the same place and are marked as assembled in
+   DIALIN.md step 3: the series gives no roast-to-ratio mapping at all,
+   and starts around 1:2–1:2.2 regardless. The mild slope kept here — a
+   longer ratio for a lighter roast — follows Hedrick's "ratio over grind
+   size" rather than Hoffmann, and is offered as a starting point only. */
 const ROASTS = [
-  { key: 'light',  label: 'Light',       temp: 94, ratio: 2.4, tempRange: '93–95°', ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 93, ratio: 2.2, tempRange: '92–94°', ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',      temp: 92, ratio: 2.0, tempRange: '92–93°', ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark', temp: 91, ratio: 1.9, tempRange: '90–92°', ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',        temp: 90, ratio: 1.8, tempRange: '88–91°', ratioRange: '1:1.7–1:1.9' },
+  { key: 'light',  label: 'Light',        temp: 93, ratio: 2.4, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 92, ratio: 2.2, tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',       temp: 90, ratio: 2.0, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, ratio: 1.9, tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',         temp: 87, ratio: 1.8, tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
 ];
 
 function roastEntry(key) {
@@ -691,7 +706,22 @@ function clockAdvice(shot, target) {
    So: two corners get an instruction, two get a list and no pick, and
    the app says which kind of answer it is giving. It takes the cupping
    sheet's line on this — direction is a habit, not a verdict. */
-function suggest(shot, target) {
+/* Has this wall shown up before, or is this one cup?
+
+   Temperature earns a change only when a fault persists: the same slight
+   acidity shot after shot, after ratio and dose have failed to shift it.
+   One sour cup is not evidence about temperature, because too much else
+   varies between two shots of the same coffee — the grind, the prep, the
+   beans themselves. See DIALIN.md step 5. */
+function wallPersists(c, side) {
+  if (!c || !side || side === 'neither') return false;
+  const seen = (c.shots || [])
+    .filter(sh => tasteSide(sh.taste) === side)
+    .length;
+  return seen >= 2;
+}
+
+function suggest(shot, target, c) {
   const place = placeOf(shot, target);
   const side = tasteSide(shot.taste);
   if (side === null || place.time === null) return null;
@@ -731,20 +761,38 @@ function suggest(shot, target) {
   }
   /* In the window, and still tasting of one of the walls.
 
-     This is where a kit-blind tool falls over. Brew temperature is the
-     textbook next variable and most home machines do not have one, so the
-     answer has to be the variable the person in front of it actually has.
-     Ratio is that variable, and it is a real one: more water through the same
-     puck takes more with it, less takes less. */
-  if (canSetTemp()) {
-    return { sure: false, move: 'Grind has done its job.',
-      why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next variable — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
+     The ordering here was wrong and is now the other way round. The app
+     used to tell anyone with a PID that brew temperature was the next
+     variable and ratio came after it. The series says the reverse: on a
+     single sour shot, reach for ratio first, and temperature is rarely
+     what gets changed at all, because ratio and dose have a bigger
+     effect. Temperature is for a fault that keeps coming back after
+     those have failed — so it is offered on the second sighting, not the
+     first, and even then as a degree at minimum rather than a nudge. */
+  const persists = wallPersists(c, side);
+  const yieldMove = side === 'sour'
+    ? 'Let it run 2 to 4g further on the same dose: more water through the same puck takes more with it.'
+    : 'Stop it 2 to 4g shorter and the harsh end of the extraction stays in the puck.';
+  const ceiling = side === 'sour'
+    ? ' Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead — which is also what a light roast wants, having less to extract.'
+    : ' If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.';
+
+  if (canSetTemp() && persists) {
+    return { sure: false, move: `Try it a degree ${side === 'sour' ? 'hotter' : 'cooler'}.`,
+      why: `That is the ${nth(countSide(c, side))} shot of this coffee to taste ${side}, which is what makes it a temperature question rather than a one-off. Hotter extracts more, cooler extracts less. Move a whole degree — half a degree will not answer anything — and give it a couple of shots before you judge it, because plenty else varies between two shots of the same bag. ${yieldMove}${ceiling}` };
   }
-  return { sure: false, move: 'Grind has done its job.',
-    why: side === 'sour'
-      ? 'The shot is in the window and still tastes sour. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the variable is the ratio. Let it run longer on the same dose: more water through the same puck takes more with it. Still sour at 1:2.5 and the bag probably wants a few more days off the roast.'
-      : 'The shot is in the window and still tastes bitter. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the variable is the ratio. Stop it shorter and the harsh end of the extraction stays in the puck. If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.' };
+  return { sure: false, move: 'Grind has done its job — move the yield.',
+    why: `The shot is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach, so the next variable is how much you let into the cup. ${yieldMove}${ceiling}${
+      canSetTemp()
+        ? ' Brew temperature comes after this, not before it: it is worth changing when a coffee tastes the same way shot after shot, and this is the first one.'
+        : ' Your machine holds one temperature, so the ratio is where the work happens.'}` };
 }
+
+// How many shots of this coffee have tasted this way, for the prose.
+function countSide(c, side) {
+  return ((c && c.shots) || []).filter(sh => tasteSide(sh.taste) === side).length;
+}
+const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : `${n}th`);
 
 /* Both walls at once, which is one fault rather than two.
 
@@ -906,14 +954,38 @@ function basketFault(shot) {
   const got = num(shot && shot.dose);
   if (want === null || got === null || want <= 0) return null;
   const off = got - want;
-  if (Math.abs(off) < 1.6) return null;
   const basket = (kit().basket || '').trim();
   const named = basket ? `your ${basket}` : `a ${fmtDose(want)}g basket`;
-  return off > 0
-    ? { sure: true, act: 'dose', move: `Drop the dose to about ${fmtDose(want)}g.`,
-        why: `${fmtDose(got)}g is ${fmtDose(off)}g over what ${named} is built for. Overfilled, the puck meets the shower screen before the pump gets going, and it channels around the edge however the grinder is set — which makes the clock and the cup both untrustworthy. Get the dose right first; it is the one number that has to be settled before grind means anything.` }
-    : { sure: true, act: 'dose', move: `Bring the dose up to about ${fmtDose(want)}g.`,
-        why: `${fmtDose(got)}g is ${fmtDose(Math.abs(off))}g under what ${named} is built for. Underfilled there is headspace above the bed, the puck lifts and breaks when the water hits it, and the shot channels however the grinder is set. Get the dose right first; it is the one number that has to be settled before grind means anything.` };
+
+  /* Over the basket's figure is a real fault and it outranks the grinder:
+     the puck meets the shower screen before the pump gets going and
+     channels around the edge whatever the grind is. About a gram is the
+     working tolerance — this used to allow 1.6g, which was looser than
+     the source it claimed. */
+  if (off > 1.1) {
+    return { sure: true, act: 'dose', move: `Drop the dose to about ${fmtDose(want)}g.`,
+      why: `${fmtDose(got)}g is ${fmtDose(off)}g over what ${named} is built for, and that figure is an upper limit. Overfilled, the puck meets the shower screen before the pump gets going and channels around the edge however the grinder is set, which makes the clock and the cup both untrustworthy. This one is worth fixing before anything else.` };
+  }
+
+  /* Under it is NOT a fault, and this app used to say it was.
+
+     The claim was that headspace above the bed makes the puck lift and
+     break, so underdosing channels — which came from a retailer's article
+     and outranked every other piece of advice on the board. The series is
+     clear that the printed figure is an upper limit with no lower one: 14g
+     in an 18g basket is fine for quality. What you actually get is a
+     soupy, blown-apart puck at the end of the shot, because the space
+     above the coffee lets the pressure dump into it — irritating to clean
+     and useless to read, but not a bad drink.
+
+     So it is a note rather than an instruction, it does not claim the
+     shot is wrong, and it no longer outranks the grinder. See DIALIN.md
+     step 1. */
+  if (off < -1.1) {
+    return { sure: false, move: 'Nothing wrong with that dose — expect a messy puck.',
+      why: `${fmtDose(got)}g is ${fmtDose(Math.abs(off))}g under what ${named} is marked for. That figure is an upper limit and there is no lower one: this will taste perfectly good. What it will do is leave room above the coffee, so when the pressure dumps at the end of the shot the puck gets blown into a soup that tells you nothing and is a nuisance to knock out. If that bothers you more than the extra gram costs, come up to about ${fmtDose(want)}g. Otherwise carry on — and note that a lighter roast is easier to extract at a lower dose, so this may be doing you a favour.` };
+  }
+  return null;
 }
 
 /* Turning the grinder and getting nowhere.
@@ -939,7 +1011,7 @@ function stuckNote(c) {
   if (moved > 2.5) return null;
   const dist = Math.abs(Number(last[last.length - 1].grind) - Number(last[0].grind));
   return { sure: false, move: 'Three moves and the clock has not answered.',
-    why: `The grinder has gone the same way three times, a total of ${dist % 1 === 0 ? dist : dist.toFixed(1)} on the dial, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, the burrs are probably holding grounds from the last setting — grind a couple of grams and throw them away, then pull again — and after that, check the dose against the basket and how long ago the bag was roasted.` };
+    why: `The grinder has gone the same way three times, a total of ${dist % 1 === 0 ? dist : dist.toFixed(1)} on the dial, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, the burrs are probably still holding grounds from the last setting — purge five to ten grams and throw them away, then pull again — and after that, check the dose against the basket and how long ago the bag was roasted.` };
 }
 
 /* What the calendar is doing to the shot.
@@ -994,7 +1066,7 @@ function nextMove(shot, target, c) {
   if (cp) return [withAge(cp, c)];
   const b = bodyNote(shot);
   if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c)];
-  const t = suggest(shot, target);
+  const t = suggest(shot, target, c);
   if (t) return [withAge(t, c)];
   // No taste on the sheet: the clock still knows which way the grinder goes.
   const clock = clockAdvice(shot, target);
