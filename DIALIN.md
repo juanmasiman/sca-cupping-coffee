@@ -91,6 +91,58 @@ grinder or unpractised puck prep — and will often taste better for it.
 
 ---
 
+## Step 0.5 — How soluble the coffee is, which is what roast level was standing in for
+
+**This reverses a decision this document used to make.** It said process, origin
+and elevation were real but much weaker than roast, and that folding them in
+would blur the answer rather than sharpen it. That was fair when the sources said
+those things mattered without saying what to do about them.
+
+Two of them now do. One frames the whole problem as **solubility** — how readily
+a coffee gives up what is in it — with roast as the largest input rather than the
+only one. The other arrives at the same place by category, working five coffees
+that each need a different approach. Those are specific enough to act on, which
+"real but weaker" never was.
+
+| Factor | Less soluble — needs more extraction | More soluble — needs less |
+|---|---|---|
+| **Roast** | Light: dense, less broken down | Dark: friable, gives up easily |
+| **Process** | Washed: denser | Natural, and more so fermented |
+| **Altitude** | High-grown: denser | Lower-grown: softer |
+| **Decaf** | — | Markedly more soluble |
+
+**Roast stays the baseline and the rest is a modifier around it**, not a
+replacement — counting roast twice would simply double its weight.
+
+Two of the factors are not points on a scale at all:
+
+**Decaf pulls both ways at once.** Decaffeination rearranges the bean: it
+extracts far more readily *and* it flows faster. So the ratio comes in, and the
+grind goes finer than the same coffee with its caffeine. Opposite directions,
+and neither cancels the other.
+
+**A heavily processed lot is a warning rather than a number.** The flavour you
+bought is the one the process put there, and pushing extraction burns it off. The
+consequence matters more than the starting point: **sour in one of these is as
+likely to be uneven extraction as under-extraction.** One source works exactly
+this case — a light, heavily processed coffee hitting nine bar, reasoned to be so
+fine that part of the bed over-extracts while the rest barely brews, and fixed by
+going **coarser** at the same yield. An app that only knows "sour, therefore
+finer" sends that person the wrong way for a whole bag.
+
+**An old bag is a third case.** Past about six weeks the carbon dioxide that gave
+the puck much of its resistance has gone, so shots run fast and will not build
+pressure. That is the bag rather than the grinder, and chasing it finer mostly
+buys bitterness.
+
+**Which way the numbers are allowed to move.** The ratio carries most of the
+adjustment, because yield is the reliable way to change extraction and the one
+all three sources agree on. The temperature only ever comes *down*: raising it is
+the contested move, so a coffee that is hard to extract gets a longer ratio
+rather than a hotter machine, while one that gives up too easily gets cooled.
+
+---
+
 ## Step 1 — Dose to the basket, and then leave it alone
 
 **The basket decides the dose, more than anything else does.** Modern baskets
@@ -299,6 +351,18 @@ every grind change costs a purge, and purged coffee is coffee you never drink.
   that means dropping the dose a little. A slightly-too-fine shot is a better
   place to be stuck than a slightly-too-coarse one.
 
+### Finding a starting grind without spending a shot
+
+Nobody can give you a number, but you can feel roughly where you are. Grind a few
+beans, tip them into your palm and pinch them:
+
+- **Little peaks where your fingers were, and a grainy, sandy sound** — the
+  neighbourhood.
+- **Your fingerprints pressed into it** — too fine; it is behaving like powder.
+- **It clumps into a ball** — static and moisture rather than grind size.
+
+Texture is comparable across grinders in a way dial markings never are.
+
 ### Which side to approach from — and a tension worth keeping
 
 Hedrick starts **coarser than he thinks he needs** and comes finer, on the
@@ -340,7 +404,58 @@ side — a grinder that has not settled in will not behave consistently yet.
 
 ---
 
-## Step 5 — Temperature: a tweak, and a late one
+## Step 5 — Taste decides, and the two walls are separate questions
+
+> **This section went missing.** It was in the first draft, and the rewrite from
+> the transcripts dropped it — leaving the document that governs the app without
+> the model the app is actually built on. Restored, and worth noting as a warning
+> about wholesale rewrites.
+
+Once the shot is in the window, the cup is the instrument. Two axes, asked
+separately, because they have different variables:
+
+- **Sour ↔ bitter** is *extraction*. The variable is grind.
+- **Watery ↔ muddy** is *concentration*. The variable is the ratio.
+
+Read together, each corner has exactly one move:
+
+| | | |
+|---|---|---|
+| sour + watery | under-extracted | grind finer |
+| bitter + muddy | over-extracted | grind coarser |
+| sour + muddy | ratio too short | let it run longer |
+| bitter + watery | ratio too long | stop it shorter |
+
+The first two are the pair every barista learns, because one change moves both.
+The other two are where people get stuck, because the wall you notice sends you
+to the grinder and the grinder is not what is wrong.
+
+**Sour and bitter *at once* is not on this axis.** It is channelling, and it
+belongs to step 2 — one part of the bed over-extracted while the rest barely
+brewed. The sheet carries it as a separate mark beside the scale, a statement
+that the axis does not apply rather than a position on it.
+
+**In the window and still on a wall.** Grind has done its job. The next move is
+the yield, 2–4g at a time, and temperature only after that — see step 6 for why
+that order, and why up and down are not the same move.
+
+### Learning what the two ends taste like
+
+The sheet asks people to place a cup between sour and bitter, and in a finished
+shot the two arrive mixed — hardest to separate in exactly the very light and
+very dark roasts where getting it right matters most.
+
+Extraction runs in a fixed order: **the sour compounds come out first, the sweet
+and balanced ones through the middle, the bitter ones last.** So catching one
+shot in three glasses pulls them apart. First glass sharp and sour, middle
+balanced and usually missing something on its own, last pale and bitter.
+
+It is also the clearest demonstration of why ratio works at all: **the last glass
+is what extending a shot adds more of.**
+
+---
+
+## Step 6 — Temperature: a tweak, and a late one
 
 Hotter extracts more. That is the whole mechanism.
 
@@ -423,7 +538,7 @@ change in quality it promised.
 
 ---
 
-## Step 6 — Pressure and flow, last
+## Step 7 — Pressure and flow, last
 
 **Nine bars is where flow peaks.** Raise pressure and more liquid passes through
 the puck in a fixed time — up to about nine bars, past which the water begins
@@ -517,6 +632,13 @@ instrument once the clock is roughly right.
 
 | Method point | App behaviour | State |
 |---|---|---|
+| Solubility: process, altitude, decaf | `solubility` / `startingPoint` — a modifier around the roast baseline, with the reasons named in the sentence | **built** |
+| Decaf pulls both ways | Said in words on the starting point: ratio in, grind finer | **built** |
+| Sour on a processed lot may mean coarser | `finerCaveat` — attached to every finer instruction, silent on other coffees | **built** |
+| Old bag runs fast, do not chase it finer | `finerCaveat` past six weeks | **built** |
+| Ratio carries the adjustment, temperature only comes down | `startingPoint` never raises temperature above the roast figure | **built** |
+| Pinch test for a starting grind | `openPinchTest` — offered on the first-shot card and in Settings | **built** |
+| Salami shot for learning the taste axis | `openSalami` — in Settings | **built** |
 | Kit decides legal advice | Asks temperature / pressure / grind-dial capability, suppresses advice naming absent variables | **built** |
 | Machine list prefills capability | 25 machines, 17 grinders, all answers editable | **built** |
 | Portafilter type decides the channelling question | Asked in the kit; the run options follow from it | **built** |

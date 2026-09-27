@@ -236,6 +236,43 @@
   </div>
 </div>
 
+<!-- ============ TWO THINGS TO LEARN, RATHER THAN RECORD ============ -->
+<!-- The app spends its time asking people for measurements. These two ask
+     nothing and teach something: where to put the grinder before the first
+     shot, and what the two ends of the taste scale actually taste like. The
+     second matters more than it looks — the sheet has asked people to judge
+     sour against bitter since the first version and has never once shown
+     them the difference. -->
+<div id="pinch-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="pinch-title">
+    <div class="sheet-head">
+      <h3 id="pinch-title">Find a starting grind</h3>
+      <button id="pinch-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="pinch-body"></div>
+    <div class="sheet-actions">
+      <button id="pinch-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="salami-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="salami-title">
+    <div class="sheet-head">
+      <h3 id="salami-title">Taste sour against bitter</h3>
+      <button id="salami-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="salami-body"></div>
+    <div class="sheet-actions">
+      <button id="salami-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ SETTINGS ============ -->
 <div id="settings-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
