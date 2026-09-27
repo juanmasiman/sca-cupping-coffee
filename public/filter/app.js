@@ -101,7 +101,7 @@ function migrate(s) {
 
    Asked once, before the first brew, for the same reason the dial-in
    asks: a field you can see and cannot change is a field you will end up
-   filling in with a guess, and advice that names a lever you do not have
+   filling in with a guess, and advice that names a variable you do not have
    is worse than no advice at all.
 
    Four questions, and two of them change what the app is allowed to say:
@@ -573,7 +573,7 @@ function bodySide(v) {
 /* Both walls at once, which is one fault rather than two.
 
    Filter is the cleanest case this product has for asking the two axes
-   separately, because in a brewer the two levers barely touch: grind
+   separately, because in a brewer the two variables barely touch: grind
    decides how much comes out of the bed, and the amount of water decides
    how much of the cup it is. A tool that answers "grind finer" to a weak
    cup is sending somebody to the wrong machine.
@@ -679,11 +679,11 @@ function tasteNote(brew, target) {
 
   if (side === 'sour' && place.time === 'fast') {
     return { sure: true, move: 'Grind finer.',
-      why: 'It drained short of the window and tasted sour — the water was through the bed before it had taken enough with it. Grind is the lever that fixes both at once.' };
+      why: 'It drained short of the window and tasted sour — the water was through the bed before it had taken enough with it. Grind is the variable that fixes both at once.' };
   }
   if (side === 'bitter' && place.time === 'slow') {
     return { sure: true, move: 'Grind coarser.',
-      why: 'It ran past the window and tasted bitter — the water spent too long in the bed. Grind is the lever that fixes both at once.' };
+      why: 'It ran past the window and tasted bitter — the water spent too long in the bed. Grind is the variable that fixes both at once.' };
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
@@ -701,8 +701,8 @@ function tasteNote(brew, target) {
   // in the window and still tasting of one of the walls
   return { sure: false, move: 'Grind has done its job.',
     why: canSetTemp()
-      ? `The brew is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Water temperature is the usual next lever — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.`
-      : `The brew is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach — and your kettle holds one temperature, so the levers are ${
+      ? `The brew is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Water temperature is the usual next variable — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.`
+      : `The brew is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach — and your kettle holds one temperature, so the variables are ${
           side === 'sour' ? 'the pour and the ratio: pour higher and more agitatedly to wet the bed evenly, or give it more water' : 'the pour and the ratio: pour more gently to agitate the bed less, or give it less water'}.` };
 }
 
@@ -738,7 +738,7 @@ function clockAdvice(brew, target) {
   if (place.time === 'fast') {
     const off = Math.round(target.timeLo - t);
     return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
-      why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the lever that does.${grindWhyLine(brew, target, true)} Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
+      why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the variable that does.${grindWhyLine(brew, target, true)} Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - target.timeHi);
@@ -769,9 +769,9 @@ function bodyNote(brew) {
      the explanation behind it. */
   return side === 'weak'
     ? { move: 'Less water.',
-        why: `Thin${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the lever — it is the ratio. Stop ${pourStep(brew)}g earlier on the same dose, or put a gram or two more coffee under the same water.` }
+        why: `Thin${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the variable — it is the ratio. Stop ${pourStep(brew)}g earlier on the same dose, or put a gram or two more coffee under the same water.` }
     : { move: 'More water.',
-        why: `Strong${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the lever — it is the ratio. Pour ${pourStep(brew)}g more on the same dose, or put a gram less coffee under the same water.` };
+        why: `Strong${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the variable — it is the ratio. Pour ${pourStep(brew)}g more on the same dose, or put a gram less coffee under the same water.` };
 }
 
 /* The bloom, when there is something to say about it.
@@ -2148,7 +2148,7 @@ function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The brew sheet then offers only what you can actually change, and nothing here suggests a lever your kit does not have. The names are your own record — nothing is read out of them.</p>
+    <p class="sheet-note">Asked once. The brew sheet then offers only what you can actually change, and nothing here suggests a variable your kit does not have. The names are your own record — nothing is read out of them.</p>
     <label class="field"><span class="field-label">Brewer</span>
       <input class="field-input" id="k-brewer" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Hario V60 02"></label>
     <div id="k-flow"></div>
@@ -2286,8 +2286,8 @@ function openHelp() {
     <p><strong>How far to move the grinder</strong> is the question most brewing advice dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two brews that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", and what the clock should read afterwards. It only does this where the water passes through the bed — in a brewer that steeps, the time is what you set the timer to, so there is no seconds-per-click to find and the app does not invent one.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a brew quick or long until you have said what it is being measured against.</p>
     <p><strong>Sour, bitter, thin, strong</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>
-    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the bed; bitter is water that took too much. Grind is the lever.</p>
-    <p><strong>Thin and strong</strong> are the concentration walls, and grind is not the lever. A brew can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is the ratio. Thin means less water or more coffee; strong means the other way.</p>
+    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the bed; bitter is water that took too much. Grind is the variable.</p>
+    <p><strong>Thin and strong</strong> are the concentration walls, and grind is not the variable. A brew can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is the ratio. Thin means less water or more coffee; strong means the other way.</p>
     <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole brew.</p>
     <p><strong>Your setup</strong> decides what this app asks you for. Say the coffee steeps rather than drains and the app stops treating the clock as a symptom — in an immersion brewer the time is a decision you made, so grinding finer does not lengthen it. Say your kettle holds one temperature and the temperature field leaves the sheet. Change it any time in Settings.</p>
     <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>

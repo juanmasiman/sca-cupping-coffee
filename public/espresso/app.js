@@ -79,9 +79,9 @@ function migrate(s) {
    A dial-in tool that asks for brew temperature on a machine with one
    temperature is asking somebody to invent a number and then quoting it
    back at them. The advice is worse: "brew temperature is the usual next
-   lever, up a degree or two" is not a suggestion to a Bambino Plus owner,
+   variable, up a degree or two" is not a suggestion to a Bambino Plus owner,
    it is the app admitting it does not know what they are standing in front
-   of. Half this product's value is knowing which levers exist.
+   of. Half this product's value is knowing which variables exist.
 
    What the app needs is not the machine's name. A brand table goes stale
    within a year, misses every import, and is wrong about anything modded —
@@ -579,7 +579,7 @@ function tasteSide(v) {
 /* The other wall.
 
    Sour and bitter are what extraction does. Watery and muddy are what
-   concentration does, and they move on different levers: grind changes how
+   concentration does, and they move on different variables: grind changes how
    much comes out of the puck, ratio and dose change how much of it is in
    the cup. A tool that answers "grind finer" to a thin shot is answering
    the wrong question — a shot can be extracted perfectly and still be
@@ -620,7 +620,7 @@ function bodySide(v) {
    answer.
 
    Time is a measurement, not a guess. A shot that came in short of the
-   window got through the puck too quickly, and grind is the lever that
+   window got through the puck too quickly, and grind is the variable that
    changes that — you do not need to taste it to know which way to turn
    the grinder. So the clock gets its own advice, and taste upgrades it
    rather than unlocking it.
@@ -663,7 +663,7 @@ function clockAdvice(shot, target) {
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
-      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only lever that does.${grindWhyLine(shot, target, true)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
@@ -698,11 +698,11 @@ function suggest(shot, target) {
 
   if (side === 'sour' && place.time === 'fast') {
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
-      why: `It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the lever that fixes both at once.${grindWhyLine(shot, target, true)}` };
+      why: `It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, true)}` };
   }
   if (side === 'bitter' && place.time === 'slow') {
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
-      why: `It ran past the window and tasted bitter — water spent too long in the puck. Grind is the lever that fixes both at once.${grindWhyLine(shot, target, false)}` };
+      why: `It ran past the window and tasted bitter — water spent too long in the puck. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, false)}` };
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
@@ -732,30 +732,30 @@ function suggest(shot, target) {
   /* In the window, and still tasting of one of the walls.
 
      This is where a kit-blind tool falls over. Brew temperature is the
-     textbook next lever and most home machines do not have one, so the
-     answer has to be the lever the person in front of it actually has.
-     Ratio is that lever, and it is a real one: more water through the same
+     textbook next variable and most home machines do not have one, so the
+     answer has to be the variable the person in front of it actually has.
+     Ratio is that variable, and it is a real one: more water through the same
      puck takes more with it, less takes less. */
   if (canSetTemp()) {
     return { sure: false, move: 'Grind has done its job.',
-      why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next lever — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
+      why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next variable — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
   }
   return { sure: false, move: 'Grind has done its job.',
     why: side === 'sour'
-      ? 'The shot is in the window and still tastes sour. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Let it run longer on the same dose: more water through the same puck takes more with it. Still sour at 1:2.5 and the bag probably wants a few more days off the roast.'
-      : 'The shot is in the window and still tastes bitter. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Stop it shorter and the harsh end of the extraction stays in the puck. If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.' };
+      ? 'The shot is in the window and still tastes sour. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the variable is the ratio. Let it run longer on the same dose: more water through the same puck takes more with it. Still sour at 1:2.5 and the bag probably wants a few more days off the roast.'
+      : 'The shot is in the window and still tastes bitter. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the variable is the ratio. Stop it shorter and the harsh end of the extraction stays in the puck. If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.' };
 }
 
 /* Both walls at once, which is one fault rather than two.
 
-   Advised separately the two axes can disagree about the same lever: a
+   Advised separately the two axes can disagree about the same variable: a
    sour, thin shot got "let it run longer" from the taste scale and "stop
    it shorter" from the body scale, stacked, both about the ratio. Two
    instructions for one shot is not advice, and a dial-in moves one thing
    at a time anyway.
 
    Taken together they disagree about nothing, and each pair has exactly
-   one lever — a better read than either wall alone gives:
+   one variable — a better read than either wall alone gives:
 
      sour + thin      under-extracted        grind finer
      bitter + heavy   over-extracted         grind coarser
@@ -809,7 +809,7 @@ function wallPair(shot, target) {
       place.time === 'fast' ? ' It will come in faster still than the window you set, which is the window needing to move rather than the shot.' : ''}` };
 }
 
-/* The second wall, advised on its own levers.
+/* The second wall, advised on its own variables.
 
    Grind is not in this answer anywhere, and that is the point. A watery
    shot is not under-extracted by definition — it can be perfectly
@@ -2120,7 +2120,7 @@ function openEdit(c, opts) {
       b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
       roastWrap.appendChild(b);
     });
-    /* The baseline offers the levers this machine has.
+    /* The baseline offers the variables this machine has.
 
        Quoting a brew temperature at somebody whose machine holds one is
        the same mistake the shot sheet used to make, one screen earlier:
@@ -2269,7 +2269,7 @@ function segRow(label, sub, options, current, onPick) {
 
    See defaultKit for why this screen exists at all. The short version: a
    field you can see and cannot change is a field you will eventually fill
-   in with a guess, and advice that names a lever you do not have is worse
+   in with a guess, and advice that names a variable you do not have is worse
    than no advice. */
 /* The picker options. "Something else" is not a fallback tucked at the
    bottom of a list somebody has to scroll past — it is the first entry
@@ -2290,7 +2290,7 @@ function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a lever your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.</p>
+    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a variable your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.</p>
     <label class="field"><span class="field-label">Machine</span>
       <select class="field-input" id="k-machine-pick">${machineOptions(k.machine)}</select></label>
     <label class="field hidden" id="k-machine-other"><span class="field-label">Which one</span>
@@ -2356,7 +2356,7 @@ function openKit() {
     const pr = body.querySelector('#k-press');
     pr.innerHTML = '';
     pr.appendChild(segRow('Pressure and flow',
-      'A gauge you can read is not the same as a lever you can move.',
+      'A gauge you can read is not the same as a variable you can change.',
       [['fixed', 'Neither'], ['gauge', 'I can see it'], ['profile', 'I can change it']], k.pressure,
       key => { k.pressure = key; redraw(); }));
 
@@ -2562,8 +2562,8 @@ function openHelp() {
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
     <p><strong>Sour, bitter, watery, muddy</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>
-    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the puck; bitter is water that took too much. Grind is the lever, because grind moves time — finer is slower is more extracted.</p>
-    <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the lever. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
+    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the puck; bitter is water that took too much. Grind is the variable, because grind moves time — finer is slower is more extracted.</p>
+    <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the variable. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
     <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole shot.</p>
     <p><strong>Your setup</strong> decides what this app asks you for. Say your machine holds one temperature and the temperature field leaves the sheet and stops appearing in the advice — a field you cannot change is a field you will end up filling in with a guess. Change it any time in Settings.</p>
     <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>

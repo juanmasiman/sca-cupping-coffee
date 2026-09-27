@@ -6,16 +6,26 @@ app departs from the method it says so and why. `DESIGN.md` governs how the app
 looks and what it is allowed to claim; this governs what it knows about coffee.
 
 **Where it comes from.** James Hoffmann's dial-in sequence, Lance Hedrick's
-taste-first protocol, and the community guides that agree with both
-(Espresso Aficionados, Clive Coffee on headspace). Sources at the end.
+taste-first protocol, and the community guides that document the consensus
+between them. Sources at the end, graded by how close to the source they are.
 
-**A caveat about the sourcing.** Much of the primary material is video, which I
-cannot watch. This is assembled from written analyses, published recipes,
-transcript-derived summaries and written guides. Where the two authorities are
-reported as disagreeing, or where a claim rests on a single second-hand summary,
-it is flagged as such rather than stated flatly. Anything marked **[thin]**
-should be checked against the source video before the app leans on it harder
-than it currently does.
+**A caveat about the sourcing, and it is a real one.** Much of the primary
+material is video, which I cannot watch. Fetching the captions was attempted and
+failed: YouTube blocks this environment's address outright, and both a caption
+downloader and a transcript library were refused. So nothing here is sourced from
+watching or reading the videos themselves.
+
+What it *is* sourced from, in descending order of how much weight it should
+carry: written material authored by the two of them (Hedrick's Meticulous
+onboarding); written community guides that document the consensus method
+(Espresso Aficionados, Clive Coffee on headspace); and written analyses and
+summaries of the videos by third parties. Where a claim rests only on that last
+category it is marked **[thin]**, and where this document's own arrangement goes
+beyond what a source says, it says so. Anything **[thin]** should be checked
+against the source video before the app leans on it harder than it currently
+does.
+
+The video list worth checking against is in *Sources*, with IDs.
 
 ---
 
@@ -36,7 +46,7 @@ tell you anything about anything.
 
 Before anything: what can this machine and grinder actually change?
 
-Advice that names a lever somebody does not have is worse than no advice. A
+Advice that names a variable somebody does not have is worse than no advice. A
 fixed-temperature machine told to "come up a degree" has been told to do
 nothing, and the person believes the app knows something it does not.
 
@@ -44,8 +54,8 @@ Three questions matter:
 
 | Question | Why it changes the advice |
 |---|---|
-| Can you set brew temperature? | If not, temperature leaves the sheet and the ratio becomes the lever after grind. |
-| Can you see or change pressure/flow? | A gauge you can read is diagnosis; a paddle you can move is a lever. They are not the same and should not be offered as the same. |
+| Can you set brew temperature? | If not, temperature leaves the sheet and the ratio becomes the variable after grind. |
+| Can you see or change pressure/flow? | A gauge you can read is diagnosis; a paddle you can move is a variable. They are not the same and should not be offered as the same. |
 | Does the grinder count clicks, or read a number? | Only so the app uses the brewer's own words. It never suggests a *setting* — those mean nothing across machines — only a direction and a distance. |
 
 **A machine list is a shortcut to these answers, never a substitute for them.**
@@ -107,19 +117,25 @@ over-extracted while the rest barely brewed. Both authorities and every guide
 agree on the tell: **sour *and* bitter together is channelling, not a grind
 problem.** Grinding finer tightens the bed and makes the crack worse.
 
-The prep that prevents it, in order of how much it pays:
+The prep that prevents it:
 
-1. **WDT** — stir the dry grounds with something thin to break up clumps. A
-   dedicated tool, or a needle, or a straightened paperclip. This one motion
-   does most of the work.
+1. **Break up the clumps.** WDT — stirring the dry grounds with something thin,
+   a dedicated tool or a needle or a straightened paperclip — is the common
+   form. This is the step that does most of the work.
 2. **Level the bed** before tamping.
 3. **Tamp flat**, hard enough that the bed does not move afterwards. Level
    matters more than force.
 4. **Clean the basket rim** so the portafilter seats properly.
 5. **Check the shower screen** is not caked.
 
-Hedrick's testing of distribution *tools* found they largely converge — the
-gain is in doing the distribution at all, not in which gadget does it. **[thin]**
+**The ordering above is this document's, not an authority's**, and one of them
+would arrange it differently. Hedrick's written onboarding describes preferring a
+shaker and careful dumping to reduce channelling over elaborate tamping
+technique, and his testing of distribution *tools* reportedly found they largely
+converge — the gain being in distributing at all rather than in which gadget
+does it. Both point the same way as step 1 and away from fussing over step 3,
+which is why the list is ordered as it is; but "WDT first" is an inference from
+that, not a quotation of it.
 
 ---
 
@@ -141,16 +157,29 @@ at the same settings:
 | Medium | 1:1.9 – 1:2.1 | 92–93°C |
 | Dark | 1:1.7 – 1:1.9 | 88–91°C |
 
-Hedrick goes considerably further than this for light roasts — published recipes
-at 1:3 and beyond, coarser grinds and high flow rates ("turbo" and "soup"
-shots). That is a legitimate and different style rather than a correction to the
-above, and the app should not quietly push somebody into it. It is worth
-offering as a named alternative once somebody is stuck on a light roast that
-will not stop being sour. **[thin]**
+**The numbers in that table are this document's weakest link.** They are
+assembled from general guidance rather than taken from either authority, and the
+temperature column in particular — dark at 88–91°C — should be treated as a
+starting suggestion and not a finding. The app acts on them, so they are worth
+checking before anything else here is.
+
+What *is* better sourced is the direction, and specifically for light roasts:
+Hedrick's written onboarding states the principle as **ratio over grind size** —
+that reaching for a longer ratio beats grinding finer when a light roast will not
+give up enough. It also has lowering temperature as the way to tame bitterness in
+a dark roast, particularly when grinding fine, and recommends deeper baskets for
+dark roasts so the grind can stay coarser while pressure holds.
+
+He goes considerably further than the table for light roasts — published recipes
+at 1:3 and beyond, coarser grinds and high flow rates, the "turbo" and "soup"
+approaches. That is a legitimate and different style rather than a correction,
+and the app should not quietly push anybody into it. It is worth offering as a
+named alternative once somebody is stuck on a light roast that will not stop
+being sour. **[thin]** on the specifics; the principle behind it is not.
 
 ---
 
-## Step 4 — Grind is the only lever for time
+## Step 4 — Grind is the only variable for time
 
 Finer is slower; coarser is faster. Nothing else on the machine moves the clock
 nearly as much.
@@ -178,10 +207,10 @@ method, and it does so by measuring rather than by asserting.
 
 Once the shot is in the window, the cup is the instrument.
 
-Two axes, asked separately, because they have different levers:
+Two axes, asked separately, because they have different variables:
 
-- **Sour ↔ bitter** is *extraction*. The lever is grind.
-- **Watery ↔ muddy** is *concentration*. The lever is the ratio.
+- **Sour ↔ bitter** is *extraction*. The variable is grind.
+- **Watery ↔ muddy** is *concentration*. The variable is the ratio.
 
 Read together, each corner has exactly one move:
 
@@ -196,7 +225,7 @@ The first two are the pair every barista learns, because one change moves both.
 The other two are where people get stuck, because the wall you notice sends you
 to the grinder and the grinder is not what is wrong.
 
-**In the window and still on a wall.** Grind has done its job. The next lever is
+**In the window and still on a wall.** Grind has done its job. The next variable is
 temperature if the machine has one — up for sour, down for bitter — and the
 ratio if it does not. Longer for sour, shorter for bitter, 2–4g at a time.
 
@@ -209,15 +238,20 @@ statement that the axis does not apply rather than a position on it.
 
 ## Step 6 — Temperature and pressure, last and only if you have them
 
-Temperature is a genuine lever and a small one: a degree or two, in the
+Temperature is a genuine variable and a small one: a degree or two, in the
 direction the taste says. Up extracts more, down extracts less.
 
 Pressure and flow are the last thing to touch and the first thing marketing
-talks about. Lower flow and lower pre-infusion suit darker roasts; lighter
-roasts generally want more of either. **[thin]**
+talks about. The direction is that darker roasts suit lower flow and less
+pre-infusion, and lighter roasts want more of either — Hedrick's written
+onboarding puts it as fast flow suiting light roast, on the grounds that very
+light coffees often taste better from a fast, low-contact shot. The same source
+has light roasts frequently peaking well below the traditional nine bar, nearer
+two to six.
 
-Neither should be offered to somebody whose machine does not have them, which is
-what step 0 is for.
+Both are useless to somebody whose machine holds one pressure and one flow, which
+is what step 0 is for. They are recorded here because the document should be
+complete, not because the app should start saying them.
 
 ---
 
@@ -243,14 +277,14 @@ Kept together because each one can eat a whole bag while somebody turns a dial:
 
 | Method step | App behaviour | State |
 |---|---|---|
-| 0. Kit decides legal advice | Asks temp / pressure / grind-dial capability; suppresses advice naming absent levers | **built** |
+| 0. Kit decides legal advice | Asks temp / pressure / grind-dial capability; suppresses advice naming absent variables | **built** |
 | 0. Machine list prefills capability | 25 machines and 17 grinders fill in the answers above; every one stays editable and "Something else" is always there | **built** |
 | 1. Dose to basket by weight | `basketFault` — flags >1.5g off the basket's rating, outranks everything | **built** |
 | 1. Verify by volume (coin test) | `openDoseCheck` — the coin test with three outcomes, each moving the dose a gram; offered from setup, from Settings with the date last done, and from a button on the advice itself | **built** |
 | 2. Puck prep gates everything | `runFault` — asks how the shot ran, and channelling outranks grind advice | **built** |
 | 3. Ratio from roast, set not chased | Roast table offers a starting ratio and temperature, never writes the target itself | **built** |
 | 3. Turbo / long-ratio light-roast style | — | **not built, deliberate** — see Open questions |
-| 4. Grind is the only time lever | All clock advice is grind advice | **built** |
+| 4. Grind is the only time variable | All clock advice is grind advice | **built** |
 | 4. Time is a flow meter | In-window shots get "the clock is right, now taste it" rather than more clock talk | **built** |
 | 4. How far to move | Measured from the person's own log, in their units, with a predicted landing time | **built, beyond the method** |
 | 5. Two walls, separate questions | Two scales, four corners, one move each | **built** |
@@ -270,13 +304,57 @@ and an app that silently steers people there is making a taste decision on their
 behalf. The honest form is a named suggestion offered after the ordinary route
 has failed, not a change to the default.
 
-**The sourcing on the two authorities' finer points is second-hand.** Everything
-marked **[thin]** rests on written summaries of video. Before the app asserts any
-of it more confidently than it does now, it should be checked against the source.
+**The roast table's temperatures are assembled, not sourced.** See step 3. The
+app acts on them, which makes them the highest-value thing on this page to get a
+professional's ruling on.
+
+**The videos have not been read, and the captions could not be fetched.** The
+environment this was written in is blocked by YouTube — a caption downloader and
+a transcript library were both refused at the IP. Everything **[thin]** therefore
+rests on third-party written summaries. The episode list is in *Sources* with
+IDs; anyone who can open them can close this out, and the highest-value six are
+marked.
+
+**Variables this document does not cover at all.** Water chemistry, which is a
+real and large one. Pre-infusion as its own step rather than a note under
+pressure. Basket type beyond its dose rating. Whether the shot is going into milk
+— which changes the ratio somebody should want, and is never asked.
 
 ---
 
 ## Sources
+
+### Written, by the authorities themselves
+
+Carries the most weight of anything here, because it is their own words in text.
+
+- [Meticulous × Lance Hedrick espresso onboarding](https://meticuloushome.com/pages/meticulous-x-lance-hedrick-espresso-onboarding) — ratio over grind size on light roasts; lower temperature to tame a fine-ground dark roast; deeper baskets for dark roasts; fast flow suiting light roast; light-roast pressure peaks nearer 2–6 bar than 9; taste over hitting the profile
+
+### The videos — unread, and the work still to do
+
+Captions could not be fetched from this environment. The six marked ★ are the
+ones that would settle the most, and the `Understanding Espresso` series is the
+closest thing to a primary text either author has published on the subject.
+
+| Video | ID | Settles |
+|---|---|---|
+| ★ Hoffmann — Understanding Espresso: Dose (#1) | `aTFsBqhpLes` | dose-to-basket, tolerance |
+| ★ Hoffmann — Understanding Espresso: Ratio (#2) | `F4wrUP4c5P4` | the ratio table |
+| ★ Hoffmann — Understanding Espresso: Brew Time (#3) | `hQaV3w_XNiw` | time as symptom vs target |
+| ★ Hoffmann — Understanding Espresso: Grind Size (#4) | `er2voEn8ZDU` | grind as the time variable |
+| ★ Hoffmann — Understanding Espresso: Brew Temperature (#5) | `QAzE-_ocf1U` | the temperature column |
+| Hoffmann — Understanding Espresso: Pressure (#6) | `po3oGIicu-8` | step 6 |
+| Hoffmann — A Rant: Espresso Ratios & Recipes | `45Ja8pJU73s` | whether the ratio is chased |
+| Hoffmann — A Beginner's Guide To Fixing Bad Espresso | `MbTD42FvMVU` | the fault decision tree |
+| Hoffmann — Espresso Machine Baskets Explained | `3oFV88PzEFE` | basket type, step 1 |
+| Hoffmann — How I Dial-In Espresso, parts 1–3 | `lFwJF-_SUr0`, `1eK0eidOA_U`, `aQOKa61YBYc` | the sequence in practice |
+| ★ Hedrick — Dialing in Espresso: A Very Good Guide | `EPF1_15KZvM` | the whole method, 44 min |
+| Hedrick — Dialing In By Taste (pt. 2) | `DFB6E_7W2c0` | step 5 |
+| Hedrick — How To Dial In Light Roast Espresso | `hrCQKAXJr7s` | the light-roast style |
+| Hedrick — Using Information from the Bag | `aZ-NsZjf888` | roast level as a starting point |
+| Hedrick — Understanding Variables to Dial In | `j-Hu4hF5PTM` | the variable order |
+
+### Written, about the authorities or documenting the consensus
 
 - [Dialling In Basics — Espresso Aficionados](https://espressoaf.com/guides/beginner.html) — variable lock order, dose-to-basket, ratio vs grind by taste, temperature baseline
 - [Analysing James Hoffmann's "How I Dial-In Espresso" — Coffee Forums UK](https://www.coffeeforums.co.uk/threads/analysing-james-hoffmanns-how-i-dial-in-espresso-part-1.54852/) — sequence and method
