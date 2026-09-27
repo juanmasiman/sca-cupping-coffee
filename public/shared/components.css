@@ -723,7 +723,8 @@ input { font: inherit; color: inherit; }
 
 /* ---------- chips ---------- */
 
-.intent-block { display: flex; flex-direction: column; gap: var(--space-3); }
+.intent-block,
+.run-block { display: flex; flex-direction: column; gap: var(--space-3); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   min-height: 44px;
@@ -800,6 +801,7 @@ input { font: inherit; color: inherit; }
 /* ---------- intent, on the log card ---------- */
 
 .log-intent,
+.log-run,
 .log-mismatch {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
@@ -807,6 +809,10 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 .log-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
+/* How the shot ran, and only when it ran badly — "Ran even" on every card
+   is a column of the word "fine". Measured ink, not the faint tertiary:
+   this one is the reason the rest of the card reads the way it does. */
+.log-run { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-dim); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */

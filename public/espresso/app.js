@@ -65,6 +65,7 @@ function migrate(s) {
       if (typeof sh.taste === 'undefined') sh.taste = null;
       if (typeof sh.body === 'undefined') sh.body = null;
       if (typeof sh.intent === 'undefined') sh.intent = null;
+      if (typeof sh.run === 'undefined') sh.run = null;
     });
   });
   return s;
@@ -273,6 +274,111 @@ function placeOf(shot, target) {
   };
 }
 
+/* ---------- how the shot ran ----------
+
+   The thing every dial-in guide puts first and no dial-in app asks.
+
+   Most bad espresso at home is not a grind setting. It is water finding
+   a crack and going round the puck instead of through it, and when that
+   happens the clock and the cup are both readings of an accident: the
+   shot runs quick because part of the bed offered no resistance, and it
+   tastes sour and harsh at once because one part over-extracted while
+   the rest barely brewed. Grinding finer — the answer the clock alone
+   would give — tightens the bed and makes the crack worse.
+
+   The app used to infer this from the two corners where the clock and
+   the cup disagree. That catches some of it, and it is a guess. Asking
+   costs one tap and turns the guess into a reading.
+
+   Four answers, chosen because you can tell them apart across the bar
+   without thinking about it:
+
+     even    one or two steady dark streams that join and stay joined
+     spray   jets sideways off the basket, or a stream that splits
+     blonde  went pale long before the end
+     stall   dripped, hesitated, then rushed
+
+   The last three are all the same fault wearing different clothes. */
+
+const RUNS = [
+  { key: 'even',   label: 'Ran even',      sub: 'steady and dark' },
+  { key: 'spray',  label: 'Sprayed',       sub: 'jets or a split stream' },
+  { key: 'blonde', label: 'Blonded early', sub: 'pale well before the end' },
+  { key: 'stall',  label: 'Dripped, then rushed', sub: 'it hesitated' },
+];
+
+const runEntry = key => RUNS.find(r => r.key === key) || null;
+const channelled = shot => shot && (shot.run === 'spray' || shot.run === 'stall' || shot.run === 'blonde');
+
+/* The puck, when the puck is the answer.
+
+   This outranks everything else the app has to say, including a clock
+   that is a long way out, because until the shot runs even the clock is
+   not measuring the grind and the cup is not measuring the recipe. It is
+   also the one piece of advice here that names a technique rather than a
+   number, and it says so. */
+function runFault(shot, target) {
+  if (!channelled(shot)) return null;
+  const place = placeOf(shot, target);
+  const fast = place.time === 'fast';
+
+  const common = ' Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move, and check nothing is caked on the shower screen. One of those usually does it.';
+
+  if (shot.run === 'spray') {
+    return { sure: true, move: 'Fix the puck, not the grinder.',
+      why: `It sprayed, which means water found a crack and went round the bed rather than through it. Everything else on this shot is a reading of that: the clock is quick because part of the puck offered no resistance, and the cup is sour and harsh at once because one part over-extracted while the rest hardly brewed. Grinding finer tightens the bed and makes the crack worse, so leave the grinder exactly where it is and pull another.${common}` };
+  }
+  if (shot.run === 'stall') {
+    return { sure: true, move: 'Fix the puck, not the grinder.',
+      why: `It hesitated and then rushed, which is a bed that resisted until the water found a way through and then gave up all at once. That is channelling, and it makes the clock meaningless — the seconds at the start and the seconds after the break are not measuring the same shot. Leave the grinder where it is and pull another.${common}` };
+  }
+  return { sure: false, move: 'It blonded early — pull another with the grinder untouched.',
+    why: `Going pale well before the end means the puck was spent early, in part of the bed at least.${
+      fast ? ' With a quick clock on top of it, that is water running round the bed rather than through it.' : ''} Leave the dial alone for one shot and prepare the puck carefully instead:${common.replace(' One of those usually does it.', '')} If it comes out even, the last one was the prep. If it blondes again the same way, it is the grind or the dose and the board will say which.` };
+}
+
+/* ---------- what the grinder is worth, in seconds ----------
+
+   The measurement lives in /shared/grind.js, because it is the same
+   measurement of the same machine whether a basket or a cone sits
+   downstream of it, and somebody who uses both of these apps owns one
+   grinder. What stays here is the part that is espresso's: where the
+   numbers are read from, and how many seconds a given shot is trying
+   to buy.
+
+   Espresso always qualifies for it. The water's time in the puck is a
+   consequence of how fine the coffee is, so seconds-per-step is a real
+   quantity — unlike an immersion brewer, where the clock is a decision
+   somebody made and the same arithmetic would be measuring that. */
+
+const GRIND = makeGrind({
+  logs: () => ((state && state.coffees) || []).map(c => c.shots || []),
+  stepped: () => kit().steps === 'stepped',
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'step'),
+  itemWord: () => 'shot',
+  timeOf: sh => num(sh.time),
+  grindOf: sh => (sh.grind === '' ? null : num(Number(sh.grind))),
+  doseOf: sh => num(sh.dose),
+  waterOf: sh => num(sh.yield),
+  waterSlack: 3,
+  noiseFloor: 1.5,
+});
+
+const grindPairs = () => GRIND.pairs();
+const grindSensitivity = () => GRIND.sensitivity();
+
+// The instruction and the reasoning for a grind move. Two strings rather
+// than one sentence: see /shared/grind.js for why.
+function grindMoveParts(shot, target, finer) {
+  return GRIND.parts({
+    wantSeconds: secondsWanted(shot, target, finer),
+    currentGrind: shot ? shot.grind : null,
+    currentTime: num(shot && shot.time),
+    lo: target.timeLo, hi: target.timeHi,
+  });
+}
+
+
 /* What you meant to change, checked against what changed.
 
    A dial-in is a controlled experiment and its commonest failure is not a
@@ -424,6 +530,30 @@ function bodySide(v) {
    not fix it. That is exactly what the taste scale adds, and saying so
    is a better argument for using it than withholding the whole answer
    was. */
+/* How many seconds the next shot should move, signed.
+
+   Outside the window, aim at the middle of it. Inside it and still
+   tasting of a wall, aim at the end of the window the move is heading
+   for — finer buys extraction, so it goes toward the slow end — because
+   "grind finer" on a shot that is already where it should be still has
+   to mean some particular distance. Already at that end, it is the
+   smallest move the dial makes rather than none. */
+function secondsWanted(shot, target, finer) {
+  const t = num(shot.time);
+  if (t === null) return null;
+  const place = placeOf(shot, target);
+  if (place.time === 'in') {
+    const aim = finer ? target.timeHi : target.timeLo;
+    const d = aim - t;
+    return Math.abs(d) < 1 ? (finer ? 1.5 : -1.5) : d;
+  }
+  return (target.timeLo + target.timeHi) / 2 - t;
+}
+
+// Shorthands, so each advice site reads as one sentence with a hole in it.
+const grindMoveLine = (shot, target, finer) => grindMoveParts(shot, target, finer).move;
+const grindWhyLine = (shot, target, finer) => grindMoveParts(shot, target, finer).why;
+
 function clockAdvice(shot, target) {
   const place = placeOf(shot, target);
   if (place.time === null) return null;
@@ -432,13 +562,13 @@ function clockAdvice(shot, target) {
 
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
-    return { sure: true, move: 'Grind finer.',
-      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only lever that does. Go one small step — you are after a few seconds, not ten. Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only lever that does.${grindWhyLine(shot, target, true)} Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
-    return { sure: true, move: 'Grind coarser.',
-      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up. One small step. Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)} Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
   }
   /* In the window, and nobody has said how it tastes.
 
@@ -467,12 +597,12 @@ function suggest(shot, target) {
   if (side === null || place.time === null) return null;
 
   if (side === 'sour' && place.time === 'fast') {
-    return { sure: true, move: 'Grind finer.',
-      why: 'It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the lever that fixes both at once.' };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+      why: `It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the lever that fixes both at once.${grindWhyLine(shot, target, true)}` };
   }
   if (side === 'bitter' && place.time === 'slow') {
-    return { sure: true, move: 'Grind coarser.',
-      why: 'It ran past the window and tasted bitter — water spent too long in the puck. Grind is the lever that fixes both at once.' };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+      why: `It ran past the window and tasted bitter — water spent too long in the puck. Grind is the lever that fixes both at once.${grindWhyLine(shot, target, false)}` };
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
@@ -553,16 +683,16 @@ function wallPair(shot, target) {
       return { sure: false, move: 'Under-extracted — but not for want of grind.',
         why: 'Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower. Water that runs long and still takes little with it has found a way round the puck rather than through it. Distribution and tamp first.' };
     }
-    return { sure: true, move: 'Grind finer.',
-      why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+      why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
     if (place.time === 'fast') {
       return { sure: false, move: 'Over-extracted — but not for want of grind.',
         why: 'Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster. Water that runs quickly and still takes too much is going through part of the puck and not the rest. Distribution and tamp first.' };
     }
-    return { sure: true, move: 'Grind coarser.',
-      why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+      why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
   }
   /* The two ratio answers move the clock as a side effect, and on a shot
      already outside the window that reads as the app contradicting the
@@ -644,12 +774,12 @@ function clockPair(shot, target) {
   const light = b === 'watery';
 
   if (quick && light) {
-    return { sure: true, move: 'Grind finer.',
-      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}.`,
+      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.${grindWhyLine(shot, target, true)}` };
   }
   if (!quick && !light) {
-    return { sure: true, move: 'Grind coarser.',
-      why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}.`,
+      why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.${grindWhyLine(shot, target, false)}` };
   }
   if (quick && !light) {
     return { sure: true, move: 'Let it run longer.',
@@ -659,9 +789,98 @@ function clockPair(shot, target) {
     why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and stop it shorter.` };
 }
 
-function nextMove(shot, target) {
+/* The dose against the basket it is going into.
+
+   A basket is built for a weight and has perhaps a gram and a half of
+   give either side. Two grams over and the puck hits the screen before
+   the pump does, which channels whatever you do at the grinder; two
+   under and there is space above the bed for the water to move it
+   around, which channels too. Either way the grinder is the wrong
+   machine to be standing at, and the app knows the basket because it
+   asked once and the dose because it is on the sheet. */
+// A target dose is "18g"; a measurement off a scale keeps its decimal.
+const fmtDose = v => (v === null ? '—' : (Math.round(v * 10) % 10 === 0 ? String(Math.round(v)) : v.toFixed(1)));
+
+function basketFault(shot) {
+  const want = num(kit().basketDose);
+  const got = num(shot && shot.dose);
+  if (want === null || got === null || want <= 0) return null;
+  const off = got - want;
+  if (Math.abs(off) < 1.6) return null;
+  const basket = (kit().basket || '').trim();
+  const named = basket ? `your ${basket}` : `a ${fmtDose(want)}g basket`;
+  return off > 0
+    ? { sure: true, move: `Drop the dose to about ${fmtDose(want)}g.`,
+        why: `${fmtDose(got)}g is ${fmtDose(off)}g over what ${named} is built for. Overfilled, the puck meets the shower screen before the pump gets going, and it channels around the edge however the grinder is set — which makes the clock and the cup both untrustworthy. Get the dose right first; it is the one number that has to be settled before grind means anything.` }
+    : { sure: true, move: `Bring the dose up to about ${fmtDose(want)}g.`,
+        why: `${fmtDose(got)}g is ${fmtDose(Math.abs(off))}g under what ${named} is built for. Underfilled there is headspace above the bed, the puck lifts and breaks when the water hits it, and the shot channels however the grinder is set. Get the dose right first; it is the one number that has to be settled before grind means anything.` };
+}
+
+/* Turning the grinder and getting nowhere.
+
+   The failure that wastes a whole bag: three moves in the same direction
+   and the clock has barely noticed. At that point the grinder is not the
+   thing in the way — the burrs are holding grounds between shots, the
+   dose is wrong for the basket, or the coffee is too fresh to behave —
+   and telling somebody to go finer a fourth time is the app not reading
+   its own log. */
+function stuckNote(c) {
+  const rows = (c.shots || []).filter(x => num(x.time) !== null && x.grind !== '' && num(Number(x.grind)) !== null);
+  if (rows.length < 4) return null;
+  const last = rows.slice(-4);
+  const steps = [];
+  for (let i = 1; i < last.length; i++) {
+    steps.push({ dg: Number(last[i].grind) - Number(last[i - 1].grind), dt: num(last[i].time) - num(last[i - 1].time) });
+  }
+  if (steps.some(x => x.dg === 0)) return null;
+  const sign = Math.sign(steps[0].dg);
+  if (!steps.every(x => Math.sign(x.dg) === sign)) return null;
+  const moved = Math.abs(num(last[last.length - 1].time) - num(last[0].time));
+  if (moved > 2.5) return null;
+  const dist = Math.abs(Number(last[last.length - 1].grind) - Number(last[0].grind));
+  return { sure: false, move: 'Three moves and the clock has not answered.',
+    why: `The grinder has gone the same way three times, a total of ${dist % 1 === 0 ? dist : dist.toFixed(1)} on the dial, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, the burrs are probably holding grounds from the last setting — grind a couple of grams and throw them away, then pull again — and after that, check the dose against the basket and how long ago the bag was roasted.` };
+}
+
+/* What the calendar is doing to the shot.
+
+   Not advice on its own — a sentence appended to whatever the move is,
+   because roast age does not change what to do so much as how much to
+   trust what you are seeing. Fresh coffee is full of gas and runs fast
+   and channels; old coffee has lost what made it worth dialling. The
+   board already knows the date and said nothing about it where the
+   advice is. */
+function ageNote(c) {
+  const age = daysSinceRoast(c);
+  if (age === null) return '';
+  if (age <= 3) return ` The bag is ${age === 0 ? 'roasted today' : age === 1 ? 'one day off roast' : `${age} days off roast`} and still full of gas, which runs shots fast and breaks pucks — expect it to keep moving for a few days yet, and do not chase it far with the grinder.`;
+  if (age >= 45) return ` The bag is ${age} days off roast. Past about six weeks the shot goes quick and flat and no grind setting brings back what has gone; if this one is fighting you, it may be the coffee rather than the dial.`;
+  return '';
+}
+
+/* One move, and the order that decides which one.
+
+   A dial-in changes one thing at a time, so this returns one instruction
+   and never a list to choose from. The order is not arbitrary — it is
+   what has to be true before the next thing can be measured:
+
+     1. the dose fits the basket        or the puck channels regardless
+     2. the shot ran even               or the clock and the cup are
+                                        both readings of an accident
+     3. the grinder is actually moving  or "finer" is the fourth wrong
+                                        answer in a row
+     4. the walls, the clock, the cup   the ordinary dial-in
+
+   Each of the first three has to be settled before the readings under it
+   mean anything, which is exactly why they come first. Roast age rides
+   on the end of whichever move wins, because it does not change what to
+   do — it changes how much to believe what you are looking at. */
+function nextMove(shot, target, c) {
+  const first = basketFault(shot) || runFault(shot, target) || (c ? stuckNote(c) : null);
+  if (first) return [withAge(first, c)];
+
   const pair = wallPair(shot, target);
-  if (pair) return [pair];
+  if (pair) return [withAge(pair, c)];
   /* One wall named, and it is the body one.
 
      The body note is then the whole answer. Printing "Taste says nothing
@@ -672,14 +891,20 @@ function nextMove(shot, target) {
   // Body named, taste not, and a clock that is saying something: the
   // clock stands in for the taste axis and the pair resolves properly.
   const cp = clockPair(shot, target);
-  if (cp) return [cp];
+  if (cp) return [withAge(cp, c)];
   const b = bodyNote(shot);
-  if (b) return [{ sure: false, move: b.move, why: b.why }];
+  if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c)];
   const t = suggest(shot, target);
-  if (t) return [t];
+  if (t) return [withAge(t, c)];
   // No taste on the sheet: the clock still knows which way the grinder goes.
   const clock = clockAdvice(shot, target);
-  return clock ? [clock] : [];
+  return clock ? [withAge(clock, c)] : [];
+}
+
+// The roast-age sentence, on the end of whatever the move turned out to be.
+function withAge(tip, c) {
+  const note = c ? ageNote(c) : '';
+  return note ? { ...tip, why: tip.why + note } : tip;
 }
 
 function tipHTML(tip, cls) {
@@ -1003,7 +1228,7 @@ function renderNext(c) {
     return;
   }
 
-  const tips = nextMove(newest, c.target);
+  const tips = nextMove(newest, c.target, c);
   if (!tips.length) {
     // Nothing to say is still worth saying, when what is missing is one tap
     // away. The clock covers most of this now; this is the case with no
@@ -1197,6 +1422,7 @@ function shotCard(shot, prev, c, n) {
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
     ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
     ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
     ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
     ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
@@ -1243,6 +1469,10 @@ function tasteMarks(v) {
 
 let editing = null;      // the shot being edited, or a fresh one
 let editingIsNew = false;
+/* The settings as they were carried onto a fresh sheet, so a change to
+   one can be told from the copy that arrived by itself. See
+   shotHasContent. */
+let carriedSeed = '';
 
 function openShot(shot) {
   const c = activeCoffee();
@@ -1264,6 +1494,9 @@ function openShot(shot) {
     body: null,
     verdict: null,
     intent: null,
+    // How it looked coming out. Not carried over: it is an observation of
+    // one shot, and the last shot's is not evidence about this one.
+    run: null,
     // where the grinder is as far as anyone has said, which is the board's
     // "grinder today" when it is set and the last shot otherwise
     grind: grindStart(c),
@@ -1274,6 +1507,7 @@ function openShot(shot) {
     tds: null,
   };
   if (editing.grind === undefined) editing.grind = '';
+  carriedSeed = carriedOf(editing);
 
   $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${c.shots.indexOf(shot) + 1}`;
   /* Remove this shot.
@@ -1303,10 +1537,22 @@ function openShot(shot) {
 
    Used to decide whether closing it costs the person anything. The X used
    to throw away a fully typed shot without a word. */
+/* Carried over rather than typed: these arrive on a fresh sheet from the
+   last shot, because a dial-in holds them still and moves one thing. So
+   their presence is not somebody's work — but a change to one is. */
+const CARRIED = ['dose', 'grind', 'temp', 'press', 'basket'];
+const carriedOf = sh => JSON.stringify(CARRIED.map(k => (sh ? sh[k] : null)));
+
 function shotHasContent() {
   if (!editing) return false;
-  return ['dose', 'yield', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
+  /* Dose used to be counted as content outright. It is prefilled on every
+     new sheet, so every new sheet claimed to have something on it, and
+     closing one you had not touched asked whether you wanted to throw
+     away work that did not exist — which is how a confirm dialog gets
+     trained out of a person before the one that matters arrives. */
+  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'notes', 'tds']
     .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+  return typed || carriedOf(editing) !== carriedSeed;
 }
 
 function closeShotSheet() {
@@ -1375,6 +1621,7 @@ function buildShotSheet(c) {
   }));
 
   buildIntent(c);
+  buildRun(c);
   buildVerdict(c);
   buildMore(c);
   renderReadout(c);
@@ -1429,6 +1676,29 @@ function buildIntent(c) {
       editing.intent = on ? null : i.key;
       haptic();
       buildIntent(c);
+      renderReadout(c);
+    });
+    wrap.appendChild(b);
+  });
+}
+
+/* The run chips. Tapping the chosen one again clears it, because an
+   observation nobody made is not "it ran even". */
+function buildRun(c) {
+  const wrap = $('#run');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  RUNS.forEach(r => {
+    const on = editing.run === r.key;
+    const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(r.label));
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.title = r.sub;
+    b.addEventListener('click', () => {
+      editing.run = on ? null : r.key;
+      haptic();
+      buildRun(c);
       renderReadout(c);
     });
     wrap.appendChild(b);
@@ -1530,7 +1800,7 @@ function renderReadout(c) {
   const flow = flowOf(editing);
   const ey = extractionOf(editing);
   const place = placeOf(editing, c.target);
-  const tips = nextMove(editing, c.target);
+  const tips = nextMove(editing, c.target, c);
   /* The "you said finer and the grinder has not moved" check, live.
 
      It only ran on the saved card, which is to say it arrived after the
@@ -1985,6 +2255,8 @@ function openHelp() {
     <p><strong>Ratio</strong> is what came out divided by what went in. 18g in and 36g out is 1:2. It is a description of the shot, not a measure of how much was extracted from the coffee.</p>
     <p><strong>Flow</strong> is grams a second. It is the number that moves first when the grind moves, and a fast shot with a coarse-looking puck usually shows up here before it shows up in the taste.</p>
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
+    <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
+    <p><strong>How it ran</strong> is the question that outranks the rest. Most bad espresso at home is water finding a crack and going round the puck instead of through it, and when that happens the clock and the cup are both readings of an accident — so the app stops talking about the grinder until the shot runs even. Grinding finer on a puck that channels tightens the bed and makes it worse.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
     <p><strong>Sour, bitter, watery, muddy</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>

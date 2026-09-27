@@ -103,6 +103,22 @@
         <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
       </div>
 
+      <!-- What the shot looked like coming out.
+
+           The most common reason a home shot is bad is that the water
+           went round the puck rather than through it, and a channelled
+           shot's clock and taste are both readings of an accident. The
+           app used to infer channelling from the corners where the time
+           and the taste disagree, which catches some of it and is a
+           guess. This asks. It is one tap and it is optional, and when
+           the answer is "it sprayed" the advice stops talking about the
+           grinder, because on a puck that channels the grinder is not
+           what is wrong. -->
+      <div class="run-block">
+        <span class="field-label" id="run-label">How did it run?</span>
+        <div class="chips" id="run" role="radiogroup" aria-labelledby="run-label"></div>
+      </div>
+
       <!-- Two walls, asked separately. Grind answers the first; ratio and
            dose answer the second. Asking them as one "how was it" is what
            makes espresso advice feel like guesswork. -->
@@ -224,6 +240,9 @@
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 
+<!-- The grinder calibration, shared with the brew log: one grinder, one
+     measurement of it. Loaded first because app.js builds on it. -->
+<script src="/shared/grind.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

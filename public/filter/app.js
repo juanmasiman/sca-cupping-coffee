@@ -464,6 +464,70 @@ function intentCheck(brew, prev) {
   return null;
 }
 
+/* ---------- what the grinder is worth, in seconds ----------
+
+   The measurement lives in /shared/grind.js, shared with the dial-in,
+   because it is the same measurement of the same machine: somebody who
+   pulls shots and makes pour-over owns one grinder, and it does not
+   behave differently depending on what is downstream of it.
+
+   What is here is the part that is this app's, and it is a refusal.
+   This only works where grind sets the flow. In a percolating brewer
+   the water's time in the bed is a consequence of how fine the coffee
+   is, so seconds-per-step is a real quantity. In an immersion brewer
+   the time is whatever the timer was set to — grinding finer does not
+   lengthen a four-minute press — so a "seconds per click" figure there
+   would be measuring the brewer's own decisions and presenting them as
+   a property of the grinder. Immersion gets the honest "one step"
+   instead, which is the same answer every other tool gives and the only
+   one that is true there. */
+
+const GRIND = makeGrind({
+  logs: () => ((state && state.coffees) || []).map(c => c.brews || []),
+  stepped: () => kit().steps === 'stepped',
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'step'),
+  itemWord: () => 'brew',
+  enabled: () => percolates(),
+  fmtTime: v => fmtTime(v),
+  timeOf: b => num(b.time),
+  grindOf: b => (b.grind === '' ? null : num(Number(b.grind))),
+  doseOf: b => num(b.dose),
+  waterOf: b => num(b.water),
+  waterSlack: 20,
+  noiseFloor: 6,
+});
+
+/* How many seconds the next brew should move, signed.
+
+   Outside the window, aim at the middle of it. Inside it and still
+   tasting of a wall, aim at the end the move is heading for — finer
+   buys extraction, so it goes toward the slow end — because "grind
+   finer" on a brew already where it should be still has to mean some
+   particular distance. */
+function secondsWanted(brew, target, finer) {
+  const t = num(brew.time);
+  if (t === null) return null;
+  const place = placeOf(brew, target);
+  if (place.time === 'in') {
+    const aim = finer ? target.timeHi : target.timeLo;
+    const d = aim - t;
+    return Math.abs(d) < 2 ? (finer ? 3 : -3) : d;
+  }
+  return (target.timeLo + target.timeHi) / 2 - t;
+}
+
+function grindMoveParts(brew, target, finer) {
+  return GRIND.parts({
+    wantSeconds: secondsWanted(brew, target, finer),
+    currentGrind: brew ? brew.grind : null,
+    currentTime: num(brew && brew.time),
+    lo: target.timeLo, hi: target.timeHi,
+  });
+}
+
+const grindMoveLine = (brew, target, finer) => grindMoveParts(brew, target, finer).move;
+const grindWhyLine = (brew, target, finer) => grindMoveParts(brew, target, finer).why;
+
 /* ---------- the two walls ---------- */
 
 const TASTE_MIN = -3, TASTE_MAX = 3;
@@ -556,20 +620,20 @@ function wallPair(brew, target) {
       return { sure: false, move: 'Under-extracted — but not for want of grind.',
         why: 'Sour and thin is the picture of an under-extracted brew and finer is the usual answer, except this one already ran past the window: finer would only slow it further. Water that sits that long and still takes little with it is going round the bed rather than through it — look at how level the bed is and at whether the pours are cutting a channel in it.' };
     }
-    return { sure: true, move: 'Grind finer.',
+    return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the bed, so the cup is sharp and weak at the same time. Finer is the single change that moves both${
         clock && place.time === 'fast' ? ', and it slows the brew back into the window on the way' : ''}${
-        !clock ? ', with the steep time exactly where you set it' : ''}.` };
+        !clock ? ', with the steep time exactly where you set it' : ''}.${grindWhyLine(brew, target, true)}` };
   }
   if (t === 'bitter' && b === 'strong') {
     if (clock && place.time === 'fast') {
       return { sure: false, move: 'Over-extracted — but not for want of grind.',
         why: 'Bitter and strong is the picture of an over-extracted brew and coarser is the usual answer, except this one already came in short of the window: coarser would only make it faster. Water that drains that quickly and still takes too much is running through part of the bed and not the rest — a gentler pour and a flatter bed before anything else.' };
     }
-    return { sure: true, move: 'Grind coarser.',
+    return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
       why: `Bitter and strong together are one fault, not two — too much came out of the bed, so the cup is harsh and heavy with it. Coarser is the single change that moves both${
         clock && place.time === 'slow' ? ', and it brings the brew back into the window on the way' : ''}${
-        !clock ? ', with the steep time exactly where you set it' : ''}.` };
+        !clock ? ', with the steep time exactly where you set it' : ''}.${grindWhyLine(brew, target, false)}` };
   }
   if (t === 'sour' && b === 'strong') {
     return { sure: true, move: byWeight() ? 'More water.' : 'A bigger cup, same coffee.',
@@ -673,13 +737,13 @@ function clockAdvice(brew, target) {
 
   if (place.time === 'fast') {
     const off = Math.round(target.timeLo - t);
-    return { sure: true, move: 'Grind finer.',
-      why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the lever that does. One step. Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
+      why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the lever that does.${grindWhyLine(brew, target, true)} Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - target.timeHi);
-    return { sure: true, move: 'Grind coarser.',
-      why: `It ran ${off}s past the ${lo}–${hi} window, so the water spent longer in the bed than the recipe asks for. Coarser opens it up. One step. Say how it tasted and the app can check the one case this does not fix: a brew that is both slow and sour usually means the bed clogged or the water went round it.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
+      why: `It ran ${off}s past the ${lo}–${hi} window, so the water spent longer in the bed than the recipe asks for. Coarser opens it up.${grindWhyLine(brew, target, false)} Say how it tasted and the app can check the one case this does not fix: a brew that is both slow and sour usually means the bed clogged or the water went round it.` };
   }
   return { sure: false, move: 'The clock is right. Now taste it.',
     why: `${fmtTime(t)} is inside the ${lo}–${hi} window, which is the part the grinder controls and the part this app can measure. Whether it is any good is the other half, and nothing but your mouth answers that. Mark it sour or bitter and the next move gets specific; mark it neither and this is your recipe.` };
@@ -757,11 +821,11 @@ const place = placeOf(brew, target);
   const light = b === 'weak';
 
   if (quick && light) {
-    return { sure: true, move: 'Grind finer.',
+    return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
       why: `It came in short of the window and you called it thin. Those are one fault: the water was through the bed before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.` };
   }
   if (!quick && !light) {
-    return { sure: true, move: 'Grind coarser.',
+    return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
       why: `It ran past the window and you called it strong. Those are one fault: the water sat in the bed taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
   }
   if (quick && !light) {
@@ -2219,6 +2283,7 @@ function openHelp() {
     <p><strong>The pours</strong> are kept as the running total on the scale, the way a recipe is written: a bloom to 30g, then to 150g, then to 240g. Not the weight of each pour — that is the number the app works out and shows you, because the scale on your counter is already doing the adding.</p>
     <p><strong>The bloom</strong> is the first pour, and what matters is its size against the dose — two to three times is the working range. Less and part of the bed never wets; more and you are brewing before the coffee has finished degassing.</p>
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup. It needs a refractometer <em>and</em> the cup on a scale: the bed keeps roughly twice its own weight, so the water you poured is not the drink you got. Every tool that computes filter yield from coffee and water alone is estimating that retention and printing it as a reading. This one returns nothing without both.</p>
+    <p><strong>How far to move the grinder</strong> is the question most brewing advice dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two brews that differ only in grind are a measurement of it, and once this board has a couple it tells you how many clicks rather than "a step", and what the clock should read afterwards. It only does this where the water passes through the bed — in a brewer that steeps, the time is what you set the timer to, so there is no seconds-per-click to find and the app does not invent one.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a brew quick or long until you have said what it is being measured against.</p>
     <p><strong>Sour, bitter, thin, strong</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>
     <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the bed; bitter is water that took too much. Grind is the lever.</p>

@@ -7,7 +7,7 @@
    rather than the fallback.
    ============================================================ */
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
@@ -25,6 +25,7 @@ const SHELL = [
   // The components both instruments are built from. A stylesheet that only
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
+  '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
   '/shared/fonts/plex-mono-400.woff2',
   '/shared/fonts/plex-mono-600.woff2',
