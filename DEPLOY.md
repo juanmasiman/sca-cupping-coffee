@@ -67,9 +67,25 @@ Nothing else changes — all three work signed out, with no signal, for ever.
    what is missing or replaces a policy with an identical one, and no row is
    touched.
 3. Authentication → URL Configuration → **Site URL**: `https://lento.cafe/cupping/`,
-   and add `https://lento.cafe/espresso/` and `https://lento.cafe/filter/` to
-   **Redirect URLs**. Sign-in returns you to the tool you started from, so a
-   URL that is not on that list comes back to the wrong app — or to an error.
+   and add all four entry points to **Redirect URLs**:
+
+   ```
+   https://lento.cafe/
+   https://lento.cafe/cupping/
+   https://lento.cafe/espresso/
+   https://lento.cafe/filter/
+   ```
+
+   Sign-in returns you to the page you started from, so a URL that is not on
+   that list comes back to the Site URL instead — which looks like being
+   dumped in the cupping sheet after signing in from the front door. The bare
+   `https://lento.cafe/` is the one people forget: the launcher can sign you
+   in too.
+
+   Leave wildcards out. Tokens come back in the URL fragment, so an entry
+   like `https://**` means a crafted sign-in link can hand somebody's session
+   to another origin. For local work, add the exact localhost URL while you
+   need it and take it out again.
 4. **Google provider** (free): in [Google Cloud Console](https://console.cloud.google.com) create a project → OAuth consent screen (External) → Credentials → OAuth client ID (Web application), with authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`. Paste the client ID and secret into Supabase → Authentication → Providers → Google.
 5. **Email magic links** work out of the box using Supabase's built-in mailer, which is rate-limited to a few messages an hour. Before real launch, add free SMTP (Resend, Brevo) under Authentication → SMTP settings so mail comes from `cupping@lento.cafe`.
 6. Put the project URL and anon key into `public/shared/config.js` — one file,

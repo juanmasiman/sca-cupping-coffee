@@ -173,6 +173,11 @@ input { font: inherit; color: inherit; }
 }
 .icon-btn:active { background: var(--chrome-soft); }
 
+/* The way out of an instrument and back to the other two. It is an anchor
+   rather than a button because it is a navigation, so a long-press, a
+   middle-click and "open in new tab" all do what they look like they do. */
+.home-btn { text-decoration: none; margin-left: calc(var(--space-3) * -1); }
+
 /* ---------- the board ---------- */
 
 .board-scroll {

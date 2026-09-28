@@ -67,9 +67,6 @@
     return 'Your log on every device you use';
   }
 
-  function plural(n) {
-    return n === 1 ? host.noun.one : host.noun.many;
-  }
 
   function sheet(id, title) {
     return '<div id="' + id + '-modal" class="modal hidden">'
@@ -101,44 +98,51 @@
   function open() {
     var body = document.getElementById('account-body');
     var u = user();
-    var n = host.count();
     // "Your account" is wrong on the sheet that does not have one yet.
     document.getElementById('account-title').textContent = u ? 'Your account' : 'Sign in';
 
-    if (u) signedIn(body, u, n);
+    if (u) signedIn(body, u);
     else signedOut(body);
     host.open('#account-modal');
   }
 
-  function signedIn(body, u, n) {
+  /* The signed-in state. The status line is the host's: what a tool has
+     to say about itself is "3 shots, backed up as you log them" and what
+     the front door has to say is what is on this device — one sentence,
+     supplied rather than assembled here from a noun and a count, because
+     the sentence was never the same shape in the first place.
+
+     `sync` is optional. The launcher has no records of its own, so it has
+     no Sync now to offer, and a button that does nothing is worse than a
+     button that is not there. */
+  function signedIn(body, u) {
     body.innerHTML = '<p class="sheet-note">' + esc(u.email || u.name || '') + '</p>'
-      + '<p class="sheet-note" id="account-status">' + n + ' ' + plural(n)
-      + ', backed up as you log them.</p>'
+      + '<p class="sheet-note" id="account-status">' + esc(host.status('idle')) + '</p>'
       + '<div class="sheet-actions">'
       + '<button class="btn btn-ghost" id="btn-signout">Sign out</button>'
-      + '<button class="btn btn-primary" id="btn-sync">Sync now</button>'
+      + (host.sync ? '<button class="btn btn-primary" id="btn-sync">Sync now</button>' : '')
       + '</div>'
-      + '<p class="sheet-foot">Signing out leaves every ' + host.noun.one + ' here.</p>';
+      + '<p class="sheet-foot">' + esc(host.signOutNote) + '</p>';
 
     body.querySelector('#btn-signout').addEventListener('click', async function () {
       await root.LentoAccount.signOut();
       host.close('#account-modal');
       host.toast('Signed out — your log stays on this device');
     });
+    if (!host.sync) return;
     body.querySelector('#btn-sync').addEventListener('click', async function () {
       var status = body.querySelector('#account-status');
       status.textContent = 'Syncing…';
       var ok = await host.sync();
-      var m = host.count();
       status.textContent = ok
-        ? 'Synced · ' + m + ' ' + plural(m)
+        ? host.status('synced')
         : 'Could not reach the cloud — it will try again';
     });
   }
 
   function signedOut(body) {
-    body.innerHTML = '<p class="sheet-note">A code by email, no password. Your log then follows'
-      + ' you to any device — and still works with no signal.</p>'
+    body.innerHTML = '<p class="sheet-note">A code by email, no password. '
+      + esc(host.signedOutNote) + '</p>'
       + '<label class="field-label" for="account-email">Your email</label>'
       + '<input class="field-input" id="account-email" type="email" inputmode="email"'
       + ' autocomplete="email" placeholder="you@example.com">'
@@ -204,9 +208,9 @@
       var ok = await root.LentoAccount.verifyEmailCode(email, code);
       if (!ok) { status.textContent = 'That code did not work. Send a new one.'; return; }
       host.close('#code-modal');
-      host.toast('Signed in — your log is backing up');
+      host.toast(host.signedInToast);
       host.refresh();
-      host.sync();
+      if (host.sync) host.sync();
     };
     body.querySelector('#btn-code-verify').addEventListener('click', verify);
     body.querySelector('#code-input').addEventListener('keydown', function (e) {
