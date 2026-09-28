@@ -115,28 +115,39 @@
     .soon .card-title { color: var(--text-dim); font-weight: 600; }
     .soon .card-sub { color: var(--text-faint); }
 
-    /* Top-right, exactly where the cupping sheet puts it, because it is
-       the same button for the same account and a person who has found it
-       once should not have to find it again. */
-    .account-btn {
-      position: fixed;
-      top: calc(var(--sat) + 16px);
-      right: 14px;
-      background: var(--bg-card);
-      border: 1px solid var(--line);
-      z-index: 5;
-    }
-    .account-dot {
-      position: absolute;
-      top: 7px; right: 7px;
-      width: 9px; height: 9px;
-      border-radius: 50%;
-      background: var(--chrome);
-      border: 2px solid var(--bg-card);
-    }
-    .account-btn.hidden, .account-dot.hidden { display: none; }
+    /* The account is a row in the page, not an icon floating in the corner.
 
-    footer { margin-top: var(--space-8); font-size: 12px; color: var(--text-faint); }
+       It started as the cupping sheet's button, pinned top-right, because
+       that is where that sheet puts it. But the cupping sheet has a header
+       bar for it to belong to and this page has none, so here it was a
+       44px glyph alone in a large empty margin, unlabelled, three hundred
+       pixels from anything else — and a person who wanted to sign in
+       reported that they could not tap it.
+
+       Fixed position at the top edge is also the one place on a phone that
+       is not reliably the page's: browser chrome, a notch, a translucent
+       toolbar and an install prompt all live there, and all of them are
+       outside anything this stylesheet can see. A row in normal flow is
+       occluded by nothing, says in words what it does, and is 64px of
+       target instead of 44. */
+    .account-card {
+      width: 100%;
+      /* The instruments are 8px apart; this is 32px, the same interval the
+         page already uses between the tagline and the cards and between
+         the cards and the footer. At 16px it read as a fifth tool. */
+      margin-top: var(--space-8);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    /* 24px, not 32. The account row added a group to the page and on a
+       640px phone the extra eight pixels were the difference between a
+       launcher that fits and one that scrolls — and a body centred with
+       align-items clips the top of what overflows rather than letting you
+       reach it. The footer is 12px of faint text; it can give up the
+       eight. */
+    footer { margin-top: var(--space-7); font-size: 12px; color: var(--text-faint); }
 
     @media (prefers-reduced-motion: reduce) {
       .card { transition: none; }
@@ -144,14 +155,6 @@
   </style>
 </head>
 <body>
-  <!-- Hidden until /shared/config.js says there is a project to sign in
-       to: an account button on a deploy with no backend is a door to a
-       room that does not exist. -->
-  <button id="btn-account" class="icon-btn account-btn hidden" aria-label="Sign in">
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    <span class="account-dot hidden" id="account-dot"></span>
-  </button>
-
   <main class="wrap">
     <h1 class="mark">lento</h1>
     <p class="tagline">coffee, taken slowly.</p>
@@ -231,6 +234,25 @@
         </span>
       </div>
     </div>
+
+    <!-- Hidden until /shared/config.js says there is a project to sign in
+         to: an account row on a deploy with no backend is a door to a room
+         that does not exist. It sits below the instruments with a gap of
+         its own, because it is not a fifth tool — it is who you are while
+         you use the other four. -->
+    <button type="button" id="btn-account" class="card account-card hidden">
+      <span class="card-icon">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="card-text">
+        <span class="card-title" id="account-name">Sign in</span>
+        <span class="card-sub" id="account-note">Your log on every device</span>
+      </span>
+      <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
 
     <footer>lento.cafe</footer>
   </main>

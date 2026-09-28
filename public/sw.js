@@ -16,7 +16,13 @@
    and nothing else.
    ============================================================ */
 
-const VERSION = 'v1';
+/* v2 — the account moved from a fixed corner button into a row in the page,
+   which means index.html and home.js changed together. Assets are served
+   cache-first here, so without a new cache name a returning visitor would
+   get the new markup (navigations are network-first) alongside the old
+   script that goes looking for the button that is no longer there. The
+   version is what keeps those two from meeting. */
+const VERSION = 'v2';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
