@@ -404,6 +404,45 @@ const FLOWS = {
 };
 const flowEntry = b => FLOWS[waterFlow(b)] || FLOWS.percolation;
 
+/* ============================================================
+   THE VALVE, ON A BREWER THAT HAS ONE
+   ============================================================
+
+   A Hario Switch or a Clever is not "immersion, then percolation" as one
+   fact about the kitchen. It is a sequence, and the sequence is the
+   recipe. What somebody actually does:
+
+     14.5g to 200g at 93°, first 100g with it open, close at 0:58,
+     pour the other 100g at 1:00, open again at 2:00.
+
+   Three valve moments and two pours, interleaved, and until now the app
+   could record the two pours and not one of the three moments — so the
+   half of the recipe that makes it a switch recipe was lost, and two
+   brews that behaved completely differently logged identically.
+
+   A valve moment is its own row, not a mark on a pour. Most of them do
+   not land on a pour anyway (nothing is being poured at 0:58 or at 2:00),
+   a row that says one thing is a row anybody can read back, and it keeps
+   the pour row the width it already is on a 360px phone. "First 100g
+   open" becomes an Open at 0:00 above a bloom at 0:00, which is exactly
+   what happened in the order it happened.
+
+   Only drawn where there is a valve. On a V60 the question is nonsense
+   and on a press there is nothing to open. */
+const isValve = p => p && (p.valve === 'open' || p.valve === 'close');
+const hasValve = b => waterFlow(b) === 'switch';
+
+/* Pours number themselves over the pours. A valve row sitting between the
+   bloom and the second pour must not make the second pour "Pour 2", and
+   the label on a valve row is what it does. */
+function pourLabel(pours, i) {
+  const p = pours[i];
+  if (isValve(p)) return p.valve === 'open' ? 'Open' : 'Close';
+  let n = 0;
+  for (let k = 0; k < i; k++) if (!isValve(pours[k])) n++;
+  return n === 0 ? 'Bloom' : `Pour ${n}`;
+}
+
 /* ---------- the model ---------- */
 
 function uid() {
@@ -529,7 +568,10 @@ function ratioOf(brew) {
 function bloomOf(brew) {
   if (!byWeight()) return null;
   const d = num(brew.dose);
-  const first = brew.pours && brew.pours[0];
+  /* The first POUR, which is not always the first row. A switch recipe
+     opens before it pours, so `pours[0]` was an Open with no water in it
+     and the bloom read as a dash on a brew that plainly had one. */
+  const first = (brew.pours || []).filter(p => !isValve(p))[0];
   const w = first ? num(first.water) : null;
   if (d === null || w === null || d <= 0) return null;
   return w / d;
@@ -545,10 +587,24 @@ function bloomOf(brew) {
 function drawdownOf(brew) {
   if (!percolates(brew)) return null;
   const t = num(brew.time);
-  const pours = (brew.pours || []).filter(p => num(p.at) !== null);
-  if (t === null || !pours.length) return null;
-  const last = Math.max(...pours.map(p => num(p.at)));
-  const d = t - last;
+  const rows = (brew.pours || []).filter(p => num(p.at) !== null);
+  if (t === null || !rows.length) return null;
+  /* ON A SWITCH, DRAWDOWN STARTS AT THE LAST OPEN.
+
+     Everywhere else it is the clock minus the last pour, because that is
+     when the water starts leaving. On a brewer with a valve that is
+     simply untrue: the bed can sit full and closed for a minute after the
+     final pour, and counting from the pour would report a two-minute
+     drawdown for a bed that drained in forty seconds. The valve says when
+     draining began, so it is what the figure is measured from. A switch
+     recipe with no Open recorded falls back to the pour, which is the
+     right answer for somebody who left it open throughout. */
+  const opens = rows.filter(p => p.valve === 'open').map(p => num(p.at));
+  const pours = rows.filter(p => !isValve(p)).map(p => num(p.at));
+  const from = opens.length ? Math.max(...opens)
+    : (pours.length ? Math.max(...pours) : null);
+  if (from === null) return null;
+  const d = t - from;
   return d >= 0 ? d : null;
 }
 
@@ -570,13 +626,16 @@ function pouredTotal(brew) {
    "the schedule is wrong" sends somebody hunting through five rows. */
 function pourBacktrack(brew) {
   const pours = brew.pours || [];
+  // Named the way the rows are named, which counts pours and not rows —
+  // see pourLabel. A valve moment between two pours must not rename them.
+  const name = i => pourLabel(pours, i);
   let high = null, highIdx = 0;
   for (let i = 0; i < pours.length; i++) {
     const w = num(pours[i].water);
     if (w === null) continue;
     if (high !== null && w < high) {
-      return { at: i, label: i === 0 ? 'The bloom' : `Pour ${i}`, value: w,
-               prev: high, prevLabel: highIdx === 0 ? 'the bloom' : `pour ${highIdx}` };
+      return { at: i, label: name(i) === 'Bloom' ? 'The bloom' : name(i), value: w,
+               prev: high, prevLabel: name(highIdx) === 'Bloom' ? 'the bloom' : name(highIdx).toLowerCase() };
     }
     high = w; highIdx = i;
   }
@@ -1098,7 +1157,19 @@ function bloomNote(brew) {
   if (b < 1.8) {
     return { move: 'The bloom was short.', why: `${b.toFixed(1)}× the dose leaves part of the bed dry through the bloom, and dry grounds do not degas. Two to three times the dose is the usual range — the point is to wet all of it, not to brew any of it yet.` };
   }
-  if (b > 3.5) {
+  /* "The bloom was long" is a fault on a cone and a recipe on a switch.
+
+     Their brew: open, a hundred grams through the bed, close at 0:58,
+     the other hundred at 1:00, open at 2:00. That first hundred is a
+     percolation phase somebody designed — at 6.9× the dose it trips this
+     branch, and the app would open with "the bloom was long" about the
+     deliberate half of a switch recipe.
+
+     The short branch still runs everywhere, because a bed that never got
+     wet is a fault on any brewer. It is only the long one that cannot
+     tell a mistake from an intention here, and where it cannot tell, it
+     says nothing. */
+  if (b > 3.5 && !hasValve(brew)) {
     return { move: 'The bloom was long.', why: `${b.toFixed(1)}× the dose is a pour rather than a bloom: enough water to start drawing through before the bed has finished degassing. Two to three times the dose wets everything without brewing it.` };
   }
   return null;
@@ -1317,7 +1388,9 @@ function numField(opts) {
     if (opts.onChange) opts.onChange(value);
   };
   const commit = v => {
-    value = v === null ? null : Math.max(opts.min, Math.min(opts.max, round(v)));
+    // `max` is optional: a grind dial has no ceiling this app can know.
+    const ceil = opts.max === undefined ? Infinity : opts.max;
+    value = v === null ? null : Math.max(opts.min, Math.min(ceil, round(v)));
     render();
     setNote('');
     if (opts.onChange) opts.onChange(value);
@@ -1343,10 +1416,15 @@ function numField(opts) {
     if (v === null || !isFinite(v)) {
       return take(null, `“${typed}” is not a ${isTime ? 'time' : 'number'}, so nothing is recorded here.`);
     }
-    if (v < opts.min || v > opts.max) {
+    const ceil = opts.max === undefined ? Infinity : opts.max;
+    if (v < opts.min || v > ceil) {
+      const unit = opts.unit && !isTime ? ' ' + opts.unit : '';
       const lo = isTime ? fmtTime(opts.min) : opts.min;
-      const hi = isTime ? fmtTime(opts.max) : opts.max;
-      return take(null, `${opts.label} takes ${lo} to ${hi}${opts.unit && !isTime ? ' ' + opts.unit : ''}. Nothing is recorded until it is one of those.`);
+      // A field with no ceiling cannot print one.
+      const range = ceil === Infinity
+        ? `${lo}${unit} or more`
+        : `${lo} to ${isTime ? fmtTime(ceil) : ceil}${unit}`;
+      return take(null, `${opts.label} takes ${range}. Nothing is recorded until it is.`);
     }
     take(round(v), '');
   });
@@ -1570,10 +1648,18 @@ function renderKeeper(c) {
 }
 
 // The pour schedule as one line: "0:00 45g · 0:45 100g · 1:30 105g".
+/* The schedule as a row of chips, on the card and on the pinned recipe.
+
+   A valve moment reads as the word, because that is what it is — "0:58
+   close" is the whole instruction. It carries the data ink so the eye can
+   run down a board and see the shape of a switch recipe without reading
+   it: open, pour, close, pour, open. */
 function pourLine(brew) {
   return (brew.pours || [])
-    .map(p => `<span class="pour-chip"><i>${fmtTime(p.at)}</i>${
-      num(p.water) === null ? '' : ` ${fmt0(num(p.water))}g`}</span>`)
+    .map(p => isValve(p)
+      ? `<span class="pour-chip is-valve"><i>${fmtTime(p.at)}</i> ${p.valve}</span>`
+      : `<span class="pour-chip"><i>${fmtTime(p.at)}</i>${
+          num(p.water) === null ? '' : ` ${fmt0(num(p.water))}g`}</span>`)
     .join('');
 }
 
@@ -1971,7 +2057,7 @@ function brewHasContent() {
 // The schedule as one comparable string, so "has it been touched?" is not
 // five nullable comparisons at every keystroke.
 function pourSchedule(pours) {
-  return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water)]));
+  return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water), p.valve || null]));
 }
 
 function closeBrewSheet() {
@@ -2007,8 +2093,28 @@ function buildBrewSheet(c) {
   row.appendChild(numField({
     // No unit in the slot — a grind setting has none, and "clicks" does
     // not fit the gutter. The word belongs in the prose.
+    /* NO CEILING ON A GRIND SETTING.
+
+       This was 0 to 100, and a Kingrinder K6 counts past two hundred
+       clicks from closed. Somebody set theirs up, typed 105, and got
+       "Grind takes 0 to 100. Nothing is recorded until it is one of
+       those" — the app refusing the number printed on their own grinder.
+
+       There is no ceiling that is right for every grinder, and this is not
+       the app's to decide: a grind setting is read off the instrument in
+       your hand, and all this log does with it is compare it to the last
+       one on the SAME grinder. The shipped list still says whether a
+       grinder counts clicks or reads a number, because that changes the
+       words and the step size — that is what knowing a grinder is for. The
+       extent of its dial is not.
+
+       The cost, written down: a fat-fingered 1050 is recorded and feeds
+       the seconds-per-step estimate. That estimate already refuses to
+       speak below a noise floor and wants agreeing pairs, and a
+       wrong-but-plausible value poisons it just as well as a wild one — so
+       the cap was never the thing protecting it. */
     label: 'Grind', unit: '', value: num(editing.grind),
-    min: 0, max: 100, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
+    min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
     startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
   }));
   if (canSetTemp()) {
@@ -2284,9 +2390,9 @@ function buildPours(c) {
   wrap.innerHTML = '';
 
   (editing.pours || []).forEach((p, i) => {
-    const line = el('div', 'pour-row');
-    const label = i === 0 ? 'Bloom' : `Pour ${i}`;
-    line.innerHTML = `<span class="pour-label">${label}</span>`;
+    const line = el('div', 'pour-row' + (isValve(p) ? ' is-valve' : ''));
+    const label = pourLabel(editing.pours, i);
+    line.innerHTML = `<span class="pour-label">${escapeHTML(label)}</span>`;
     const at = numField({
       label: 'At', unit: '', time: true, compact: true,
       value: num(p.at), min: 0, max: 1800, step: 5, digits: 0,
@@ -2294,7 +2400,9 @@ function buildPours(c) {
     });
     at.classList.add('pour-field');
     line.appendChild(at);
-    if (byWeight()) {
+    // A valve moment has a time and nothing else: nothing is poured at the
+    // instant you close it.
+    if (byWeight() && !isValve(p)) {
       const w = numField({
         // "To", because it is where the scale should read when this pour
         // finishes, not what this pour weighs.
@@ -2307,7 +2415,9 @@ function buildPours(c) {
     }
     const rm = el('button', 'pour-remove', '−');
     rm.type = 'button';
-    rm.setAttribute('aria-label', `Remove ${label.toLowerCase()}`);
+    rm.setAttribute('aria-label', isValve(p)
+      ? `Remove the ${label.toLowerCase()} at ${fmtTime(num(p.at))}`
+      : `Remove ${label.toLowerCase()}`);
     rm.addEventListener('click', () => {
       editing.pours.splice(i, 1);
       haptic();
@@ -2321,7 +2431,11 @@ function buildPours(c) {
        it so the reader gets both readings and types only the one the scale
        gives them. Absent on the bloom, where the total and the pour are
        the same number and saying "+30g" twice explains nothing. */
-    if (byWeight() && i > 0) {
+    // Every pour but the first. `i > 0` was that test while the first row
+    // was always the bloom; on a switch the first row is an Open, and the
+    // bloom then printed "+100g in this pour" over the number it already
+    // shows — the one place that note explains nothing.
+    if (byWeight() && !isValve(p) && pourLabel(editing.pours, i) !== 'Bloom') {
       const added = pourAdded(editing, i);
       if (added !== null) {
         // Nothing signed on the way down: the readout names both figures,
@@ -2334,23 +2448,52 @@ function buildPours(c) {
     }
   });
 
+  const nextAt = gap => {
+    const prev = editing.pours[editing.pours.length - 1];
+    return prev && num(prev.at) !== null ? num(prev.at) + gap : 0;
+  };
+  const poursSoFar = () => editing.pours.filter(x => !isValve(x)).length;
+
   const add = el('button', 'btn btn-ghost pour-add',
-    editing.pours.length ? '＋ Another pour' : '＋ Start with the bloom');
+    poursSoFar() ? '＋ Another pour' : '＋ Start with the bloom');
   add.type = 'button';
   add.addEventListener('click', () => {
-    const prev = editing.pours[editing.pours.length - 1];
-    const at = prev && num(prev.at) !== null ? num(prev.at) + 45 : 0;
     // The bloom opens at twice the dose, which is the bottom of the
     // usual range — a suggestion sized from the coffee rather than a
     // number out of the air, and one tap from being changed.
     const dose = num(editing.dose);
-    const water = editing.pours.length === 0 && dose !== null ? Math.round(dose * 2) : null;
-    editing.pours.push({ at, water });
+    const water = poursSoFar() === 0 && dose !== null ? Math.round(dose * 2) : null;
+    editing.pours.push({ at: nextAt(45), water });
     haptic();
     buildPours(c);
     renderReadout(c);
   });
   wrap.appendChild(add);
+
+  /* ONLY WHERE THERE IS SOMETHING TO OPEN.
+
+     A V60 has no valve and a press has nothing to open into, so these are
+     drawn for a switch brewer and nowhere else — two buttons offering a
+     move that does not exist is worse than not offering it.
+
+     Fifteen seconds rather than the pour's forty-five: a valve move tends
+     to follow the thing it is reacting to closely, and the number is a
+     starting point you tap over. */
+  if (hasValve(editing)) {
+    const valves = el('div', 'pour-valves');
+    [['open', 'Open'], ['close', 'Close']].forEach(([key, word]) => {
+      const b = el('button', 'btn btn-ghost pour-valve-add', `＋ ${word}`);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        editing.pours.push({ at: nextAt(15), water: null, valve: key });
+        haptic();
+        buildPours(c);
+        renderReadout(c);
+      });
+      valves.appendChild(b);
+    });
+    wrap.appendChild(valves);
+  }
 }
 
 /* Stated before the numbers, because that is when you know it. */
@@ -2568,7 +2711,7 @@ function openGrindNow(c, keeper) {
   const start = keeper && num(Number(keeper.grind)) !== null ? num(Number(keeper.grind)) : undefined;
   let pending = c.grindNow === '' ? null : num(Number(c.grindNow));
   body.querySelector('#grind-grid').appendChild(numField({
-    label: 'Grind', unit: '', value: pending, min: 0, max: 100,
+    label: 'Grind', unit: '', value: pending, min: 0,
     step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1, startAt: start,
     onChange: v => { pending = v; },
   }));
