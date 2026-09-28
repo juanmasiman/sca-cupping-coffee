@@ -4403,6 +4403,10 @@ function openKit() {
     captureNames();
     k.asked = true;
     state.kit = k;
+    // Including the shared grinder, which Save writes and this exit did
+    // not — the comment above says "everything Save would have taken",
+    // and this line is what made that true again after Save grew one.
+    LentoKit.write(k);
     save();
     sheetFrom['dose'] = 'kit';
     closeModal('#kit-modal');
@@ -4900,12 +4904,17 @@ function mergeCoffee(local, remote) {
 }
 
 /* The kit is one answer about one bar, so it syncs as a single record with
-   a single stamp rather than as a list. It is also the record the other
-   tools read their grinder from, so a pull writes through to /shared. */
+   a single stamp rather than as a list.
+
+   Under the id 'espresso', not 'kit': the brew log has a kit too and it is
+   not this one — a basket is not a brewer — so a shared id would have the
+   two apps overwriting each other's setup every few seconds. What the two
+   genuinely share is the grinder, and that has its own record, owned by
+   /shared/kit.js and synced by it. */
 async function syncKit() {
   const rows = await LentoAccount.pull('kit');
   if (!rows) return false;
-  const row = rows.filter(r => r.id === 'kit')[0];
+  const row = rows.filter(r => r.id === 'espresso')[0];
   const mine = state.kitUpdated || 0;
   if (row && (row.updated || 0) > mine) {
     state.kit = Object.assign(defaultKit(), row.data);
@@ -4914,7 +4923,12 @@ async function syncKit() {
     primeStamps();
     writeState();
   } else if (mine && (!row || mine > (row.updated || 0))) {
-    await LentoAccount.push('kit', 'kit', state.kit, mine);
+    await LentoAccount.push('kit', 'espresso', state.kit, mine);
+  }
+  // The grinder, which belongs to neither app. A true return means the
+  // shared record moved and this app's kit has to be brought in line.
+  if (await LentoKit.sync()) {
+    if (LentoKit.adopt(state.kit)) save();
   }
   return true;
 }

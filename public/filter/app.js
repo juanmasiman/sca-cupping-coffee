@@ -32,8 +32,15 @@ function load() {
     const raw = localStorage.getItem(STORE);
     if (raw) state = migrate(JSON.parse(raw));
   } catch (e) { /* private mode, or a shape this build cannot read */ }
-  if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null, pourTotals: true };
+  if (!state || !Array.isArray(state.coffees)) {
+    state = { v: 1, coffees: [], activeId: null, pourTotals: true, dead: {}, kitUpdated: 0 };
+  }
   if (!state.kit) state.kit = defaultKit();
+  /* Before anything can save. Every save stamps what changed since the
+     last one, and "the last one" has to mean what is on disk — prime this
+     after the first save and a phone that merely opened the app would
+     claim every record on it was edited this second. */
+  primeStamps();
   /* Write the migration back at once, so the converted schedules and the
      flag that says they are converted land together. Left in memory until
      the next brew was saved, the stored copy kept the old shape while the
@@ -55,7 +62,86 @@ function load() {
 }
 
 function save() {
+  stamp();
+  writeState();
+  queueSync();
+}
+
+/* Written without stamping, for the one caller that must not stamp: a
+   sync has just merged records whose timestamps came from another device,
+   and giving them this second's clock would make a pulled brew look
+   locally edited and then beat the device it came from. */
+function writeState() {
   try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* quota, private mode */ }
+}
+
+/* ---------- when each record last changed ----------
+
+   Sync is last-write-wins per brew, so every brew needs an honest
+   `updated` and so does every coffee. Stamping it at the dozen places
+   that mutate them is how you get a stale timestamp: the site somebody
+   adds next year is the one that forgets, and a forgotten stamp does not
+   look like a bug — it looks like the other device winning.
+
+   So it is done here, once, against the only thing that cannot lie: the
+   content. Every save compares each record with what was written last
+   time and gives the clock to the ones that actually changed. This is the
+   dial-in's mechanism, in the same shape, for the same reason. */
+
+let lastSaved = new Map();
+
+// `updated` is excluded from its own fingerprint, or stamping a record
+// would make it differ again at the next save, for ever.
+function fingerprint(o) {
+  return JSON.stringify(o, (k, v) => (k === 'updated' ? undefined : v));
+}
+
+// A coffee without its brews: they carry their own stamps, and a coffee
+// whose name is unchanged should not look edited because a brew was added.
+function coffeeShell(c) {
+  const shell = Object.assign({}, c);
+  delete shell.brews;
+  return shell;
+}
+
+function stampAll(fn) {
+  const next = new Map();
+  (state.coffees || []).forEach(c => {
+    (c.brews || []).forEach(b => {
+      if (!b.id) b.id = uid();
+      fn('b:' + b.id, fingerprint(b), b, next);
+    });
+    fn('c:' + c.id, fingerprint(coffeeShell(c)), c, next);
+  });
+  fn('k:kit', fingerprint(state.kit || {}), state, next);
+  lastSaved = next;
+}
+
+function stamp() {
+  const now = Date.now();
+  stampAll((key, fp, rec, next) => {
+    next.set(key, fp);
+    if (lastSaved.get(key) !== fp) {
+      if (key === 'k:kit') state.kitUpdated = now;
+      else rec.updated = now;
+    }
+  });
+}
+
+/* Primed from what was on disk, so the first save of a session stamps
+   nothing. Without this, opening the app on a second device would tell
+   the cloud that every record there is brand new, and a phone that merely
+   launched would overwrite a phone that was used. */
+function primeStamps() {
+  stampAll((key, fp, rec, next) => next.set(key, fp));
+}
+
+// What a record's timestamp is, for deciding a conflict. A coffee is as
+// new as its newest brew: the brews are the thing being edited.
+function coffeeUpdated(c) {
+  let t = c.updated || 0;
+  (c.brews || []).forEach(b => { if ((b.updated || 0) > t) t = b.updated; });
+  return t;
 }
 
 function savePrefs() {
@@ -67,10 +153,34 @@ function savePrefs() {
 // Set when migrate() actually changed something, so load() knows to persist.
 let migrated = false;
 
+const TOMB_DAYS = 180;
+
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
   s.kit = Object.assign(defaultKit(), s.kit || {});
+  /* What was deleted, and when.
+
+     Last-write-wins has no opinion about absence: a brew you removed on
+     this phone is simply missing here and present in the cloud, so the
+     next sync puts it back and the delete looks like it did not take. So
+     a delete writes down that it happened, and a record whose tombstone
+     is newer than the copy on offer stays deleted.
+
+     They are pruned after half a year, which is the one case this gets
+     wrong: a device offline for longer than that, still holding the brew,
+     will bring it back. Keeping them for ever to close that is a log that
+     only grows. */
+  if (!s.dead || typeof s.dead !== 'object') s.dead = {};
+  const stale = Date.now() - TOMB_DAYS * 86400000;
+  Object.keys(s.dead).forEach(k => { if ((s.dead[k] || 0) < stale) delete s.dead[k]; });
+  /* The kit has one stamp for all of it, because it is one answer about
+     one kitchen rather than a list. A kit somebody filled in counts as
+     current; an untouched default counts as never answered, so the device
+     that knows wins against the device that was only opened. */
+  if (typeof s.kitUpdated !== 'number') s.kitUpdated = s.kit.asked ? Date.now() : 0;
   (s.coffees || []).forEach(c => {
+    if (!c.dead || typeof c.dead !== 'object') c.dead = {};
+    Object.keys(c.dead).forEach(k => { if ((c.dead[k] || 0) < stale) delete c.dead[k]; });
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
@@ -81,7 +191,13 @@ function migrate(s) {
       if (typeof b.body === 'undefined') b.body = null;
       if (typeof b.intent === 'undefined') b.intent = null;
       if (!Array.isArray(b.pours)) b.pours = [];
+      if (!b.id) b.id = uid();
+      // Brews written before sync existed: the time they were brewed is
+      // the truest thing available, and it is older than anything the
+      // cloud can hold for them, which is the safe direction to be wrong.
+      if (typeof b.updated !== 'number') b.updated = b.at || Date.now();
     });
+    if (typeof c.updated !== 'number') c.updated = coffeeUpdated(c) || Date.now();
   });
   /* The pour schedule used to hold the weight of each pour; it now holds
      the running total on the scale (see buildPours). Incremental converts
@@ -1326,7 +1442,7 @@ function renderBrews(c) {
         <p class="empty-body">Four questions about your brewer, kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a cone, a plain kettle, a scale</button>
-        <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
+        <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
         state.kit = Object.assign(defaultKit(), { asked: true });
@@ -1341,7 +1457,7 @@ function renderBrews(c) {
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Add the bag you are brewing and this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
-         <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
+         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
     return;
   }
 
@@ -1535,7 +1651,10 @@ function openBrew(brew) {
     const i = c.brews.indexOf(brew);
     if (i < 0) return;
     if (!confirm(`Remove brew ${i + 1}? It goes out of the log and out of the comparison with the brews either side of it. There is no undo.`)) return;
+    const gone = c.brews[i];
     c.brews.splice(i, 1);
+    // Written down, so a sync does not hand it back. See migrate().
+    if (gone && gone.id) c.dead[gone.id] = Date.now();
     save();
     closeModal('#brew-modal');
     renderBoard();
@@ -2125,6 +2244,7 @@ function openCoffee(c, opts) {
     const n = c.brews.length;
     if (n && !confirm(`Remove ${coffeeLabel(c)}? Its ${n} brew${n === 1 ? '' : 's'} go with it, and there is no undo.`)) return;
     state.coffees = state.coffees.filter(x => x.id !== c.id);
+    state.dead[c.id] = Date.now();
     if (state.activeId === c.id) state.activeId = state.coffees.length ? state.coffees[0].id : null;
     save();
     closeModal('#edit-modal');
@@ -2284,6 +2404,11 @@ function kitLine() {
 function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
+    ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
+      <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
+      <span class="kit-btn-sub">${escapeHTML(accountLine())}</span>
+    </button>` : ''}
+
     <button class="btn btn-ghost kit-btn" id="btn-kit">
       <span class="kit-btn-title">Your setup</span>
       <span class="kit-btn-sub">${escapeHTML(kitLine())}</span>
@@ -2316,6 +2441,8 @@ function openSettings() {
     seg.appendChild(b);
   });
 
+  const acc = body.querySelector('#btn-account');
+  if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); openAccount(); });
   body.querySelector('#btn-kit').addEventListener('click', () => { closeModal('#settings-modal'); openKit(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
@@ -2339,7 +2466,7 @@ function openHelp() {
     <p><strong>Thin and strong</strong> are the concentration walls, and grind is not the variable. A brew can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is the ratio. Thin means less water or more coffee; strong means the other way.</p>
     <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole brew.</p>
     <p><strong>Your setup</strong> decides what this app asks you for. Say the coffee steeps rather than drains and the app stops treating the clock as a symptom — in an immersion brewer the time is a decision you made, so grinding finer does not lengthen it. Say your kettle holds one temperature and the temperature field leaves the sheet. Change it any time in Settings.</p>
-    <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>
+    <p class="sheet-note">Everything is stored on this device and works with no signal. An account is optional, and all it does is copy the log to the other devices you sign in on.</p>
   `;
   openModal('#help-modal');
 }
@@ -2391,6 +2518,269 @@ function applyTheme() {
    WIRING
    ============================================================ */
 
+/* ============================================================
+   ACCOUNT AND CLOUD COPY (optional)
+
+   The brew log works with no account and no signal, for ever. That is the
+   product, not a limitation being worked around, and this section is only
+   allowed to add to it.
+
+   What it adds is one thing: the log follows you. The same person had a
+   cupping history that followed them, a shot log that followed them, and
+   a month of mornings that lived in one browser. This is the same account
+   reaching the same project through /shared/account.js — see the long
+   note at the top of that file for what it refuses to do.
+
+   Newest wins, per brew. Two devices logging brews on the same bag give a
+   union, which is lossless. The same brew edited in two places while both
+   are offline costs the earlier edit, silently. Deliberate, and written
+   down where anyone changing it will read it.
+   ============================================================ */
+
+function cloudOn() { return Boolean(window.LentoAccount && LentoAccount.enabled()); }
+function cloudUser() { return cloudOn() ? LentoAccount.user() : null; }
+
+/* One recipe to a coffee, still true after a merge. Two devices can each
+   mark a keeper offline, and the union holds both; the board answers
+   "what is the recipe" with one set of numbers, so the merge picks the
+   newest and puts the rest back to ok rather than hoping. */
+function oneKeeper(brews) {
+  const keepers = brews.filter(b => b.verdict === 'keeper');
+  if (keepers.length < 2) return brews;
+  let best = keepers[0];
+  keepers.forEach(b => { if ((b.updated || 0) > (best.updated || 0)) best = b; });
+  keepers.forEach(b => { if (b !== best) b.verdict = 'ok'; });
+  return brews;
+}
+
+function mergeCoffee(local, remote) {
+  // Both sides' deletions, each at its latest time. A tombstone travels
+  // inside the coffee record, which is how a delete on one device reaches
+  // the other at all.
+  const dead = Object.assign({}, local.dead || {});
+  Object.keys(remote.dead || {}).forEach(k => {
+    if ((remote.dead[k] || 0) > (dead[k] || 0)) dead[k] = remote.dead[k];
+  });
+
+  const byId = new Map();
+  const take = b => {
+    if (!b || !b.id) return;
+    const mine = byId.get(b.id);
+    if (!mine || (b.updated || 0) > (mine.updated || 0)) byId.set(b.id, b);
+  };
+  (local.brews || []).forEach(take);
+  (remote.brews || []).forEach(take);
+
+  const brews = oneKeeper(
+    Array.from(byId.values())
+      // A brew deleted after the copy on offer was written stays deleted.
+      .filter(b => !((dead[b.id] || 0) > (b.updated || 0)))
+      .sort((a, b) => (a.at || 0) - (b.at || 0))
+  );
+
+  const base = (remote.updated || 0) > (local.updated || 0) ? remote : local;
+  const merged = Object.assign({}, base, { brews: brews, dead: dead });
+  // Returned unchanged when nothing moved, so a sync that found nothing
+  // does not rewrite the log and does not look like an edit.
+  return JSON.stringify(merged) === JSON.stringify(local) ? local : merged;
+}
+
+/* This app's own kit, under its own record id. The dial-in has a kit too
+   and it is not this one — a basket is not a brewer — so a shared id would
+   have the two overwriting each other's setup every few seconds. What they
+   do share is the grinder, and that has its own record, owned and synced
+   by /shared/kit.js. */
+async function syncKit() {
+  const rows = await LentoAccount.pull('kit');
+  if (!rows) return false;
+  const row = rows.filter(r => r.id === 'filter')[0];
+  const mine = state.kitUpdated || 0;
+  if (row && (row.updated || 0) > mine) {
+    state.kit = Object.assign(defaultKit(), row.data);
+    state.kitUpdated = row.updated;
+    primeStamps();
+    writeState();
+  } else if (mine && (!row || mine > (row.updated || 0))) {
+    await LentoAccount.push('kit', 'filter', state.kit, mine);
+  }
+  if (await LentoKit.sync()) {
+    if (LentoKit.adopt(state.kit)) save();
+  }
+  return true;
+}
+
+let syncing = false;
+let syncTimer = null;
+
+async function syncNow() {
+  if (!cloudUser() || syncing) return false;
+  syncing = true;
+  try {
+    // Deletions first. A row left in the cloud comes back on the next
+    // pull, so a delete that is only local undoes itself on the other
+    // device.
+    for (const id of Object.keys(state.dead || {})) {
+      await LentoAccount.remove('filter', id);
+    }
+    const ok = await LentoAccount.syncTool('filter', {
+      load: () => state.coffees,
+      save: rows => {
+        state.coffees = rows.filter(c => !((state.dead[c.id] || 0) > coffeeUpdated(c)));
+        if (!state.coffees.some(c => c.id === state.activeId)) {
+          state.activeId = state.coffees.length ? state.coffees[0].id : null;
+        }
+        // primeStamps before writing: these timestamps are other devices'
+        // and must survive. See writeState().
+        primeStamps();
+        writeState();
+      },
+      idOf: c => c.id,
+      updatedOf: coffeeUpdated,
+      merge: mergeCoffee,
+    });
+    const kitOk = await syncKit();
+    renderBoard();
+    return Boolean(ok && kitOk);
+  } catch (e) {
+    return false;
+  } finally {
+    syncing = false;
+  }
+}
+
+/* Every save asks for a sync, and the debounce is what stops that being
+   one request per keystroke. Signed out, or with nothing configured, this
+   costs a boolean and does nothing at all. */
+function queueSync() {
+  if (!cloudUser()) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { syncTimer = null; syncNow(); }, 4000);
+}
+
+/* ---------- account UI ---------- */
+
+const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
+
+function brewCount() {
+  return (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0);
+}
+
+// What the row in Settings says. Signed in, it is the address; signed out,
+// it is what an account would be for — in one line, because the sentence
+// that explains sync belongs in the sheet and not on the button.
+function accountLine() {
+  const u = cloudUser();
+  if (u) return u.email || u.name || 'Signed in';
+  return 'Your log on every device you use';
+}
+
+function openAccount() {
+  const body = $('#account-body');
+  const u = cloudUser();
+  const n = brewCount();
+  // "Your account" is wrong on the sheet that does not have one yet.
+  $('#account-title').textContent = u ? 'Your account' : 'Sign in';
+
+  if (u) {
+    body.innerHTML = `
+      <p class="sheet-note">${escapeHTML(u.email || u.name || '')}</p>
+      <p class="sheet-note" id="account-status">${n} brew${n === 1 ? '' : 's'}, backed up as you log them.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" id="btn-signout">Sign out</button>
+        <button class="btn btn-primary" id="btn-sync">Sync now</button>
+      </div>
+      <p class="sheet-foot">Signing out leaves every brew here.</p>
+    `;
+    body.querySelector('#btn-signout').addEventListener('click', async () => {
+      await LentoAccount.signOut();
+      closeModal('#account-modal');
+      toast('Signed out — your log stays on this device');
+    });
+    body.querySelector('#btn-sync').addEventListener('click', async () => {
+      const status = body.querySelector('#account-status');
+      status.textContent = 'Syncing…';
+      const ok = await syncNow();
+      const m = brewCount();
+      status.textContent = ok
+        ? `Synced · ${m} brew${m === 1 ? '' : 's'}`
+        : 'Could not reach the cloud — it will try again';
+    });
+  } else {
+    body.innerHTML = `
+      <p class="sheet-note">A code by email, no password. Your log then follows you to any device — and still works with no signal.</p>
+      <label class="field-label" for="account-email">Your email</label>
+      <input class="field-input" id="account-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+      <p class="sheet-note" id="account-status" role="status"></p>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" id="btn-email-code">Email me a code</button>
+      </div>
+      <div class="auth-or"><span>or</span></div>
+      <button class="btn btn-ghost auth-google" id="btn-google">${googleIconSVG} Continue with Google</button>
+      <p class="sheet-foot">Nothing leaves this device without an account.</p>
+    `;
+    body.querySelector('#btn-google').addEventListener('click', () => LentoAccount.signInWith('google'));
+    const send = async () => {
+      const input = body.querySelector('#account-email');
+      const status = body.querySelector('#account-status');
+      const email = input.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.textContent = 'That does not look like an email address.';
+        return;
+      }
+      status.textContent = 'Sending…';
+      let ok = false;
+      try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
+      if (!ok) { status.textContent = 'Could not send it — check the connection and try again.'; return; }
+      openCode(email);
+    };
+    body.querySelector('#btn-email-code').addEventListener('click', send);
+    body.querySelector('#account-email').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); send(); }
+    });
+  }
+  openModal('#account-modal');
+}
+
+/* The code sheet. One field rather than six boxes: a paste of the whole
+   code works, and Supabase codes are not always six digits. */
+function openCode(email) {
+  closeModal('#account-modal');
+  const body = $('#code-body');
+  body.innerHTML = `
+    <p class="sheet-note">Sent to ${escapeHTML(email)}.</p>
+    <label class="field-label" for="code-input">Code</label>
+    <input class="field-input" id="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456">
+    <p class="sheet-note" id="code-status" role="status"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" id="btn-code-resend">Send a new code</button>
+      <button class="btn btn-primary" id="btn-code-verify">Sign in</button>
+    </div>
+  `;
+  const status = body.querySelector('#code-status');
+  const verify = async () => {
+    const code = body.querySelector('#code-input').value.replace(/\s+/g, '');
+    if (code.length < 6) { status.textContent = 'Keep going — the code is at least six digits.'; return; }
+    status.textContent = 'Checking…';
+    const ok = await LentoAccount.verifyEmailCode(email, code);
+    if (!ok) { status.textContent = 'That code did not work. Send a new one.'; return; }
+    closeModal('#code-modal');
+    toast('Signed in — your log is backing up');
+    renderBoard();
+    syncNow();
+  };
+  body.querySelector('#btn-code-verify').addEventListener('click', verify);
+  body.querySelector('#code-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); verify(); }
+  });
+  body.querySelector('#btn-code-resend').addEventListener('click', async () => {
+    status.textContent = 'Sending…';
+    let ok = false;
+    try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
+    status.textContent = ok ? 'A new code is on its way.' : 'Could not send it — try again in a minute.';
+  });
+  openModal('#code-modal');
+}
+
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
@@ -2401,6 +2791,8 @@ function wire() {
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
+  $('#account-close').addEventListener('click', () => closeModal('#account-modal'));
+  $('#code-close').addEventListener('click', () => closeModal('#code-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {
@@ -2431,6 +2823,18 @@ function boot() {
   applyTheme();
   wire();
   renderBoard();
+  /* An OAuth return lands as a fragment on this URL, so it is consumed
+     before anything else can rewrite the address bar. Then a sync, which
+     is a no-op signed out. */
+  if (window.LentoAccount) {
+    LentoAccount.onChange(() => renderBoard());
+    LentoAccount.adoptRedirect()
+      .then(signedIn => {
+        if (signedIn) toast('Signed in — your log is backing up');
+        if (cloudUser()) return syncNow();
+      })
+      .catch(() => {});
+  }
   /* No protocol test. serviceWorker is only exposed in a secure context
      to begin with, so the check added nothing on the deployed site — and
      it excluded localhost, which is a secure context, meaning this app's

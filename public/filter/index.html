@@ -213,6 +213,33 @@
   </div>
 </div>
 
+<!-- ============ ACCOUNT ============ -->
+<!-- Optional throughout. With no Supabase project configured the row in
+     Settings is not drawn and these sheets are never opened. -->
+<div id="account-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="account-title">
+    <div class="sheet-head">
+      <h3 id="account-title">Your account</h3>
+      <button id="account-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="settings-body" id="account-body"></div>
+  </div>
+</div>
+
+<div id="code-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="code-title">
+    <div class="sheet-head">
+      <h3 id="code-title">Enter your code</h3>
+      <button id="code-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="settings-body" id="code-body"></div>
+  </div>
+</div>
+
 <!-- ============ HELP ============ -->
 <div id="help-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
@@ -233,6 +260,8 @@
 
 <!-- The grinder calibration, shared with the dial-in: one grinder, one
      measurement of it. Loaded first because app.js builds on it. -->
+<script src="/shared/config.js"></script>
+<script src="/shared/account.js"></script>
 <script src="/shared/kit.js"></script>
 <script src="/shared/grind.js"></script>
 <script src="app.js"></script>
