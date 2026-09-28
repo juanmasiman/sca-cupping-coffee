@@ -404,6 +404,12 @@ Three fixed bands, and three is the count:
 
 Nothing in the cupping screen floats. Every band is in the flex column, so the sheet clears its own last row instead of guessing how tall something hovering over it is, and the safe-area inset is padding on the band that touches the edge rather than an offset applied to a fixed element.
 
+**Nothing on the front door floats either, and that one had to be learned twice.** The landing page put its account control where the cupping sheet puts it — `position: fixed`, top-right, a 44px glyph with no label. But the cupping sheet has a header band for that button to belong to, and the landing page has no header at all: the same button, on the same account, was a lone outlined box in a large empty margin three hundred pixels above the nearest thing it related to. Then somebody who wanted to sign in reported that they could not tap it, on a device none of the four viewports here reproduces.
+
+The corner is also the one strip of a phone that is not reliably the page's. Browser chrome, a notch, a translucent toolbar that expands on scroll and an install prompt all live at the top edge, and none of them is visible to this stylesheet. A control in normal flow is occluded by nothing, carries its own name in words, and got 64px of target instead of 44. The account is a row below the instruments now, separated by 32px — the interval the page already uses between its groups — because it is not a fifth tool; it is who you are while you use the other four.
+
+The rule that covers both: **a control that matters is in the layout.** Float what the layout can afford to lose.
+
 Below 560px the app runs edge to edge with its chrome removed. On a phone there is no frame, because the phone is the frame.
 
 ## Elevation & Depth

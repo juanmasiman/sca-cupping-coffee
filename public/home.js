@@ -110,7 +110,7 @@
   // Only what is actually there. A front door that says "0 shots" to
   // somebody who has never opened the dial-in is telling them about a
   // thing they have not used.
-  function deviceLine() {
+  function counts() {
     var bits = [];
     var c = cuppings();
     var s = countIn('lento-espresso-v1', 'shots');
@@ -118,11 +118,26 @@
     if (c) bits.push(say(c, 'cupping', 'cuppings'));
     if (s) bits.push(say(s, 'shot', 'shots'));
     if (b) bits.push(say(b, 'brew', 'brews'));
+    return bits;
+  }
+
+  // The sentence in the sheet, where there is room for one.
+  function deviceLine() {
+    var bits = counts();
     if (!bits.length) return 'Your history follows you to any device you sign in on.';
     return bits.join(' · ') + ' on this device.';
   }
 
-  /* ---------- the profile button ---------- */
+  /* ---------- the account row ---------- */
+
+  // The sub-line on the row, where there is not. Signed out it says what
+  // signing in is for; signed in the address is already on the line above,
+  // so this says what that account is currently holding on this device.
+  function rowNote(u) {
+    if (!u) return 'Your log on every device';
+    var bits = counts();
+    return bits.length ? bits.join(' · ') : 'Nothing logged on this device yet';
+  }
 
   function renderAccount() {
     var btn = $('#btn-account');
@@ -132,8 +147,12 @@
     }
     btn.classList.remove('hidden');
     var u = LentoAccount.user();
-    $('#account-dot').classList.toggle('hidden', !u);
-    btn.setAttribute('aria-label', u ? 'Your account' : 'Sign in');
+    // The row reads as what it does, so it needs no aria-label over the
+    // top of its own visible text — and a label that disagreed with that
+    // text would be the accessible name for a control saying something
+    // else, which is the failure the label was meant to prevent.
+    $('#account-name').textContent = u ? (u.email || u.name || 'Your account') : 'Sign in';
+    $('#account-note').textContent = rowNote(u);
   }
 
   function boot() {
