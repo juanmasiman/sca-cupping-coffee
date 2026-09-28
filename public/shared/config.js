@@ -6,8 +6,15 @@
    one cupper's history private from another. Never put a
    service_role key here: that one bypasses every policy.
 
-   Leave these blank to run the app device-only, with no sign-in
+   Leave these blank to run the apps device-only, with no sign-in
    and no cloud sync.
+
+   SHARED BY ALL THREE TOOLS. It lived in public/cupping/ while cupping
+   was the only one that signed in. One account across the tools means one
+   place that says where the account is — a second copy of these two
+   values is the same failure as a second copy of the palette, and this
+   file is small enough that the copy would have looked harmless right up
+   until the day the two disagreed.
    ============================================================ */
 
 // Length of the emailed sign-in code, matching Supabase → Authentication

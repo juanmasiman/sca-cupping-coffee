@@ -7,14 +7,15 @@
    needs to reach the internet, and it fails softly when it can't.
    ============================================================ */
 
-const VERSION = 'v33';
+const VERSION = 'v35';
 const SHELL_CACHE = `lento-cupping-shell-${VERSION}`;
 
 const SHELL = [
   './',
   './index.html',
   './styles.css',
-  './config.js',
+  '/shared/config.js',
+  '/shared/account.js',
   './app.js',
   './qrcode.js',
   './manifest.webmanifest',

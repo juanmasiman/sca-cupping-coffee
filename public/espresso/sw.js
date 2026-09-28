@@ -2,12 +2,16 @@
    lento — espresso dial-in, service worker
 
    A bar has a queue and a basement has no signal. The whole app is
-   served from cache and works with nothing at all behind it; there
-   is no relay here and no account, so offline is the normal case
-   rather than the fallback.
+   served from cache and works with nothing at all behind it. There is
+   an account now, and it changes none of that: signing in adds a copy
+   that follows you to another device, and everything the app does it
+   still does signed out, with no signal, for ever. Which is why the
+   account layer is precached like everything else — a sign-in sheet
+   that only exists with signal is fine, but an app that will not boot
+   because its auth file did not arrive is not.
    ============================================================ */
 
-const VERSION = 'v14';
+const VERSION = 'v15';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
@@ -25,6 +29,8 @@ const SHELL = [
   // The components both instruments are built from. A stylesheet that only
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
+  '/shared/config.js',
+  '/shared/account.js',
   '/shared/kit.js',
   '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
