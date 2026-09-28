@@ -48,13 +48,15 @@ function load() {
      double conversion the first time anything reads the store without
      going through here. */
   if (migrated) { save(); migrated = false; }
-  /* One grinder across the tools — see public/shared/kit.js. This app
-     asked for it with a bare text field while the dial-in offered a list
-     that fills in whether it counts clicks and whether it holds grounds,
-     which are the two things grind.js needs and the two this app was
-     making people answer twice. */
-  LentoKit.seed(state.kit);
-  if (LentoKit.adopt(state.kit)) save();
+  /* This app's grinder goes on the person's list, so the dial-in can
+     offer it instead of asking again. Nothing comes back the other way on
+     its own: a DF64 on the espresso machine and a hand grinder for filter
+     is the normal case, and this app does not ask about retention at all
+     — so copying its kit into the dial-in was telling the dial-in to
+     purge a grinder that holds nothing. `false` says as much: record the
+     grind steps, which this app does ask about, and stay quiet on the
+     question it never puts. */
+  LentoKit.remember(state.kit, false);
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -2278,6 +2280,27 @@ function segRow(label, sub, options, current, onPick) {
   return wrap;
 }
 
+/* Grinders you have already told lento about, above the shipped list.
+
+   A second grinder is the normal case, not the edge, so the dial-in's
+   answer belongs here as an offer — named, one tap, and never applied on
+   your behalf. Anything already on your list is left out of the long list
+   below it, because the same name twice in a select is a puzzle. */
+function grinderOptions(cur) {
+  const mine = LentoKit.known();
+  const mineNames = mine.map(g => g.name);
+  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
+  const known = mineNames.indexOf(cur) >= 0 || LentoKit.GRINDERS.some(g => g.name === cur);
+  const opt = name => `<option value="${escapeHTML(name)}"${
+    name === cur ? ' selected' : ''}>${escapeHTML(name)}</option>`;
+  return `<option value=""${!cur ? ' selected' : ''}>Choose…</option>`
+    + `<option value="__other"${cur && !known ? ' selected' : ''}>Something else</option>`
+    + (mine.length
+      ? `<optgroup label="Yours">${mine.map(g => opt(g.name)).join('')}</optgroup>`
+        + `<optgroup label="All grinders">${rest.map(g => opt(g.name)).join('')}</optgroup>`
+      : rest.map(g => opt(g.name)).join(''));
+}
+
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
@@ -2296,11 +2319,7 @@ function openKit() {
           the text field is still there for anything not on it, and nothing
           is read out of the name when advice is given. */ ''}
     <label class="field"><span class="field-label">Grinder</span>
-      <select class="field-input" id="k-grinder-pick">
-        <option value="">Choose…</option>
-        <option value="__other">Something else</option>
-        ${LentoKit.GRINDERS.map(g => `<option value="${escapeHTML(g.name)}">${escapeHTML(g.name)}</option>`).join('')}
-      </select></label>
+      <select class="field-input" id="k-grinder-pick">${grinderOptions(k.grinder)}</select></label>
     <label class="field hidden" id="k-grinder-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Comandante C40"></label>
     <div id="k-steps"></div>
@@ -2315,11 +2334,15 @@ function openKit() {
   const gPick = body.querySelector('#k-grinder-pick');
   const gOther = body.querySelector('#k-grinder-other');
   const syncGrinder = () => gOther.classList.toggle('hidden', gPick.value !== '__other');
-  if (k.grinder) gPick.value = LentoKit.grinderEntry(k.grinder) ? k.grinder : '__other';
+  if (k.grinder && !LentoKit.entryFor(k.grinder)) gPick.value = '__other';
   syncGrinder();
   gPick.addEventListener('change', () => {
     syncGrinder();
-    const e = LentoKit.grinderEntry(gPick.value);
+    // What you have said about this grinder, over what the shipped list
+    // says. Only the grind steps are taken: whether it holds grounds
+    // matters to a dial-in and not to a pour over, so this app neither
+    // asks it nor pretends to know.
+    const e = LentoKit.entryFor(gPick.value);
     if (e) {
       k.grinder = e.name;
       k.steps = e.steps;
@@ -2363,7 +2386,7 @@ function openKit() {
     const flowChanged = !state.kit || state.kit.flow !== k.flow;
     state.kit = k;
     // Shared with the dial-in — see public/shared/kit.js.
-    LentoKit.write(k);
+    LentoKit.remember(k, false);
     /* Changing how the water moves changes what a sensible window is, so
        a coffee nobody has moved off the defaults follows. One somebody
        has set by hand is left exactly alone — it is their window, and
@@ -2603,9 +2626,10 @@ async function syncKit() {
   } else if (mine && (!row || mine > (row.updated || 0))) {
     await LentoAccount.push('kit', 'filter', state.kit, mine);
   }
-  if (await LentoKit.sync()) {
-    if (LentoKit.adopt(state.kit)) save();
-  }
+  /* The list of grinders this person owns, which belongs to neither app.
+     It is only ever offered in the kit sheet, so a newer list from another
+     device changes nothing on screen here and nothing about the advice. */
+  await LentoKit.sync();
   return true;
 }
 
