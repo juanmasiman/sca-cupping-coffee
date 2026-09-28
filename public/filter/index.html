@@ -19,6 +19,8 @@
        this is the part of it a browser can read. -->
   <link rel="stylesheet" href="/shared/tokens.css">
   <link rel="stylesheet" href="/shared/components.css">
+  <!-- The flavour wheel's drawing, shared with the cupping sheet. -->
+  <link rel="stylesheet" href="/shared/wheel.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -95,6 +97,13 @@
     </div>
 
     <div class="sheet-scroll">
+      <!-- Which brewer, on a shelf with more than one. Above the numbers
+           because it changes what they mean: a brewer that steeps has no
+           pour schedule and no drawdown, and the advice underneath will
+           not talk about the clock. Hidden entirely on a one-brewer
+           shelf — see buildBrewerPick. -->
+      <div class="brewer-pick hidden" id="brewer-pick"></div>
+
       <!-- The numbers. Everything computed on this screen comes from these
            and from the schedule below, and nothing else. -->
       <div class="num-row" id="num-row"></div>
@@ -130,6 +139,23 @@
         <div id="taste-scale"></div>
         <span class="field-label" id="body-label">Thin or strong?</span>
         <div id="body-scale"></div>
+        <!-- DID THE BAG'S NOTES TURN UP, AND WHAT ELSE DID?
+
+             The two scales above are the extraction and the strength —
+             what to change. This is the cup: whether the peach the
+             roaster promised is in there, and what arrived instead. The
+             bag's own words come pre-offered as chips, because the
+             commonest answer to "what did you taste" is one of the three
+             words already printed on the packet; everything else comes
+             off the flavour wheel, which is the standard's vocabulary
+             and not a list this app invented. -->
+        <span class="field-label" id="flavour-label">What did you taste?</span>
+        <p class="bag-claim hidden" id="bag-claim"></p>
+        <div class="chips" id="flavour-chips" role="group" aria-labelledby="flavour-label"></div>
+        <button type="button" class="btn btn-ghost wheel-open" id="btn-wheel">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v5.6M12 15.4V21M3 12h5.6M15.4 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Flavour wheel
+        </button>
       </div>
 
       <div class="verdict-block">
@@ -181,6 +207,36 @@
     <div class="sheet-actions">
       <button id="edit-delete" class="btn btn-ghost btn-danger">Remove this coffee</button>
       <button id="edit-save" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ FLAVOUR WHEEL ============ -->
+<!-- The same wheel the cupping sheet uses, from /shared/wheel.js and
+     /shared/wheel.css: nine categories and sixty-eight descriptors of the
+     SCA/WCR/UC Davis standard. What a tap means is this app's, and it is
+     simpler than cupping's — there is no CATA form here, so a category is
+     just a coarser word for what you tasted. -->
+<div id="wheel-modal" class="modal hidden">
+  <div class="modal-sheet wheel-sheet" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+    <div class="sheet-head">
+      <h3 id="wheel-title">Flavour wheel</h3>
+      <button id="wheel-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="settings-body">
+      <p class="sheet-note" id="wheel-hint">Tap a word to write it down. The inner ring is the coarse version, and it is a real answer — plenty of mornings the honest note is "fruity".</p>
+      <div class="wheel-zoom-bar">
+        <span class="wheel-zoom-level" id="wheel-zoom-level" aria-live="polite">Whole wheel</span>
+        <button type="button" id="wheel-zoom-toggle" class="wheel-zoom-btn" aria-pressed="false">Zoom in to read</button>
+      </div>
+      <div class="wheel-holder" id="wheel-holder"></div>
+      <div class="wheel-picked" id="wheel-picked"></div>
+      <p class="wheel-status" id="wheel-status"></p>
+    </div>
+    <div class="sheet-actions">
+      <button id="wheel-done" class="btn btn-primary">Done</button>
     </div>
   </div>
 </div>
@@ -247,6 +303,7 @@
 <script src="/shared/account-sheet.js"></script>
 <script src="/shared/kit.js"></script>
 <script src="/shared/grind.js"></script>
+<script src="/shared/wheel.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

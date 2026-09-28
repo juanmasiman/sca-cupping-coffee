@@ -20,6 +20,13 @@
   <!-- One design system for every app on lento.cafe. DESIGN.md is the law;
        this is the part of it a browser can read. -->
   <link rel="stylesheet" href="/shared/tokens.css">
+  <!-- The flavour wheel, which the brew log now asks the same question
+       with. This sheet does not link the shared component layer — that is
+       a measured decision recorded in DESIGN.md — but the wheel is one
+       fixed drawing of one published standard, and its rules were
+       identical in both places by construction. Before styles.css, so
+       anything here can still be overridden below. -->
+  <link rel="stylesheet" href="/shared/wheel.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -551,6 +558,10 @@
 
   <script src="/shared/config.js"></script>
   <script src="/shared/account.js"></script>
+  <!-- The wheel's taxonomy, drawing, zoom and keyboard grid. What a tap
+       MEANS stays in app.js, because a wedge ticks a CATA box here and
+       writes a word down in the brew log. -->
+  <script src="/shared/wheel.js"></script>
   <script src="qrcode.js"></script>
   <script src="app.js"></script>
 </body>

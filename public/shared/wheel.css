@@ -1,0 +1,178 @@
+/* ============================================================
+   lento — the flavour wheel, drawn
+
+   The presentation of the wheel in /shared/wheel.js: the sheet it
+   opens in, the scrolling zoom viewport, the wedges, the two inks a
+   label needs on the standard's nine hues, and the running list of
+   what has been taken from it.
+
+   It lives here for the reason the taxonomy does. The cupping sheet
+   keeps its own component layer — a measurement recorded in DESIGN.md,
+   where 27 of 27 shared selectors turned out to have different bodies —
+   but this is not one of those. It is one fixed drawing of one
+   published standard, and the rules that colour it are identical in
+   both places by construction. Each app still owns its own door to the
+   wheel: the cupping sheet's sits in the navigation band, the brew log's
+   under the two taste scales, and neither is here.
+
+   Linked by the cupping sheet and the brew log, both of which also link
+   tokens.css — every colour below comes from there.
+   ============================================================ */
+
+.wheel-sheet { max-height: 92dvh; overflow-y: auto; }
+/* The wheel is 68 descriptors around one circle. Fit to a phone it reads
+   at about 5.5px — fine for taking the whole vocabulary in, too small to
+   read a word or land a thumb on one. So the reader gets to choose the
+   scale rather than the layout choosing for them: it opens whole and
+   scrolls when enlarged, and the wheel itself is never redrawn. */
+.wheel-holder {
+  margin: var(--space-3) 0 var(--space-2);
+  overflow: auto;
+  max-height: 46dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.wheel-holder svg {
+  width: calc(100% * var(--wheel-zoom, 1));
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.wheel-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+/* One button carrying a phrase, not two carrying glyphs. It keeps the 44px
+   height and takes its width from the words, which is why there is no
+   `width` here: "Zoom in to read" and "Show the whole wheel" are different
+   lengths and the button should fit whichever it is showing. */
+.wheel-zoom-btn {
+  min-height: 44px;
+  flex: none;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.wheel-zoom-btn:active { transform: scale(0.96); }
+.wheel-zoom-btn:focus-visible { outline: 2px solid var(--chrome); outline-offset: 2px; }
+.wheel-zoom-level {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.wheel-seg { user-select: none; -webkit-user-select: none; cursor: pointer; stroke: var(--bg-card); stroke-width: 1; transition: opacity 0.15s; }
+.wheel-seg:active { opacity: 0.7; }
+/* anything already chosen is ringed, on both rings — the wheel is useless as
+   a record if you cannot see what you have taken from it */
+.wheel-seg.picked { stroke: var(--text); stroke-width: 2.5; }
+/* A focused wedge has to be visible over any of the nine hues and has to be
+   distinguishable from the picked ring above, so it is thicker and dashed.
+   Thickness and dashes were doing all of that work and the colour was a flat
+   var(--text) on every hue, which measured 2.62:1 on Roasted in light and
+   failed 3:1 on six of the nine in dark. The labels already solved exactly
+   this problem — inkOn() picks black or white per hue by contrast — so the
+   wedges now carry the same class and the ring takes the same ink.
+
+   An unpicked child wedge is its hue at 45% over the card, which is a much
+   lighter ground, and there the page ink is the right answer; that is what
+   the base rule below is. The ink override applies to the full-strength
+   grounds: every category wedge, and a child wedge once picked. */
+.wheel-seg:focus { outline: none; }
+/* The wedges are SVG paths inside a zoomed viewport, where an outline does
+   not follow the shape — they carry their own ring, set on the stroke. Both
+   apps put a 2px outline on :focus-visible by default, so both need this. */
+.wheel-seg:focus-visible {
+  outline: none;
+  stroke: var(--text);
+  stroke-width: 4;
+  stroke-dasharray: 6 3;
+}
+.wheel-cat.ink-dark:focus-visible,
+.wheel-child.picked.ink-dark:focus-visible { stroke: #000000; }
+.wheel-cat.ink-light:focus-visible,
+.wheel-child.picked.ink-light:focus-visible { stroke: #ffffff; }
+.wheel-child.picked { fill-opacity: 0.95; }
+
+.wheel-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: center;
+  margin: var(--space-2) 0 var(--space-3);
+}
+.wheel-picked:empty { display: none; }
+.wheel-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-radius: 999px;
+  background: var(--chrome);
+  color: var(--on-chrome);
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform 0.18s var(--settle);
+}
+.wheel-pick.note { background: var(--chrome-soft); color: var(--chrome); }
+.wheel-pick:active { transform: scale(0.93); }
+.wheel-pick b { font-weight: 800; font-size: 13px; line-height: 1; opacity: 0.75; }
+/* The ink is chosen per wedge — see inkOn() — because the wheel's nine hues
+   are the standard's own and a single ink cannot be legible on all of them.
+   These two are literals rather than tokens on purpose: the wheel is a
+   fixed drawing, and the ground a label sits on is the hue, not the page. */
+.wheel-cat-label {
+  font-size: 7px;
+  font-weight: 800;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
+.wheel-cat-label.ink-dark { fill: #000000; }
+.wheel-cat-label.ink-light { fill: #ffffff; }
+
+/* Unpicked, a descriptor sits on the hue at 45% over the card, where the
+   page's own ink reads. Picked, the wedge fills and the ground becomes the
+   hue, so the label takes the same ink the category ring uses. */
+.wheel-child-label { font-size: 5.4px; font-weight: 700; fill: var(--text); pointer-events: none; }
+.wheel-child-label.picked.ink-dark { fill: #000000; }
+.wheel-child-label.picked.ink-light { fill: #ffffff; }
+.wheel-hub { fill: var(--bg-card); stroke: var(--line); stroke-width: 1.5; }
+.wheel-hub-label { font-size: 9px; font-weight: 800; fill: var(--chrome); }
+
+.wheel-status {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--chrome);
+  min-height: 18px;
+}
+
+/* Moved here with the chip it belongs to. Where a control is small
+   because its row is dense, the target grows without the mark growing —
+   a transparent ::after with a negative inset, the same device the help
+   marks use. The inset stays inside the 6px row gap, so two targets can
+   never overlap and steal each other's taps. */
+.wheel-pick::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+  inset: -9px -3px;   /* 27 -> 45 tall, row gap is 6px */
+}

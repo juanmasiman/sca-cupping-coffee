@@ -160,6 +160,25 @@ const TOMB_DAYS = 180;
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
   s.kit = Object.assign(defaultKit(), s.kit || {});
+  /* THE ONE BREWER BECOMES THE FIRST ONE ON THE SHELF.
+
+     A kit written before the shelf existed holds `brewer` and `flow` as
+     two loose fields. They are the same pair the shelf stores, so the
+     answer somebody already gave is carried over rather than asked
+     again — and every brew in the log is stamped with the brewer that
+     made it, because it did. Leave them unstamped and the day a second
+     brewer arrives, every past brew silently starts reporting itself as
+     having been made in it. */
+  /* An empty shelf beside a named brewer is the pre-shelf shape, because
+     nothing else produces it: taking the last brewer off the shelf clears
+     the name with it. (`defaultKit` supplies `brewers: []`, so testing
+     whether the field exists would never fire — the merge has already put
+     one there.) */
+  if (!Array.isArray(s.kit.brewers)) s.kit.brewers = [];
+  if (!s.kit.brewers.length && s.kit.brewer) {
+    s.kit.brewers = [{ name: s.kit.brewer, flow: s.kit.flow || 'percolation' }];
+  }
+  s.kit.brewers = s.kit.brewers.filter(b => b && typeof b.name === 'string' && b.name.trim());
   /* What was deleted, and when.
 
      Last-write-wins has no opinion about absence: a brew you removed on
@@ -186,9 +205,16 @@ function migrate(s) {
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
+    ['origin', 'variety', 'process', 'altitude', 'bagNotes'].forEach(f => {
+      if (typeof c[f] !== 'string') c[f] = '';
+    });
     if (typeof c.grindNow !== 'string') c.grindNow = '';
     if (!Array.isArray(c.brews)) c.brews = [];
     c.brews.forEach(b => {
+      // See the note in the kit migration above: a brew with no brewer on
+      // it was made in the only one there was.
+      if (typeof b.brewer !== 'string') b.brewer = s.kit.brewer || '';
+      if (!Array.isArray(b.flavours)) b.flavours = [];
       if (typeof b.taste === 'undefined') b.taste = null;
       if (typeof b.body === 'undefined') b.body = null;
       if (typeof b.intent === 'undefined') b.intent = null;
@@ -229,15 +255,20 @@ function migrate(s) {
    filling in with a guess, and advice that names a variable you do not have
    is worse than no advice at all.
 
-   Four questions, and two of them change what the app is allowed to say:
+   A shelf and three questions, and the shelf is the one that changes
+   what the app is allowed to say:
 
-   - **Does the water pass through, or does the coffee steep?** This is
-     the big one. In a V60 the grind sets the flow rate, so a slow brew
-     and a bitter cup are the same fact and "coarser" fixes both. In a
-     French press the steep time is whatever the timer said, so grind
-     changes extraction with the clock held still, and telling somebody
-     their four-minute press ran long is telling them about their own
-     decision. A switch brewer does both, in that order.
+   - **What do you brew in?** Plural. In a V60 the grind sets the flow
+     rate, so a slow brew and a bitter cup are the same fact and
+     "coarser" fixes both. In a French press the steep time is whatever
+     the timer said, so grind changes extraction with the clock held
+     still, and telling somebody their four-minute press ran long is
+     telling them about their own decision. A switch brewer does both, in
+     that order. That difference used to be asked as a question about
+     "the water", once, for the whole kitchen. It is a property of the
+     brewer, most brewers are on a list, and a person owns more than one —
+     so it is a shelf, the list answers it, and the brew records which
+     brewer made it.
 
    - **Can you set the kettle temperature?** Most kettles cannot, and
      "up two degrees" to somebody holding a stovetop kettle is the app
@@ -261,10 +292,24 @@ function migrate(s) {
 
 function defaultKit() {
   return {
+    /* A SHELF, NOT A BREWER.
+
+       This was one text field, on the assumption that a person owns a
+       brewer. A person owns brewers: a V60 on a Saturday and a press on
+       a weekday morning is the ordinary kitchen, and the app was asking
+       which one of them you are, once, for ever.
+
+       `brewers` is what is on the shelf. `brewer` is the one you reached
+       for last, which is only ever the default on a fresh sheet — the
+       brew itself records which one made it, so switching today does not
+       rewrite what last week was brewed in. */
     brewer: '',
+    brewers: [],          // [{ name, flow }]
+    /* The fallback for a brewer with no entry, and the answer every kit
+       written before the shelf existed already carries. */
+    flow: 'percolation',  // 'percolation' | 'immersion' | 'switch'
     kettle: '',
     grinder: '',
-    flow: 'percolation',  // 'percolation' | 'immersion' | 'switch'
     temp: 'fixed',        // 'fixed' — off the boil | 'set' — you choose it
     steps: 'stepless',    // 'stepped' — clicks | 'stepless' — a number
     scale: true,          // brewing by weight
@@ -272,21 +317,89 @@ function defaultKit() {
   };
 }
 
+/* WHAT THE APP IS ALLOWED TO KNOW FROM A BRAND NAME.
+
+   This file's kit comment refuses brand tables, and it is right about
+   what it was refusing: a grind setting read out of a model name goes
+   stale within a year and is wrong about every hybrid on the shelf.
+
+   Whether the water drains out of the bottom is not that kind of fact. A
+   V60 has a hole in it. A press does not. Next year's V60 will still have
+   a hole, and the hybrids — the ones that steep and then open — are not a
+   gap in the table, they are the third answer it already had a word for.
+
+   So the table seeds one editable answer once, and everything else about
+   the name stays the person's own record. What you said about your own
+   brewer always wins: see brewerEntry. */
+const BREWERS = [
+  { name: 'Hario V60', flow: 'percolation' },
+  { name: 'Kalita Wave', flow: 'percolation' },
+  { name: 'Chemex', flow: 'percolation' },
+  { name: 'Origami', flow: 'percolation' },
+  { name: 'Orea', flow: 'percolation' },
+  { name: 'April', flow: 'percolation' },
+  { name: 'Fellow Stagg [X]', flow: 'percolation' },
+  { name: 'Melitta', flow: 'percolation' },
+  { name: 'Tricolate', flow: 'percolation' },
+  { name: 'Clever Dripper', flow: 'switch' },
+  { name: 'Hario Switch', flow: 'switch' },
+  { name: 'French press', flow: 'immersion' },
+  /* The press at the end of an AeroPress is quick and the extraction has
+     already happened in the chamber, so it is logged as a steep. Anybody
+     who disagrees can say so on their own entry, which is the point of
+     the entry. */
+  { name: 'AeroPress', flow: 'immersion' },
+  { name: 'Cupping bowl', flow: 'immersion' },
+];
+
 const kit = () => (state && state.kit) || defaultKit();
-// Water through a bed, or coffee in water. Everything the app is willing
-// to say about the clock turns on this.
-const percolates = () => kit().flow !== 'immersion';
-const steeps = () => kit().flow !== 'percolation';
+
+/* Yours over the shipped list, always. Somebody who has told this app
+   that their Switch is only ever used open has said something truer about
+   their mornings than a table can. */
+function brewerEntry(name) {
+  if (!name) return null;
+  const mine = (kit().brewers || []).find(b => b && b.name === name);
+  if (mine) return mine;
+  return BREWERS.find(b => b.name === name) || null;
+}
+
+/* Water through a bed, or coffee in water. Everything the app is willing
+   to say about the clock turns on this — and it turns on it per brew now,
+   not per kitchen, because the answer is a property of the thing in your
+   hand this morning. Given a brew, that brew's brewer; given nothing, the
+   one you reached for last. */
+function waterFlow(b) {
+  const e = brewerEntry((b && b.brewer) || kit().brewer);
+  return (e && e.flow) || kit().flow || 'percolation';
+}
+const percolates = b => waterFlow(b) !== 'immersion';
+const steeps = b => waterFlow(b) !== 'percolation';
 const canSetTemp = () => kit().temp === 'set';
 const byWeight = () => kit().scale !== false;
 const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
 
 const FLOWS = {
-  percolation: { label: 'Through', lo: 150, hi: 210 },
-  immersion: { label: 'Steeps', lo: 210, hi: 270 },
-  switch: { label: 'Both', lo: 180, hi: 240 },
+  percolation: {
+    label: 'It drains as you pour',
+    short: 'drains through',
+    eg: 'V60, Chemex, Kalita',
+    lo: 150, hi: 210,
+  },
+  immersion: {
+    label: 'It sits until you decide',
+    short: 'steeps',
+    eg: 'press, AeroPress',
+    lo: 210, hi: 270,
+  },
+  switch: {
+    label: 'It steeps, then you open it',
+    short: 'steeps, then drains',
+    eg: 'Clever, Hario Switch',
+    lo: 180, hi: 240,
+  },
 };
-const flowEntry = () => FLOWS[kit().flow] || FLOWS.percolation;
+const flowEntry = b => FLOWS[waterFlow(b)] || FLOWS.percolation;
 
 /* ---------- the model ---------- */
 
@@ -346,6 +459,29 @@ function newCoffee(name) {
     roaster: '',
     roastDate: '',
     roast: '',
+    /* WHAT ELSE IS ON THE BAG.
+
+       Asked because a bag says it and somebody wants it written down
+       beside the brews — not because this app reasons from any of it. It
+       does not: the starting point comes from roast level alone, which is
+       the strongest thing a bag tells you about extraction and the only
+       one used, and folding four weak signals in behind it would make the
+       answer's confidence harder to read rather than the answer better.
+       That argument is in DESIGN.md and these fields do not touch it.
+
+       Free text, all of them, including altitude. The dial-in asks for
+       altitude as bands because a band is what its solubility model
+       consumes; here nothing consumes it, so the honest field is the one
+       that takes what the bag actually printed — "1,900–2,100 masl" and
+       all. A control that looks like it feeds something, and does not,
+       is a promise this app has not made. */
+    origin: '',
+    variety: '',
+    process: '',
+    altitude: '',
+    // What the roaster says it tastes like, which is a different claim
+    // from what you found — yours goes on each brew.
+    bagNotes: '',
     // How far the grinder has moved from the recipe you settled on. The
     // recipe itself is never rewritten; see the keeper card.
     grindNow: '',
@@ -404,7 +540,7 @@ function bloomOf(brew) {
    Only percolation has one. In immersion there is nothing draining until
    you decide there is. */
 function drawdownOf(brew) {
-  if (!percolates()) return null;
+  if (!percolates(brew)) return null;
   const t = num(brew.time);
   const pours = (brew.pours || []).filter(p => num(p.at) !== null);
   if (t === null || !pours.length) return null;
@@ -531,11 +667,11 @@ function intentEntry(key) {
 // The intents this kit can actually carry out. "Hotter" is not an
 // intention on a kettle with one setting, and offering it invites
 // somebody to record a change they did not make.
-function liveIntents() {
+function liveIntents(brew) {
   return INTENTS.filter(i => {
     if (i.field === 'temp' && !canSetTemp()) return false;
     if (i.field === 'water' && !byWeight()) return false;
-    if (i.key === 'pours' && !percolates()) return false;
+    if (i.key === 'pours' && !percolates(brew)) return false;
     return true;
   });
 }
@@ -608,7 +744,23 @@ function intentCheck(brew, prev) {
    one that is true there. */
 
 const GRIND = makeGrind({
-  logs: () => ((state && state.coffees) || []).map(c => c.brews || []),
+  /* ONLY THE BREWS WHERE THE GRIND SET THE CLOCK.
+
+     The estimate this feeds is seconds per step, and it is refused
+     outright on a brewer that steeps because there the clock is a number
+     somebody chose — see the comment on `enabled` below and the long one
+     further down. With one brewer per kitchen that refusal was enough.
+     With a shelf it is not: a press brew sitting in the same log would
+     be handing the arithmetic a four-minute timer setting as though it
+     were a drawdown, and the figure would come out of a V60's estimate
+     looking like evidence.
+
+     (Still coarse in one way: a V60 and a Chemex are averaged together.
+     Both percolate, so grind moves the clock in both, and that is the
+     relationship being measured — but they are not the same brewer and a
+     per-brewer figure would be truer. Written down rather than hidden.) */
+  logs: () => ((state && state.coffees) || [])
+    .map(c => (c.brews || []).filter(b => percolates(b))),
   stepped: () => kit().steps === 'stepped',
   /* 'step' was wrong on a stepless dial in the one place it mattered
      most — the sentence that promises to replace "a step" with a number.
@@ -619,7 +771,23 @@ const GRIND = makeGrind({
      tenfold in the one sentence the reader checks the estimate against. */
   unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'),
   itemWord: () => 'brew',
-  enabled: () => percolates(),
+  /* WHICH BREWER THIS ANSWER IS ABOUT.
+
+     `enabled` gates the seconds-per-step figure and the promise to learn
+     one, and it takes no argument — the shared model was written when a
+     kitchen had one brewer and the answer could not vary within a
+     session. With a shelf it varies per brew, and reading the default
+     brewer here put a real sentence on a real screen that this app's own
+     rules forbid: a press brew was told "your grinder has been worth
+     about 3.0s a click, so expect around 3:30", which is a clock
+     prediction about a timer the person sets themselves.
+
+     So `grindMoveParts` says which brew it is asking about, and this
+     reads it. Ambient state, which is not free — but the alternative is
+     a signature change in a module the dial-in also depends on, for a
+     distinction only this app has. It is set and cleared around the one
+     call, and there is exactly one. */
+  enabled: () => percolates(advising),
   fmtTime: v => fmtTime(v),
   timeOf: b => num(b.time),
   grindOf: b => (b.grind === '' ? null : num(Number(b.grind))),
@@ -648,13 +816,23 @@ function secondsWanted(brew, target, finer) {
   return (target.timeLo + target.timeHi) / 2 - t;
 }
 
+// The brew the grind model is reasoning about, for the length of one
+// call. Null outside it, which falls back to the brewer you reached for
+// last — the right answer for anything asking in general.
+let advising = null;
+
 function grindMoveParts(brew, target, finer) {
-  return GRIND.parts({
-    wantSeconds: secondsWanted(brew, target, finer),
-    currentGrind: brew ? brew.grind : null,
-    currentTime: num(brew && brew.time),
-    lo: target.timeLo, hi: target.timeHi,
-  });
+  advising = brew || null;
+  try {
+    return GRIND.parts({
+      wantSeconds: secondsWanted(brew, target, finer),
+      currentGrind: brew ? brew.grind : null,
+      currentTime: num(brew && brew.time),
+      lo: target.timeLo, hi: target.timeHi,
+    });
+  } finally {
+    advising = null;
+  }
 }
 
 const grindMoveLine = (brew, target, finer) => grindMoveParts(brew, target, finer).move;
@@ -745,7 +923,7 @@ function wallPair(brew, target) {
   const place = placeOf(brew, target);
   const r = ratioOf(brew);
   const at = r === null ? '' : ` at 1:${r.toFixed(1)}`;
-  const clock = percolates();
+  const clock = percolates(brew);
 
   if (t === 'sour' && b === 'weak') {
     if (clock && place.time === 'slow') {
@@ -786,7 +964,7 @@ function tasteNote(brew, target) {
   const side = tasteSide(brew.taste);
   if (side === null) return null;
   const place = placeOf(brew, target);
-  const clock = percolates();
+  const clock = percolates(brew);
 
   if (side === 'neither') {
     if (place.time === 'in' || !clock) {
@@ -853,7 +1031,7 @@ function tasteNote(brew, target) {
    the app to read in it. It says that instead of inventing a symptom. */
 function clockAdvice(brew, target) {
   const place = placeOf(brew, target);
-  if (!percolates()) {
+  if (!percolates(brew)) {
     // The clock is a decision here, so it carries no diagnosis. Taste does.
     // The time only goes in the sentence when there is one. fmtTime
     // returns an em dash for null, and "so the — is the time you set the
@@ -913,7 +1091,7 @@ function bodyNote(brew) {
    bed never wets, much more and the bloom is a pour. */
 function bloomNote(brew) {
   const b = bloomOf(brew);
-  if (b === null || !percolates()) return null;
+  if (b === null || !percolates(brew)) return null;
   if (b < 1.8) {
     return { move: 'The bloom was short.', why: `${b.toFixed(1)}× the dose leaves part of the bed dry through the bloom, and dry grounds do not degas. Two to three times the dose is the usual range — the point is to wet all of it, not to brew any of it yet.` };
   }
@@ -946,7 +1124,7 @@ function bloomNote(brew) {
 function clockPair(brew, target) {
   const b = bodySide(brew.body);
   if (tasteSide(brew.taste) !== null || b === null || b === 'neither') return null;
-    if (!percolates()) return null;
+    if (!percolates(brew)) return null;
 const place = placeOf(brew, target);
   if (place.time !== 'fast' && place.time !== 'slow') return null;
   const quick = place.time === 'fast';
@@ -1441,7 +1619,7 @@ function renderBrews(c) {
     if (!kit().asked) {
       empty.innerHTML = `
         <div class="empty-title">What are you brewing on?</div>
-        <p class="empty-body">Four questions about your brewer, kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
+        <p class="empty-body">What you brew in, and a few things about the kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a cone, a plain kettle, a scale</button>
         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
@@ -1536,6 +1714,18 @@ function brewCard(brew, prev, c, n) {
       </span>
       <span class="log-when">${fmtDate(brew.at)}</span>
     </div>
+    ${/* WHICH BREWER, ON A SHELF WITH MORE THAN ONE.
+
+          Off the card entirely on a one-brewer shelf, where it would be
+          the same word under every row. On a shelf with two it is the
+          first thing that separates one card from the next: the same
+          coffee at the same grind in a V60 and in a press are not two
+          points on one curve, and a log that does not say which is a log
+          that reads as noise. It prints the name on the brew, not the one
+          in the kit today — a brewer that has left the shelf still made
+          the brews it made. */
+      (kit().brewers || []).length > 1 && brew.brewer
+        ? `<div class="log-brewer">${escapeHTML(brew.brewer)}</div>` : ''}
     <div class="log-numbers">
       ${byWeight()
         ? `${num(brew.dose) === null ? '—' : `${fmt1(num(brew.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
@@ -1557,6 +1747,19 @@ function brewCard(brew, prev, c, n) {
     ${intentCheck(brew, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
     ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="log-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
     ${brew.body !== null && typeof brew.body === 'number' ? `<div class="log-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
+    ${/* What you tasted, on the card, with the bag's own words marked.
+
+          The two scales above say sour-or-bitter and thin-or-strong,
+          which are what to change. These are what it was, and they are
+          the only line on this card that answers "was it any good" —
+          which is the question somebody scrolling a board six weeks
+          later is actually asking. A word the bag promised is marked, so
+          the row shows at a glance whether the coffee did what it said
+          on the packet. */
+      (brew.flavours || []).length ? `<div class="log-flavours">${
+        brew.flavours.map(w => `<span class="log-flavour${
+          hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}</span>`).join('')
+      }</div>` : ''}
     ${brew.notes ? `<div class="log-notes">${escapeHTML(brew.notes)}</div>` : ''}
     ${brew.verdict === 'keeper' ? '<div class="log-keeper-flag">the recipe</div>' : ''}
   `;
@@ -1625,6 +1828,16 @@ function openBrew(brew) {
        recipe you are repeating — that is the whole point of writing it
        down — and it is the thing you change deliberately. */
     dose: last ? num(last.dose) : c.target.dose,
+    /* Which brewer this is. The last one used on this coffee is the best
+       guess — somebody dialling a bag in tends to stay with one — and the
+       one reached for last anywhere is the fallback. It is recorded on
+       the brew rather than read from the kit at display time, so the log
+       stays true when the shelf changes. */
+    brewer: (last && last.brewer) || kit().brewer || '',
+    /* What you tasted, in words. Not carried over from the last brew:
+       the whole question is whether THIS one came out the way the bag
+       said, and prefilling it would answer that with last week's cup. */
+    flavours: [],
     water: null,
     time: null,
     taste: null,
@@ -1695,6 +1908,7 @@ function closeBrewSheet() {
 }
 
 function buildBrewSheet(c) {
+  buildBrewerPick(c);
   const row = $('#num-row');
   row.innerHTML = '';
   const refresh = () => renderReadout(c);
@@ -1748,10 +1962,219 @@ function buildBrewSheet(c) {
     onChange: v => { editing.body = v; refresh(); },
   }));
 
+  buildBagNote(c);
   buildIntent(c);
   buildVerdict(c);
   buildMore(c);
   renderReadout(c);
+}
+
+/* ============================================================
+   WHAT DID YOU TASTE
+   ============================================================
+
+   The two scales above this are the extraction and the strength: sour or
+   bitter, thin or strong. They are diagnostic — they say what to change.
+   Neither of them can say whether the cup was any good, or whether the
+   peach the roaster printed on the bag is in there.
+
+   That question has an answer worth recording, and the vocabulary for it
+   already exists twice over. The bag supplies three or four words that
+   are the likeliest right answers by a distance, so they are offered as
+   taps rather than typed. Everything else comes off the SCA flavour wheel
+   — the same drawing the cupping sheet has always had, now in
+   /shared/wheel.js because it is one published standard and not two
+   similar ideas.
+
+   A flat list of words, not two lists. "Did you get what the bag said"
+   and "what did you get instead" are the same question asked twice, and
+   the answer to the first is just an intersection. Storing them apart
+   would mean deciding, at tap time, which kind of word "honey" is when
+   the bag says honey — and the answer is that it does not matter. */
+
+// Case-insensitive, because the bag prints "Peach" and the wheel says
+// "Peach" and somebody typing their own would write "peach".
+function hasFlavour(list, word) {
+  const w = String(word).toLowerCase();
+  return (list || []).some(x => String(x).toLowerCase() === w);
+}
+
+function dropFlavour(list, word) {
+  const w = String(word).toLowerCase();
+  return (list || []).filter(x => String(x).toLowerCase() !== w);
+}
+
+// The bag's own words, as a list. Comma-separated is how they are typed
+// and how the wheel writes, so it is how they are read.
+function bagWords(c) {
+  return LentoWheel.noteItems(c.bagNotes || '');
+}
+
+function buildBagNote(c) {
+  const note = $('#bag-claim');
+  const chips = $('#flavour-chips');
+  if (!note || !chips) return;
+
+  const said = bagWords(c);
+  const got = said.filter(w => hasFlavour(editing.flavours, w));
+  /* The line above the chips changes job once you have answered. Before:
+     what the bag claims. After: how the claim did. Neither is a sentence
+     worth two lines. */
+  if (!said.length) {
+    note.classList.add('hidden');
+    note.textContent = '';
+  } else {
+    note.classList.remove('hidden');
+    note.textContent = got.length
+      ? `${got.length} of ${said.length} from the bag.`
+      : `The bag says ${said.join(', ')} — tap the ones you got.`;
+  }
+
+  chips.innerHTML = '';
+  // The bag's words first and always, in the order the bag prints them,
+  // whether or not they have been taken. Then anything else, which by
+  // definition has been.
+  const extra = (editing.flavours || []).filter(w => !hasFlavour(said, w));
+  said.forEach(w => chips.appendChild(flavourChip(c, w, hasFlavour(editing.flavours, w), true)));
+  extra.forEach(w => chips.appendChild(flavourChip(c, w, true, false)));
+}
+
+/* A bag word is a toggle: it is a claim you are agreeing or not agreeing
+   with, and it stays on the sheet either way so the claim is still
+   visible. A word from the wheel is one you put there, so the only thing
+   to do to it is take it off — and it says so with a ×. */
+function flavourChip(c, word, on, fromBag) {
+  const b = el('button', 'chip' + (on ? ' on' : '') + (fromBag ? ' chip-bag' : ''));
+  b.type = 'button';
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.innerHTML = escapeHTML(word) + (fromBag ? '' : ' <b aria-hidden="true">×</b>');
+  b.setAttribute('aria-label', fromBag
+    ? `${word}, from the bag${on ? ' — tasted' : ''}`
+    : `${word} — remove`);
+  b.addEventListener('click', () => {
+    haptic();
+    editing.flavours = on
+      ? dropFlavour(editing.flavours, word)
+      : (editing.flavours || []).concat([word]);
+    buildBagNote(c);
+    renderReadout(c);
+  });
+  return b;
+}
+
+/* The wheel, as this app uses it.
+
+   The cupping sheet's inner ring ticks a CATA box and stops at five,
+   because the standard says five. There is no CATA form here and no cap:
+   a category is simply the coarse version of the same answer, and on
+   plenty of mornings "fruity" is the honest one. So both rings write to
+   the same list, and the only difference between them is how specific
+   the word is. */
+function openWheel(c) {
+  const holder = $('#wheel-holder');
+  const picked = $('#wheel-picked');
+  const status = $('#wheel-status');
+
+  LentoWheel.mount({
+    holder: holder,
+    toggle: $('#wheel-zoom-toggle'),
+    level: $('#wheel-zoom-level'),
+    haptic: haptic,
+    categoryHint: 'a whole family, if that is as far as it got',
+    wordHint: 'writes the word down',
+  });
+
+  const sync = message => {
+    LentoWheel.paint(holder,
+      name => hasFlavour(editing.flavours, name),
+      word => hasFlavour(editing.flavours, word));
+
+    picked.innerHTML = '';
+    (editing.flavours || []).forEach(word => {
+      const chip = el('button', 'wheel-pick note');
+      chip.type = 'button';
+      chip.innerHTML = `${escapeHTML(word)} <b aria-hidden="true">×</b>`;
+      chip.setAttribute('aria-label', `${word} — remove`);
+      chip.onclick = () => {
+        haptic();
+        editing.flavours = dropFlavour(editing.flavours, word);
+        sync(`“${word}” removed`);
+      };
+      picked.appendChild(chip);
+    });
+
+    const said = bagWords(c);
+    const got = said.filter(w => hasFlavour(editing.flavours, w));
+    const n = (editing.flavours || []).length;
+    status.textContent = message
+      || (n
+        ? `${n} word${n > 1 ? 's' : ''} down${said.length ? ` · ${got.length} of ${said.length} from the bag` : ''}`
+        : 'Tap a wedge to write it down');
+    // the sheet behind this one carries the same list
+    buildBagNote(c);
+    renderReadout(c);
+  };
+
+  holder.onclick = e => {
+    const seg = e.target.closest && e.target.closest('.wheel-seg');
+    if (!seg) return;
+    /* One word out of sixty-eight, ten pixels wide: bring it closer
+       rather than write down whichever of its neighbours the thumb
+       actually met. */
+    if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
+        && holder.zoomToRead && holder.zoomToRead(seg)) {
+      haptic();
+      sync(`Zoomed in — tap “${seg.dataset.desc}” again to write it down`);
+      return;
+    }
+    haptic();
+    const word = seg.dataset.desc || seg.dataset.cat;
+    if (hasFlavour(editing.flavours, word)) {
+      editing.flavours = dropFlavour(editing.flavours, word);
+      sync(`“${word}” removed`);
+    } else {
+      editing.flavours = (editing.flavours || []).concat([word]);
+      sync(`“${word}” written down`);
+    }
+  };
+
+  sync();
+  openModal('#wheel-modal');
+}
+
+/* WHICH BREWER, WHEN THERE IS MORE THAN ONE.
+
+   Hidden on a one-brewer shelf, because a choice with one answer is not
+   a choice — it is a row of the sheet spent telling you what you already
+   know. Above the numbers, because it changes what the numbers mean:
+   switching to something that steeps takes the pour schedule off this
+   sheet, takes the drawdown out of the readout, and changes what the
+   advice underneath is willing to say about the clock. So the whole
+   sheet is rebuilt when it changes, rather than left half describing the
+   brewer you were using a moment ago. */
+function buildBrewerPick(c) {
+  const wrap = $('#brewer-pick');
+  if (!wrap) return;
+  const shelf = (kit().brewers || []);
+  if (shelf.length < 2) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = '<span class="field-label">Brewed in</span>'
+    + '<div class="chips" role="radiogroup" aria-label="Brewed in"></div>';
+  const chips = wrap.querySelector('.chips');
+  shelf.forEach(b => {
+    const on = editing.brewer === b.name;
+    const btn = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(b.name));
+    btn.type = 'button';
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    btn.addEventListener('click', () => {
+      if (editing.brewer === b.name) return;
+      editing.brewer = b.name;
+      haptic();
+      buildBrewSheet(c);
+    });
+    chips.appendChild(btn);
+  });
 }
 
 /* The pour schedule.
@@ -1780,7 +2203,7 @@ function buildBrewSheet(c) {
 function buildPours(c) {
   const wrap = $('#pours');
   const block = $('#pour-block');
-  if (!percolates()) {
+  if (!percolates(editing)) {
     block.classList.add('hidden');
     return;
   }
@@ -1881,7 +2304,7 @@ function buildIntent(c) {
   const prev = prevBrewOf(c);
   if (block) block.classList.toggle('hidden', !prev);
   if (!prev) { editing.intent = null; return; }
-  liveIntents().forEach(i => {
+  liveIntents(editing).forEach(i => {
     const on = editing.intent === i.key;
     const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(i.label));
     b.type = 'button';
@@ -1996,13 +2419,13 @@ function renderReadout(c) {
       <span class="readout-label">ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
     </div>`);
   }
-  if (percolates()) {
+  if (percolates(editing)) {
     cells.push(`<div class="readout-cell">
       <span class="readout-value">${fmtTime(dd)}</span>
       <span class="readout-label">drawdown</span>
     </div>`);
   }
-  if (byWeight() && percolates()) {
+  if (byWeight() && percolates(editing)) {
     cells.push(`<div class="readout-cell">
       <span class="readout-value">${bloom === null ? '—' : `${bloom.toFixed(1)}×`}</span>
       <span class="readout-label">bloom</span>
@@ -2038,6 +2461,8 @@ function saveBrew() {
     toast(`Saved without ${missing.join(' or ')}`);
   }
   if (wasNew) c.brews.push(editing);
+  // The default for the next sheet is whatever you actually just used.
+  if (editing.brewer && state.kit.brewer !== editing.brewer) state.kit.brewer = editing.brewer;
   save();
   closeModal('#brew-modal');
   renderBoard();
@@ -2134,6 +2559,24 @@ function openCoffee(c, opts) {
 
     <span class="field-label section">Roast level</span>
     <div class="chips" id="e-roastlevel" role="radiogroup" aria-label="Roast level"></div>
+
+    <details class="more" id="e-more">
+      <summary>What else the bag says</summary>
+      <div class="more-body">
+        <p class="sheet-note">All optional, and none of it moves the advice — that comes from roast level alone. This is the bag, kept beside the brews.</p>
+        <label class="field"><span class="field-label">Origin</span>
+          <input class="field-input" id="e-origin" type="text" maxlength="60" placeholder="e.g. Ethiopia, Guji"></label>
+        <label class="field"><span class="field-label">Variety</span>
+          <input class="field-input" id="e-variety" type="text" maxlength="60" placeholder="e.g. Heirloom, Gesha"></label>
+        <label class="field"><span class="field-label">Process</span>
+          <input class="field-input" id="e-process" type="text" maxlength="40" placeholder="e.g. Washed"></label>
+        <label class="field"><span class="field-label">Grown at</span>
+          <input class="field-input" id="e-altitude" type="text" maxlength="40" placeholder="whatever the bag prints, or nothing"></label>
+        <label class="field"><span class="field-label">It says it tastes like</span>
+          <input class="field-input" id="e-bagnotes" type="text" maxlength="120" placeholder="e.g. peach, jasmine, honey"></label>
+      </div>
+    </details>
+
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
@@ -2145,6 +2588,12 @@ function openCoffee(c, opts) {
   body.querySelector('#e-name').value = c.name;
   body.querySelector('#e-roaster').value = c.roaster || '';
   body.querySelector('#e-roast').value = c.roastDate || '';
+  const BAG = { origin: 'e-origin', variety: 'e-variety', process: 'e-process',
+                altitude: 'e-altitude', bagNotes: 'e-bagnotes' };
+  Object.keys(BAG).forEach(f => { body.querySelector('#' + BAG[f]).value = c[f] || ''; });
+  /* Open if there is anything in it. A drawer that hides what somebody
+     already typed teaches them it was not kept. */
+  if (Object.keys(BAG).some(f => c[f])) body.querySelector('#e-more').open = true;
 
   /* One variable, and it says so.
 
@@ -2227,6 +2676,7 @@ function openCoffee(c, opts) {
     c.name = body.querySelector('#e-name').value;
     c.roaster = body.querySelector('#e-roaster').value;
     c.roastDate = body.querySelector('#e-roast').value;
+    Object.keys(BAG).forEach(f => { c[f] = body.querySelector('#' + BAG[f]).value.trim(); });
     if (c.target.timeHi < c.target.timeLo) {
       const lo = c.target.timeHi; c.target.timeHi = c.target.timeLo; c.target.timeLo = lo;
     }
@@ -2301,14 +2751,81 @@ function grinderOptions(cur) {
       : rest.map(g => opt(g.name)).join(''));
 }
 
+/* Brewers you already own, above the shipped list — the same shape the
+   grinder picker has, for the same reason: a second one is the normal
+   case and not the edge. Anything already on your shelf is left out of
+   the long list below it, because the same name twice in a select is a
+   puzzle rather than a choice. */
+function brewerOptions() { return brewerOptionsFor(kit()); }
+function brewerOptionsFor(k) {
+  const mine = ((k && k.brewers) || []).map(b => b.name);
+  const rest = BREWERS.filter(b => mine.indexOf(b.name) < 0);
+  return '<option value="" selected>Add a brewer…</option>'
+    + '<option value="__other">Something else</option>'
+    + rest.map(b => `<option value="${escapeHTML(b.name)}">${escapeHTML(b.name)}</option>`).join('');
+}
+
+/* HOW THE WATER LEAVES, ASKED THE WAY SOMEBODY WOULD ANSWER IT.
+
+   This was one segmented row headed "The water", offering "Passes
+   through / Steeps / Both" under forty-six words about what the app is
+   allowed to say about the clock. Three things were wrong with it and a
+   brewer said so: "i dont understand what we're asking about the water".
+
+   "The water" is the single most discussed subject in filter coffee and
+   none of it is this — somebody reading that heading is braced for a
+   question about minerals. "Passes through" and "Steeps" are the app's
+   vocabulary for its own reasoning, not words anybody uses about the
+   thing in their hand. And the explanation argued the app's case before
+   the person had understood the question.
+
+   So: it is a question about the brewer, it is asked in the shape you
+   would watch it happen, each answer names brewers you can recognise
+   yourself in, and the reason it is being asked comes after — one line,
+   not a paragraph. Most people never see it at all now, because picking
+   "Hario V60" off the list answers it. */
+function flowRow(current, onPick) {
+  const wrap = el('div', 'kit-row');
+  wrap.innerHTML = `
+    <span class="field-label">When the water goes in, does it drain out?</span>
+    <div class="seg seg-stack" role="radiogroup" aria-label="Does the water drain out"></div>
+    <span class="kit-sub">It decides what this app may say about the clock. Draining, the grind sets how long it takes. Steeping, the time is whatever you set the timer to.</span>
+  `;
+  const seg = wrap.querySelector('.seg');
+  ['percolation', 'immersion', 'switch'].forEach(key => {
+    const f = FLOWS[key];
+    const on = current === key;
+    const b = el('button', 'seg-btn' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.innerHTML = `<span class="seg-main">${escapeHTML(f.label)}</span>`
+      + `<span class="seg-eg">${escapeHTML(f.eg)}</span>`;
+    b.addEventListener('click', () => { haptic(); onPick(key); });
+    seg.appendChild(b);
+  });
+  return wrap;
+}
+
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The brew sheet then offers only what you can actually change, and nothing here suggests a variable your kit does not have. The names are your own record — nothing is read out of them.</p>
-    <label class="field"><span class="field-label">Brewer</span>
-      <input class="field-input" id="k-brewer" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Hario V60 02"></label>
-    <div id="k-flow"></div>
+    <p class="sheet-note">Asked once. The brew sheet then offers only what you can actually change, and nothing here suggests a variable your kit does not have.</p>
+
+    <span class="field-label section">What you brew in</span>
+    <p class="sheet-note">Add every one you use. You pick which on the brew sheet, and each brew keeps the one that made it — so a press this evening does not rewrite what the V60 did this morning.</p>
+    <div id="k-brewers"></div>
+    <label class="field"><span class="field-label sr-only">Add a brewer</span>
+      <select class="field-input" id="k-brewer-pick">${brewerOptions()}</select></label>
+    <div id="k-brewer-new" class="hidden">
+      <label class="field"><span class="field-label">What do you call it</span>
+        <input class="field-input" id="k-brewer-name" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Flower Dripper"></label>
+      <div id="k-brewer-flow"></div>
+      <button type="button" class="btn btn-ghost" id="k-brewer-add">Add it</button>
+    </div>
+
+    <span class="field-label section">The rest of the counter</span>
     <label class="field"><span class="field-label">Kettle</span>
       <input class="field-input" id="k-kettle" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Fellow Stagg EKG"></label>
     <div id="k-temp"></div>
@@ -2325,8 +2842,106 @@ function openKit() {
     <div id="k-steps"></div>
     <div id="k-scale"></div>
   `;
-  body.querySelector('#k-brewer').value = k.brewer;
   body.querySelector('#k-kettle').value = k.kettle;
+
+  /* THE SHELF.
+
+     A row per brewer with what it does in its own words, because the
+     answer is the reason the brew sheet looks the way it does and a
+     person should be able to check it without remembering which button
+     they pressed. Tapping a row opens the question again for that one;
+     the × takes it off the shelf. Removing a brewer never touches the
+     brews it made — those keep its name, and the log stays true about
+     kit that has been given away. */
+  let openFlow = null;
+  const newFlow = { value: 'percolation' };
+  const shelf = body.querySelector('#k-brewers');
+  const pick = body.querySelector('#k-brewer-pick');
+  const adding = body.querySelector('#k-brewer-new');
+
+  const drawShelf = () => {
+    shelf.innerHTML = '';
+    if (!k.brewers.length) {
+      shelf.innerHTML = '<p class="sheet-note empty-note">Nothing on the shelf yet.</p>';
+    }
+    k.brewers.forEach((b, i) => {
+      const row = el('div', 'shelf-row');
+      const open = openFlow === i;
+      const head = el('button', 'shelf-name');
+      head.type = 'button';
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      head.innerHTML = `<span class="shelf-title">${escapeHTML(b.name)}</span>`
+        + `<span class="shelf-flow">${escapeHTML((FLOWS[b.flow] || FLOWS.percolation).short)}</span>`;
+      head.addEventListener('click', () => { openFlow = open ? null : i; drawShelf(); });
+      const kill = el('button', 'icon-btn shelf-kill');
+      kill.type = 'button';
+      kill.setAttribute('aria-label', `Remove ${b.name}`);
+      kill.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+      kill.addEventListener('click', () => {
+        k.brewers = k.brewers.filter((_, j) => j !== i);
+        if (k.brewer === b.name) k.brewer = k.brewers.length ? k.brewers[0].name : '';
+        openFlow = null;
+        pick.innerHTML = brewerOptionsFor(k);
+        drawShelf();
+      });
+      row.appendChild(head);
+      row.appendChild(kill);
+      shelf.appendChild(row);
+      if (open) {
+        shelf.appendChild(flowRow(b.flow, key => { b.flow = key; drawShelf(); }));
+      }
+    });
+  };
+
+  const resetAdd = () => {
+    adding.classList.add('hidden');
+    pick.value = '';
+    newFlow.value = 'percolation';
+    body.querySelector('#k-brewer-name').value = '';
+  };
+
+  const add = (name, flow) => {
+    const clean = (name || '').trim();
+    if (!clean) return false;
+    if (k.brewers.some(b => b.name.toLowerCase() === clean.toLowerCase())) {
+      toast('Already on the shelf');
+      return false;
+    }
+    k.brewers.push({ name: clean, flow: flow || 'percolation' });
+    if (!k.brewer) k.brewer = clean;
+    pick.innerHTML = brewerOptionsFor(k);
+    drawShelf();
+    return true;
+  };
+
+  pick.addEventListener('change', () => {
+    if (pick.value === '__other') {
+      adding.classList.remove('hidden');
+      drawNewFlow();
+      body.querySelector('#k-brewer-name').focus();
+      return;
+    }
+    if (!pick.value) return;
+    const e = BREWERS.find(b => b.name === pick.value);
+    // Off the list, so the question never gets asked — a V60 has a hole
+    // in it and next year's will too.
+    if (e && add(e.name, e.flow)) toast(`${e.name} added`);
+    resetAdd();
+  });
+
+  const drawNewFlow = () => {
+    const n = body.querySelector('#k-brewer-flow');
+    n.innerHTML = '';
+    n.appendChild(flowRow(newFlow.value, key => { newFlow.value = key; drawNewFlow(); }));
+  };
+
+  body.querySelector('#k-brewer-add').addEventListener('click', () => {
+    const name = body.querySelector('#k-brewer-name').value;
+    if (!name.trim()) { body.querySelector('#k-brewer-name').focus(); return; }
+    if (add(name, newFlow.value)) { toast(`${name.trim()} added`); resetAdd(); }
+  });
+
+  drawShelf();
   body.querySelector('#k-grinder').value = k.grinder;
   /* Prefill, and an escape hatch that says so. A grinder somebody has
      modified beats any list, which is why both answers stay editable
@@ -2355,11 +2970,6 @@ function openKit() {
 
   const redraw = () => {
     const put = (sel, row) => { const n = body.querySelector(sel); n.innerHTML = ''; n.appendChild(row); };
-    put('#k-flow', segRow('The water',
-      'The one answer that changes what this app says about the clock. Through a bed, grind sets the flow, so a long brew and a bitter cup are one fact. Steeping, the time is whatever you set the timer to, and grind changes extraction with the clock held still.',
-      [['percolation', 'Passes through'], ['immersion', 'Steeps'], ['switch', 'Both']], k.flow,
-      key => { k.flow = key; redraw(); }));
-
     put('#k-temp', segRow('Kettle temperature',
       'Most kettles have one setting. Say so and the temperature field leaves the brew sheet, and nothing here tells you to raise it.',
       [['fixed', 'Off the boil'], ['set', 'I set it']], k.temp,
@@ -2378,12 +2988,16 @@ function openKit() {
   redraw();
 
   const finish = () => {
-    k.brewer = body.querySelector('#k-brewer').value.trim();
     k.kettle = body.querySelector('#k-kettle').value.trim();
     const gv = body.querySelector('#k-grinder-pick').value;
     k.grinder = (gv && gv !== '__other') ? gv : body.querySelector('#k-grinder').value.trim();
+    /* The one you reach for by default. It follows the shelf: an empty
+       shelf has none, and a brewer that has been removed cannot go on
+       being the default. */
+    if (k.brewers.length && !k.brewers.some(b => b.name === k.brewer)) k.brewer = k.brewers[0].name;
+    if (!k.brewers.length) k.brewer = '';
     k.asked = true;
-    const flowChanged = !state.kit || state.kit.flow !== k.flow;
+    const before = waterFlow();
     state.kit = k;
     // Shared with the dial-in — see public/shared/kit.js.
     LentoKit.remember(k, false);
@@ -2391,8 +3005,8 @@ function openKit() {
        a coffee nobody has moved off the defaults follows. One somebody
        has set by hand is left exactly alone — it is their window, and
        this is not the screen to overwrite it from. */
-    if (flowChanged) {
-      const f = FLOWS[k.flow] || FLOWS.percolation;
+    if (waterFlow() !== before) {
+      const f = flowEntry();
       state.coffees.forEach(c => {
         const untouched = Object.values(FLOWS).some(o => c.target.timeLo === o.lo && c.target.timeHi === o.hi);
         if (untouched) { c.target.timeLo = f.lo; c.target.timeHi = f.hi; }
@@ -2419,7 +3033,11 @@ function openKit() {
 
 function kitLine() {
   const k = kit();
-  const bits = [k.brewer, k.kettle, k.grinder].filter(Boolean);
+  const n = (k.brewers || []).length;
+  // One brewer is named; several are counted, because four names in a
+  // settings row is a paragraph in a slot that holds a phrase.
+  const brewers = n > 1 ? `${n} brewers` : (k.brewers[0] && k.brewers[0].name) || '';
+  const bits = [brewers, k.kettle, k.grinder].filter(Boolean);
   if (!bits.length) return 'Not set — the sheet is using the defaults';
   return bits.join(' · ');
 }
@@ -2693,6 +3311,16 @@ function wire() {
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
+  /* The wheel opens over the brew sheet rather than replacing it: you are
+     in the middle of recording one brew and the wheel is a vocabulary you
+     reached for, not a screen you went to. Closing it drops you back where
+     you were with the words already on the sheet behind. */
+  $('#btn-wheel').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c) openWheel(c);
+  });
+  $('#wheel-close').addEventListener('click', () => closeModal('#wheel-modal'));
+  $('#wheel-done').addEventListener('click', () => closeModal('#wheel-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {

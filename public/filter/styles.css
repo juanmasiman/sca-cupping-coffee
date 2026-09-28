@@ -226,3 +226,155 @@
 .log-card .log-notes,
 .log-card .log-taste { padding-left: calc(18px + var(--space-3)); }
 .log-card .log-taste { margin-top: var(--space-3); display: flex; }
+
+/* ---------- the shelf ----------
+
+   The brewers somebody owns, and the one question the shipped list cannot
+   answer for them. Filter's own, because only filter has a shelf: the
+   dial-in has one machine and a basket in it. */
+
+/* THE STACKED SEGMENT, FOR AN ANSWER THAT NEEDS AN EXAMPLE.
+
+   The side-by-side segment is right for "Off the boil / I set it", where
+   three words are the whole answer. It is wrong for this one: the three
+   answers are sentences, and the brewers that go with each are what makes
+   somebody recognise which is theirs. Three across at 390px gave each
+   about a hundred pixels, which is where "Passes through" came from — a
+   phrase invented to fit a control rather than to be understood. */
+.seg-stack { flex-direction: column; }
+.seg-stack .seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-right: none;
+  border-bottom: 1px solid var(--line);
+}
+.seg-stack .seg-btn:last-child { border-bottom: none; }
+.seg-main { font-size: 14px; font-weight: 700; }
+.seg-eg { font-size: 12px; font-weight: 400; color: var(--text-faint); }
+.seg-btn.on .seg-eg { color: var(--on-chrome); opacity: 0.75; }
+
+/* A row per brewer: what you call it, what it does, and the way off the
+   shelf. The name is the button because tapping the thing you want to
+   change is how everything else in this app works. */
+.shelf-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.shelf-row + .kit-row { margin-top: var(--space-3); }
+.shelf-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+.shelf-title {
+  font-size: 15px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shelf-flow { font-size: 12px; color: var(--text-dim); }
+.shelf-kill { flex: none; align-self: center; margin-right: var(--space-2); color: var(--text-faint); }
+#k-brewers { display: flex; flex-direction: column; gap: var(--space-3); }
+/* Nothing on the shelf is a state, not a gap — it says so rather than
+   leaving a blank above a select. */
+.empty-note { margin: 0; color: var(--text-faint); }
+
+/* Which brewer this morning. Only ever drawn on a shelf with two or more,
+   so it is never a control with one answer. */
+.brewer-pick { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-4); }
+
+/* The roaster's claim, under the scales that test it. Quiet: it is not a
+   measurement and it is not yours — it is what somebody else said this
+   coffee would taste like. */
+.bag-claim {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Which brewer made this one. Indented to the column the rest of the
+   card's detail sits in, and quiet — it is a label on the row, not a
+   measurement in it. */
+.log-brewer {
+  margin-top: var(--space-2);
+  padding-left: calc(18px + var(--space-3));
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* ---------- what you tasted ---------- */
+
+/* The bag's claim before you answer, and how the claim did after. */
+.bag-claim {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* A word the bag printed, which you are agreeing with or not. It stays on
+   the sheet either way — the claim is still the claim — so unlike the
+   words you added it has no ×, and "off" is a real state rather than an
+   absence. Dashed while it is unanswered, because a solid outline beside
+   a solid outline reads as two chosen things. */
+.chip-bag:not(.on) { border-style: dashed; color: var(--text-dim); }
+
+/* The way into the wheel. Full width under the chips: it is the answer to
+   "none of these", which is most mornings on a bag with no notes, and a
+   small button at the end of a chip row is where that answer goes to be
+   missed. */
+.wheel-open {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.wheel-open svg { flex: none; color: var(--chrome); }
+
+/* What it tasted of, on the card. A row of words rather than a sentence,
+   because that is the shape they were entered in and the shape an eye
+   runs down a board looking for. */
+.log-flavours {
+  margin-top: var(--space-3);
+  padding-left: calc(18px + var(--space-3));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.log-flavour {
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--chrome-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+/* A word the bag promised and the cup delivered. The data ink, because it
+   is the one thing on this row that is a match between two claims rather
+   than a note — and the ring rather than a fill, so a card with three of
+   them does not become a colour field. */
+.log-flavour.from-bag {
+  background: var(--data-soft);
+  color: var(--data);
+  box-shadow: inset 0 0 0 1px var(--data-soft);
+}
