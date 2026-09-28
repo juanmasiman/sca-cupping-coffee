@@ -11,7 +11,7 @@
    because its auth file did not arrive is not.
    ============================================================ */
 
-const VERSION = 'v17';
+const VERSION = 'v18';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
@@ -31,6 +31,7 @@ const SHELL = [
   '/shared/components.css',
   '/shared/config.js',
   '/shared/account.js',
+  '/shared/account-sheet.js',
   '/shared/kit.js',
   '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
