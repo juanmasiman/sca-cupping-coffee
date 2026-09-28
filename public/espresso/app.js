@@ -2833,7 +2833,13 @@ function shotCard(shot, prev, c, n) {
        grinder runs from the log; it may as well say. */
     if (dGrind !== null && dGrind !== 0) {
       const sens = GRIND.sensitivity();
-      const dist = fmtSteps(Math.abs(dGrind));
+      /* Short form here. fmtSteps says "0.5 on the dial", which is the
+         right phrase in an instruction and four words too many in a row
+         of deltas beside "+2s". */
+      const d = Math.abs(dGrind);
+      const dist = grindUnit() === 'clicks'
+        ? `${Math.round(d)} ${Math.round(d) === 1 ? 'click' : 'clicks'}`
+        : (Math.round(d * 10) / 10).toFixed(1);
       diffs.push(sens
         ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? 'finer' : 'coarser'}`
         : `grind ${fmtDelta(dGrind, '', 1)}`);
@@ -2854,35 +2860,76 @@ function shotCard(shot, prev, c, n) {
     : place.time === 'fast' ? `${Math.round(c.target.timeLo - shot.time)}s fast`
     : `${Math.round(shot.time - c.target.timeHi)}s slow`;
 
+  /* THE CARD IS A RECORD OF ONE SHOT, SO IT LEADS WITH THE SHOT.
+
+     It used to lead with `1:2.50` at 30px — which across a dial-in at a
+     fixed ratio is the same figure repeated down the board, the loudest
+     thing on screen and the one number nobody set. What a barista says out
+     loud is "sixteen and a half in, forty-one out, twenty-two seconds",
+     and that is now the headline: dose, yield and clock, in the mono
+     figures, on one line. The ratio does not disappear — it is a real
+     description of that shot and it sits directly underneath with the
+     grind and the flow, where it reads as a consequence of the three
+     numbers above rather than as a replacement for them.
+
+     The second thing the card was missing is structure. Fifteen stacked
+     rows of near-identical weight is a pile, not a record. There are four
+     bands now, in the order somebody reads them: what this shot was, what
+     it came out as, what moved since the last one, and what it tasted
+     like. A hairline separates the measurement from the reading of it.
+
+     And the figures are laid on a grid so they align down the column. Four
+     cards of `16.5 → 41.0` stacked with their arrows and their seconds at
+     the same x is a table you can scan; four cards of ragged left-aligned
+     prose is not, however good each one is on its own. */
+  const dose = num(shot.dose), yld = num(shot.yield);
+  const secs = num(shot.time);
+  /* Grind first, and in the full ink. It is the figure that changed
+     between these cards and the one somebody comes back to the board to
+     read; the ratio and the flow are descriptions of the three numbers
+     above and can stay quiet. */
+  const support = [];
+  if (num(Number(shot.grind)) !== null && shot.grind !== '') {
+    support.push(`<span class="is-set">grind ${escapeHTML(String(shot.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}</span>`);
+  }
+  if (r !== null) support.push(escapeHTML(fmtRatio(r)));
+  if (flow !== null) support.push(`${fmt2(flow)} g/s`);
+  if (ey !== null) support.push(`${fmt1(ey)}% EY`);
+  const flags = [];
+  if (shot.harsh) flags.push('Sour and bitter at once');
+  if (shot.bright && !shot.harsh) flags.push('Bright, not sour');
+  if (shot.run && shot.run !== 'even') flags.push((runEntry(shot.run) || {}).label || '');
+  const notes = [];
+  if (twoVariables(shot, prev)) notes.push(twoVariables(shot, prev));
+  if (intentCheck(shot, prev)) notes.push(intentCheck(shot, prev));
+
   card.innerHTML = `
-    <div class="log-top">
-      <span class="log-n">${n}</span>
-      <span class="log-headline">
-        <span class="log-ratio">${fmtRatio(r)}</span>
-        <span class="log-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
-      </span>
-      <span class="log-when">${fmtDate(shot.at)}</span>
+    <div class="log-meta">
+      <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}${
+        shot.intent ? `<span class="log-dot">·</span>aim ${escapeHTML(((intentEntry(shot.intent) || {}).label || '').toLowerCase())}` : ''}</span>
+      ${shot.verdict === 'keeper' ? '<span class="log-flag">the keeper</span>' : ''}
     </div>
-    <div class="log-numbers">
-      ${num(shot.dose) === null ? '—' : `${fmt1(num(shot.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
-        num(shot.yield) === null ? '—' : `${fmt1(num(shot.yield))}<small>g</small>`}
-      ${flow !== null ? ` · ${fmt2(flow)}<small>g/s</small>` : ''}
-      ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
-      ${num(Number(shot.grind)) !== null && shot.grind !== '' ? ` · grind ${escapeHTML(String(shot.grind))}<small>${escapeHTML(grindUnit() === 'clicks' ? ' clicks' : '')}</small>` : ''}
+
+    <div class="log-shot">
+      <span class="log-inout">${dose === null ? '—' : fmt1(dose)}<span class="log-arrow" aria-hidden="true">→</span>${
+        yld === null ? '—' : fmt1(yld)}<small>g</small></span>
+      <span class="log-secs ${timeClass}">${secs === null ? '—' : Math.round(secs)}<small>s</small></span>
     </div>
+    ${support.length ? `<div class="log-support">${support.join(' · ')}</div>` : ''}
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
-    ${shot.bright && !shot.harsh ? '<div class="log-run">Bright, not sour</div>' : ''}
-    ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
-    ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
-    ${twoVariables(shot, prev) ? `<div class="log-mismatch">${escapeHTML(twoVariables(shot, prev))}</div>` : ''}
-    ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
-    ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
-    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
+
+    ${(diffs.length || timeNote) ? `<div class="log-read">
+      <span class="log-diff">${escapeHTML(diffs.join(' · '))}</span>
+      ${timeNote ? `<span class="log-place ${timeClass}">${timeNote}</span>` : ''}
+    </div>` : ''}
+
+    ${(shot.taste !== null || (shot.body !== null && typeof shot.body === 'number')) ? `<div class="log-tastes">
+      ${shot.taste !== null ? `<span class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></span>` : ''}
+      ${shot.body !== null && typeof shot.body === 'number' ? `<span class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></span>` : ''}
+    </div>` : ''}
+    ${flags.length ? `<div class="log-run">${escapeHTML(flags.join(' · '))}</div>` : ''}
+    ${notes.map(x => `<div class="log-mismatch">${escapeHTML(x)}</div>`).join('')}
     ${shot.notes ? `<div class="log-notes">${escapeHTML(shot.notes)}</div>` : ''}
-    ${shot.verdict === 'keeper' ? '<div class="log-keeper-flag">the keeper</div>' : ''}
   `;
   card.addEventListener('click', () => openShot(shot));
   return card;

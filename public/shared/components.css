@@ -320,51 +320,124 @@ input { font: inherit; color: inherit; }
 .log-card:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .log-card:active { background: var(--chrome-soft); }
 .log-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
+/* On the tinted card the faintest ink measures 4.15:1 in light and 4.32:1
+   in dark against a 4.5 threshold — it clears everywhere else and only the
+   10-14% tint drops it. Nothing on this card needs to be the quietest
+   thing on the board, so it takes the next ink up (6.5:1+). */
+.log-card.is-keeper .log-meta,
+.log-card.is-keeper .log-diff,
+.log-card.is-keeper .log-place.out,
+.log-card.is-keeper .log-missing,
+.log-card.is-keeper .log-inout small,
+.log-card.is-keeper .log-secs small { color: var(--text-dim); }
 
-.log-top {
+/* Four bands, in the order somebody reads them: which shot this was, what
+   it was, what it came out as, and what it tasted like. */
+.log-meta {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
-}
-.log-n {
-  flex: none;
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 600;
   color: var(--text-faint);
-  min-width: 18px;
 }
-.log-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
-.log-ratio {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 24px;
-  font-weight: 600;
+.log-dot { padding: 0 6px; opacity: 0.6; }
+.log-flag {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--data);
 }
-.log-time {
+
+/* The shot itself: dose, yield, clock. A two-column grid rather than a flex
+   row, so the arrow and the seconds land at the same x on every card and
+   the log stacks into something you can scan down. */
+.log-shot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
+}
+.log-inout {
+  font-size: 26px;
   font-weight: 600;
+  color: var(--data);
+  white-space: nowrap;
+}
+/* The arrow is the shot. Lighter than the figures it joins, because it is
+   punctuation rather than a measurement. */
+.log-arrow {
+  padding: 0 var(--space-3);
+  font-size: 19px;
+  color: var(--rail);
+}
+.log-inout small,
+.log-secs small {
+  font-size: 13px;
+  font-weight: 400;
   color: var(--text-dim);
+  padding-left: 2px;
 }
-.log-when {
-  flex: none;
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--text-faint);
+.log-secs {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
 }
+/* In the window takes the data ink; outside it takes the full ink. Not a
+   warning colour — "direction is a habit, not a verdict", and a fast shot
+   is a reading, not an error. (The rule here was `var(--alert)`, which is
+   documented in DESIGN.md and defined nowhere in tokens.css: it was this
+   file's only use of the token and it silently resolved to inherit.) */
+.log-secs.in { color: var(--data); }
 
-.log-numbers {
-  margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
+/* Ratio, grind and flow. Real descriptions of the three figures above, and
+   read as consequences of them rather than as competitors for the line. */
+.log-support {
+  margin-top: var(--space-1);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-dim);
 }
-.log-numbers small { font-size: 11px; color: var(--text-faint); }
+/* The grind is the one figure on this line the barista moved, and the one
+   they come back to the board to read. Full ink while its neighbours stay
+   secondary — enough to find by eye without becoming a second headline. */
+.log-support .is-set { color: var(--text); font-weight: 600; }
+
+/* What moved, and where it landed. One row, two ends: the change on the
+   left because it is what you did, the verdict on the right because it is
+   what happened. A hairline above, separating the measurement from the
+   reading of it. */
+.log-read {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.log-read .log-diff { color: var(--text-dim); margin: 0; }
+.log-read .log-place { flex: none; margin: 0; }
+
+/* Both scales on one row. They were two stacked rows saying the same kind
+   of thing, which doubled the card's height for no added meaning. */
+.log-tastes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-3);
+}
 
 /* A record the arithmetic could not finish says which measurement is
    missing rather than printing a dash and leaving you to guess. */
@@ -373,7 +446,6 @@ input { font: inherit; color: inherit; }
 .log-diff,
 .log-notes {
   margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
@@ -397,13 +469,11 @@ input { font: inherit; color: inherit; }
 /* A part-recorded entry drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
    signal — an incomplete record is not a wrong one. */
-.log-card.is-partial .log-ratio,
-.log-card.is-partial .log-time { color: var(--text-dim); }
+.log-card.is-partial .log-inout,
+.log-card.is-partial .log-secs { color: var(--text-dim); }
 
 .log-taste {
-  margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-3);
   font-size: 13px;
@@ -428,16 +498,6 @@ input { font: inherit; color: inherit; }
   border-left: 2px solid var(--rail);
 }
 .log-tip.sure { border-left-color: var(--data); }
-
-.log-keeper-flag {
-  margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--data);
-}
 
 /* ---------- empty ---------- */
 
@@ -975,15 +1035,12 @@ html.sheet-open, html.sheet-open body {
 
 /* ---------- intent, on the log card ---------- */
 
-.log-intent,
 .log-run,
 .log-mismatch {
   margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.log-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
 /* How the shot ran, and only when it ran badly — "Ran even" on every card
    is a column of the word "fine". Measured ink, not the faint tertiary:
    this one is the reason the rest of the card reads the way it does. */

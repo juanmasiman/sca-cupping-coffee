@@ -139,3 +139,90 @@
    kit, in the ink the app uses for things it was told rather than things
    it measured. */
 .brew-noscale { color: var(--text-faint); font-family: var(--sans); font-size: 13px; }
+
+/* ============================================================
+   THE BREW CARD
+
+   These were in the shared component layer while both logs drew
+   the same card. The dial-in's shot card was rebuilt around what a
+   barista actually says — dose, yield and clock as the headline,
+   with the ratio underneath as a description of them — and it no
+   longer uses any of this. A rule used by one instrument is not a
+   shared part, so it lives with the instrument that uses it.
+
+   The brew log deserves the same treatment and has not had it. Moved
+   verbatim rather than adapted, so this is a relocation and not an
+   untested redesign of the one app nobody but its author has used.
+   ============================================================ */
+.log-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.log-n {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  min-width: 18px;
+}
+.log-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
+.log-ratio {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--data);
+}
+.log-time {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.log-when {
+  flex: none;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.log-numbers {
+  margin-top: var(--space-2);
+  padding-left: calc(18px + var(--space-3));
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.log-numbers small { font-size: 11px; color: var(--text-faint); }
+.log-keeper-flag {
+  margin-top: var(--space-3);
+  padding-left: calc(18px + var(--space-3));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--data);
+}
+
+
+.log-intent {
+  margin-top: var(--space-2);
+  padding-left: calc(18px + var(--space-3));
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* The brew card keeps the indent column the shared rules used to give
+   these; the dial-in dropped it. */
+.log-card .log-missing,
+.log-card .log-place,
+.log-card .log-diff,
+.log-card .log-notes,
+.log-card .log-taste { padding-left: calc(18px + var(--space-3)); }
+.log-card .log-taste { margin-top: var(--space-3); display: flex; }
