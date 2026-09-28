@@ -2235,12 +2235,44 @@ function el(tag, cls, html) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+/* The toast, and the undo it can carry.
+
+   Two dialogs in this app said "There is no undo." By this product's own
+   standard — it refuses to print an extraction it cannot measure — that
+   is not a disclaimer, it is a defect written in the voice of a feature.
+
+   One slot, not a stack: the thing worth taking back is always the thing
+   you just did, and a history of undos is a different product. The offer
+   lives on the toast because the toast is already a role="status" live
+   region that appears exactly when something has happened, and it expires
+   with the toast — eight seconds rather than the usual two and a half,
+   because reading a sentence and deciding to reverse it takes longer than
+   reading a confirmation. */
+let undoSlot = null;
+
+function toast(msg, undo) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  t.appendChild(document.createTextNode(msg));
+  undoSlot = undo || null;
+  if (undo) {
+    const b = el('button', 'toast-undo', 'Undo');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const act = undoSlot;
+      undoSlot = null;
+      t.classList.add('hidden');
+      if (!act) return;
+      act.restore();
+      haptic();
+      renderBoard();
+      toast(act.after || 'Put back');
+    });
+    t.appendChild(b);
+  }
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2400);
+  toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
 }
 
 function haptic() {
@@ -2458,6 +2490,7 @@ function tasteScale(opts) {
 
 function renderBoard() {
   const c = activeCoffee();
+  renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
   $('#coffee-sub').textContent = c
     ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
@@ -2655,6 +2688,13 @@ function targetDrift(c) {
   return { keeper, ratio, dose: d, time: t };
 }
 
+/* The board's heading follows the bag on the board. */
+function renderHeading(c) {
+  const h = $('#board-heading');
+  if (!h) return;
+  h.textContent = c ? coffeeLabel(c) : 'No coffee yet';
+}
+
 function renderTarget(c) {
   const wrap = $('#target-card');
   wrap.classList.toggle('hidden', !c);
@@ -2745,7 +2785,28 @@ function renderShots(c) {
 }
 
 function shotCard(shot, prev, c, n) {
-  const card = el('div', 'log-card');
+  /* A record you can reach without a pointer.
+
+     It was a bare <div> with a click handler, which meant the board's four
+     shot cards took no tab stop at all: editing or deleting a mis-logged
+     shot was pointer-only, and a screen reader got an unstructured run of
+     numbers with nothing to land on. It carries everything a barista needs
+     to recognise it before opening it — which shot, how long, what ratio,
+     where the grinder was — because that is exactly what the sighted
+     version of this card says at a glance. */
+  const card = el('button', 'log-card');
+  card.type = 'button';
+  card.setAttribute('aria-label', (() => {
+    const bits = [`Shot ${n}`];
+    if (num(shot.time) !== null) bits.push(`${Math.round(num(shot.time))} seconds`);
+    const r = ratioOf(shot);
+    if (r !== null) bits.push(`ratio 1 to ${r.toFixed(2)}`);
+    if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
+      bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
+    }
+    if (shot.verdict === 'keeper') bits.push('the keeper');
+    return `${bits.join(', ')}. Edit.`;
+  })());
   const r = ratioOf(shot);
   const flow = flowOf(shot);
   const ey = extractionOf(shot);
@@ -2927,12 +2988,16 @@ function openShot(shot) {
   del.onclick = () => {
     const i = c.shots.indexOf(shot);
     if (i < 0) return;
-    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it. There is no undo.`)) return;
+    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it.`)) return;
+    const gone = c.shots[i];
     c.shots.splice(i, 1);
     save();
     closeModal('#shot-modal');
     renderBoard();
-    toast('Shot removed');
+    toast('Shot removed', {
+      after: 'Shot back in the log',
+      restore: () => { c.shots.splice(Math.min(i, c.shots.length), 0, gone); save(); },
+    });
   };
   buildShotSheet(c);
   openModal('#shot-modal');
@@ -2955,8 +3020,22 @@ function shotHasContent() {
      closing one you had not touched asked whether you wanted to throw
      away work that did not exist — which is how a confirm dialog gets
      trained out of a person before the one that matters arrives. */
+/* ...and it broke again the moment two booleans joined the list.
+
+     `harsh` and `bright` are initialised to FALSE, and false is not null,
+     not '' and not undefined — so the test passed on every field of a
+     sheet nobody had touched, and the dialog fired every single time. The
+     comment above describes this failure as fixed; it was fixed for the
+     carried fields and re-broken by two flags added later.
+
+     A boolean is content when it is true. Nothing else about it is a
+     statement the reader made. */
+  const FLAGS = ['harsh', 'bright'];
+  const said = k => (FLAGS.includes(k)
+    ? editing[k] === true
+    : editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
   const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'bright', 'notes', 'tds']
-    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+    .some(said);
   return typed || carriedOf(editing) !== carriedSeed;
 }
 
@@ -2980,8 +3059,21 @@ function closeShotSheet() {
       const back = JSON.parse(editingSeed);
       // Keys added during the edit have to go too, not just keys changed:
       // JSON.stringify drops undefined, so the snapshot cannot clear them.
+      const undone = JSON.stringify(editing);
+      const target = editing;
       Object.keys(editing).forEach(k => { if (!(k in back)) delete editing[k]; });
       Object.assign(editing, back);
+      if (dirty) {
+        toast('Changes discarded', {
+          after: 'Changes back',
+          restore: () => {
+            const redo = JSON.parse(undone);
+            Object.keys(target).forEach(k => { if (!(k in redo)) delete target[k]; });
+            Object.assign(target, redo);
+            save();
+          },
+        });
+      }
     } catch (e) { /* keep what is there */ }
   }
   closeModal('#shot-modal');
@@ -3851,14 +3943,23 @@ function openEdit(c, opts) {
     // and described is worth one question, and the control sits in the same
     // bar as Save.
     if (!confirm(n
-      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it, and there is no undo.`
-      : `Remove ${coffeeLabel(c)}? There is no undo.`)) return;
+      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it.`
+      : `Remove ${coffeeLabel(c)}?`)) return;
+    const at = state.coffees.indexOf(c);
+    const wasActive = state.activeId === c.id;
     state.coffees = state.coffees.filter(x => x.id !== c.id);
-    if (state.activeId === c.id) state.activeId = state.coffees.length ? state.coffees[0].id : null;
+    if (wasActive) state.activeId = state.coffees.length ? state.coffees[0].id : null;
     save();
     closeModal('#edit-modal');
     renderBoard();
-    toast('Removed');
+    toast('Removed', {
+      after: `${coffeeLabel(c)} is back`,
+      restore: () => {
+        state.coffees.splice(Math.min(at < 0 ? state.coffees.length : at, state.coffees.length), 0, c);
+        if (wasActive) state.activeId = c.id;
+        save();
+      },
+    });
   };
   openModal('#edit-modal');
 }
@@ -4449,9 +4550,15 @@ function trapTab(m, e) {
   }
 }
 
+/* Which sheet is on top, in the order they were opened rather than the
+   order they appear in the document. */
+let modalStack = [];
+const topModal = () => (modalStack.length ? modalStack[modalStack.length - 1] : null);
+
 function openModal(sel) {
   const m = $(sel);
   lastFocus = document.activeElement;
+  modalStack = modalStack.filter(x => x !== sel).concat([sel]);
   m.classList.remove('hidden');
   /* The board scrolled behind every open sheet. On a phone that means a
      drag meant for a slider or a long sheet moves the page underneath it
@@ -4468,6 +4575,7 @@ function openModal(sel) {
 }
 
 function closeModal(sel) {
+  modalStack = modalStack.filter(x => x !== sel);
   $(sel).classList.add('hidden');
   if (!document.querySelector('.modal:not(.hidden)')) {
     document.documentElement.classList.remove('sheet-open');
@@ -4524,13 +4632,34 @@ function wire() {
   $('#help-close').addEventListener('click', closeHelp);
   $('#help-done').addEventListener('click', closeHelp);
 
+  /* Every exit from a sheet goes through the same door.
+
+     There were three ways out of the shot sheet and three behaviours. The
+     X called closeShotSheet(), which owns the dirty check and the
+     snapshot restore. Escape and a tap on the backdrop called closeModal()
+     directly, so a typed shot — the one measurement that cannot be
+     re-created, because the coffee is already in the cup — vanished
+     without a word. On a 390px screen the sheet leaves about 135px of
+     board exposed, an inch from where a wet thumb reaches for the X.
+
+     Also: `querySelector` returns the FIRST matching element in document
+     order, not the most recently opened, so Escape over two stacked
+     sheets closed the one underneath. The stack knows better. */
+  const dismissTop = () => {
+    const sel = topModal();
+    if (!sel) return;
+    if (sel === '#shot-modal') closeShotSheet();
+    else closeModal(sel);
+  };
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    const open = document.querySelector('.modal:not(.hidden)');
-    if (open) closeModal('#' + open.id);
+    if (e.key === 'Escape') dismissTop();
   });
   document.querySelectorAll('.modal').forEach(m => {
-    m.addEventListener('click', e => { if (e.target === m) closeModal('#' + m.id); });
+    m.addEventListener('click', e => {
+      if (e.target !== m) return;
+      if (m.id === 'shot-modal') closeShotSheet();
+      else closeModal('#' + m.id);
+    });
   });
 }
 

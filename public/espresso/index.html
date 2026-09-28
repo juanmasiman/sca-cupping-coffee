@@ -47,7 +47,14 @@
     </button>
   </header>
 
-  <div class="board-scroll" id="board-scroll">
+  <main class="board-scroll" id="board-scroll">
+    <!-- The coffee's name is the page's heading. It was carried only by the
+         header button, so the board had no heading at all and nothing to
+         navigate by: `querySelectorAll('h1,h2,h3')` on the primary screen
+         returned nothing, because the nine h3s all live in hidden sheets.
+         Visually hidden because the header button already shows it; the
+         duplication is for the reader who cannot see the button. -->
+    <h1 class="sr-only" id="board-heading"></h1>
     <!-- The recipe you settled on, if you have settled on one. It is pinned
          because it is the answer the whole board exists to find. -->
     <div class="keeper hidden" id="keeper"></div>
@@ -56,7 +63,7 @@
          — and this is the answer to it, so it sits at the top of the board
          rather than as the last line of the newest shot card, under the
          numbers and the deltas and the taste pips. -->
-    <div class="next-card hidden" id="next-card"></div>
+    <div class="next-card hidden" id="next-card" aria-live="polite"></div>
 
     <!-- What you are aiming at. A shot is only fast or slow against
          something, so the window is stated rather than assumed. -->
@@ -70,7 +77,7 @@
     </div>
 
     <div class="board-footpad"></div>
-  </div>
+  </main>
 
   <div class="board-action">
     <button id="btn-log" class="btn btn-primary">Log a shot</button>
