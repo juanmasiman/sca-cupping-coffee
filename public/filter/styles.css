@@ -143,89 +143,24 @@
 /* ============================================================
    THE BREW CARD
 
-   These were in the shared component layer while both logs drew
-   the same card. The dial-in's shot card was rebuilt around what a
-   barista actually says — dose, yield and clock as the headline,
-   with the ratio underneath as a description of them — and it no
-   longer uses any of this. A rule used by one instrument is not a
-   shared part, so it lives with the instrument that uses it.
+   These were the brew log's own copy of a card the dial-in had already
+   left behind: a ratio headline at 24px, the brew number in an 18px
+   gutter, and everything else indented past it. The brew log has had the
+   same rebuild now — dose, water and clock as the headline, three bands
+   in the same order on every card — so it draws from the shared parts and
+   almost nothing is left here.
 
-   The brew log deserves the same treatment and has not had it. Moved
-   verbatim rather than adapted, so this is a relocation and not an
-   untested redesign of the one app nobody but its author has used.
+   What IS left is what the brew log genuinely has and the dial-in does
+   not: the pour schedule, which rides on the card because an espresso is
+   one event and a pour-over is five, and which five is the thing a brewer
+   changes between one morning and the next. Two surfaces that are
+   genuinely different are allowed to be different. What is not allowed is
+   two copies of the same one.
    ============================================================ */
-.log-top {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-.log-n {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-faint);
-  min-width: 18px;
-}
-.log-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
-.log-ratio {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--data);
-}
-.log-time {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-dim);
-}
-.log-when {
-  flex: none;
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--text-faint);
-}
-
-.log-numbers {
-  margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.log-numbers small { font-size: 11px; color: var(--text-faint); }
-.log-keeper-flag {
-  margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--data);
-}
-
-
-.log-intent {
-  margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-faint);
-}
-
-/* The brew card keeps the indent column the shared rules used to give
-   these; the dial-in dropped it. */
-.log-card .log-missing,
-.log-card .log-place,
-.log-card .log-diff,
-.log-card .log-notes,
-.log-card .log-taste { padding-left: calc(18px + var(--space-3)); }
-.log-card .log-taste { margin-top: var(--space-3); display: flex; }
+/* The indent column went with the card that had it. The brew number used
+   to sit in its own 18px gutter with everything aligned past it; it is on
+   the label line now, the way the dial-in's is, so there is no gutter for
+   anything to clear. */
 
 /* ---------- the shelf ----------
 
@@ -310,16 +245,10 @@
   color: var(--text-dim);
 }
 
-/* Which brewer made this one. Indented to the column the rest of the
-   card's detail sits in, and quiet — it is a label on the row, not a
-   measurement in it. */
-.log-brewer {
-  margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-}
+/* Which brewer made this one has moved onto the label line, beside the
+   brew number and the time — it is a fact about the brew like those two
+   are, not a setting you dialled. It had its own row and its own indent;
+   both went with the gutter. */
 
 /* ---------- what you tasted ---------- */
 
@@ -353,15 +282,21 @@
 
 /* What it tasted of, on the card. A row of words rather than a sentence,
    because that is the shape they were entered in and the shape an eye
-   runs down a board looking for. */
-.log-flavours {
+   runs down a board looking for.
+
+   Named `brew-` rather than `log-`: the shared layer has a `.log-flavour`
+   already and it is a different thing — one quiet line reading
+   "neither · a little strong", the two scales in words. These are chips
+   of the taster's own vocabulary. Two rules of the same name on the same
+   card, one of them winning by file order, is a bug waiting for whoever
+   next edits either file. */
+.brew-flavours {
   margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.log-flavour {
+.brew-flavour {
   padding: 2px var(--space-3);
   border-radius: 999px;
   background: var(--chrome-soft);
@@ -373,7 +308,7 @@
    is the one thing on this row that is a match between two claims rather
    than a note — and the ring rather than a fill, so a card with three of
    them does not become a colour field. */
-.log-flavour.from-bag {
+.brew-flavour.from-bag {
   background: var(--data-soft);
   color: var(--data);
   box-shadow: inset 0 0 0 1px var(--data-soft);

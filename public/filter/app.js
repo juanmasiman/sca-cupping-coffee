@@ -353,6 +353,9 @@ const BREWERS = [
 ];
 
 const kit = () => (state && state.kit) || defaultKit();
+// Whether the shelf holds more than one, which is the only condition
+// under which naming the brewer on a card tells anybody anything.
+const multiBrewer = () => ((kit().brewers || []).length > 1);
 
 /* Yours over the shipped list, always. Somebody who has told this app
    that their Switch is only ever used open has said something truer about
@@ -1434,16 +1437,6 @@ function wordScale(opts) {
   return wrap;
 }
 
-// A seven-step run of pips with the taken one filled — the position is
-// the meaning, exactly as on the scale that produced it.
-function tasteMarks(v) {
-  let out = '<span class="taste-marks" aria-hidden="true">';
-  for (let i = TASTE_MIN; i <= TASTE_MAX; i++) {
-    out += `<i class="${i === v ? 'on' : ''}${i === 0 ? ' mid' : ''}"></i>`;
-  }
-  return out + '</span>';
-}
-
 /* ============================================================
    THE BOARD
    ============================================================ */
@@ -1652,12 +1645,36 @@ function renderBrews(c) {
 }
 
 function brewCard(brew, prev, c, n) {
-  const card = el('div', 'log-card');
-  const r = ratioOf(brew);
+  /* A RECORD YOU CAN REACH WITHOUT A POINTER.
+
+     It was a bare <div> with a click handler, so the board's brew cards
+     took no tab stop at all: editing or deleting a mis-logged brew was
+     pointer-only, and a screen reader got an unstructured run of numbers
+     with nothing to land on. The dial-in fixed the same bug on the same
+     kind of card; this is the same fix. The label carries what a brewer
+     needs to recognise the brew before opening it, which is exactly what
+     the sighted version of this card says at a glance. */
+  const card = el('button', 'log-card');
+  card.type = 'button';
   const dd = drawdownOf(brew);
   const ey = extractionOf(brew);
   const place = placeOf(brew, c.target);
   const missing = missingFields(brew);
+  const water = num(brew.water);
+
+  card.setAttribute('aria-label', (() => {
+    const bits = [`Brew ${n}`];
+    if (num(brew.time) !== null) bits.push(fmtTime(brew.time));
+    if (byWeight() && num(brew.dose) !== null && water !== null) {
+      bits.push(`${fmt1(num(brew.dose))} grams to ${fmt0(water)}`);
+    }
+    if (brew.grind !== '' && brew.grind !== null && brew.grind !== undefined) {
+      bits.push(`grind ${brew.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
+    }
+    if (multiBrewer() && brew.brewer) bits.push(brew.brewer);
+    if (brew.verdict === 'keeper') bits.push('the recipe');
+    return `${bits.join(', ')}. Edit.`;
+  })());
 
   if (brew.verdict === 'keeper') card.classList.add('is-keeper');
   if (missing.length) card.classList.add('is-partial');
@@ -1665,27 +1682,41 @@ function brewCard(brew, prev, c, n) {
   /* What moved since the last brew. This line is the reason the app is a
      log rather than a list: a column of numbers makes you do the
      subtraction in your head at seven in the morning, and the
-     subtraction is the finding. */
+     subtraction is the finding.
+
+     EMPTY IS NOT ZERO. Grind and temperature are free text, so a field
+     nobody filled in arrives as '' and Number('') is 0 — which is finite,
+     and which made a brew with no grind recorded read as a grind of
+     nought against the one before it. The dial-in had the same trap in
+     the same line; intentCheck below has guarded against it here since a
+     tester was accused of moving a grinder they had not touched. */
   const diffs = [];
   if (prev) {
-    const g = (a, b) => (num(a) !== null && num(b) !== null ? a - b : null);
-    const dGrind = g(Number(brew.grind), Number(prev.grind));
+    const read = (o, f) => {
+      const raw = o[f];
+      if (raw === '' || raw === null || typeof raw === 'undefined') return null;
+      const v = Number(raw);
+      return isFinite(v) ? v : null;
+    };
+    const d = f => {
+      const a = read(brew, f), b = read(prev, f);
+      return a !== null && b !== null ? a - b : null;
+    };
+    const dGrind = d('grind');
     // Clicks are whole. "grind −5.0" on a grinder that only stops at whole
     // numbers is the app inventing a precision the kit does not have.
     const stepped = kit().steps === 'stepped';
-    if (dGrind !== null && dGrind !== 0) {
-      diffs.push(`grind ${fmtDelta(dGrind, stepped ? ' clicks' : '', stepped ? 0 : 1)}`);
-    }
+    if (dGrind) diffs.push(`grind ${fmtDelta(dGrind, stepped ? ' clicks' : '', stepped ? 0 : 1)}`);
     if (byWeight()) {
-      const dDose = g(brew.dose, prev.dose);
+      const dDose = d('dose');
       if (dDose) diffs.push(`${fmtDelta(dDose, 'g coffee')}`);
-      const dWater = g(brew.water, prev.water);
+      const dWater = d('water');
       if (dWater) diffs.push(`${fmtDelta(dWater, 'g water')}`);
     }
-    const dTime = g(brew.time, prev.time);
+    const dTime = d('time');
     if (dTime) diffs.push(`${fmtDelta(dTime, 's', 0)}`);
     if (canSetTemp()) {
-      const dTemp = g(Number(brew.temp), Number(prev.temp));
+      const dTemp = d('temp');
       if (dTemp) diffs.push(`${fmtDelta(dTemp, '°', 0)}`);
     }
   }
@@ -1699,69 +1730,111 @@ function brewCard(brew, prev, c, n) {
   // The poured total and the water figure should agree. When they do not
   // the card says so rather than quietly preferring one of them.
   const poured = pouredTotal(brew);
-  const water = num(brew.water);
   const back = byWeight() ? pourBacktrack(brew) : null;
   const mismatch = byWeight() && poured !== null && water !== null && Math.abs(poured - water) > 1
     ? `The schedule ends at ${fmt0(poured)}g, and the water says ${fmt0(water)}g.`
     : null;
 
-  card.innerHTML = `
-    <div class="log-top">
-      <span class="log-n">${n}</span>
-      <span class="log-headline">
-        ${byWeight() ? `<span class="log-ratio">${fmtRatio(r)}</span>` : ''}
-        <span class="log-time ${timeClass}">${fmtTime(brew.time)}</span>
-      </span>
-      <span class="log-when">${fmtDate(brew.at)}</span>
-    </div>
-    ${/* WHICH BREWER, ON A SHELF WITH MORE THAN ONE.
+  /* THE SETTINGS THIS BREW WAS MADE AT, AND THE ONE READING THAT IS NOT
+     ON THE CARD ALREADY.
 
-          Off the card entirely on a one-brewer shelf, where it would be
-          the same word under every row. On a shelf with two it is the
-          first thing that separates one card from the next: the same
-          coffee at the same grind in a V60 and in a press are not two
-          points on one curve, and a log that does not say which is a log
-          that reads as noise. It prints the name on the brew, not the one
-          in the kit today — a brewer that has left the shelf still made
-          the brews it made. */
-      (kit().brewers || []).length > 1 && brew.brewer
-        ? `<div class="log-brewer">${escapeHTML(brew.brewer)}</div>` : ''}
-    <div class="log-numbers">
-      ${byWeight()
-        ? `${num(brew.dose) === null ? '—' : `${fmt1(num(brew.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
-            water === null ? '—' : `${fmt0(water)}<small>g</small>`}`
-        : '<span class="brew-noscale">no scale</span>'}
-      ${num(Number(brew.grind)) !== null && brew.grind !== '' ? ` · grind ${escapeHTML(String(brew.grind))}${grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}` : ''}
-      ${canSetTemp() && num(Number(brew.temp)) !== null && brew.temp !== '' ? ` · ${escapeHTML(String(brew.temp))}<small>°</small>` : ''}
-      ${dd !== null ? ` · ${fmtTime(dd)}<small> drawdown</small>` : ''}
-      ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
+     The ratio has come off. It led this card at 30px, and across a dial-in
+     it is the same figure repeated down the board — 1:16.7, 1:16.7,
+     1:16.7 — in the loudest face on screen, computed from two numbers
+     sitting right underneath it. The dial-in learned the same thing about
+     its own ratio. What a brewer says out loud is "eighteen grams, three
+     hundred of water, three fifteen", so that is the headline, and the
+     ratio is on the sheet where one brew gets read.
+
+     Drawdown stays. It is not derivable from anything on this line — it
+     is the clock minus the last pour, and the last pour is a chip in a
+     row — and a drawdown that has crept from 1:20 to 2:10 across four
+     brews is the bed clogging, which is the finding this app exists to
+     hand somebody. */
+  const set = [];
+  if (num(Number(brew.grind)) !== null && brew.grind !== '') {
+    set.push(`<span class="is-set">grind ${escapeHTML(String(brew.grind))}${
+      grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}</span>`);
+  }
+  /* Temperature is not here, and the dial-in's card does not carry it
+     either. Three things plus a window verdict wrapped this line at 390px,
+     and of the three it is the one that is nearly always the same figure
+     down the whole board — a kettle gets set once. Where it does move, the
+     change line under the rule says "+2°", which is the moment it matters,
+     and the sheet has it whenever you open the brew. */
+  if (dd !== null) set.push(`${fmtTime(dd)}<small> drawdown</small>`);
+  if (ey !== null) set.push(`${fmt1(ey)}<small>% EY</small>`);
+
+  // How it tasted, in the words. The seven-pip runs came off for the
+  // reason they came off the dial-in's card: position is the meaning
+  // where position is the control, and on a record the word is complete.
+  const flavour = [];
+  if (brew.taste !== null && typeof brew.taste === 'number') flavour.push(tasteWord(brew.taste));
+  if (brew.body !== null && typeof brew.body === 'number') flavour.push(bodyWord(brew.body));
+
+  /* Everything under the hairline. Collected rather than written inline
+     so the rule appears exactly when there is something beneath it. */
+  const read = [];
+  if (diffs.length) read.push(`<div class="log-change">${escapeHTML(diffs.join(' · '))}</div>`);
+  if (flavour.length) read.push(`<div class="log-flavour">${escapeHTML(flavour.join(' · '))}</div>`);
+  if ((brew.flavours || []).length) {
+    /* What you tasted, in words, with anything the bag promised marked.
+       The two scales say what to change; this is the only line that
+       answers "was it any good" — the question somebody scrolling a board
+       six weeks later is actually asking. */
+    read.push(`<div class="brew-flavours">${
+      brew.flavours.map(w => `<span class="brew-flavour${
+        hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}</span>`).join('')
+    }</div>`);
+  }
+  [back && `${back.label} says ${fmt0(back.value)}g, below ${back.prevLabel} at ${fmt0(back.prev)}g — the schedule is a running total.`,
+   mismatch,
+   intentCheck(brew, prev)].filter(Boolean)
+    .forEach(x => read.push(`<div class="log-mismatch">${escapeHTML(x)}</div>`));
+  if (brew.notes) read.push(`<div class="log-notes">${escapeHTML(brew.notes)}</div>`);
+
+  /* THREE BANDS AND THE SCHEDULE, AND THE SAME SHAPE ON EVERY CARD.
+
+     There were fourteen, each appearing on its own terms, so no two cards
+     in a column had the same outline and the eye re-found the structure
+     on every one. What this brew was, what it was set to and where the
+     clock landed, the schedule that made it — and under one hairline, the
+     reading of it.
+
+     The schedule stays above the rule because it is not a reading, it is
+     the recipe: an espresso is one event and a pour-over is five, and
+     which five is the thing a brewer changes between one morning and the
+     next. It is the record that makes this a brew log rather than a
+     dial-in with different words.
+
+     "aim: Finer" has gone from the top. It sat two rows above
+     "grind −5 clicks", which is the same fact twice — one the intention,
+     one the measurement, and the measurement is the true one. Where they
+     disagree the note under the rule still says so, and quotes the aim. */
+  card.innerHTML = `
+    <div class="log-meta">
+      <span>${n}<span class="log-dot">·</span>${
+        multiBrewer() && brew.brewer ? `${escapeHTML(brew.brewer)}<span class="log-dot">·</span>` : ''
+      }${fmtDate(brew.at)}</span>
+      ${brew.verdict === 'keeper' ? '<span class="log-flag">the recipe</span>' : ''}
     </div>
+
+    <div class="log-shot">
+      <span class="log-inout">${byWeight()
+        ? `${num(brew.dose) === null ? '—' : fmt1(num(brew.dose))}<span class="log-arrow" aria-hidden="true">→</span>${
+            water === null ? '—' : fmt0(water)}<small>g</small>`
+        : '<span class="brew-noscale">no scale</span>'}</span>
+      <span class="log-secs ${timeClass}">${fmtTime(brew.time)}</span>
+    </div>
+
+    ${(set.length || timeNote) ? `<div class="log-set">
+      <span class="log-grind">${set.join(' · ')}</span>
+      ${timeNote ? `<span class="log-place ${timeClass}">${timeNote}</span>` : ''}
+    </div>` : ''}
     ${(brew.pours || []).length ? `<div class="brew-pours">${pourLine(brew)}</div>` : ''}
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${back ? `<div class="log-missing">${escapeHTML(
-      `${back.label} says ${fmt0(back.value)}g, below ${back.prevLabel} at ${fmt0(back.prev)}g — the schedule is a running total.`)}</div>` : ''}
-    ${mismatch ? `<div class="log-missing">${escapeHTML(mismatch)}</div>` : ''}
-    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${brew.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(brew.intent) || {}).label || '')}</div>` : ''}
-    ${intentCheck(brew, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
-    ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="log-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
-    ${brew.body !== null && typeof brew.body === 'number' ? `<div class="log-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
-    ${/* What you tasted, on the card, with the bag's own words marked.
 
-          The two scales above say sour-or-bitter and thin-or-strong,
-          which are what to change. These are what it was, and they are
-          the only line on this card that answers "was it any good" —
-          which is the question somebody scrolling a board six weeks
-          later is actually asking. A word the bag promised is marked, so
-          the row shows at a glance whether the coffee did what it said
-          on the packet. */
-      (brew.flavours || []).length ? `<div class="log-flavours">${
-        brew.flavours.map(w => `<span class="log-flavour${
-          hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}</span>`).join('')
-      }</div>` : ''}
-    ${brew.notes ? `<div class="log-notes">${escapeHTML(brew.notes)}</div>` : ''}
-    ${brew.verdict === 'keeper' ? '<div class="log-keeper-flag">the recipe</div>' : ''}
+    ${read.length ? `<div class="log-read">${read.join('')}</div>` : ''}
   `;
   card.addEventListener('click', () => openBrew(brew));
   return card;
