@@ -55,6 +55,37 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /* WHY THE CODE DID NOT ARRIVE, IN THE WORDS THAT MATCH THE REASON.
+
+     Every failure here used to read "Could not send it — check the
+     connection and try again." Supabase allows a small number of sign-in
+     emails an hour per project, so the ordinary way to meet this message
+     is to ask twice, get nothing, ask again — and be told to go and look
+     at your wifi, which is fine. Sending somebody to debug the wrong
+     thing is worse than saying nothing.
+
+     Each branch names the problem and the way out, and every one of them
+     points at Google, because that route is not rate-limited and it is one
+     tap away on the sheet behind this line. */
+  function whySendFailed(e) {
+    var status = e && e.status;
+    if (status === 429) {
+      return 'Too many sign-in emails from this project in the last hour. '
+        + 'Wait a few minutes, or continue with Google.';
+    }
+    if (status === 422 || status === 400) {
+      return (e && e.detail)
+        ? e.detail.charAt(0).toUpperCase() + e.detail.slice(1)
+        : 'That address was refused. Check it, or continue with Google.';
+    }
+    if (status >= 500) {
+      return 'Sign-in is down at the moment. Everything else still works — '
+        + 'try again in a few minutes.';
+    }
+    // No status at all means the request never completed.
+    return 'Could not reach sign-in. Check the connection and try again.';
+  }
+
   function enabled() { return Boolean(root.LentoAccount && root.LentoAccount.enabled()); }
   function user() { return enabled() ? root.LentoAccount.user() : null; }
 
@@ -168,10 +199,10 @@
         return;
       }
       status.textContent = 'Sending…';
-      var ok = false;
-      try { ok = await root.LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
-      if (!ok) {
-        status.textContent = 'Could not send it — check the connection and try again.';
+      try {
+        await root.LentoAccount.sendEmailCode(email);
+      } catch (e) {
+        status.textContent = whySendFailed(e);
         return;
       }
       openCode(email);
@@ -218,11 +249,12 @@
     });
     body.querySelector('#btn-code-resend').addEventListener('click', async function () {
       status.textContent = 'Sending…';
-      var ok = false;
-      try { ok = await root.LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
-      status.textContent = ok
-        ? 'A new code is on its way.'
-        : 'Could not send it — try again in a minute.';
+      try {
+        await root.LentoAccount.sendEmailCode(email);
+        status.textContent = 'A new code is on its way.';
+      } catch (e) {
+        status.textContent = whySendFailed(e);
+      }
     });
     host.open('#code-modal');
   }
