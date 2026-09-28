@@ -88,7 +88,20 @@
       'Content-Type': 'application/json',
     }, a ? { Authorization: 'Bearer ' + a.access_token } : {}, opts.headers || {});
     var res = await fetch(url() + path, Object.assign({}, opts, { headers: headers }));
-    if (!res.ok) throw new Error('supabase ' + res.status);
+    if (!res.ok) {
+      /* The status, on the error, because a caller that cannot tell 429
+         from a dead connection can only say "something went wrong" — and
+         that is what the sign-in sheet was saying. A person who has asked
+         for a code three times in an hour is rate-limited, not offline,
+         and "check the connection" sends them to look at the wrong thing.
+         The server's own message rides along too where there is one. */
+      var why = null;
+      try { why = JSON.parse(await res.text()); } catch (e) { /* not JSON */ }
+      var err = new Error('supabase ' + res.status);
+      err.status = res.status;
+      err.detail = why && (why.msg || why.message || why.error_description || why.error) || '';
+      throw err;
+    }
     var text = await res.text();
     return text ? JSON.parse(text) : null;
   }
@@ -145,8 +158,20 @@
       + '&redirect_to=' + encodeURIComponent(here);
   }
 
+  /* Supabase's email carries both a code and a link. The code is what this
+     sheet asks for — links get opened by spam scanners and land in
+     whichever browser the mail app prefers — but the link is in the
+     message either way, and without `redirect_to` it goes to the project's
+     Site URL rather than the page you started from. Somebody who signs in
+     from the dial-in and taps the link in the email should come back to
+     the dial-in.
+
+     The cupping sheet has passed this since it was written. This layer was
+     lifted out of that one and dropped it on the way, which is exactly the
+     kind of drift a shared layer is supposed to end. */
   async function sendEmailCode(email) {
-    await sbFetch('/auth/v1/otp', {
+    var here = location.origin + location.pathname.replace(/[^/]*$/, '');
+    await sbFetch('/auth/v1/otp?redirect_to=' + encodeURIComponent(here), {
       method: 'POST',
       body: JSON.stringify({ email: email, create_user: true }),
     });

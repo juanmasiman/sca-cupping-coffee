@@ -22,7 +22,7 @@
    get the new markup (navigations are network-first) alongside the old
    script that goes looking for the button that is no longer there. The
    version is what keeps those two from meeting. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [

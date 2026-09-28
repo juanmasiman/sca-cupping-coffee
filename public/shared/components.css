@@ -336,19 +336,33 @@ input { font: inherit; color: inherit; }
    thing on the board, so it takes the next ink up (6.5:1+). */
 .log-card.is-keeper .log-meta,
 .log-card.is-keeper .log-diff,
+.log-card.is-keeper .log-change,
 .log-card.is-keeper .log-place.out,
 .log-card.is-keeper .log-missing,
 .log-card.is-keeper .log-inout small,
 .log-card.is-keeper .log-secs small { color: var(--text-dim); }
 
-/* Four bands, in the order somebody reads them: which shot this was, what
-   it was, what it came out as, and what it tasted like. */
+/* THREE BANDS, AND THE THIRD IS EVERYTHING UNDER THE RULE.
+
+   There were six, each appearing on its own terms, so no two cards in a
+   column had the same shape. Now: which shot this was, what it was and
+   where the clock landed, and — under a hairline — the reading of it.
+
+   The label leaves the monospace. Almost every line on this card was set
+   in it, and a card that is seven-eighths mono has no texture left to
+   group anything by: the mono stops reading as "these are measurements"
+   and starts reading as terminal output. It is kept for the figures,
+   where it is doing real work — tabular numerals down a column — and
+   given up everywhere it was only borrowing the idea of precision.
+
+   Nothing here aligns with anything, either. The shot number is one digit
+   and the date is four to twelve characters, so there was never a column
+   for the monospace to hold. */
 .log-meta {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  font-family: var(--mono);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -412,45 +426,62 @@ input { font: inherit; color: inherit; }
    file's only use of the token and it silently resolved to inherit.) */
 .log-secs.in { color: var(--data); }
 
-/* Ratio, grind and flow. Real descriptions of the three figures above, and
-   read as consequences of them rather than as competitors for the line. */
-.log-support {
-  margin-top: var(--space-1);
+/* WHERE THE GRINDER WAS, AND WHERE THE CLOCK LANDED.
+
+   Two facts that belong on one line: the grind is the setting this shot
+   was pulled at, and the window note is the verdict on the seconds
+   directly above it. The note used to float at the right-hand end of the
+   next band down, so a card whose only reading was "6s fast" printed that
+   alone against an empty left half. Under the clock it qualifies, which
+   is what it is for. */
+.log-set {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-dim);
 }
-/* The grind is the one figure on this line the barista moved, and the one
-   they come back to the board to read. Full ink while its neighbours stay
-   secondary — enough to find by eye without becoming a second headline. */
-.log-support .is-set { color: var(--text); font-weight: 600; }
+.log-set .log-place { margin: 0; flex: none; }
+/* The grind is the figure the barista moved and the one they come back to
+   the board to read. Full ink beside a secondary neighbour — enough to
+   find by eye without becoming a second headline. */
+.log-grind .is-set { color: var(--text); font-weight: 600; }
 
-/* What moved, and where it landed. One row, two ends: the change on the
-   left because it is what you did, the verdict on the right because it is
-   what happened. A hairline above, separating the measurement from the
-   reading of it. */
+/* THE READING, UNDER ONE RULE.
+
+   Everything below the hairline is what this shot turned out to be: what
+   moved, how it tasted, how it ran, anything that disagrees, whatever was
+   typed. It is one band with a rule on top rather than five independent
+   rows, so the rule lands in the same place on every card and never
+   appears over nothing. */
 .log-read {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
   margin-top: var(--space-4);
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 11px;
 }
-.log-read .log-diff { color: var(--text-dim); margin: 0; }
-.log-read .log-place { flex: none; margin: 0; }
+.log-read > * + * { margin-top: var(--space-2); }
 
-/* Both scales on one row. They were two stacked rows saying the same kind
-   of thing, which doubled the card's height for no added meaning. */
-.log-tastes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-5);
-  margin-top: var(--space-3);
+/* What moved since the last shot, which is the reason this is a log and
+   not a list. Figures, so: monospace, tabular, and the one line on the
+   card where that is load-bearing rather than decorative. */
+.log-change {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* How it tasted, in the words. Both readings on one line — they are the
+   same kind of statement — and in the sans, because they are the only
+   sentences the person wrote rather than measured. */
+.log-flavour {
+  font-size: 13px;
+  color: var(--text-dim);
 }
 
 /* A record the arithmetic could not finish says which measurement is
@@ -486,6 +517,10 @@ input { font: inherit; color: inherit; }
 .log-card.is-partial .log-inout,
 .log-card.is-partial .log-secs { color: var(--text-dim); }
 
+/* Still the brew log's, which has not been through this pass. The dial-in
+   stopped drawing pips on a record: the word beside them already says
+   where the value sits, and position is the meaning only where position is
+   the control. See shotCard. */
 .log-taste {
   display: inline-flex;
   align-items: center;
@@ -502,16 +537,6 @@ input { font: inherit; color: inherit; }
 }
 .taste-marks i.mid { height: 11px; border-radius: 2px; }
 .taste-marks i.on { background: var(--data); transform: scale(1.35); }
-
-/* The same two shapes the sheet uses, indented to the column the rest of
-   the card's detail sits in. */
-.log-tip {
-  margin-top: var(--space-4);
-  margin-left: calc(18px + var(--space-3));
-  padding-left: var(--space-4);
-  border-left: 2px solid var(--rail);
-}
-.log-tip.sure { border-left-color: var(--data); }
 
 /* ---------- empty ---------- */
 
@@ -1120,8 +1145,12 @@ html.sheet-open, html.sheet-open body {
 }
 /* How the shot ran, and only when it ran badly — "Ran even" on every card
    is a column of the word "fine". Measured ink, not the faint tertiary:
-   this one is the reason the rest of the card reads the way it does. */
-.log-run { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-dim); }
+   this one is the reason the rest of the card reads the way it does. It is
+   a sentence about a shot, so it is set like one; it was in the monospace,
+   which is for figures. Weight 600 came with it and had to go too — bold
+   at 11px mono is emphasis, bold at 13px sans was the loudest line on the
+   card. The full ink does that job without raising its voice. */
+.log-run { font-size: 13px; color: var(--text); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */

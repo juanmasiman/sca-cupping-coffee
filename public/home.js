@@ -155,8 +155,40 @@
     $('#account-note').textContent = rowNote(u);
   }
 
+  /* A DEAD BUTTON IS THE WORST FAILURE THIS PAGE HAS.
+
+     Somebody reported that tapping sign-in here did nothing — no panel, no
+     message, no way to tell whether the tap had registered. That is not
+     reproducible on any browser reachable from where this was written, and
+     a phone has no console to read, so the page had no way to say what had
+     gone wrong and the person had no way to find out.
+
+     Three things follow. The button is wired before anything that could
+     throw, so a failure further down cannot take the control with it. The
+     tap says what happened instead of nothing. And an error anywhere in
+     the boot reaches the toast, because a message a person can read to me
+     is worth more than a silence that is tidier. */
+  function fail(what, e) {
+    var why = (e && (e.message || e.name)) || 'no reason given';
+    try { toast(what + ' — ' + why); } catch (ignored) {}
+  }
+
   function boot() {
-    if (!window.LentoAccountSheet || !window.LentoAccount) return;
+    var btn = $('#btn-account');
+
+    /* First, and outside the try: whatever else fails, the tap is answered.
+       Nothing below this line can leave the button dead. */
+    btn.addEventListener('click', function () {
+      if (!window.LentoAccountSheet) { fail('Sign-in did not load', null); return; }
+      try { LentoAccountSheet.open(); } catch (e) { fail('Sign-in could not open', e); }
+    });
+
+    if (!window.LentoAccountSheet || !window.LentoAccount) {
+      /* No account layer at all. The row stays hidden, as it does on a
+         deploy with no Supabase project — but that is a deploy-time
+         decision, and this is a script that did not arrive. */
+      return;
+    }
 
     LentoAccountSheet.install({
       open: openModal,
@@ -173,7 +205,6 @@
       signedInToast: 'Signed in — your tools will follow you',
     });
 
-    $('#btn-account').addEventListener('click', function () { LentoAccountSheet.open(); });
     LentoAccount.onChange(renderAccount);
     renderAccount();
 
@@ -197,9 +228,20 @@
     });
   }
 
+  function start() {
+    try { boot(); } catch (e) { fail('Sign-in could not start', e); }
+  }
+
+  /* The last net. A script that throws while it is parsing never reaches
+     boot at all, and on a phone that is completely silent. */
+  window.addEventListener('error', function (e) {
+    if (!e || !e.message) return;
+    fail('Something on this page broke', { message: e.message });
+  });
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', start);
   } else {
-    boot();
+    start();
   }
 }());
