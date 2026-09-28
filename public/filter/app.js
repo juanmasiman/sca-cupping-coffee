@@ -214,6 +214,7 @@ function migrate(s) {
       // See the note in the kit migration above: a brew with no brewer on
       // it was made in the only one there was.
       if (typeof b.brewer !== 'string') b.brewer = s.kit.brewer || '';
+      if (!Array.isArray(b.flavours)) b.flavours = [];
       if (typeof b.taste === 'undefined') b.taste = null;
       if (typeof b.body === 'undefined') b.body = null;
       if (typeof b.intent === 'undefined') b.intent = null;
@@ -1746,6 +1747,19 @@ function brewCard(brew, prev, c, n) {
     ${intentCheck(brew, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(brew, prev))}</div>` : ''}
     ${brew.taste !== null && typeof brew.taste === 'number' ? `<div class="log-taste">${tasteMarks(brew.taste)}<span>${escapeHTML(tasteWord(brew.taste))}</span></div>` : ''}
     ${brew.body !== null && typeof brew.body === 'number' ? `<div class="log-taste">${tasteMarks(brew.body)}<span>${escapeHTML(bodyWord(brew.body))}</span></div>` : ''}
+    ${/* What you tasted, on the card, with the bag's own words marked.
+
+          The two scales above say sour-or-bitter and thin-or-strong,
+          which are what to change. These are what it was, and they are
+          the only line on this card that answers "was it any good" —
+          which is the question somebody scrolling a board six weeks
+          later is actually asking. A word the bag promised is marked, so
+          the row shows at a glance whether the coffee did what it said
+          on the packet. */
+      (brew.flavours || []).length ? `<div class="log-flavours">${
+        brew.flavours.map(w => `<span class="log-flavour${
+          hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}</span>`).join('')
+      }</div>` : ''}
     ${brew.notes ? `<div class="log-notes">${escapeHTML(brew.notes)}</div>` : ''}
     ${brew.verdict === 'keeper' ? '<div class="log-keeper-flag">the recipe</div>' : ''}
   `;
@@ -1820,6 +1834,10 @@ function openBrew(brew) {
        the brew rather than read from the kit at display time, so the log
        stays true when the shelf changes. */
     brewer: (last && last.brewer) || kit().brewer || '',
+    /* What you tasted, in words. Not carried over from the last brew:
+       the whole question is whether THIS one came out the way the bag
+       said, and prefilling it would answer that with last week's cup. */
+    flavours: [],
     water: null,
     time: null,
     taste: null,
@@ -1951,20 +1969,177 @@ function buildBrewSheet(c) {
   renderReadout(c);
 }
 
-/* The claim on the bag, under the two scales that judge it.
+/* ============================================================
+   WHAT DID YOU TASTE
+   ============================================================
 
-   Every other bag field is a record — you write it down so that in six
-   months you can tell one Ethiopian washed lot from the next. This one
-   earns a second appearance, because "peach, jasmine, honey" is a claim
-   and the two scales above it are where you find out. Absent when the bag
-   said nothing, which is most supermarket coffee and some very good
-   roasters. */
+   The two scales above this are the extraction and the strength: sour or
+   bitter, thin or strong. They are diagnostic — they say what to change.
+   Neither of them can say whether the cup was any good, or whether the
+   peach the roaster printed on the bag is in there.
+
+   That question has an answer worth recording, and the vocabulary for it
+   already exists twice over. The bag supplies three or four words that
+   are the likeliest right answers by a distance, so they are offered as
+   taps rather than typed. Everything else comes off the SCA flavour wheel
+   — the same drawing the cupping sheet has always had, now in
+   /shared/wheel.js because it is one published standard and not two
+   similar ideas.
+
+   A flat list of words, not two lists. "Did you get what the bag said"
+   and "what did you get instead" are the same question asked twice, and
+   the answer to the first is just an intersection. Storing them apart
+   would mean deciding, at tap time, which kind of word "honey" is when
+   the bag says honey — and the answer is that it does not matter. */
+
+// Case-insensitive, because the bag prints "Peach" and the wheel says
+// "Peach" and somebody typing their own would write "peach".
+function hasFlavour(list, word) {
+  const w = String(word).toLowerCase();
+  return (list || []).some(x => String(x).toLowerCase() === w);
+}
+
+function dropFlavour(list, word) {
+  const w = String(word).toLowerCase();
+  return (list || []).filter(x => String(x).toLowerCase() !== w);
+}
+
+// The bag's own words, as a list. Comma-separated is how they are typed
+// and how the wheel writes, so it is how they are read.
+function bagWords(c) {
+  return LentoWheel.noteItems(c.bagNotes || '');
+}
+
 function buildBagNote(c) {
-  const el = $('#bag-claim');
-  if (!el) return;
-  const said = (c.bagNotes || '').trim();
-  el.classList.toggle('hidden', !said);
-  el.textContent = said ? `The bag says ${said}.` : '';
+  const note = $('#bag-claim');
+  const chips = $('#flavour-chips');
+  if (!note || !chips) return;
+
+  const said = bagWords(c);
+  const got = said.filter(w => hasFlavour(editing.flavours, w));
+  /* The line above the chips changes job once you have answered. Before:
+     what the bag claims. After: how the claim did. Neither is a sentence
+     worth two lines. */
+  if (!said.length) {
+    note.classList.add('hidden');
+    note.textContent = '';
+  } else {
+    note.classList.remove('hidden');
+    note.textContent = got.length
+      ? `${got.length} of ${said.length} from the bag.`
+      : `The bag says ${said.join(', ')} — tap the ones you got.`;
+  }
+
+  chips.innerHTML = '';
+  // The bag's words first and always, in the order the bag prints them,
+  // whether or not they have been taken. Then anything else, which by
+  // definition has been.
+  const extra = (editing.flavours || []).filter(w => !hasFlavour(said, w));
+  said.forEach(w => chips.appendChild(flavourChip(c, w, hasFlavour(editing.flavours, w), true)));
+  extra.forEach(w => chips.appendChild(flavourChip(c, w, true, false)));
+}
+
+/* A bag word is a toggle: it is a claim you are agreeing or not agreeing
+   with, and it stays on the sheet either way so the claim is still
+   visible. A word from the wheel is one you put there, so the only thing
+   to do to it is take it off — and it says so with a ×. */
+function flavourChip(c, word, on, fromBag) {
+  const b = el('button', 'chip' + (on ? ' on' : '') + (fromBag ? ' chip-bag' : ''));
+  b.type = 'button';
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.innerHTML = escapeHTML(word) + (fromBag ? '' : ' <b aria-hidden="true">×</b>');
+  b.setAttribute('aria-label', fromBag
+    ? `${word}, from the bag${on ? ' — tasted' : ''}`
+    : `${word} — remove`);
+  b.addEventListener('click', () => {
+    haptic();
+    editing.flavours = on
+      ? dropFlavour(editing.flavours, word)
+      : (editing.flavours || []).concat([word]);
+    buildBagNote(c);
+    renderReadout(c);
+  });
+  return b;
+}
+
+/* The wheel, as this app uses it.
+
+   The cupping sheet's inner ring ticks a CATA box and stops at five,
+   because the standard says five. There is no CATA form here and no cap:
+   a category is simply the coarse version of the same answer, and on
+   plenty of mornings "fruity" is the honest one. So both rings write to
+   the same list, and the only difference between them is how specific
+   the word is. */
+function openWheel(c) {
+  const holder = $('#wheel-holder');
+  const picked = $('#wheel-picked');
+  const status = $('#wheel-status');
+
+  LentoWheel.mount({
+    holder: holder,
+    toggle: $('#wheel-zoom-toggle'),
+    level: $('#wheel-zoom-level'),
+    haptic: haptic,
+    categoryHint: 'a whole family, if that is as far as it got',
+    wordHint: 'writes the word down',
+  });
+
+  const sync = message => {
+    LentoWheel.paint(holder,
+      name => hasFlavour(editing.flavours, name),
+      word => hasFlavour(editing.flavours, word));
+
+    picked.innerHTML = '';
+    (editing.flavours || []).forEach(word => {
+      const chip = el('button', 'wheel-pick note');
+      chip.type = 'button';
+      chip.innerHTML = `${escapeHTML(word)} <b aria-hidden="true">×</b>`;
+      chip.setAttribute('aria-label', `${word} — remove`);
+      chip.onclick = () => {
+        haptic();
+        editing.flavours = dropFlavour(editing.flavours, word);
+        sync(`“${word}” removed`);
+      };
+      picked.appendChild(chip);
+    });
+
+    const said = bagWords(c);
+    const got = said.filter(w => hasFlavour(editing.flavours, w));
+    const n = (editing.flavours || []).length;
+    status.textContent = message
+      || (n
+        ? `${n} word${n > 1 ? 's' : ''} down${said.length ? ` · ${got.length} of ${said.length} from the bag` : ''}`
+        : 'Tap a wedge to write it down');
+    // the sheet behind this one carries the same list
+    buildBagNote(c);
+    renderReadout(c);
+  };
+
+  holder.onclick = e => {
+    const seg = e.target.closest && e.target.closest('.wheel-seg');
+    if (!seg) return;
+    /* One word out of sixty-eight, ten pixels wide: bring it closer
+       rather than write down whichever of its neighbours the thumb
+       actually met. */
+    if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
+        && holder.zoomToRead && holder.zoomToRead(seg)) {
+      haptic();
+      sync(`Zoomed in — tap “${seg.dataset.desc}” again to write it down`);
+      return;
+    }
+    haptic();
+    const word = seg.dataset.desc || seg.dataset.cat;
+    if (hasFlavour(editing.flavours, word)) {
+      editing.flavours = dropFlavour(editing.flavours, word);
+      sync(`“${word}” removed`);
+    } else {
+      editing.flavours = (editing.flavours || []).concat([word]);
+      sync(`“${word}” written down`);
+    }
+  };
+
+  sync();
+  openModal('#wheel-modal');
 }
 
 /* WHICH BREWER, WHEN THERE IS MORE THAN ONE.
@@ -3136,6 +3311,16 @@ function wire() {
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
+  /* The wheel opens over the brew sheet rather than replacing it: you are
+     in the middle of recording one brew and the wheel is a vocabulary you
+     reached for, not a screen you went to. Closing it drops you back where
+     you were with the words already on the sheet behind. */
+  $('#btn-wheel').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c) openWheel(c);
+  });
+  $('#wheel-close').addEventListener('click', () => closeModal('#wheel-modal'));
+  $('#wheel-done').addEventListener('click', () => closeModal('#wheel-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {

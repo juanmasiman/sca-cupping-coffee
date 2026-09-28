@@ -156,13 +156,9 @@ const DESC_ATTRS = [
    2.61:1 on the pink, 1.68:1 on the yellow, against the 4.5:1 that 7px text
    needs. Choosing the ink per hue instead of the hue per ink fixes it
    without moving a single colour: worst case 5.15:1. */
-function inkOn(hex) {
-  const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-  const n = parseInt(hex.slice(1), 16);
-  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
-  // contrast against black is (L+0.05)/0.05; against white it is 1.05/(L+0.05)
-  return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? 'dark' : 'light';
-}
+// Which ink a label needs on a given ground. Lives with the wheel, whose
+// nine hues are the reason it exists.
+const inkOn = LentoWheel.inkOn;
 
 const CATA_OLFACTORY = [
   { name: 'Floral' },
@@ -3304,17 +3300,13 @@ function buildDetailsCard(coffee) {
    the word into the coffee's tasting notes.
    ============================================================ */
 
-const WHEEL = [
-  { name: 'Floral', color: '#e87fa8', children: ['Black Tea', 'Chamomile', 'Rose', 'Jasmine'] },
-  { name: 'Fruity', color: '#e0464b', children: ['Berry', 'Dried Fruit', 'Citrus Fruit', 'Blueberry', 'Strawberry', 'Raisin', 'Prune', 'Peach', 'Apple', 'Grape', 'Lemon', 'Orange'] },
-  { name: 'Sour/Fermented', color: '#e5c650', children: ['Sour', 'Fermented', 'Citric Acid', 'Malic Acid', 'Winey', 'Whiskey', 'Overripe'] },
-  { name: 'Green/Vegetative', color: '#5fa855', children: ['Olive Oil', 'Raw', 'Under-ripe', 'Peapod', 'Fresh', 'Hay-like', 'Herb-like'] },
-  { name: 'Other', color: '#9aa3ab', children: ['Chemical', 'Musty/Earthy', 'Woody', 'Papery', 'Petroleum', 'Medicinal', 'Salty', 'Stale'] },
-  { name: 'Roasted', color: '#8a4a2b', children: ['Cereal', 'Burnt', 'Tobacco', 'Pipe Tobacco', 'Acrid', 'Ashy', 'Smoky', 'Grain', 'Malt'] },
-  { name: 'Spices', color: '#b8452f', children: ['Pungent', 'Pepper', 'Brown Spice', 'Anise', 'Nutmeg', 'Cinnamon', 'Clove'] },
-  { name: 'Nutty/Cocoa', color: '#c08a4e', children: ['Nutty', 'Cocoa', 'Peanuts', 'Hazelnut', 'Almond', 'Chocolate', 'Dark Chocolate'] },
-  { name: 'Sweet', color: '#e8963f', children: ['Vanilla/Vanillin', 'Brown Sugar', 'Honey', 'Caramelized', 'Maple Syrup', 'Molasses', 'Overall Sweet'] },
-];
+/* The taxonomy, the drawing, the zoom and the keyboard grid are in
+   /shared/wheel.js — the brew log asks the same question of the same
+   published standard, and the answer to "is this the same wheel?" is
+   yes. What a tap MEANS is still here, because it is not the same: an
+   inner wedge ticks a CATA box with a cap of five that the standard
+   sets, which the brew log has no equivalent of. */
+const WHEEL = LentoWheel.CATEGORIES;
 
 // wheel category → the CATA descriptor it corresponds to on the form
 const WHEEL_TO_CATA = { Spices: 'Spice' };
@@ -3323,84 +3315,12 @@ function wheelCataName(category) {
   return WHEEL_TO_CATA[category] || category;
 }
 
-function buildWheelSVG() {
-  const SIZE = 340, C = SIZE / 2;
-  const R_IN = 52, R_MID = 108, R_OUT = 164;
-  const total = WHEEL.reduce((n, c) => n + c.children.length, 0);
-
-  const arc = (r0, r1, a0, a1) => {
-    const p = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
-    const [x0, y0] = p(r0, a0), [x1, y1] = p(r1, a0);
-    const [x2, y2] = p(r1, a1), [x3, y3] = p(r0, a1);
-    const large = a1 - a0 > Math.PI ? 1 : 0;
-    return `M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r1},${r1} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${r0},${r0} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
-  };
-
-  let svg = `<svg viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coffee flavor wheel">`;
-  let angle = -Math.PI / 2;
-  let outerAngle = -Math.PI / 2;
-
-  WHEEL.forEach(cat => {
-    const span = (cat.children.length / total) * Math.PI * 2;
-    const a0 = angle, a1 = angle + span;
-    const mid = (a0 + a1) / 2;
-
-    svg += `<path class="wheel-seg wheel-cat ink-${inkOn(cat.color)}" d="${arc(R_IN, R_MID, a0, a1)}" fill="${cat.color}" tabindex="-1" role="button"`
-      + ` aria-label="${escapeHTML(cat.name)} — category, checks it on the Describe form" data-cat="${escapeHTML(cat.name)}"/>`;
-
-    // category label, rotated to sit along its wedge
-    const lx = C + ((R_IN + R_MID) / 2) * Math.cos(mid);
-    const ly = C + ((R_IN + R_MID) / 2) * Math.sin(mid);
-    let deg = (mid * 180) / Math.PI;
-    if (deg > 90 || deg < -90) deg += 180;
-    // The category ring is 56 units deep and the label reads along the
-    // radius, so "Green / Vegetative" — 63.8 units on one line — ran out
-    // of its own wedge and into the descriptors. The compound names break
-    // at their slash instead, which is where they already read as two
-    // things: no line exceeds about 40 units.
-    const parts = cat.name.split('/');
-    const label = parts.length > 1
-      ? parts.map((t, i) =>
-          `<tspan x="${lx.toFixed(1)}" dy="${i === 0 ? '-0.55em' : '1.1em'}">${escapeHTML(t.trim())}</tspan>`).join('')
-      : escapeHTML(cat.name);
-    svg += `<text class="wheel-cat-label ink-${inkOn(cat.color)}" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">${label}</text>`;
-
-    cat.children.forEach(child => {
-      const cSpan = (1 / total) * Math.PI * 2;
-      const c0 = outerAngle, c1 = outerAngle + cSpan;
-      const cMid = (c0 + c1) / 2;
-      svg += `<path class="wheel-seg wheel-child ink-${inkOn(cat.color)}" d="${arc(R_MID, R_OUT, c0, c1)}" fill="${cat.color}" fill-opacity="0.45" tabindex="-1" role="button"`
-        + ` aria-label="${escapeHTML(child)} — ${escapeHTML(cat.name)}, adds the word to your tasting notes" data-desc="${escapeHTML(child)}" data-cat="${escapeHTML(cat.name)}"/>`;
-      const tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
-      const ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
-      let cDeg = (cMid * 180) / Math.PI;
-      if (cDeg > 90 || cDeg < -90) cDeg += 180;
-      // A picked descriptor's wedge goes to 95% opacity, so its ground stops
-      // being the card and becomes the hue — which took the label with it,
-      // to 2.94:1 in light and 1.55:1 in dark. The label carries the ink its
-      // own hue needs, and switches to it exactly when the wedge fills.
-      svg += `<text class="wheel-child-label ink-${inkOn(cat.color)}" data-desc="${escapeHTML(child)}" x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${cDeg.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})">${escapeHTML(child)}</text>`;
-      outerAngle = c1;
-    });
-
-    angle = a1;
-  });
-
-  svg += `<circle cx="${C}" cy="${C}" r="${R_IN - 2}" class="wheel-hub"/>`;
-  svg += `<text x="${C}" y="${C - 5}" text-anchor="middle" class="wheel-hub-label">flavor</text>`;
-  svg += `<text x="${C}" y="${C + 11}" text-anchor="middle" class="wheel-hub-label">wheel</text>`;
-  svg += '</svg>';
-  return svg;
-}
-
 // every outer-ring word, for spotting the ones already sitting in the notes
-const WHEEL_WORDS = WHEEL.flatMap(c => c.children);
+const WHEEL_WORDS = LentoWheel.WORDS;
 
 // notes the wheel writes are comma-separated items, so they can be matched
 // and removed exactly rather than by searching the taster's prose
-function noteItems(notes) {
-  return notes.split(',').map(s => s.trim()).filter(Boolean);
-}
+const noteItems = LentoWheel.noteItems;
 
 /* The wheel used to be an unlabelled disc of spokes in the corner, and
    people simply did not know it was there. It is labelled now, it pulses
@@ -3454,175 +3374,6 @@ function maybeShowWheelCoach() {
   coachTimer = setTimeout(tryShow, 1400);
 }
 
-/* Zoom for the wheel. Whole-wheel is where it opens and where it belongs
-   — a first-timer is looking for which words exist at all, and that is a
-   question only the whole vocabulary answers. Past that, reading a word
-   and landing a thumb on it need scale, so the reader picks it.
-
-   The steps are labelled by what they are for rather than by a number,
-   because "1.8×" tells a cupper nothing and "readable" tells them
-   exactly what they are asking for. Zooming keeps the middle of what you
-   were looking at in the middle. */
-// Two states, not three. "Close" was a third rung that answered no question
-// the other two left open: whole-wheel is for finding out which words exist,
-// readable is for picking one, and past that you are just looking at the same
-// word larger. A ladder is also the wrong control for two states, because one
-// end of a stepper is always disabled — so this is a toggle now.
-//
-// 2.05 is not a round number chosen for tidiness. Descriptors render at
-// 5.53px with the wheel fit to a phone and the floor is 11px, so "readable"
-// has to clear 2.002x or the label on the button is a lie.
-const WHEEL_ZOOMS = [
-  { z: 1, label: 'Whole wheel' },
-  { z: 2.05, label: 'Readable' },
-];
-
-/* The wheel as a keyboard widget.
-
-   Sixty-eight descriptors and nine categories, and every one of them was
-   reachable only by pointer: no role, no tabindex, one delegated click
-   handler over <path> elements. DESIGN.md defends the wheel's type-size
-   exemption on the grounds that it is the only view answering the question a
-   first-timer actually has — which words exist at all — and that view was
-   unavailable to an entire class of first-timer.
-
-   It is one tab stop, not seventy-seven. Putting every wedge in the tab
-   order would make a keyboard user pass all of them to reach "Done", so the
-   wheel behaves the way a grid or a menu does: Tab reaches it, arrows move
-   inside it, and Enter or Space takes the wedge under the cursor. Left and
-   right run along the ring you are on; up and down step between the category
-   ring and its own descriptors, which is the relationship the drawing is
-   about. */
-function wireWheelKeyboard(holder) {
-  const svg = holder.querySelector('svg');
-  if (!svg) return;
-  const cats = [...holder.querySelectorAll('.wheel-cat')];
-  const kids = [...holder.querySelectorAll('.wheel-child')];
-  if (!cats.length) return;
-
-  svg.setAttribute('role', 'group');
-  svg.setAttribute('aria-label', 'Flavor wheel — arrow keys move between wedges, Enter takes one');
-
-  let current = cats[0];
-  const setCurrent = seg => {
-    if (!seg) return;
-    [...cats, ...kids].forEach(x => x.setAttribute('tabindex', '-1'));
-    current = seg;
-    seg.setAttribute('tabindex', '0');
-  };
-  setCurrent(cats[0]);
-
-  const childrenOf = cat => kids.filter(k => k.dataset.cat === cat.dataset.cat);
-  const ringOf = seg => (seg.classList.contains('wheel-cat') ? cats : kids);
-
-  const step = (seg, delta) => {
-    const ring = ringOf(seg);
-    const i = ring.indexOf(seg);
-    return ring[(i + delta + ring.length) % ring.length];
-  };
-
-  const move = seg => {
-    if (!seg) return;
-    setCurrent(seg);
-    seg.focus({ preventScroll: true });
-    // the wheel is a scrolled, zoomed viewport — a wedge the keyboard
-    // reaches has to be brought into it
-    if (seg.scrollIntoView) seg.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  };
-
-  holder.onkeydown = e => {
-    const seg = e.target.closest && e.target.closest('.wheel-seg');
-    if (!seg) return;
-    const isCat = seg.classList.contains('wheel-cat');
-    let next = null;
-
-    if (e.key === 'ArrowRight') next = step(seg, 1);
-    else if (e.key === 'ArrowLeft') next = step(seg, -1);
-    else if (e.key === 'ArrowDown') next = isCat ? childrenOf(seg)[0] : null;
-    else if (e.key === 'ArrowUp') {
-      next = isCat ? null : cats.find(c => c.dataset.cat === seg.dataset.cat);
-    } else if (e.key === 'Home') next = ringOf(seg)[0];
-    else if (e.key === 'End') next = ringOf(seg)[ringOf(seg).length - 1];
-    else if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-      e.preventDefault();
-      seg.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      return;
-    } else {
-      return;
-    }
-
-    if (!next) return;
-    e.preventDefault();
-    move(next);
-  };
-
-  // clicking a wedge makes it the one the keyboard resumes from
-  holder.addEventListener('click', e => {
-    const seg = e.target.closest && e.target.closest('.wheel-seg');
-    if (seg) setCurrent(seg);
-  }, true);
-}
-
-function wireWheelZoom(holder) {
-  const toggle = $('#wheel-zoom-toggle');
-  const level = $('#wheel-zoom-level');
-  if (!toggle || !level) return;
-  let step = 0;
-
-  const apply = (move, fromWhole) => {
-    // where was the middle of the view, as a fraction of the whole wheel?
-    const fx = holder.scrollWidth ? (holder.scrollLeft + holder.clientWidth / 2) / holder.scrollWidth : 0.5;
-    const fy = holder.scrollHeight ? (holder.scrollTop + holder.clientHeight / 2) / holder.scrollHeight : 0.5;
-    holder.style.setProperty('--wheel-zoom', WHEEL_ZOOMS[step].z);
-    level.textContent = WHEEL_ZOOMS[step].label;
-    // The button names where it goes, not where you are — the label beside
-    // it already says that, and a control that reads "Readable" while you
-    // are reading is a state badge, not an action.
-    toggle.textContent = step === 0 ? 'Zoom in to read' : 'Show the whole wheel';
-    toggle.setAttribute('aria-pressed', step === 0 ? 'false' : 'true');
-    // the click handler needs to know which view it is in: a ring that is
-    // readable and a ring that is ten pixels wide are not the same control
-    holder.dataset.zoom = step === 0 ? 'whole' : 'read';
-    if (!move) return;
-    requestAnimationFrame(() => {
-      // Zooming about the centre is right once you are exploring, but the
-      // first zoom out of whole-wheel would land on the hub — the one part
-      // of this drawing with nothing to read. So that step goes to the top
-      // of the wheel, where the words are.
-      holder.scrollLeft = fx * holder.scrollWidth - holder.clientWidth / 2;
-      holder.scrollTop = fromWhole ? 0 : fy * holder.scrollHeight - holder.clientHeight / 2;
-    });
-  };
-
-  toggle.addEventListener('click', () => {
-    const fromWhole = step === 0;
-    step = step === 0 ? 1 : 0;
-    haptic();
-    apply(true, fromWhole);
-  });
-
-  /* Zoom in and put one wedge in the middle of the view.
-
-     Reaching for a word in the whole-wheel view is not a tap anyone can
-     make: sixty-eight descriptors share one ring, so each is about ten
-     screen pixels across where it starts and fifteen where it ends. What
-     came of a miss was not nothing — it was the neighbouring word, written
-     silently into the tasting notes. So in that view the outer ring stops
-     being a control and becomes what it looks like: a map. Touch it and it
-     brings you closer instead. */
-  holder.zoomToRead = seg => {
-    if (step !== 0) return false;
-    step = 1;
-    apply(false, false);
-    requestAnimationFrame(() => {
-      if (seg && seg.scrollIntoView) seg.scrollIntoView({ block: 'center', inline: 'center' });
-    });
-    return true;
-  };
-
-  apply(false, false);
-}
-
 /* The wheel fills one of the two olfactory CATA lists — the orthonasal one
    under Fragrance & aroma, or the retronasal one under Flavor & aftertaste.
    It used to fill `flavor` whichever one you opened it from, so a cupper
@@ -3641,11 +3392,17 @@ function openFlavorWheel(listKey) {
   const holder = $('#wheel-holder');
   const status = $('#wheel-status');
   const pickedWrap = $('#wheel-picked');
-  if (!holder.dataset.built) {
-    holder.innerHTML = buildWheelSVG();
-    holder.dataset.built = '1';
-    wireWheelZoom(holder);
-  }
+  /* Drawn and wired once. The zoom controls are passed in rather than
+     found: a shared component that knows this page's ids is this page's
+     component with a longer path. */
+  LentoWheel.mount({
+    holder: holder,
+    toggle: $('#wheel-zoom-toggle'),
+    level: $('#wheel-zoom-level'),
+    haptic: haptic,
+    categoryHint: 'category, checks it on the Describe form',
+    wordHint: 'adds the word to your tasting notes',
+  });
 
   const coffee = state && state.coffees[state.activeIndex];
 
@@ -3673,19 +3430,12 @@ function openFlavorWheel(listKey) {
     const words = notesFromWheel();
     const wordSet = new Set(words.map(w => w.toLowerCase()));
 
-    holder.querySelectorAll('.wheel-cat').forEach(seg => {
-      const on = cata.has(wheelCataName(seg.dataset.cat));
-      seg.classList.toggle('picked', on);
-      seg.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    holder.querySelectorAll('.wheel-child').forEach(seg => {
-      const on = wordSet.has(seg.dataset.desc.toLowerCase());
-      seg.classList.toggle('picked', on);
-      seg.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    holder.querySelectorAll('.wheel-child-label').forEach(t => {
-      t.classList.toggle('picked', wordSet.has(t.dataset.desc.toLowerCase()));
-    });
+    /* The module draws the state; this says what counts as taken, which
+       is the one thing about this wheel that is not the same in the two
+       apps that use it. */
+    LentoWheel.paint(holder,
+      name => cata.has(wheelCataName(name)),
+      word => wordSet.has(word.toLowerCase()));
 
     // a running list of what has been taken from the wheel, each one tappable
     // to take it back — the wheel was hard to read as a record on its own
@@ -3768,8 +3518,6 @@ function openFlavorWheel(listKey) {
     sync(message);
     refreshOpenPanel();
   };
-
-  wireWheelKeyboard(holder);
 
   openSheet(modal, () => close());
   const close = () => {

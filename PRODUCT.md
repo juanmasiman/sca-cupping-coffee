@@ -53,6 +53,8 @@ The leader is a cupper too and submits like everyone else, so the panel average 
 
 ## Capabilities and Constraints
 
+**One vocabulary for flavour, across the tools.** The SCA/WCR/UC Davis flavour wheel was the cupping sheet's; it is now `/shared/wheel.js`, and the brew log asks with it whether the roaster's tasting notes turned up in the cup and what arrived instead. The two apps still decide for themselves what taking a word means — a CATA box with the standard's cap of five on one side, a plain note on the other — but the wheel, its nine hues and its sixty-eight descriptors are one thing in one place.
+
 **Confirmed functionality:** CVA and Legacy scoresheets; Descriptive Assessment; interactive flavor wheel built from the SCA/WCR/UC Davis Coffee Taster's Flavor Wheel (inner category ticks the CATA box, outer descriptor drops the word into tasting notes); guided mode (on by default); live total with SCA quality grade; results podium, ranking and radar; session history; CSV export; print/save-as-PDF scoresheet; `localStorage` autosave and resume; home-screen install; Supabase auth and sync; Cloudflare Worker relay for 4-digit live codes.
 
 **Binding — iPhone-first and safe-area aware.** Designed for a phone held over a cupping table. Touch targets, thumb reach and iOS standalone behavior come first; desktop is secondary.

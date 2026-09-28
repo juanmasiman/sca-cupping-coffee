@@ -320,3 +320,61 @@
   font-weight: 600;
   color: var(--text-dim);
 }
+
+/* ---------- what you tasted ---------- */
+
+/* The bag's claim before you answer, and how the claim did after. */
+.bag-claim {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* A word the bag printed, which you are agreeing with or not. It stays on
+   the sheet either way — the claim is still the claim — so unlike the
+   words you added it has no ×, and "off" is a real state rather than an
+   absence. Dashed while it is unanswered, because a solid outline beside
+   a solid outline reads as two chosen things. */
+.chip-bag:not(.on) { border-style: dashed; color: var(--text-dim); }
+
+/* The way into the wheel. Full width under the chips: it is the answer to
+   "none of these", which is most mornings on a bag with no notes, and a
+   small button at the end of a chip row is where that answer goes to be
+   missed. */
+.wheel-open {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.wheel-open svg { flex: none; color: var(--chrome); }
+
+/* What it tasted of, on the card. A row of words rather than a sentence,
+   because that is the shape they were entered in and the shape an eye
+   runs down a board looking for. */
+.log-flavours {
+  margin-top: var(--space-3);
+  padding-left: calc(18px + var(--space-3));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.log-flavour {
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--chrome-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+/* A word the bag promised and the cup delivered. The data ink, because it
+   is the one thing on this row that is a match between two claims rather
+   than a note — and the ring rather than a fill, so a card with three of
+   them does not become a colour field. */
+.log-flavour.from-bag {
+  background: var(--data-soft);
+  color: var(--data);
+  box-shadow: inset 0 0 0 1px var(--data-soft);
+}
