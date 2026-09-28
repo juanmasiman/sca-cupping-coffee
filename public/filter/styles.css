@@ -226,3 +226,97 @@
 .log-card .log-notes,
 .log-card .log-taste { padding-left: calc(18px + var(--space-3)); }
 .log-card .log-taste { margin-top: var(--space-3); display: flex; }
+
+/* ---------- the shelf ----------
+
+   The brewers somebody owns, and the one question the shipped list cannot
+   answer for them. Filter's own, because only filter has a shelf: the
+   dial-in has one machine and a basket in it. */
+
+/* THE STACKED SEGMENT, FOR AN ANSWER THAT NEEDS AN EXAMPLE.
+
+   The side-by-side segment is right for "Off the boil / I set it", where
+   three words are the whole answer. It is wrong for this one: the three
+   answers are sentences, and the brewers that go with each are what makes
+   somebody recognise which is theirs. Three across at 390px gave each
+   about a hundred pixels, which is where "Passes through" came from — a
+   phrase invented to fit a control rather than to be understood. */
+.seg-stack { flex-direction: column; }
+.seg-stack .seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-right: none;
+  border-bottom: 1px solid var(--line);
+}
+.seg-stack .seg-btn:last-child { border-bottom: none; }
+.seg-main { font-size: 14px; font-weight: 700; }
+.seg-eg { font-size: 12px; font-weight: 400; color: var(--text-faint); }
+.seg-btn.on .seg-eg { color: var(--on-chrome); opacity: 0.75; }
+
+/* A row per brewer: what you call it, what it does, and the way off the
+   shelf. The name is the button because tapping the thing you want to
+   change is how everything else in this app works. */
+.shelf-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.shelf-row + .kit-row { margin-top: var(--space-3); }
+.shelf-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+.shelf-title {
+  font-size: 15px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shelf-flow { font-size: 12px; color: var(--text-dim); }
+.shelf-kill { flex: none; align-self: center; margin-right: var(--space-2); color: var(--text-faint); }
+#k-brewers { display: flex; flex-direction: column; gap: var(--space-3); }
+/* Nothing on the shelf is a state, not a gap — it says so rather than
+   leaving a blank above a select. */
+.empty-note { margin: 0; color: var(--text-faint); }
+
+/* Which brewer this morning. Only ever drawn on a shelf with two or more,
+   so it is never a control with one answer. */
+.brewer-pick { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-4); }
+
+/* The roaster's claim, under the scales that test it. Quiet: it is not a
+   measurement and it is not yours — it is what somebody else said this
+   coffee would taste like. */
+.bag-claim {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Which brewer made this one. Indented to the column the rest of the
+   card's detail sits in, and quiet — it is a label on the row, not a
+   measurement in it. */
+.log-brewer {
+  margin-top: var(--space-2);
+  padding-left: calc(18px + var(--space-3));
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}

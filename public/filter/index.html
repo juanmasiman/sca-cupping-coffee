@@ -95,6 +95,13 @@
     </div>
 
     <div class="sheet-scroll">
+      <!-- Which brewer, on a shelf with more than one. Above the numbers
+           because it changes what they mean: a brewer that steeps has no
+           pour schedule and no drawdown, and the advice underneath will
+           not talk about the clock. Hidden entirely on a one-brewer
+           shelf — see buildBrewerPick. -->
+      <div class="brewer-pick hidden" id="brewer-pick"></div>
+
       <!-- The numbers. Everything computed on this screen comes from these
            and from the schedule below, and nothing else. -->
       <div class="num-row" id="num-row"></div>
@@ -130,6 +137,11 @@
         <div id="taste-scale"></div>
         <span class="field-label" id="body-label">Thin or strong?</span>
         <div id="body-scale"></div>
+        <!-- What the roaster claimed, beside what you found. The one place
+             the bag's own tasting notes are worth reading again, and the
+             reason it is worth typing them in. Empty unless the bag said
+             something — see buildBagNote. -->
+        <p class="bag-claim hidden" id="bag-claim"></p>
       </div>
 
       <div class="verdict-block">
