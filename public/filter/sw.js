@@ -11,7 +11,7 @@
    its auth file did not arrive is not an offline app.
    ============================================================ */
 
-const VERSION = 'v15';
+const VERSION = 'v16';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
