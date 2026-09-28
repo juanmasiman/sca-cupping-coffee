@@ -2931,16 +2931,16 @@ function shotCard(shot, prev, c, n) {
   card.setAttribute('aria-label', (() => {
     const bits = [`Shot ${n}`];
     if (num(shot.time) !== null) bits.push(`${Math.round(num(shot.time))} seconds`);
-    const r = ratioOf(shot);
-    if (r !== null) bits.push(`ratio 1 to ${r.toFixed(2)}`);
+    /* The ratio used to be announced here because the card printed it.
+       The card does not any more, and a label that describes a different
+       card than the one on screen is the failure the label exists to
+       prevent — two people looking at the same row and told two things. */
     if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
       bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
     }
     if (shot.verdict === 'keeper') bits.push('the keeper');
     return `${bits.join(', ')}. Edit.`;
   })());
-  const r = ratioOf(shot);
-  const flow = flowOf(shot);
   const ey = extractionOf(shot);
   const place = placeOf(shot, c.target);
   const missing = missingFields(shot);
@@ -2955,8 +2955,27 @@ function shotCard(shot, prev, c, n) {
      hand and a cooling shot; the subtraction is the finding. */
   const diffs = [];
   if (prev) {
-    const g = (a, b) => (num(a) !== null && num(b) !== null ? a - b : null);
-    const dGrind = g(Number(shot.grind), Number(prev.grind));
+    /* EMPTY IS NOT ZERO, HERE TOO.
+
+       Grind and temperature are free text on the sheet, so a field nobody
+       filled in arrives as `''` — and `Number('')` is 0, which is finite,
+       which made a shot with no grind recorded read as a grind of zero.
+       A blank shot logged after one at 2.1 on a 94° machine announced
+       "2.1 finer · −94°": two changes nobody made, in the one line on this
+       card whose whole job is to say what changed.
+
+       `intentCheck` has carried this reader since a tester was accused of
+       moving a grinder they had not touched. The same trap was two
+       functions away in the line that prints the movement itself. */
+    const read = (o, f) => {
+      const raw = o[f];
+      if (raw === '' || raw === null || typeof raw === 'undefined') return null;
+      const v = Number(raw);
+      return isFinite(v) ? v : null;
+    };
+    const g = (a, b) => (a !== null && b !== null ? a - b : null);
+    const d = f => g(read(shot, f), read(prev, f));
+    const dGrind = d('grind');
     /* Which way the grinder went, in words, because the sign alone is a
        puzzle: on a dial where lower is finer, "grind −2.0" means finer,
        printed under a card that also says "aim: Finer" — so the minus is
@@ -2976,13 +2995,13 @@ function shotCard(shot, prev, c, n) {
         ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? 'finer' : 'coarser'}`
         : `grind ${fmtDelta(dGrind, '', 1)}`);
     }
-    const dDose = g(shot.dose, prev.dose);
+    const dDose = d('dose');
     if (dDose) diffs.push(`${fmtDelta(dDose, 'g in')}`);
-    const dYield = g(shot.yield, prev.yield);
+    const dYield = d('yield');
     if (dYield) diffs.push(`${fmtDelta(dYield, 'g out')}`);
-    const dTime = g(shot.time, prev.time);
+    const dTime = d('time');
     if (dTime) diffs.push(`${fmtDelta(dTime, 's', 0)}`);
-    const dTemp = g(Number(shot.temp), Number(prev.temp));
+    const dTemp = d('temp');
     if (dTemp) diffs.push(`${fmtDelta(dTemp, '°', 0)}`);
   }
 
@@ -2999,16 +3018,17 @@ function shotCard(shot, prev, c, n) {
      thing on screen and the one number nobody set. What a barista says out
      loud is "sixteen and a half in, forty-one out, twenty-two seconds",
      and that is now the headline: dose, yield and clock, in the mono
-     figures, on one line. The ratio does not disappear — it is a real
-     description of that shot and it sits directly underneath with the
-     grind and the flow, where it reads as a consequence of the three
-     numbers above rather than as a replacement for them.
+     figures, on one line. Underneath sits the one input that moves between
+     shots — the grind — and the verdict on the clock beside it. What the
+     ratio and the flow cost to keep there is argued where they were
+     dropped, further down.
 
      The second thing the card was missing is structure. Fifteen stacked
-     rows of near-identical weight is a pile, not a record. There are four
-     bands now, in the order somebody reads them: what this shot was, what
-     it came out as, what moved since the last one, and what it tasted
-     like. A hairline separates the measurement from the reading of it.
+     rows of near-identical weight is a pile, not a record; six bands that
+     each come and go on their own terms is not much better, because no two
+     cards in the column then have the same shape and the eye re-finds the
+     structure on every one. Three bands, always the same three, with a
+     hairline between the measurement and the reading of it.
 
      And the figures are laid on a grid so they align down the column. Four
      cards of `16.5 → 41.0` stacked with their arrows and their seconds at
@@ -3016,16 +3036,28 @@ function shotCard(shot, prev, c, n) {
      prose is not, however good each one is on its own. */
   const dose = num(shot.dose), yld = num(shot.yield);
   const secs = num(shot.time);
-  /* Grind first, and in the full ink. It is the figure that changed
-     between these cards and the one somebody comes back to the board to
-     read; the ratio and the flow are descriptions of the three numbers
-     above and can stay quiet. */
+  /* THE GRIND, AND WHAT THE RATIO AND THE FLOW COST TO KEEP BESIDE IT.
+
+     This line used to read `grind 2.1 · 1:1.98 · 1.29 g/s`, and the last
+     two were kept on the argument that they are real descriptions of the
+     shot. Real was the wrong test. A dial-in holds the target ratio still
+     and moves the grinder, so down a five-shot board the ratio column read
+     1:1.98, 1:1.97, 1:1.98, 1:2.02 — four figures a reader cannot tell
+     apart, in the loudest typeface on the card, on every row. And the flow
+     is the yield over the clock, both of which are already on this card at
+     26px: a division the reader can do is not a finding.
+
+     Both are still on the shot sheet, which is where one shot gets read.
+     The card is where five get recognised, and what separates one from the
+     next is the grind.
+
+     Extraction yield stays when it is there. It is the one figure here
+     that cannot be derived from the others — it takes a refractometer, and
+     somebody who owns one turned the setting on deliberately. */
   const support = [];
   if (num(Number(shot.grind)) !== null && shot.grind !== '') {
     support.push(`<span class="is-set">grind ${escapeHTML(String(shot.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}</span>`);
   }
-  if (r !== null) support.push(escapeHTML(fmtRatio(r)));
-  if (flow !== null) support.push(`${fmt2(flow)} g/s`);
   if (ey !== null) support.push(`${fmt1(ey)}% EY`);
   const flags = [];
   if (shot.harsh) flags.push('Sour and bitter at once');
@@ -3035,10 +3067,47 @@ function shotCard(shot, prev, c, n) {
   if (twoVariables(shot, prev)) notes.push(twoVariables(shot, prev));
   if (intentCheck(shot, prev)) notes.push(intentCheck(shot, prev));
 
+  /* HOW IT TASTED, IN THE WORDS AND NOT THE PIPS.
+
+     Each of these was a seven-dot run with the taken one filled, under the
+     word it encodes — two of them per card, so a five-shot board carried
+     seventy dots. The pips are how you SET the value: on the scale in the
+     sheet, position is the control and the word is the caption. On a
+     record nothing is being set, the word is complete on its own, and what
+     is left is the noisiest texture on the board describing something it
+     has already said in English. */
+  const flavour = [];
+  if (shot.taste !== null) flavour.push(tasteWord(shot.taste));
+  if (shot.body !== null && typeof shot.body === 'number') flavour.push(bodyWord(shot.body));
+
+  /* Everything under the hairline: what moved, how it tasted, how it ran,
+     anything that disagrees, and whatever was typed. Collected rather than
+     written inline so the rule appears exactly when there is something
+     under it — a card whose reading band was empty used to print the rule
+     anyway, and one whose only reading was "6s fast" printed that alone,
+     right-aligned, against nothing. */
+  const read = [];
+  if (diffs.length) read.push(`<div class="log-change">${escapeHTML(diffs.join(' · '))}</div>`);
+  if (flavour.length) read.push(`<div class="log-flavour">${escapeHTML(flavour.join(' · '))}</div>`);
+  if (flags.length) read.push(`<div class="log-run">${escapeHTML(flags.join(' · '))}</div>`);
+  notes.forEach(x => read.push(`<div class="log-mismatch">${escapeHTML(x)}</div>`));
+  if (shot.notes) read.push(`<div class="log-notes">${escapeHTML(shot.notes)}</div>`);
+
+  /* THREE BANDS, AND THE SAME THREE ON EVERY CARD.
+
+     What this shot was, what the grinder was set to and where the clock
+     landed, and — under a hairline — the reading of it. There were six
+     before, appearing and disappearing independently, so no two cards in
+     a column had the same shape and the eye had to re-find the structure
+     on each one.
+
+     The aim is gone from the top line. `aim finer` sat two rows above
+     `0.3 finer`, which is the same fact twice: one the intention, one the
+     measurement, and the measurement is the true one. Where the two
+     disagree the note under the rule still says so, and quotes the aim. */
   card.innerHTML = `
     <div class="log-meta">
-      <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}${
-        shot.intent ? `<span class="log-dot">·</span>aim ${escapeHTML(((intentEntry(shot.intent) || {}).label || '').toLowerCase())}` : ''}</span>
+      <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}</span>
       ${shot.verdict === 'keeper' ? '<span class="log-flag">the keeper</span>' : ''}
     </div>
 
@@ -3047,21 +3116,14 @@ function shotCard(shot, prev, c, n) {
         yld === null ? '—' : fmt1(yld)}<small>g</small></span>
       <span class="log-secs ${timeClass}">${secs === null ? '—' : Math.round(secs)}<small>s</small></span>
     </div>
-    ${support.length ? `<div class="log-support">${support.join(' · ')}</div>` : ''}
-    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
 
-    ${(diffs.length || timeNote) ? `<div class="log-read">
-      <span class="log-diff">${escapeHTML(diffs.join(' · '))}</span>
+    ${(support.length || timeNote) ? `<div class="log-set">
+      <span class="log-grind">${support.join(' · ')}</span>
       ${timeNote ? `<span class="log-place ${timeClass}">${timeNote}</span>` : ''}
     </div>` : ''}
+    ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
 
-    ${(shot.taste !== null || (shot.body !== null && typeof shot.body === 'number')) ? `<div class="log-tastes">
-      ${shot.taste !== null ? `<span class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></span>` : ''}
-      ${shot.body !== null && typeof shot.body === 'number' ? `<span class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></span>` : ''}
-    </div>` : ''}
-    ${flags.length ? `<div class="log-run">${escapeHTML(flags.join(' · '))}</div>` : ''}
-    ${notes.map(x => `<div class="log-mismatch">${escapeHTML(x)}</div>`).join('')}
-    ${shot.notes ? `<div class="log-notes">${escapeHTML(shot.notes)}</div>` : ''}
+    ${read.length ? `<div class="log-read">${read.join('')}</div>` : ''}
   `;
   card.addEventListener('click', () => openShot(shot));
   return card;
@@ -3085,16 +3147,6 @@ function missingLine(missing) {
 /* The next move used to render here, as the last line of the newest shot
    card. It has its own card at the top of the board now — see renderNext.
    A footnote on a record is not where a dial-in puts its answer. */
-
-// A seven-step run of pips with the taken one filled — the position is the
-// meaning, exactly as on the scale that produced it.
-function tasteMarks(v) {
-  let out = '<span class="taste-marks" aria-hidden="true">';
-  for (let i = TASTE_MIN; i <= TASTE_MAX; i++) {
-    out += `<i class="${i === v ? 'on' : ''}${i === 0 ? ' mid' : ''}"></i>`;
-  }
-  return out + '</span>';
-}
 
 /* ============================================================
    THE SHOT SHEET
