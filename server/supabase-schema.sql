@@ -1,10 +1,18 @@
 -- lento — cloud tables
 --
--- Run this in the Supabase SQL editor. Nothing here drops or alters an
--- existing table, so re-running is safe in the only sense that matters:
--- it fails loudly on "already exists" and changes nothing.
+-- Run this in the Supabase SQL editor. It is safe to run again: every
+-- statement either creates what is missing or replaces a policy with an
+-- identical one. Nothing here drops a table or touches a row, so running
+-- it on a project that already holds cupping history is a no-op for that
+-- history.
 
-create table public.cuppings (
+-- ------------------------------------------------------------
+-- cuppings — the cupping sheet's own history
+--
+-- Shaped for a cupping: `date` is here because a session happens on a day
+-- and the history is read by day.
+
+create table if not exists public.cuppings (
   id text not null,
   user_id uuid not null references auth.users (id) on delete cascade,
   date bigint not null,
@@ -14,31 +22,33 @@ create table public.cuppings (
 );
 
 -- Row Level Security: users can only ever see and touch their own rows.
+-- Without it, the anon key that ships in the client reads the whole table.
 alter table public.cuppings enable row level security;
 
+drop policy if exists "select own cuppings" on public.cuppings;
 create policy "select own cuppings" on public.cuppings
   for select using (auth.uid() = user_id);
 
+drop policy if exists "insert own cuppings" on public.cuppings;
 create policy "insert own cuppings" on public.cuppings
   for insert with check (auth.uid() = user_id);
 
+drop policy if exists "update own cuppings" on public.cuppings;
 create policy "update own cuppings" on public.cuppings
   for update using (auth.uid() = user_id);
 
+drop policy if exists "delete own cuppings" on public.cuppings;
 create policy "delete own cuppings" on public.cuppings
   for delete using (auth.uid() = user_id);
 
-
 -- ------------------------------------------------------------
--- records — the dial-in and the brew log
+-- records — the dial-in, the brew log, and whatever comes next
 --
 -- WHY A SECOND TABLE
 --
--- `cuppings` is shaped for a cupping: it has a `date` column because a
--- cupping session happens on a day and the history is read by day. A shot
--- and a brew are not that shape, and there will be a fourth tool. Widening
--- `cuppings` means a migration over live rows that can only go wrong once;
--- a second, generic table costs a create statement.
+-- A shot and a brew are not a cupping's shape, and there will be a fourth
+-- tool. Widening `cuppings` means a migration over live rows that can only
+-- go wrong once; a second, generic table costs a create statement.
 --
 -- `tool` is the tool's own name ('espresso', 'filter', 'kit'), `id` is
 -- whatever that tool already calls the record locally, and `data` is the
@@ -53,7 +63,7 @@ create policy "delete own cuppings" on public.cuppings
 -- silently interleave two people's numbers into a shot neither of them
 -- pulled.
 
-create table public.records (
+create table if not exists public.records (
   tool text not null,
   id text not null,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -62,18 +72,20 @@ create table public.records (
   primary key (user_id, tool, id)
 );
 
--- Row Level Security: same rule as cuppings. Without this, the anon key
--- that ships in the client would read every row in the table.
 alter table public.records enable row level security;
 
+drop policy if exists "select own records" on public.records;
 create policy "select own records" on public.records
   for select using (auth.uid() = user_id);
 
+drop policy if exists "insert own records" on public.records;
 create policy "insert own records" on public.records
   for insert with check (auth.uid() = user_id);
 
+drop policy if exists "update own records" on public.records;
 create policy "update own records" on public.records
   for update using (auth.uid() = user_id);
 
+drop policy if exists "delete own records" on public.records;
 create policy "delete own records" on public.records
   for delete using (auth.uid() = user_id);

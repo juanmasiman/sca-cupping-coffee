@@ -61,8 +61,11 @@ Nothing else changes — all three work signed out, with no signal, for ever.
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. SQL Editor → run `server/supabase-schema.sql`. It creates two tables with
-   row-level security: `cuppings` (the cupping sheet's own history, unchanged)
-   and `records` (everything else, keyed by tool and record id).
+   row-level security: `cuppings` (the cupping sheet's own history) and
+   `records` (everything else, keyed by tool and record id). It is safe to
+   run on a project that already has `cuppings` — every statement creates
+   what is missing or replaces a policy with an identical one, and no row is
+   touched.
 3. Authentication → URL Configuration → **Site URL**: `https://lento.cafe/cupping/`,
    and add `https://lento.cafe/espresso/` and `https://lento.cafe/filter/` to
    **Redirect URLs**. Sign-in returns you to the tool you started from, so a
