@@ -2730,8 +2730,16 @@ function boot() {
       toast: msg => toast(msg),
       refresh: () => renderBoard(),
       sync: () => syncNow(),
-      count: () => (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0),
-      noun: { one: 'brew', many: 'brews' },
+      status: phase => {
+        const n = (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0);
+        const word = n === 1 ? 'brew' : 'brews';
+        return phase === 'synced'
+          ? `Synced · ${n} ${word}`
+          : `${n} ${word}, backed up as you log them.`;
+      },
+      signedOutNote: 'Your log then follows you to any device — and still works with no signal.',
+      signOutNote: 'Signing out leaves every brew here.',
+      signedInToast: 'Signed in — your log is backing up',
     });
   }
   wire();

@@ -1,43 +1,34 @@
 /* ============================================================
-   lento — filter brew log, service worker
+   lento — the front door, service worker
 
-   A kitchen at seven in the morning may have signal and may not,
-   and nothing here needs it: the whole app is served from cache
-   and works with nothing behind it. There is an account now, and it
-   changes none of that: signing in adds a copy that follows you to
-   another device, and everything the app does it still does signed
-   out, with no signal, for ever. Which is why the account layer is
-   precached like everything else — an app that will not boot because
-   its auth file did not arrive is not an offline app.
+   This page had no worker for as long as it was only a list of links:
+   somewhere you passed through once and then installed the thing you
+   came for. Two changes made that wrong. It holds the account now, and
+   every instrument has a way back to it — so an offline dial-in with a
+   door that opens onto a browser error is a door this project put there.
+
+   SCOPE, AND WHY THIS DOES NOT TAKE OVER THE APPS
+
+   This worker's scope is the whole origin, and each app registers its own
+   at its own path. A client is controlled by the registration with the
+   longest matching scope, so a page at /espresso/ is controlled by
+   /espresso/sw.js and never by this one. This worker sees the front door
+   and nothing else.
    ============================================================ */
 
-const VERSION = 'v10';
-const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
+const VERSION = 'v1';
+const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
-  './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png',
-  // The design system and its faces are shared across lento's apps and
-  // precached by each of them: a font that only arrives with signal is a
-  // font the bar never sees.
+  './home.js',
   '/shared/tokens.css',
-  // The components both instruments are built from. A stylesheet that only
-  // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
   '/shared/config.js',
   '/shared/account.js',
   '/shared/account-sheet.js',
-  '/shared/kit.js',
-  '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
-  '/shared/fonts/plex-mono-400.woff2',
-  '/shared/fonts/plex-mono-600.woff2',
 ];
 
 self.addEventListener('install', event => {
@@ -52,7 +43,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(names => Promise.all(
-        names.filter(n => n.startsWith('lento-filter-') && n !== SHELL_CACHE)
+        names.filter(n => n.startsWith('lento-home-') && n !== SHELL_CACHE)
           .map(n => caches.delete(n))
       ))
       .then(() => self.clients.claim())
@@ -66,8 +57,14 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navigations: try the network so deploys land promptly, fall back to
-  // the cached shell when offline.
+  /* An instrument's own worker handles the instrument. If one of those is
+     not installed yet, the network handles it — what this worker must not
+     do is answer for a page it does not hold, because a cache miss served
+     as a miss is a blank screen where a redirect belonged. */
+  if (/^\/(cupping|espresso|filter)\//.test(url.pathname)) return;
+
+  // Navigations: network first so a deploy lands promptly, cached shell
+  // when there is nothing behind it.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -82,7 +79,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Everything else: serve from cache immediately, refresh in the background.
+  // Everything else: from cache at once, refreshed behind it.
   event.respondWith(
     caches.match(request).then(hit => {
       const network = fetch(request)

@@ -88,6 +88,18 @@ input, textarea, select { font: inherit; }
   background: var(--bg-card);
   border: 1px solid var(--line);
 }
+/* The way out to the other two instruments, opposite the profile. This app
+   does not link components.css — the two surfaces were measured and every
+   shared selector differed — so the rule lives here rather than being
+   reached for across a boundary the project already decided not to cross. */
+.home-btn {
+  position: absolute;
+  top: calc(var(--sat) + 16px);
+  left: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  text-decoration: none;
+}
 .account-dot {
   position: absolute;
   top: 7px; right: 7px;
