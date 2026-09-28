@@ -1391,7 +1391,18 @@ function suggest(shot, target, c) {
           return { sure: false, move: next.move,
             why: `${next.why} The recipe is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number here, and the only way to find out is to taste them together.` };
         })()
-      : (() => {
+      : shot.verdict === 'off' || shot.verdict === 'ok'
+        /* The advice reads the clock and the cup and never read the one
+           field labelled "Keep it?". So "This is the one." printed over a
+           shot the barista had just marked "Drinkable — not there yet" —
+           the app talking over its user with the user's own data, one
+           field away on the same sheet. The numbers can say a shot is in
+           the window and sweet; only the person who drank it can say
+           whether it is the one, and if they have said, that settles it. */
+        ? { sure: false,
+            move: shot.verdict === 'off' ? 'The numbers liked it. You did not.' : 'Close, by your own account.',
+            why: `Everything measurable about this shot is where it should be — in the ${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s window and tasting of neither wall — and you marked it ${shot.verdict === 'off' ? 'undrinkable' : 'not there yet'}. That is the more informative of the two readings, because the board can only see four numbers and you drank it. Say what was wrong with it in your own words and the next change has something to work from; the notes field is the only part of this sheet that can hold it.` }
+        : (() => {
           /* A second good shot is a comparison, not a first find.
 
              With a recipe already pinned, "Mark it as the keeper" is the
@@ -2210,12 +2221,21 @@ function fmtDelta(v, unit, digits) {
   return `${v > 0 ? '+' : '−'}${s}${unit}`;
 }
 
+/* The document's own voice, not the browser's.
+
+   The app writes "dialling", "colour" and "flavour" throughout and then
+   printed "12:42 AM" on every card. These are timestamps on a log, not
+   appointments, so a 24-hour clock is the one that matches the rest of
+   the figures on the card — and it reads the document's lang rather than
+   hard-coding a locale, so changing the one changes the other. */
+const docLocale = () => document.documentElement.lang || 'en-GB';
+
 function fmtDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return sameDay ? time : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${time}`;
+  const time = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return sameDay ? time : `${d.toLocaleDateString(docLocale(), { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
 function escapeHTML(s) {
@@ -3336,7 +3356,9 @@ function buildRun(c) {
 }
 
 const VERDICTS = [
-  { key: 'off', label: 'Off', sub: 'not drinkable' },
+  // "Off" reads as a toggle state. What somebody says about a shot they
+  // poured away is that they poured it away.
+  { key: 'off', label: 'Tipped it', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
   { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
 ];
@@ -3532,15 +3554,15 @@ function renderReadout(c) {
   wrap.innerHTML = `
     <div class="readout-row">
       <div class="readout-cell">
-        <span class="readout-value">${fmtRatio(r)}</span>
+        <span class="readout-value${r === null ? ' empty' : ''}">${fmtRatio(r)}</span>
         <span class="readout-label">${bandDrift(r, c.target.ratio) ? `${bandDrift(r, c.target.ratio)} · ` : ''}ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
       </div>
       <div class="readout-cell">
-        <span class="readout-value">${fmt2(flow)}</span>
+        <span class="readout-value${flow === null ? ' empty' : ''}">${fmt2(flow)}</span>
         <span class="readout-label">g per second</span>
       </div>
       ${prefs.tds ? `<div class="readout-cell">
-        <span class="readout-value">${ey === null ? '—' : fmt1(ey) + '%'}</span>
+        <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
         <span class="readout-label">${ey === null ? 'extraction · needs a TDS reading' : 'extraction yield'}</span>
       </div>` : ''}
     </div>
@@ -3605,12 +3627,31 @@ function saveShot() {
 
      Demoted to "drinkable" rather than cleared: a shot you once called
      the recipe was, at minimum, drinkable. */
+  /* Replacing the recipe is the biggest state change this app makes and it
+     was the quietest: the previous keeper was demoted in silence, the
+     pinned card rewrote itself, and the feedback was "Shot updated" — the
+     same three words you get for fixing a typo in a note. The recipe is
+     what somebody spent a bag finding. It gets named, and it gets an
+     undo like every other destructive act. */
+  let replaced = null;
   if (editing.verdict === 'keeper') {
-    c.shots.forEach(sh => { if (sh !== editing && sh.verdict === 'keeper') sh.verdict = 'ok'; });
+    c.shots.forEach(sh => {
+      if (sh !== editing && sh.verdict === 'keeper') { sh.verdict = 'ok'; replaced = sh; }
+    });
   }
   save();
   closeModal('#shot-modal');
   renderBoard();
+  if (replaced) {
+    const was = `${fmtDose(num(replaced.yield))}g out in ${replaced.time === null ? '—' : Math.round(replaced.time)}s`;
+    const now = `${fmtDose(num(editing.yield))}g out in ${editing.time === null ? '—' : Math.round(editing.time)}s`;
+    const mine = editing, theirs = replaced;
+    toast(`${now} is the recipe now — was ${was}`, {
+      after: 'Recipe put back',
+      restore: () => { mine.verdict = 'ok'; theirs.verdict = 'keeper'; save(); },
+    });
+    return;
+  }
   // The card you just made is the one you want to look at, and the board
   // used to leave you wherever you happened to be scrolled.
   if (wasNew) {
@@ -3987,8 +4028,8 @@ function openEdit(c, opts) {
   $('#edit-delete').onclick = () => {
     const n = c.shots.length;
     // Always, not only where there are shots to lose: a bag somebody named
-    // and described is worth one question, and the control sits in the same
-    // bar as Save.
+    // and described is worth one question. (The control has since moved out
+    // of the action bar to the foot of the sheet; the question stays.)
     if (!confirm(n
       ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it.`
       : `Remove ${coffeeLabel(c)}?`)) return;
@@ -4613,6 +4654,13 @@ function openModal(sel) {
      modal. Locked while anything is open, released when the last one
      closes. */
   document.documentElement.classList.add('sheet-open');
+  /* Keyboard was already trapped; a screen reader's virtual cursor was not
+     — it relied on aria-modal alone, and the board's whole content stayed
+     in the accessibility tree behind the sheet. `inert` removes it from
+     both, which is what aria-modal has always been asking the browser to
+     do on its behalf. */
+  const board = $('#screen-board');
+  if (board && board !== m.closest('.screen')) board.setAttribute('inert', '');
   if (!m.dataset.trapped) {
     m.dataset.trapped = '1';
     m.addEventListener('keydown', e => trapTab(m, e));
@@ -4626,6 +4674,8 @@ function closeModal(sel) {
   $(sel).classList.add('hidden');
   if (!document.querySelector('.modal:not(.hidden)')) {
     document.documentElement.classList.remove('sheet-open');
+    const board = $('#screen-board');
+    if (board) board.removeAttribute('inert');
   }
   // Focus goes back where it came from. A sheet that dismisses to the top
   // of the document makes a keyboard user walk the page again.

@@ -194,13 +194,18 @@ input { font: inherit; color: inherit; }
   border-radius: var(--radius);
   padding: var(--space-5);
 }
+/* Everything on this card sits on the 10-14% data tint, where the faintest
+   ink measures 4.15:1 in light and 4.32:1 in dark against a 4.5 threshold.
+   It clears on every plain surface; only the tint drops it. This is the
+   pinned recipe — the one thing on the board meant to be read across a
+   bar — so nothing on it takes the quietest ink. */
 .keeper-label {
   display: block;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
   margin-bottom: var(--space-3);
 }
 .keeper-line {
@@ -219,11 +224,11 @@ input { font: inherit; color: inherit; }
 .keeper-big small {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-dim);
   margin-left: 2px;
   font-family: var(--mono);
 }
-.keeper-arrow { color: var(--text-faint); font-size: 17px; }
+.keeper-arrow { color: var(--text-dim); font-size: 17px; }
 .keeper-meta {
   margin-top: var(--space-3);
   font-size: 13px;
@@ -373,10 +378,14 @@ input { font: inherit; color: inherit; }
 }
 /* The arrow is the shot. Lighter than the figures it joins, because it is
    punctuation rather than a measurement. */
+/* Punctuation, but meaningful punctuation — it is the "into" in "16.5
+   into 41". At --rail it measured 2.73:1, under even the 3:1 a graphic
+   needs, so it takes the secondary ink and still reads lighter than the
+   figures it joins. */
 .log-arrow {
   padding: 0 var(--space-3);
   font-size: 19px;
-  color: var(--rail);
+  color: var(--text-dim);
 }
 .log-inout small,
 .log-secs small {
@@ -624,12 +633,20 @@ input { font: inherit; color: inherit; }
   justify-content: space-between;
   gap: var(--space-3);
 }
+/* The whole point of this control was that the taste guide had been
+   unreachable in Settings. Putting it beside the question and then giving
+   it a 28px target repeats the mistake at a smaller scale. */
+/* A control, not a value — so the underline carries the affordance and
+   the ink stays out of the data colour. */
 .field-help {
   flex: 0 0 auto;
-  padding: var(--space-2) 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   font: inherit;
   font-size: 13px;
-  color: var(--data);
+  color: var(--text-dim);
   background: none;
   border: 0;
   border-bottom: 1px solid currentColor;
@@ -811,6 +828,10 @@ html.sheet-open, html.sheet-open body {
 }
 .readout-row { display: flex; gap: var(--space-5); flex-wrap: wrap; }
 .readout-cell { flex: 1; min-width: 92px; display: flex; flex-direction: column; gap: 2px; }
+/* Colour encodes value and nothing else. An em dash is the absence of a
+   value, so it takes the secondary ink — the same rule the number field
+   already follows with `.num-field.empty`, where a default and a
+   measurement are religiously distinguished. */
 .readout-value {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -818,6 +839,7 @@ html.sheet-open, html.sheet-open body {
   font-weight: 600;
   color: var(--data);
 }
+.readout-value.empty { color: var(--text-dim); }
 .readout-label { font-size: 11px; color: var(--text-faint); }
 .readout-window {
   margin-top: var(--space-4);
@@ -846,11 +868,13 @@ html.sheet-open, html.sheet-open body {
    portafilter in one hand, the disclosure must not compete with the
    instruction above it. */
 .tip-more { margin-top: var(--space-2); }
+/* 44px, like every other target on a phone. It was 32 — the one control
+   on the advice card, on a screen used with one wet hand. */
 .tip-more > summary {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 32px;
+  min-height: 44px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -996,6 +1020,13 @@ html.sheet-open, html.sheet-open body {
 
 /* ---------- where the grinder is today ---------- */
 
+/* A row, not a card inside a card.
+
+   This was a bordered, filled box sitting inside the bordered, filled
+   recipe card — the nested-card shape the design law forbids outright, and
+   the reason the recipe card read as two things stacked rather than one
+   answer. It is a rule and a row now: same tap target, same information,
+   no second frame. */
 .keeper-now {
   display: flex;
   align-items: center;
@@ -1003,20 +1034,23 @@ html.sheet-open, html.sheet-open body {
   width: 100%;
   min-height: 44px;
   margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--rail);
-  border-radius: var(--radius);
-  background: var(--bg-card);
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--rail);
+  border-radius: 0;
+  background: none;
   text-align: left;
 }
+.keeper-now:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .keeper-now:active { background: var(--chrome-soft); }
+/* On the tinted card, so the same rule as the rest of it. */
 .keeper-now-label {
   flex: none;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .keeper-now-value {
   flex: 1;
@@ -1049,10 +1083,14 @@ html.sheet-open, html.sheet-open body {
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */
 .log-mismatch {
-  margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
 }
+/* Never a stripe inside a stripe — but only where there genuinely is one.
+   Measured: in the shot sheet and on the board this note is a SIBLING of
+   the advice card, not a child of it, so it keeps its own rule there and
+   reads as the separate observation it is. Scoped to real nesting. */
+.tip .log-mismatch { border-left: 0; padding-left: 0; }
 
 /* ---------- verdict ---------- */
 
@@ -1081,6 +1119,14 @@ html.sheet-open, html.sheet-open body {
   border-top: 1px solid var(--line);
   padding-top: var(--space-4);
 }
+/* A disclosure has to look like one.
+
+   `display: flex` on a <summary> removes the browser's own marker, so
+   these rendered as bold text with a blank space under them — and the
+   first of them holds process, altitude and decaf, which the method says
+   move the starting point. Nobody opens a paragraph. Same chevron as the
+   advice card's "why this", so the two disclosures in this app read as
+   one control rather than two. */
 .more summary {
   font-size: 13px;
   font-weight: 700;
@@ -1089,7 +1135,19 @@ html.sheet-open, html.sheet-open body {
   min-height: 44px;
   display: flex;
   align-items: center;
+  gap: var(--space-3);
+  list-style: none;
 }
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.more[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.more summary:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .more-body { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-3); }
 .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
 
@@ -1220,7 +1278,7 @@ select.field-input {
   display: block;
   width: 100%;
   margin-top: var(--space-2);
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
   font: inherit;
   font-size: 13px;
@@ -1286,7 +1344,7 @@ select.field-input {
 .coffee-row.on { border-color: var(--rail); background: var(--data-soft); }
 .coffee-row-text { display: flex; flex-direction: column; min-width: 0; }
 .coffee-row-name { font-size: 15px; font-weight: 700; }
-.coffee-row-sub { font-size: 11px; font-family: var(--mono); color: var(--text-faint); }
+.coffee-row-sub { font-size: 11px; font-family: var(--mono); color: var(--text-dim); }
 
 /* ---------- edit / settings ---------- */
 
