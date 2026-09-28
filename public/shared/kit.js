@@ -1,48 +1,33 @@
 /* ============================================================
-   lento — the grinder, which is one grinder
+   lento — the grinders you own
 
-   THE ARGUMENT THIS FILE SETTLES
+   WHAT THIS IS, AND WHAT IT USED TO BE
 
-   grind.js already opens by explaining why the calibration is shared
-   between the dial-in and the brew log: "it is the same measurement of
-   the same machine. A brewer who uses both owns one grinder, and it
-   behaves the same way whichever basket or cone is downstream of it."
+   This file used to hold "the grinder", singular: one record, copied
+   into whichever app opened next. That was wrong, and wrong in a way
+   that changed advice rather than just annoying somebody. A person with
+   a DF64 on the espresso machine and a Kingrinder K6 for filter is the
+   normal case, not the edge — and the record carried `steps` and
+   `retains`, which is what grind.js reasons with. Setting the hand
+   grinder in the brew log told the dial-in that the DF64 held grounds
+   between settings, so the dial-in started telling them to purge five to
+   ten grams before every move. Wrong machine, wrong advice, and nothing
+   on screen to show where it had come from.
 
-   And then the two apps asked for that grinder separately. The dial-in
-   offered a seventeen-entry list that fills in whether it counts clicks
-   and whether it holds grounds; the brew log offered a bare text box. Two
-   questions, two answers, two localStorage keys — so the app shared its
-   reasoning about your grinder and not the fact of it, and the second
-   tool you opened asked you something you had already told the first one.
+   Worse, the brew log never asks about retention at all, so what it
+   wrote was not even its own answer — it was the default.
 
-   THE DISAGREEMENT, STATED RATHER THAN STEAMROLLED
+   So: a person owns grinders, plural, and each tool names the one it is
+   using. This file is the list. It is a convenience and nothing else —
+   somewhere to look somebody up rather than make them fill the same two
+   questions in twice. Each app's own kit stays the authority for that
+   app, and nothing is copied anywhere without somebody picking it.
 
-   The brew log's kit comment takes a position: "The names of the things
-   are carried as the user's own record. Nothing is read out of them: a
-   brand table goes stale within a year and is wrong about every hybrid on
-   the shelf." That is a real objection and it is right about brand
-   tables.
+   WHY A LIST AND NOT JUST "THE OTHER APP'S ONE"
 
-   The dial-in's answer is the one that survives it: the list seeds two
-   answers ONCE, both stay editable, and the sheet says so — "correct any
-   that are wrong, because a machine you have modified beats any list."
-   Nothing is read out of the name at the moment advice is given; the name
-   is a convenience on the way to two booleans the user owns. A tester on
-   a hand grinder had "single dose, almost none" filled in correctly
-   without being asked, and that is worth more than the risk of a stale
-   row somebody can overwrite in one tap.
-
-   WHAT IS SHARED, AND WHAT IS NOT
-
-   Only the grinder. A portafilter and a basket mean nothing to a cone; a
-   brewer and a kettle mean nothing to an espresso machine. The shared
-   record is exactly the subset grind.js reasons about — the name, whether
-   it counts clicks, and whether it holds grounds between settings — and
-   each app keeps the rest of its own kit to itself.
-
-   The three apps are same-origin under lento.cafe, so this is shared by
-   construction: no account, no network, no sync. Signing in is a separate
-   question and this works without it.
+   Because two is not the limit either. A Comandante for travel, a K6 at
+   home, a DF64 on the machine; the list costs the same as the pair and
+   stops being wrong the moment somebody owns three.
    ============================================================ */
 
 (function (root) {
@@ -74,102 +59,148 @@
     { name: 'Kingrinder (K4, K6)',             steps: 'stepped',  retains: false },
   ];
 
-  function entry(name) {
+  function tableEntry(name) {
     for (var i = 0; i < GRINDERS.length; i++) {
       if (GRINDERS[i].name === name) return GRINDERS[i];
     }
     return null;
   }
 
+  /* ---------- the store ----------
+
+     { grinders: [{ name, steps, retains }], updated }
+
+     `retains` may be null, meaning nobody has been asked. The brew log
+     does not ask — retention matters to a dial-in and barely to a pour
+     over — so it records what it knows and leaves the rest alone rather
+     than writing a default and calling it an answer. */
+
+  function empty() { return { grinders: [], updated: 0 }; }
+
   function read() {
-    try {
-      var raw = localStorage.getItem(STORE);
-      if (!raw) return null;
-      var v = JSON.parse(raw);
-      return v && typeof v === 'object' && typeof v.grinder === 'string' ? v : null;
-    } catch (e) { return null; }
+    var raw;
+    try { raw = localStorage.getItem(STORE); } catch (e) { return empty(); }
+    if (!raw) return empty();
+    var v;
+    try { v = JSON.parse(raw); } catch (e) { return empty(); }
+    if (!v || typeof v !== 'object') return empty();
+    // The single-grinder shape this file used to write. One grinder is a
+    // list of one; nobody loses what they told us.
+    if (typeof v.grinder === 'string') {
+      return {
+        grinders: v.grinder ? [{
+          name: v.grinder,
+          steps: v.steps === 'stepped' ? 'stepped' : 'stepless',
+          // Not trusted. The old record wrote `true` whenever the app
+          // that saved it had no opinion, which was every save from the
+          // brew log. An unanswered question is better than a wrong
+          // answer, so this one goes back to unanswered and the built-in
+          // table fills it if the name is known.
+          retains: null,
+        }] : [],
+        updated: v.updated || 0,
+      };
+    }
+    if (!Array.isArray(v.grinders)) return empty();
+    return { grinders: v.grinders.filter(function (g) {
+      return g && typeof g.name === 'string' && g.name;
+    }), updated: v.updated || 0 };
   }
 
-  /* Written whenever somebody answers the question in either app, so the
-     last place you told it is the place that is right. On one person's
-     one device that is simply "the truth"; where two devices disagree it
-     is the same last-write-wins the rest of the sync uses. */
-  function write(kit) {
-    if (!kit) return null;
-    var rec = {
-      grinder: String(kit.grinder || ''),
-      steps: kit.steps === 'stepped' ? 'stepped' : 'stepless',
-      retains: kit.retains !== false,
-      updated: Date.now(),
-    };
-    store(rec);
+  function store(rec) {
+    try { localStorage.setItem(STORE, JSON.stringify(rec)); } catch (e) { /* quota, private mode */ }
     return rec;
   }
 
-  /* Stored verbatim, stamp and all. `write` is for somebody answering the
-     question; this is for a record that arrived from another device and
-     already knows when it was answered. Restamping it here would make the
-     copy that merely arrived beat the device it came from. */
-  function store(rec) {
-    try { localStorage.setItem(STORE, JSON.stringify(rec)); } catch (e) { /* quota, private mode */ }
+  function known() { return read().grinders; }
+
+  /* What is true about a grinder by that name: what this person said
+     about it, over what the built-in table says. Somebody who corrected
+     the table for their own machine has corrected it for good. */
+  function entryFor(name) {
+    if (!name) return null;
+    var mine = null;
+    var list = known();
+    for (var i = 0; i < list.length; i++) if (list[i].name === name) mine = list[i];
+    var base = tableEntry(name);
+    if (!mine && !base) return null;
+    return {
+      name: name,
+      steps: (mine && mine.steps) || (base && base.steps) || 'stepless',
+      retains: mine && mine.retains !== null && typeof mine.retains !== 'undefined'
+        ? mine.retains
+        : (base ? base.retains : null),
+    };
   }
 
-  /* Copy the shared record onto an app's own kit object. Returns true when
-     something actually moved, so the caller knows whether to save and
-     re-render rather than doing both unconditionally on every boot. */
-  function adopt(kit) {
+  /* Write down what an app's kit says about its own grinder, so the other
+     tools can offer it rather than ask again. `retains` is only recorded
+     when the app in hand actually asks about it — see `asksRetains`. */
+  function remember(kit, asksRetains) {
+    if (!kit || !kit.grinder) return null;
     var rec = read();
-    if (!rec || !kit) return false;
+    var next = {
+      name: String(kit.grinder),
+      steps: kit.steps === 'stepped' ? 'stepped' : 'stepless',
+      retains: asksRetains ? kit.retains !== false : null,
+    };
+    var found = false;
     var changed = false;
-    if (kit.grinder !== rec.grinder) { kit.grinder = rec.grinder; changed = true; }
-    if (kit.steps !== rec.steps) { kit.steps = rec.steps; changed = true; }
-    if (kit.retains !== rec.retains) { kit.retains = rec.retains; changed = true; }
-    return changed;
+    rec.grinders = rec.grinders.map(function (g) {
+      if (g.name !== next.name) return g;
+      found = true;
+      // A null from an app that does not ask must not erase an answer
+      // another app already got.
+      var merged = {
+        name: next.name,
+        steps: next.steps,
+        retains: next.retains === null && typeof g.retains !== 'undefined' ? g.retains : next.retains,
+      };
+      if (merged.steps !== g.steps || merged.retains !== g.retains) changed = true;
+      return merged;
+    });
+    if (!found) { rec.grinders.push(next); changed = true; }
+    /* Nothing new to say, nothing written. This is called on every boot
+       so that somebody who has been using one tool for months turns up in
+       the list without being asked again — and a write on every boot
+       would restamp the record, which means pushing it to the cloud, and
+       beating a device that had actually changed something. */
+    if (!changed) return rec;
+    rec.updated = Date.now();
+    return store(rec);
   }
 
-  /* Seed the shared record from an app that already has an answer, so
-     somebody who has been using one tool for months does not get asked
-     again by the other one. Only when there is nothing shared yet, and
-     only when the app in hand actually knows something. */
-  function seed(kit) {
-    if (read() || !kit || !kit.grinder) return false;
-    write(kit);
-    return true;
-  }
-
-  /* The grinder, across devices.
-
-     It syncs as its own record rather than inside either app's kit,
-     because it is the one answer that is genuinely about the same object:
-     the dial-in and the brew log each keep a kit of their own (a basket is
-     not a brewer), and the grinder is the part they share. One record id,
-     one answer, last write wins on the stamp `write` put there.
-
-     Returns true when the shared record moved, so the caller knows to
-     adopt it and save rather than doing both on every sync. */
+  /* The list, across devices. Its own record, because it belongs to the
+     person rather than to either tool — each tool's own kit, including
+     which grinder it is using, syncs with that tool. Last write wins on
+     the whole list, which is the same trade the rest of the sync makes
+     and is harmless here: the list is append-mostly and nothing reads it
+     without somebody picking from it. */
   async function sync() {
     var A = root.LentoAccount;
     if (!A || !A.enabled() || !A.user()) return false;
     var rows = await A.pull('kit');
     if (!rows) return false;
     var row = null;
-    for (var i = 0; i < rows.length; i++) if (rows[i].id === 'grinder') row = rows[i];
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === 'grinders') row = rows[i];
     var mine = read();
-    var mineAt = mine && mine.updated ? mine.updated : 0;
+    var mineAt = mine.updated || 0;
     var theirs = row && row.updated ? row.updated : 0;
     if (row && row.data && theirs > mineAt) { store(row.data); return true; }
-    if (mine && mineAt > theirs) await A.push('kit', 'grinder', mine, mineAt);
+    if (mineAt > theirs && mine.grinders.length) await A.push('kit', 'grinders', mine, mineAt);
     return false;
   }
 
   root.LentoKit = {
     STORE: STORE,
-    sync: sync,
     GRINDERS: GRINDERS,
-    grinderEntry: entry,
+    // The built-in table alone, for code that wants the shipped defaults.
+    grinderEntry: tableEntry,
+    // The table corrected by what this person has said. Prefer this.
+    entryFor: entryFor,
+    known: known,
+    remember: remember,
     read: read,
-    write: write,
-    adopt: adopt,
-    seed: seed,
+    sync: sync,
   };
 }(window));

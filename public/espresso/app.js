@@ -41,16 +41,16 @@ function load() {
      after the first save and a phone that merely opened the app would
      claim every record on it was edited this second. */
   primeStamps();
-  /* One grinder across the tools. Seed the shared record from this app if
-     it is the one that knows, then take whatever the shared record says —
-     so somebody who set their grinder up in the brew log is not asked
-     again here, and the calibration the two apps share is reasoning about
-     one machine rather than two answers about the same one. */
-  LentoKit.seed(state.kit);
-  // Written back, not just adopted into memory: without the save the
-  // change lives until the next reload and then reverts, which is worse
-  // than not sharing at all because it looks like it worked.
-  if (LentoKit.adopt(state.kit)) save();
+  /* This app's grinder goes on the person's list, so the brew log can
+     offer it instead of asking again. Nothing comes back the other way on
+     its own: the two tools are very often different grinders — a DF64 on
+     the machine and a hand grinder for filter is the normal case — and
+     the list carries `steps` and `retains`, which is what grind.js
+     reasons with. Adopting silently is how the dial-in ended up being
+     told the espresso grinder held grounds because a hand grinder had
+     been entered next door. Picking from the list is a choice somebody
+     makes in the kit sheet, once, on purpose. */
+  LentoKit.remember(state.kit, true);
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -288,7 +288,6 @@ const MACHINES = [
 const GRINDERS = LentoKit.GRINDERS;
 
 const machineEntry = name => MACHINES.find(m => m.name === name) || null;
-const grinderEntry = name => GRINDERS.find(g => g.name === name) || null;
 
 function defaultKit() {
   return {
@@ -4233,7 +4232,27 @@ function pickerOptions(items, current) {
         i.name === current ? ' selected' : ''}>${escapeHTML(i.name)}</option>`).join('');
 }
 const machineOptions = cur => pickerOptions(MACHINES, cur);
-const grinderOptions = cur => pickerOptions(GRINDERS, cur);
+
+/* Grinders you have already told lento about, above the shipped list.
+
+   A second grinder is the normal case, not the edge, so the brew log's
+   answer belongs here as an offer — named, one tap, and never applied on
+   your behalf. Anything already on your list is left out of the long list
+   below it, because the same name twice in a select is a puzzle. */
+function grinderOptions(cur) {
+  const mine = LentoKit.known();
+  const mineNames = mine.map(g => g.name);
+  const rest = GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
+  const known = mineNames.indexOf(cur) >= 0 || GRINDERS.some(g => g.name === cur);
+  const opt = name => `<option value="${escapeHTML(name)}"${
+    name === cur ? ' selected' : ''}>${escapeHTML(name)}</option>`;
+  return `<option value=""${!cur ? ' selected' : ''}>Choose…</option>`
+    + `<option value="__other"${cur && !known ? ' selected' : ''}>Something else</option>`
+    + (mine.length
+      ? `<optgroup label="Yours">${mine.map(g => opt(g.name)).join('')}</optgroup>`
+        + `<optgroup label="All grinders">${rest.map(g => opt(g.name)).join('')}</optgroup>`
+      : rest.map(g => opt(g.name)).join(''));
+}
 
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
@@ -4284,7 +4303,7 @@ function openKit() {
     gOther.classList.toggle('hidden', gPick.value !== '__other');
   };
   if (k.machine && !machineEntry(k.machine)) mPick.value = '__other';
-  if (k.grinder && !grinderEntry(k.grinder)) gPick.value = '__other';
+  if (k.grinder && !LentoKit.entryFor(k.grinder)) gPick.value = '__other';
   syncOther();
 
   mPick.addEventListener('change', () => {
@@ -4295,7 +4314,10 @@ function openKit() {
   });
   gPick.addEventListener('change', () => {
     syncOther();
-    const e = grinderEntry(gPick.value);
+    // What you have said about this grinder, over what the shipped list
+    // says: somebody who corrected the table for their own machine has
+    // corrected it for good.
+    const e = LentoKit.entryFor(gPick.value);
     if (e) {
       k.steps = e.steps; k.grinder = e.name;
       if (typeof e.retains === 'boolean') k.retains = e.retains;
@@ -4403,10 +4425,11 @@ function openKit() {
     captureNames();
     k.asked = true;
     state.kit = k;
-    // Including the shared grinder, which Save writes and this exit did
-    // not — the comment above says "everything Save would have taken",
-    // and this line is what made that true again after Save grew one.
-    LentoKit.write(k);
+    // Including this app's grinder going on the person's list, which Save
+    // does and this exit did not — the comment above says "everything Save
+    // would have taken", and this line is what made that true again after
+    // Save grew one.
+    LentoKit.remember(k, true);
     save();
     sheetFrom['dose'] = 'kit';
     closeModal('#kit-modal');
@@ -4421,9 +4444,11 @@ function openKit() {
     else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
     state.kit = k;
-    // The grinder is the tools' shared answer, so the last place you told
-    // it is the place that is right.
-    LentoKit.write(k);
+    /* On the person's list, so the brew log can offer it. `true` says
+       this app asked about retention, so its answer is worth recording —
+       the brew log does not ask, and writing its default there is what
+       made the dial-in advise purging a grinder that holds nothing. */
+    LentoKit.remember(k, true);
     save();
     closeModal('#kit-modal');
     renderBoard();
@@ -4919,17 +4944,17 @@ async function syncKit() {
   if (row && (row.updated || 0) > mine) {
     state.kit = Object.assign(defaultKit(), row.data);
     state.kitUpdated = row.updated;
-    LentoKit.write(state.kit);
+    LentoKit.remember(state.kit, true);
     primeStamps();
     writeState();
   } else if (mine && (!row || mine > (row.updated || 0))) {
     await LentoAccount.push('kit', 'espresso', state.kit, mine);
   }
-  // The grinder, which belongs to neither app. A true return means the
-  // shared record moved and this app's kit has to be brought in line.
-  if (await LentoKit.sync()) {
-    if (LentoKit.adopt(state.kit)) save();
-  }
+  /* The list of grinders this person owns, which belongs to neither app.
+     It is only ever offered in the kit sheet, so a newer list from another
+     device changes nothing on screen here and nothing about the advice —
+     which is the point. */
+  await LentoKit.sync();
   return true;
 }
 
