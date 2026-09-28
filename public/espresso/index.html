@@ -103,14 +103,88 @@
         <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
       </div>
 
+      <!-- What the shot looked like coming out.
+
+           The most common reason a home shot is bad is that the water
+           went round the puck rather than through it, and a channelled
+           shot's clock and taste are both readings of an accident. The
+           app used to infer channelling from the corners where the time
+           and the taste disagree, which catches some of it and is a
+           guess. This asks. It is one tap and it is optional, and when
+           the answer is "it sprayed" the advice stops talking about the
+           grinder, because on a puck that channels the grinder is not
+           what is wrong. -->
+      <div class="run-block">
+        <span class="field-label" id="run-label">How did it run?</span>
+        <div class="chips" id="run" role="radiogroup" aria-labelledby="run-label"></div>
+      </div>
+
+
       <!-- Two walls, asked separately. Grind answers the first; ratio and
            dose answer the second. Asking them as one "how was it" is what
            makes espresso advice feel like guesswork. -->
       <div class="taste-block">
-        <span class="field-label" id="taste-label">Sour or bitter?</span>
+        <!-- The question names the target, not the two failures. "Sour or
+             bitter?" asks which way it went wrong and presumes it did;
+             a dial-in ends when the answer is neither, and the middle of
+             this scale now has a word for that. -->
+        <!-- The help goes where the question is. The salami test — split
+             one shot into three glasses and taste the sour, the sweet and
+             the bitter thirds apart — is the single best thing in the app
+             for learning this axis, and it was three taps deep in
+             Settings, which is nowhere at all when you are standing over
+             a cooling cup trying to name what you just drank. -->
+        <div class="field-label-row">
+          <span class="field-label" id="taste-label">How sweet is it?</span>
+          <button type="button" class="field-help" id="taste-help">What am I tasting?</button>
+        </div>
         <div id="taste-scale"></div>
-        <span class="field-label" id="body-label">Watery or muddy?</span>
+        <!-- The escape from the axis. Sour and bitter at once is the
+             single most diagnostic thing a shot can taste like — it is
+             channelling, one part of the bed over-extracted and the rest
+             barely brewed — and a slider running from one to the other
+             cannot say it. Somebody who drank the shot without watching
+             it pour had no way to tell the app the most useful thing
+             they knew. -->
+        <!-- Two escapes from the axis, and they are different claims.
+             Both-at-once says the scale does not apply — the cup is two
+             extractions and the position between them is meaningless.
+             Bright says the scale applies and reads a fault that is not
+             one: this is a light roast doing what a light roast does. -->
+        <div class="chips" id="harsh"></div>
+        <span class="field-label" id="body-label">How does it feel?</span>
         <div id="body-scale"></div>
+      </div>
+
+      <!-- The live advice, after every observation it reads rather than
+           above them.
+
+           It used to sit directly under the clock, which meant a shot that
+           gushed got "grind finer — about 1.3 on the dial, down to 29.2"
+           on screen before the sheet had asked whether the puck held. The
+           moment the reader said it gushed, the card flipped to "fix the
+           puck, not the grinder". The second answer is the right one and
+           the reversal is honest — but the first had already been read,
+           and somebody in a hurry acts on what they read first. So it goes
+           below the run chips and both taste scales: everything above it
+           can change it, nothing below it can. -->
+      <div id="live-advice"></div>
+
+      <!-- Always asked, never in a drawer.
+
+           Notes lived inside "Basket, notes and the rest", which meant the
+           one field that holds the reason for a decision was two taps
+           behind the ones that hold its arithmetic. A dial-in ends on a
+           preference — this one over that one, and why — and a preference
+           nobody wrote down is gone by the next bag. It is also the only
+           field on the sheet the app will never second-guess: the numbers
+           are checked against each other and against the clock, and this
+           is the part where the board has nothing to say. -->
+      <div class="notes-block">
+        <span class="field-label" id="notes-label">In your words</span>
+        <span class="field-sub" id="notes-sub"></span>
+        <textarea class="field-input notes-input" id="f-notes" rows="2" maxlength="240"
+                  autocomplete="off" aria-labelledby="notes-label"></textarea>
       </div>
 
       <div class="verdict-block">
@@ -123,15 +197,18 @@
            with one brew temperature is an invitation to write down a number
            you did not set. The summary is rewritten from the kit. -->
       <details class="more" id="more">
-        <summary>Basket, notes and the rest</summary>
+        <summary>Basket</summary>
         <div class="more-body" id="more-body"></div>
       </details>
     </div>
 
+    <!-- Only on a shot that exists; there is nothing to remove from a
+         sheet nobody has saved. At the foot of the sheet rather than in
+         the bar, for the reason on the coffee sheet's copy of this. -->
+    <div class="sheet-destroy">
+      <button id="shot-delete" class="btn-quiet-danger hidden" type="button">Remove this shot</button>
+    </div>
     <div class="sheet-actions">
-      <!-- Only on a shot that exists; there is nothing to remove from a
-           sheet nobody has saved. -->
-      <button id="shot-delete" class="btn btn-ghost btn-danger hidden">Remove this shot</button>
       <button id="shot-save" class="btn btn-primary">Save the shot</button>
     </div>
   </div>
@@ -163,8 +240,19 @@
       </button>
     </div>
     <div class="edit-body" id="edit-body"></div>
+    <!-- Out of the action bar.
+
+         It sat beside Save at equal width, and when it was given its own
+         intrinsic width instead it took all 356px of a 390px sheet and
+         pushed Save to x=385 — five pixels of it reachable, found by two
+         testers independently, one of whom only saved by hitting the
+         sliver. A sticky bar with a primary and a destructive action in it
+         is a bar with one action too many. Remove lives at the foot of
+         what it removes; the bar is Save's. -->
+    <div class="sheet-destroy">
+      <button id="edit-delete" class="btn-quiet-danger" type="button">Remove this coffee</button>
+    </div>
     <div class="sheet-actions">
-      <button id="edit-delete" class="btn btn-ghost btn-danger">Remove this coffee</button>
       <button id="edit-save" class="btn btn-primary">Save</button>
     </div>
   </div>
@@ -190,6 +278,65 @@
   </div>
 </div>
 
+<!-- ============ THE DOSE, CHECKED BY VOLUME ============ -->
+<!-- The scale tells you the weight and not the volume, and the basket
+     cares about the volume. Two coffees at the same 18g fill the basket
+     differently — a light roast is denser than a dark one — so the same
+     number can leave the right gap under the screen with one bag and no
+     gap at all with the next. This is the check that costs nothing and
+     settles the one variable everything else is measured against. -->
+<div id="dose-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="dose-title">
+    <div class="sheet-head">
+      <h3 id="dose-title">Check the dose</h3>
+      <button id="dose-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="dose-body"></div>
+    <div class="sheet-actions">
+      <button id="dose-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TWO THINGS TO LEARN, RATHER THAN RECORD ============ -->
+<!-- The app spends its time asking people for measurements. These two ask
+     nothing and teach something: where to put the grinder before the first
+     shot, and what the two ends of the taste scale actually taste like. The
+     second matters more than it looks — the sheet has asked people to judge
+     sour against bitter since the first version and has never once shown
+     them the difference. -->
+<div id="pinch-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="pinch-title">
+    <div class="sheet-head">
+      <h3 id="pinch-title">Find a starting grind</h3>
+      <button id="pinch-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="pinch-body"></div>
+    <div class="sheet-actions">
+      <button id="pinch-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="salami-modal" class="modal hidden">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="salami-title">
+    <div class="sheet-head">
+      <h3 id="salami-title">Taste sour against bitter</h3>
+      <button id="salami-close" class="icon-btn" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dose-body" id="salami-body"></div>
+    <div class="sheet-actions">
+      <button id="salami-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ SETTINGS ============ -->
 <div id="settings-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -210,7 +357,7 @@
 <div id="help-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="sheet-head">
-      <h3 id="help-title">About</h3>
+      <h3 id="help-title">What the numbers mean</h3>
       <button id="help-close" class="icon-btn" aria-label="Close">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       </button>
@@ -224,6 +371,9 @@
 
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 
+<!-- The grinder calibration, shared with the brew log: one grinder, one
+     measurement of it. Loaded first because app.js builds on it. -->
+<script src="/shared/grind.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

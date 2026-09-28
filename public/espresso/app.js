@@ -59,12 +59,18 @@ function migrate(s) {
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
+    if (typeof c.process !== 'string') c.process = '';
+    if (typeof c.altitude !== 'string') c.altitude = '';
+    if (typeof c.decaf !== 'boolean') c.decaf = false;
     if (typeof c.grindNow !== 'string') c.grindNow = '';
     if (!Array.isArray(c.shots)) c.shots = [];
     c.shots.forEach(sh => {
       if (typeof sh.taste === 'undefined') sh.taste = null;
       if (typeof sh.body === 'undefined') sh.body = null;
       if (typeof sh.intent === 'undefined') sh.intent = null;
+      if (typeof sh.run === 'undefined') sh.run = null;
+      if (typeof sh.harsh === 'undefined') sh.harsh = false;
+      if (typeof sh.bright === 'undefined') sh.bright = false;
     });
   });
   return s;
@@ -77,9 +83,9 @@ function migrate(s) {
    A dial-in tool that asks for brew temperature on a machine with one
    temperature is asking somebody to invent a number and then quoting it
    back at them. The advice is worse: "brew temperature is the usual next
-   lever, up a degree or two" is not a suggestion to a Bambino Plus owner,
+   variable, up a degree or two" is not a suggestion to a Bambino Plus owner,
    it is the app admitting it does not know what they are standing in front
-   of. Half this product's value is knowing which levers exist.
+   of. Half this product's value is knowing which variables exist.
 
    What the app needs is not the machine's name. A brand table goes stale
    within a year, misses every import, and is wrong about anything modded —
@@ -93,6 +99,84 @@ function migrate(s) {
    simplest sheet rather than the fullest one. A field you can see and
    cannot change is a field you will eventually fill in with a guess. */
 
+/* ---------- the machines, and what they can actually do ----------
+
+   The kit screen asks three capability questions, and it used to ask them
+   cold while also collecting the machine's name in a text field it then
+   read nothing out of. That is two taps charged for something the name
+   already answered.
+
+   So the name answers them. Picking a machine fills the three questions
+   in; picking a grinder fills in what its dial counts in.
+
+   THE LIST IS A SHORTCUT, NEVER A SOURCE OF TRUTH. Every answer it fills
+   in stays editable, and "Something else" is always there. A brand table
+   is stale within a year and is wrong about every modified machine — a
+   Gaggia Classic with a PID fitted is still a Gaggia Classic, and a
+   meaningful share of them have one. The app reasons from the
+   capability, never from the name, so somebody whose machine is not
+   listed or is not stock is never worse off than before the list
+   existed. What the list removes is three questions for the majority who
+   own something ordinary and unmodified.
+
+   Entries are only here where the stock capability is not in doubt.
+   Anything uncertain is left off: an absent machine costs three taps,
+   and a wrong one costs trust in every answer that follows. */
+
+const MACHINES = [
+  // name, brew temperature, pressure/flow
+  { name: 'Breville/Sage Bambino',            temp: 'fixed', pressure: 'fixed' },
+  { name: 'Breville/Sage Bambino Plus',       temp: 'fixed', pressure: 'fixed' },
+  { name: 'Breville/Sage Barista Express',    temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Express Impress', temp: 'set', pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Pro',        temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Barista Touch',      temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Dual Boiler',        temp: 'set',   pressure: 'gauge' },
+  { name: 'Breville/Sage Oracle',             temp: 'set',   pressure: 'gauge' },
+  { name: 'Gaggia Classic (stock)',           temp: 'fixed', pressure: 'fixed' },
+  { name: 'Gaggia Classic Pro (stock)',       temp: 'fixed', pressure: 'fixed' },
+  { name: 'Rancilio Silvia (stock)',          temp: 'fixed', pressure: 'fixed' },
+  { name: 'Rancilio Silvia Pro X',            temp: 'set',   pressure: 'gauge' },
+  { name: 'Rocket Appartamento',              temp: 'fixed', pressure: 'gauge' },
+  { name: 'Lelit Elizabeth',                  temp: 'set',   pressure: 'gauge' },
+  { name: 'Lelit Bianca',                     temp: 'set',   pressure: 'profile' },
+  { name: 'Profitec Pro 500',                 temp: 'set',   pressure: 'gauge' },
+  { name: 'Profitec Pro 600',                 temp: 'set',   pressure: 'gauge' },
+  { name: 'ECM Synchronika',                  temp: 'set',   pressure: 'gauge' },
+  { name: 'La Marzocco Linea Mini',           temp: 'set',   pressure: 'gauge' },
+  { name: 'Decent DE1',                       temp: 'set',   pressure: 'profile' },
+  { name: 'Meticulous',                       temp: 'set',   pressure: 'profile' },
+  // On a manual lever the kettle is the temperature control and the arm is
+  // the pressure profile, so both answers are "you".
+  { name: 'Flair 58',                         temp: 'set',   pressure: 'profile' },
+  { name: 'Flair (Classic, Pro, NEO)',        temp: 'set',   pressure: 'profile' },
+  { name: 'Cafelat Robot',                    temp: 'set',   pressure: 'profile' },
+  { name: 'La Pavoni (lever)',                temp: 'set',   pressure: 'profile' },
+];
+
+const GRINDERS = [
+  { name: 'Niche Zero',                steps: 'stepless', retains: false },
+  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless', retains: false },
+  { name: 'DF54',                      steps: 'stepless', retains: false },
+  { name: 'Turin DF83',                steps: 'stepless', retains: false },
+  { name: 'Eureka Mignon',             steps: 'stepless', retains: true },
+  { name: 'Mazzer Mini',               steps: 'stepless', retains: true },
+  { name: 'Option-O Lagom P64',        steps: 'stepless', retains: false },
+  { name: 'Weber Key / EG-1',          steps: 'stepless', retains: false },
+  { name: 'Fellow Ode Gen 2',          steps: 'stepped',  retains: false },
+  { name: 'Baratza Encore / Encore ESP', steps: 'stepped', retains: true },
+  { name: 'Baratza Sette 270',         steps: 'stepped',  retains: false },
+  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped', retains: true },
+  { name: 'Breville/Sage built-in grinder',  steps: 'stepped', retains: true },
+  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped',  retains: false },
+  { name: 'Comandante C40',            steps: 'stepped',  retains: false },
+  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped',  retains: false },
+  { name: 'Kingrinder (K4, K6)',       steps: 'stepped',  retains: false },
+];
+
+const machineEntry = name => MACHINES.find(m => m.name === name) || null;
+const grinderEntry = name => GRINDERS.find(g => g.name === name) || null;
+
 function defaultKit() {
   return {
     machine: '',
@@ -102,7 +186,36 @@ function defaultKit() {
     temp: 'fixed',       // 'fixed' — one temperature | 'set' — you choose it
     pressure: 'fixed',   // 'fixed' | 'gauge' — you can see it | 'profile' — you can change it
     steps: 'stepless',   // 'stepped' — clicks | 'stepless' — a number on a dial
+    /* Whether the grinder holds grounds between settings. The whole "use
+       grind for the big moves and dose or yield for the small ones" rule
+       exists because a grind change costs a purge; on a single-doser it
+       costs nothing and the rule relaxes. */
+    retains: true,       // true — needs a purge | false — single dose
+    /* Which portafilter, because it decides whether channelling is
+       visible at all and what it looks like. Sprays are a bottomless
+       observation; with spouts the tell is a late surge in flow. */
+    portafilter: 'spouted',  // 'spouted' | 'bottomless'
+    /* Two doses, because they are two different facts and conflating
+       them was the worst bug a first-run test ever found.
+
+       basketDose is the number printed on the basket — 18g on a stock
+       Breville double. It is hardware, it is a ceiling, and nothing the
+       app does ever changes it.
+
+       doseFits is what the coin test proved actually fits this coffee
+       with headroom to swell into, which can be either side of the
+       printed figure because grind and roast change how grounds settle.
+       Null until the test has been run.
+
+       They used to be one field. The coin test wrote 19 into it, and the
+       board then said "that is under the 19g on the basket" to somebody
+       whose basket says 18 — the app arguing against its own advice and
+       blaming the hardware for it. */
     basketDose: 18,
+    doseFits: null,
+    // When the dose was last checked against the basket by volume. The
+    // weight is only half the answer — see openDoseCheck.
+    doseChecked: null,
     asked: false,        // has anybody answered or skipped this screen
   };
 }
@@ -117,6 +230,29 @@ const seesPressure = () => kit().pressure !== 'fixed';
 // dial. Neither number means anything to anyone else, which is why the app
 // only ever suggests a direction.
 const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
+/* What to call the control itself, as opposed to one unit of it.
+
+   The app boasts in its own help that it "tells you how many clicks rather
+   than 'a step'", and then said "the dial" in nine places — the pinch
+   test, the settings row, the temperature card, and the tail on every
+   single advice card. A 1Zpresso has a numbered collar and no dial, and a
+   tester who had chosen Clicks counted the slips. */
+const grindThing = () => (kit().steps === 'stepped' ? 'the grinder' : 'the dial');
+// A distance on the grinder, in the reader's units. Mirrors grind.js.
+const fmtSteps = v => (kit().steps === 'stepped'
+  ? `${Math.round(v)} ${Math.round(v) === 1 ? 'click' : 'clicks'}`
+  : `${(Math.round(v * 10) / 10).toFixed(1)} on the dial`);
+// A grinder that holds grounds makes every grind change cost a purge.
+const retains = () => kit().retains !== false;
+const bottomless = () => kit().portafilter === 'bottomless';
+/* What this basket actually holds, which is the coin test's answer where
+   there is one and the printed figure otherwise. Everything that reasons
+   about how full the basket is uses this; only prose that says the words
+   "on the basket" uses basketDose. */
+const basketCap = () => {
+  const fits = num(kit().doseFits);
+  return fits === null ? num(kit().basketDose) : fits;
+};
 
 /* ---------- the model ---------- */
 
@@ -134,7 +270,7 @@ function uid() {
 function defaultTarget() {
   // The basket decides the dose more than anything else does, and the kit
   // already knows which basket is in the machine.
-  return { dose: kit().basketDose || 18, ratio: 2, timeLo: 25, timeHi: 30, temp: null };
+  return { dose: basketCap() || 18, ratio: 2, timeLo: 25, timeHi: 30, temp: null };
 }
 
 /* A starting point from the bag.
@@ -154,13 +290,228 @@ function defaultTarget() {
 
    Ranges are the conventional ones; the single figure is the middle of the
    range this app will actually put in the field. */
+/* Temperatures are from DIALIN.md step 5, which takes them from the
+   Understanding Espresso series: dark 85–90, medium 88–92, light 90–95.
+   The five levels here interpolate between those three bands, keeping
+   their outer edges.
+
+   They used to run 2–3°C hotter across the board — the old dark band
+   started where this one ends — because they were assembled from general
+   guidance rather than taken from a source. That is the whole argument
+   for writing the method down before writing the advice.
+
+   The ratios are NOT from the same place and are marked as assembled in
+   DIALIN.md step 3: the series gives no roast-to-ratio mapping at all,
+   and starts around 1:2–1:2.2 regardless. The mild slope kept here — a
+   longer ratio for a lighter roast — follows Hedrick's "ratio over grind
+   size" rather than Hoffmann, and is offered as a starting point only. */
+/* The window moves with the roast too, and it used to be 25–30s for
+   everything.
+
+   That default is traditional-espresso shaped, and for a light roast it
+   is actively misleading. Hedrick pulls Nordic-style coffees at 16 to 22
+   seconds on purpose — coarse, low pressure, long ratio — and says he
+   never really goes over 20 or 22 with them. An app holding every coffee
+   to 25–30 would call every one of those shots badly under-extracted and
+   send somebody finer, which is the one direction he argues against for
+   those coffees.
+
+   These are not his numbers: a window of 16–22 would impose one man's
+   style on everybody, and he is the first to say it is a modern style
+   rather than the only one. What they do is widen and shift earlier as
+   the roast gets lighter, so a fast light-roast shot stops being flagged
+   as a fault. The window is a field on the coffee and the person can
+   move it wherever they like; this only decides where it starts. */
 const ROASTS = [
-  { key: 'light',  label: 'Light',       temp: 94, ratio: 2.4, tempRange: '93–95°', ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 93, ratio: 2.2, tempRange: '92–94°', ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',      temp: 92, ratio: 2.0, tempRange: '92–93°', ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark', temp: 91, ratio: 1.9, tempRange: '90–92°', ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',        temp: 90, ratio: 1.8, tempRange: '88–91°', ratioRange: '1:1.7–1:1.9' },
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
 ];
+
+/* Where to start the dose, given the roast and the basket.
+
+   Extraction is work, and more coffee is more of it. A light roast is
+   already hard to extract, so starting it with a full basket sets an
+   impossible amount of work and the cup comes out sour and thin however
+   it is dialled. A dark roast gives up its solubles easily and can sit
+   at the basket's figure.
+
+   Expressed as an offset from the basket's own rating rather than as a
+   number, because the basket decides the dose and this only decides
+   where in its range to sit. Never above it: that figure is a ceiling. */
+function doseStart(c) {
+  const basket = basketCap();
+  if (basket === null) return null;
+  const e = c ? roastEntry(c.roast) : null;
+  const off = e ? e.dose : 0;
+  return Math.max(1, Math.round((basket + off) * 2) / 2);
+}
+
+/* ---------- how soluble the coffee is ----------
+
+   THIS REVERSES A DECISION THIS FILE USED TO DOCUMENT.
+
+   The roast-level block below used to say that process, origin and
+   elevation were "real and much weaker", and that folding them in would
+   make the answer's confidence harder to read rather than making it
+   better. That was a fair call on the evidence then: the sources said
+   those things mattered without saying what to do about them, and a
+   vague factor mixed into a sharp one does blur it.
+
+   Two things changed it. One source frames the whole problem as
+   solubility — how readily a coffee gives up what is in it — with roast
+   as the largest input but not the only one, and gives directions for
+   each of the others. The second arrives at the same place from the
+   other side, by category: heavily processed coffees behave one way,
+   ultra-lights another, old coffees another. Those are specific enough
+   to act on, which "real but weaker" never was.
+
+   The shift below is a modifier around the roast baseline, not a
+   replacement for it. Negative means harder to extract than the roast
+   alone suggests — push a little harder. Positive means easier — ease
+   off. Roast itself is not in the sum, because it is already in ROASTS
+   and counting it twice would double its weight.
+
+   Two of the factors are not scalars at all and are carried as flags,
+   because what they change is which advice is allowed rather than how
+   far a number moves. See solubility(). */
+
+const PROCESSES = [
+  { key: 'washed',    label: 'Washed',         shift: -0.5 },
+  { key: 'honey',     label: 'Honey',          shift: 0 },
+  { key: 'natural',   label: 'Natural',        shift: 0.5 },
+  { key: 'fermented', label: 'Anaerobic / co-ferment', shift: 1 },
+];
+
+const ALTITUDES = [
+  { key: 'high', label: 'High, 1800m+',   shift: -0.5 },
+  { key: 'mid',  label: 'Mid',            shift: 0 },
+  { key: 'low',  label: 'Low, under 1200m', shift: 0.5 },
+];
+
+const processEntry = k => PROCESSES.find(x => x.key === k) || null;
+const altitudeEntry = k => ALTITUDES.find(x => x.key === k) || null;
+
+/* The starting point, roast plus everything else the bag said.
+
+   Roast sets the baseline; the solubility shift moves it. Two rules
+   about which way each number is allowed to move:
+
+   The ratio carries most of the adjustment, because yield is the
+   reliable way to change extraction and the one all three sources
+   agree on.
+
+   The temperature only ever comes DOWN. Raising it is the contested
+   move — two of the three argue that heat buys bitterness faster than
+   it buys sweetness — so a coffee that is hard to extract gets a longer
+   ratio rather than a hotter machine, while one that gives up too
+   easily gets cooled. */
+function startingPoint(c) {
+  const e = c ? roastEntry(c.roast) : null;
+  if (!e) return null;
+  const sol = solubility(c);
+  const s = sol.shift;
+
+  /* Rounded to a tenth, which is the grain the ratio field steps in.
+
+     This used to round to 0.05, so the button said "Start at 1:2.55",
+     the toast said 1:2.55, and the stepper underneath — a one-decimal
+     field — showed 2.6. The app disagreeing with itself two inches
+     apart. A twentieth of a ratio is under a gram of yield on a normal
+     dose and nobody dials to it; a tenth is a real step and it is the
+     one the field can hold. */
+  let ratio = e.ratio - s * 0.15;
+  ratio = Math.max(1.4, Math.min(3.2, Math.round(ratio * 10) / 10));
+
+  let temp = e.temp;
+  if (s >= 1.4) temp -= 2;
+  else if (s >= 0.5) temp -= 1;
+  temp = Math.max(e.lo, Math.min(e.hi, temp));
+
+  /* The two that are not a number on a slider. Decaf pulls both ways at
+     once and has to be said in words; a heavily processed lot is a
+     warning about which direction to move when it disappoints. */
+  const extra = [];
+  if (sol.flags.decaf) extra.push('Decaf pulls both ways: it extracts more readily, so the ratio comes in, but it also flows faster, so expect to grind finer than the same coffee with its caffeine.');
+  if (sol.flags.processed) extra.push('With a lot this heavily processed, the flavour you paid for is the one the process put there, and pushing extraction burns it off. If it comes out sour, going coarser is as likely to fix it as going finer.');
+  if (sol.flags.aged) extra.push('This bag has lost the gas that gave the puck much of its resistance, so it will run fast and will not build pressure. That is the bag, not the grinder — chasing it finer mostly makes it bitter.');
+
+  return { e, sol, ratio, temp, timeLo: e.timeLo, timeHi: e.timeHi, extra };
+}
+
+/* What the bag says about how hard this coffee will be to extract.
+
+   Returns a shift around the roast baseline, the reasons behind it in
+   words, and the flags that change which advice is legal:
+
+     processed — a heavily fermented lot. The point of one is the flavour
+                 the process put there, and pushing extraction burns it
+                 off; sour in one of these is as likely to be uneven
+                 extraction from going too fine as it is under-extraction.
+     decaf     — decaffeination rearranges the bean. More soluble AND it
+                 flows faster, which pull opposite ways: finer grind, but
+                 a tighter ratio.
+     aged      — past about six weeks the carbon dioxide that gave the
+                 puck much of its resistance has gone, so shots run fast
+                 and will not build pressure. Chasing that with a finer
+                 grind is how a stale bag gets blamed on the grinder. */
+function solubility(c) {
+  if (!c) return { shift: 0, why: [], flags: {} };
+  let shift = 0;
+  const why = [];
+  const flags = {};
+
+  const pr = processEntry(c.process);
+  if (pr) {
+    shift += pr.shift;
+    if (pr.key === 'fermented') {
+      flags.processed = true;
+      why.push('a heavily processed lot gives up its flavour early and does not want pushing');
+    } else if (pr.key === 'washed') {
+      why.push('washed coffees are denser and give up less readily');
+    } else if (pr.key === 'natural') {
+      why.push('naturals are less dense and come out more easily');
+    }
+  }
+
+  const al = altitudeEntry(c.altitude);
+  if (al) {
+    shift += al.shift;
+    if (al.key === 'high') why.push('high-grown beans are denser again');
+    if (al.key === 'low') why.push('lower-grown beans are softer');
+  }
+
+  if (c.decaf) {
+    shift += 1.5;
+    flags.decaf = true;
+    why.push('decaffeination opens the bean up, so it extracts much more readily and flows faster with it');
+  }
+
+  const age = daysSinceRoast(c);
+  if (age !== null && age >= 42) {
+    /* The age moved the prose and not the numbers.
+
+       startingPoint says an aged bag "starts shorter, and cooler, than the
+       roast alone would" — and it was setting the plain roast midpoint,
+       because the flag was raised without a shift behind it. A tester with
+       a seven-week-old dark blend was told the app had adjusted for the
+       bag, got 1:1.8 and 87° (dead centre of the dark band, unmoved), and
+       spent six shots walking down to the 1:1.6 the sentence had promised.
+
+       A degassed bag has lost the resistance that kept the water honest
+       and oxidation has already done part of the extracting, so it gives
+       up what is left too easily. That is the same direction as a dark
+       roast, which is what "shorter and cooler" means here. See DIALIN.md
+       step 0.5 and "which way the numbers are allowed to move". */
+    shift += 1;
+    flags.aged = true;
+    why.push('past six weeks the carbon dioxide that gave the puck its resistance has gone, so it will run fast whatever the grinder says');
+  }
+
+  return { shift: Math.round(shift * 100) / 100, why, flags };
+}
 
 function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
@@ -182,6 +533,12 @@ function newCoffee(name) {
     roaster: '',
     roastDate: '',
     roast: '',
+    // What else the bag says about how hard this will be to extract.
+    // See solubility(). All optional — an unanswered one simply does not
+    // contribute, rather than defaulting to a guess.
+    process: '',
+    altitude: '',
+    decaf: false,
     // How far the grinder has moved from the dialled-in recipe. The recipe
     // itself is never rewritten; see the keeper card.
     grindNow: '',
@@ -273,6 +630,277 @@ function placeOf(shot, target) {
   };
 }
 
+/* ---------- how the shot ran ----------
+
+   The thing every dial-in guide puts first and no dial-in app asks.
+
+   Most bad espresso at home is not a grind setting. It is water finding
+   a crack and going round the puck instead of through it, and when that
+   happens the clock and the cup are both readings of an accident: the
+   shot runs quick because part of the bed offered no resistance, and it
+   tastes sour and harsh at once because one part over-extracted while
+   the rest barely brewed. Grinding finer — the answer the clock alone
+   would give — tightens the bed and makes the crack worse.
+
+   The app used to infer this from the two corners where the clock and
+   the cup disagree. That catches some of it, and it is a guess. Asking
+   costs one tap and turns the guess into a reading.
+
+   Four answers, chosen because you can tell them apart across the bar
+   without thinking about it:
+
+     even    one or two steady dark streams that join and stay joined
+     spray   jets sideways off the basket, or a stream that splits
+     blonde  went pale long before the end
+     stall   dripped, hesitated, then rushed
+
+   The last three are all the same fault wearing different clothes. */
+
+/* The options depend on which portafilter is on the machine, because the
+   two show channelling completely differently and the old list only
+   described one of them.
+
+   Through a bottomless you watch the bed: the flow goes uneven across
+   the basket, and it jets or splits. With spouts you cannot see the bed
+   at all — what reaches you is a sudden surge in flow late in the shot,
+   coffee gushing from the spouts in the last third or the last half.
+   Asking a spouted user whether it sprayed is asking about something
+   they physically cannot observe, which is how the most diagnostic
+   question in the app became unanswerable for most of its users. */
+const RUNS = [
+  { key: 'even',   label: 'Ran even',      sub: 'steady and dark', both: true },
+  { key: 'spray',  label: 'Sprayed',       sub: 'jets, or the stream split', naked: true },
+  { key: 'surge',  label: 'Gushed near the end', sub: 'the flow jumped in the last third', spouted: true },
+  { key: 'blonde', label: 'Blonded early', sub: 'pale well before the end', both: true },
+  { key: 'stall',  label: 'Dripped, then rushed', sub: 'it hesitated', both: true },
+];
+
+// What to show, given the portafilter. Every key stays in RUNS so a shot
+// logged on one portafilter still reads correctly after a kit change.
+function runOptions() {
+  return RUNS.filter(r => r.both || (bottomless() ? r.naked : r.spouted));
+}
+
+const runEntry = key => RUNS.find(r => r.key === key) || null;
+const channelled = shot => shot && ['spray', 'surge', 'stall', 'blonde'].includes(shot.run);
+
+/* "Ran even" is evidence through a bottomless and an opinion through spouts.
+
+   Four branches of the advice reach for channelling when the clock and the
+   taste disagree, because that disagreement usually is a channel. But a
+   tester with a bottomless portafilter ticked "Ran even" — the one
+   observation that rules a channel out, made on the one portafilter where
+   you can actually make it — and got "look at distribution and tamp
+   before anything else" three shots running, in identical words, roughly
+   200px below the lit chip. Three shots thrown away because the app
+   ignored the only thing it had asked for.
+
+   Through spouts the bed is invisible, so "ran even" there means the
+   stream looked steady, which is genuinely weak evidence. The app says so
+   rather than either ignoring the answer or pretending it settles it. */
+const sawEven = shot => Boolean(shot) && shot.run === 'even';
+const evenSeen = shot => sawEven(shot) && bottomless();
+
+/* Where to look when the puck has been ruled out.
+
+   The clock and the taste disagreeing means the coffee gave up more, or
+   less, than its time suggests. With the bed exonerated, what is left is
+   how soluble the coffee is and how hot the water is — and the ratio is
+   the variable that carries an adjustment, with temperature only ever
+   coming down. See DIALIN.md, "which way the numbers are allowed to move". */
+function notThePuck(shot, target, c, over) {
+  const sol = solubility(c);
+  const bag = [];
+  if (sol.flags.aged) bag.push('the bag is past six weeks and degassed');
+  if (sol.flags.processed) bag.push('a heavily processed lot gives up its solubles readily');
+  const e = c ? roastEntry(c.roast) : null;
+  if (e && over && e.dose >= 0) bag.push(`a ${e.label.toLowerCase()} roast is friable and extracts easily`);
+  if (e && !over && e.dose < 0) bag.push(`a ${e.label.toLowerCase()} roast is dense and hard to extract`);
+  const because = bag.length ? ` — ${bag.join(', and ')}` : '';
+
+  if (over) {
+    return canSetTemp()
+      ? ` This is a coffee giving up more than its time suggests${because}. Take a degree off the brew temperature, and if that is not enough, stop the shot 2 to 3g shorter. Leave the grinder where it is: coarser would only make it faster.`
+      : ` This is a coffee giving up more than its time suggests${because}. Stop the shot 2 to 3g shorter — less water through the same puck takes less of the harsh end with it. Leave the grinder where it is: coarser would only make it faster.`;
+  }
+  return ` This is a coffee giving up less than its time suggests${because}. Let it run 2 to 3g longer — more water takes more with it, and yield is the reliable way to move extraction. Leave the grinder where it is: finer would only make it slower.${
+    canSetTemp() ? ' Hotter would also extract more, but that is the contested move and it brings bitterness on faster than sweetness; try the yield first.' : ''}`;
+}
+
+/* The channelling guess, with the reader's own observation in it.
+
+   `over` is true for the too-much-came-out corner. */
+function puckOrNot(shot, target, c, over) {
+  if (evenSeen(shot)) return notThePuck(shot, target, c, over);
+  if (sawEven(shot)) {
+    return ` You said it ran even, though through spouts the bed is out of sight and a steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
+      notThePuck(shot, target, c, over).replace(/^ This is a coffee/, ' it is a coffee')}`;
+  }
+  return over
+    ? ' This pattern usually means the water found a channel, so look at distribution and tamp before anything else.'
+    : ' This pattern usually means the water went round the puck rather than through it, so look at distribution and tamp before anything else.';
+}
+
+/* Sour and bitter in the same sip.
+
+   DIALIN.md step 2, and the tell both authorities and every guide agree
+   on: it is channelling rather than a grind problem. One part of the bed
+   over-extracted while the rest barely brewed, and the cup carries both
+   at once. Grinding either way makes one half worse — finer tightens the
+   bed around the crack, coarser under-extracts what was already weak.
+
+   It outranks the clock for the same reason a sprayed shot does: the
+   time is a reading of an accident. The difference is only where the
+   evidence came from — the eye or the mouth — so the advice is the same
+   advice. */
+function harshFault(shot) {
+  if (!shot || !shot.harsh) return null;
+  /* Both at once IS the signature of a channel, and "ran even" says there
+     was not one. A tester had both lit with nothing said about it. The
+     taste is the stronger evidence — you drank it, and through spouts you
+     cannot see the bed at all — so the advice stands and the card says
+     which two answers are pulling against each other. */
+  const evenToo = sawEven(shot)
+    ? ` You marked it as running even, which is the opposite reading${bottomless() ? ', and through a bottomless that is worth something' : ''} — but a cup that is sharp and harsh at the same time is hard to get any other way, so this is the one to act on${bottomless() ? '; watch the underside again on the next pull' : ''}.`
+    : '';
+  return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+    // The caveat goes after the instruction, not in front of it.
+    why: 'Sharp and harsh in the same sip is not a point between sour and bitter — it is two different extractions in one cup. Water went round part of the bed and sat in the rest, so one half gave up too much and the other hardly brewed. No grind setting fixes that, and both directions make one half worse. Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move. Check the dose fits the basket while you are there, because a puck with nowhere to swell into channels however carefully it was prepared.' + evenToo };
+}
+
+/* The puck, when the puck is the answer.
+
+   This outranks everything else the app has to say, including a clock
+   that is a long way out, because until the shot runs even the clock is
+   not measuring the grind and the cup is not measuring the recipe. It is
+   also the one piece of advice here that names a technique rather than a
+   number, and it says so. */
+function runFault(shot, target) {
+  if (!channelled(shot)) return null;
+  const place = placeOf(shot, target);
+  const fast = place.time === 'fast';
+
+  const common = ' Distribute the grounds before you tamp — stir the bed or tap the basket level — then tamp flat and hard enough that it does not move, and check nothing is caked on the shower screen. One of those usually does it.';
+
+  if (shot.run === 'surge') {
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+      why: `Flow that jumps late is the tell you get through spouts: the bed gave way and the water is going round it. Everything else on this shot is a reading of that — the clock ran on a puck that stopped resisting partway, and the cup will be sour and harsh at once and thinner than its strength suggests. Grinding finer tightens the bed and makes the crack worse, so leave the grinder where it is and pull another.${common}` };
+  }
+  if (shot.run === 'spray') {
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+      why: `It sprayed, which means water found a crack and went round the bed rather than through it. Everything else on this shot is a reading of that: the clock is quick because part of the puck offered no resistance, and the cup is sour and harsh at once because one part over-extracted while the rest hardly brewed. Grinding finer tightens the bed and makes the crack worse, so leave the grinder exactly where it is and pull another.${common}` };
+  }
+  if (shot.run === 'stall') {
+    return { sure: true, act: 'dose', move: 'Fix the puck, not the grinder.',
+      why: `It hesitated and then rushed, which is a bed that resisted until the water found a way through and then gave up all at once. That is channelling, and it makes the clock meaningless — the seconds at the start and the seconds after the break are not measuring the same shot. Leave the grinder where it is and pull another.${common}` };
+  }
+  return { sure: false, move: 'Blonded early — pull another, grinder untouched.',
+    why: `Going pale well before the end means the puck was spent early, in part of the bed at least.${
+      fast ? ' With a quick clock on top of it, that is water running round the bed rather than through it.' : ''} Leave ${grindThing()} alone for one shot and prepare the puck carefully instead:${common.replace(' One of those usually does it.', '')} If it comes out even, the last one was the prep. If it blondes again the same way, it is the grind or the dose and the board will say which.` };
+}
+
+/* ---------- what the grinder is worth, in seconds ----------
+
+   The measurement lives in /shared/grind.js, because it is the same
+   measurement of the same machine whether a basket or a cone sits
+   downstream of it, and somebody who uses both of these apps owns one
+   grinder. What stays here is the part that is espresso's: where the
+   numbers are read from, and how many seconds a given shot is trying
+   to buy.
+
+   Espresso always qualifies for it. The water's time in the puck is a
+   consequence of how fine the coffee is, so seconds-per-step is a real
+   quantity — unlike an immersion brewer, where the clock is a decision
+   somebody made and the same arithmetic would be measuring that. */
+
+const GRIND = makeGrind({
+  /* The shot on the open sheet counts as evidence, because it is.
+
+     The calibration read only saved shots, so the shot sheet and the board
+     gave two different answers to the same question a second apart. One
+     tester watched the modal say "How far, it cannot say yet" over a shot
+     whose grind and time were both typed in, pressed Save, and had the
+     board immediately answer "about 3 clicks, up to 51" from that same
+     shot. Another got "1.1 on the dial, down to 29.9" in the sheet and
+     "1.3 on the dial, down to 29.7" on the board. Both were right about
+     their own inputs and the reader saw an app changing its mind.
+
+     A grind and a time that have been entered are a measurement whether or
+     not a button has been pressed. Included once both are there, and only
+     for a new sheet — an existing shot is already in the log below and
+     would otherwise be counted twice. */
+  logs: () => {
+    const rows = ((state && state.coffees) || []).map(c => (c.shots || []).slice());
+    if (editing && editingIsNew && num(editing.time) !== null
+        && editing.grind !== '' && num(Number(editing.grind)) !== null) {
+      const active = (state && state.coffees || []).findIndex(c => c.id === (state && state.activeId));
+      if (active >= 0) rows[active] = rows[active].concat([editing]);
+    }
+    return rows;
+  },
+  stepped: () => kit().steps === 'stepped',
+  /* 'step' was wrong on a stepless dial in the one place it mattered
+     most — the sentence that promises to replace "a step" with a number.
+     A numeric collar has no clicks, and the sensitivity figure is seconds
+     per whole number on that collar — so that is what it is called. Not
+     "a tenth": moves are quoted in tenths, but 2.0s is what a whole point
+     is worth, and naming the smaller unit would understate the grinder
+     tenfold in the one sentence the reader checks the estimate against. */
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'),
+  itemWord: () => 'shot',
+  timeOf: sh => num(sh.time),
+  grindOf: sh => (sh.grind === '' ? null : num(Number(sh.grind))),
+  doseOf: sh => num(sh.dose),
+  waterOf: sh => num(sh.yield),
+  waterSlack: 3,
+  noiseFloor: 1.5,
+});
+
+const grindPairs = () => GRIND.pairs();
+const grindSensitivity = () => GRIND.sensitivity();
+
+// The instruction and the reasoning for a grind move. Two strings rather
+// than one sentence: see /shared/grind.js for why.
+function grindMoveParts(shot, target, finer) {
+  return GRIND.parts({
+    wantSeconds: secondsWanted(shot, target, finer),
+    currentGrind: shot ? shot.grind : null,
+    currentTime: num(shot && shot.time),
+    lo: target.timeLo, hi: target.timeHi,
+  });
+}
+
+/* An instruction names what stays as well as what moves.
+
+   "Grind finer — about 1.5 on the dial, down to 30.5" leaves the obvious
+   question unanswered: and the yield? The app knows the answer — a
+   dial-in moves one thing at a time, it is the rule the two-variable
+   warning is built on — and it was keeping it to itself on exactly the
+   instruction where somebody reaching for a second knob does the most
+   damage. Three words on the line people actually read.
+
+   The yield advice mostly said its own version of this already ("on the
+   same dose", "leave the grinder where it is"). Now both do. */
+const holdLine = (shot, field) => {
+  if (field === 'grind') {
+    const y = num(shot && shot.yield);
+    return y === null ? ', same yield' : `, same ${fmtDose(y)}g out`;
+  }
+  return ', same grind';
+};
+
+/* A yield instruction in grams, not in deltas.
+
+   "Let it run 2 to 4g further" is arithmetic to do over a cooling shot
+   with one wet hand. The board knows what came out last time. */
+function yieldTo(shot, grams) {
+  const y = num(shot && shot.yield);
+  if (y === null) return null;
+  const to = Math.round((y + grams) * 2) / 2;
+  return to > 0 ? to : null;
+}
+
+
 /* What you meant to change, checked against what changed.
 
    A dial-in is a controlled experiment and its commonest failure is not a
@@ -304,6 +932,39 @@ function intentEntry(key) {
    previous shot to have changed from. Otherwise a sentence about the
    disagreement, and nothing at all when they agree, because a dial-in that
    is going to plan does not need narrating. */
+/* Two flow variables moved at once, so neither result means anything.
+
+   His third rule for grind, and the one most often broken: grind and
+   dose both change how hard it is for water to get through the puck.
+   Move both in the same shot and the clock cannot tell you which did
+   what — the shot is not a measurement of either.
+
+   The app already catches the stated intention disagreeing with what
+   moved. It did not catch this, which is the more common mistake,
+   because both changes can be perfectly deliberate and still leave you
+   with an uninterpretable result.
+
+   A dose change under a third of a gram is not counted: that is scale
+   drift rather than a decision, and half the point of the half-gram
+   nudge is that dose moves on its own terms. */
+function twoVariables(shot, prev) {
+  if (!shot || !prev) return null;
+  const n = (o, f) => {
+    const raw = o[f];
+    if (raw === '' || raw === null || typeof raw === 'undefined') return null;
+    const v = Number(raw);
+    return isFinite(v) ? v : null;
+  };
+  const g0 = n(prev, 'grind'), g1 = n(shot, 'grind');
+  const d0 = n(prev, 'dose'), d1 = n(shot, 'dose');
+  if (g0 === null || g1 === null || d0 === null || d1 === null) return null;
+  const dg = g1 - g0, dd = d1 - d0;
+  if (dg === 0 || Math.abs(dd) < 0.3) return null;
+  return `The grind and the dose both moved since the last shot — ${
+    dg > 0 ? 'grind up' : 'grind down'} ${Math.abs(dg) % 1 === 0 ? Math.abs(dg) : Math.abs(dg).toFixed(1)}, dose ${
+    dd > 0 ? 'up' : 'down'} ${fmtDose(Math.abs(dd))}g. Both of those change how hard it is for the water to get through, so whatever the clock says next, it cannot tell you which one did it. Move one at a time and the shot becomes a measurement instead of a guess.`;
+}
+
 function intentCheck(shot, prev) {
   const intent = intentEntry(shot.intent);
   if (!intent || !prev) return null;
@@ -346,14 +1007,27 @@ function intentCheck(shot, prev) {
 
 const TASTE_MIN = -3, TASTE_MAX = 3;
 
-// The taste axis, named. Sour and bitter are the two walls a dial-in runs
-// into, and the middle is not "good" — it is "neither", which is where a
-// shot has to be before anything else about it is worth discussing.
+/* The taste axis, named at both ends AND in the middle.
+
+   The middle used to read "neither", and that was the thing standing
+   between this app and a tool you dial by taste. An anchored scale whose
+   middle anchor names the absence of two faults can only ever tell you
+   which way you missed; it has no word for arriving. Every one of the
+   seven labels was a defect or a negation, so "good" was undefined and
+   the clock had to stand in for it.
+
+   The word was in DIALIN.md the whole time. Extraction runs in a fixed
+   order — the sour compounds come out first, THE SWEET AND BALANCED ONES
+   THROUGH THE MIDDLE, the bitter ones last. Sour and bitter are not two
+   ends of a preference; they are the two ways of missing the middle of
+   the extraction, and the middle has a taste. Naming it turns the scale
+   from a fault report into a target you can aim at, and it is the same
+   thing the salami test teaches with three glasses. */
 const TASTE_WORDS = {
   '-3': 'sharp, sour',
   '-2': 'sour',
   '-1': 'a little sour',
-  '0': 'neither',
+  '0': 'sweet, balanced',
   '1': 'a little bitter',
   '2': 'bitter',
   '3': 'harsh, drying',
@@ -370,10 +1044,39 @@ function tasteSide(v) {
   return 'neither';
 }
 
-/* The other wall.
+/* Acidity is not sourness, and the scale cannot tell them apart.
+
+   A washed Ethiopian pulled correctly is bright, and bright lands on the
+   sour half of a sour–sweet–bitter axis because there is nowhere else for
+   it to go. The app then read that as under-extraction and sent the
+   drinker finer, longer and hotter after an acidity that was never going
+   to leave — which is a real way to lose a bag, and why roastNote exists
+   to argue the reader out of the answer the app had just made them give.
+
+   Better to let them say it. The chip means "the acid is there and I like
+   it": the position still records how sharp the cup was, and the advice
+   stops treating it as a fault. It is the counterpart of the both-at-once
+   chip — one says the scale does not apply, the other says the scale
+   reads a fault where there is none. */
+const tasteFault = shot => {
+  const side = tasteSide(shot && shot.taste);
+  // Only on the sour half. Brightness is an acidity somebody is enjoying;
+  // it is not a licence for a bitter cup, and a chip that excused both
+  // halves would be a way to switch the diagnosis off.
+  if (shot && shot.bright && side === 'sour') return 'neither';
+  return side;
+};
+
+/* The other wall, named the same way.
+
+   Thin and muddy are the two ways of missing the middle of the
+   concentration, and that middle is not "neither" either — it is the
+   texture an espresso is drunk for, which every barista calls syrupy. A
+   shot can sit dead centre of the extraction axis and still be watery,
+   because thin is about how much coffee ended up in the cup.
 
    Sour and bitter are what extraction does. Watery and muddy are what
-   concentration does, and they move on different levers: grind changes how
+   concentration does, and they move on different variables: grind changes how
    much comes out of the puck, ratio and dose change how much of it is in
    the cup. A tool that answers "grind finer" to a thin shot is answering
    the wrong question — a shot can be extracted perfectly and still be
@@ -386,7 +1089,7 @@ const BODY_WORDS = {
   '-3': 'thin, watery',
   '-2': 'watery',
   '-1': 'a little thin',
-  '0': 'neither',
+  '0': 'syrupy',
   '1': 'a little heavy',
   '2': 'heavy, muddy',
   '3': 'thick, sludgy',
@@ -414,7 +1117,7 @@ function bodySide(v) {
    answer.
 
    Time is a measurement, not a guess. A shot that came in short of the
-   window got through the puck too quickly, and grind is the lever that
+   window got through the puck too quickly, and grind is the variable that
    changes that — you do not need to taste it to know which way to turn
    the grinder. So the clock gets its own advice, and taste upgrades it
    rather than unlocking it.
@@ -424,7 +1127,139 @@ function bodySide(v) {
    not fix it. That is exactly what the taste scale adds, and saying so
    is a better argument for using it than withholding the whole answer
    was. */
-function clockAdvice(shot, target) {
+/* How many seconds the next shot should move, signed.
+
+   Outside the window, aim at the middle of it. Inside it and still
+   tasting of a wall, aim at the end of the window the move is heading
+   for — finer buys extraction, so it goes toward the slow end — because
+   "grind finer" on a shot that is already where it should be still has
+   to mean some particular distance. Already at that end, it is the
+   smallest move the dial makes rather than none. */
+function secondsWanted(shot, target, finer) {
+  const t = num(shot.time);
+  if (t === null) return null;
+  const place = placeOf(shot, target);
+  if (place.time === 'in') {
+    const aim = finer ? target.timeHi : target.timeLo;
+    const d = aim - t;
+    return Math.abs(d) < 1 ? (finer ? 1.5 : -1.5) : d;
+  }
+  return (target.timeLo + target.timeHi) / 2 - t;
+}
+
+/* The rule the app had been following without ever saying.
+
+   Grind gets the flow into the ballpark; dose and yield make the small
+   corrections after that. It is stated where it applies rather than in
+   the abstract — on a big correction, so somebody learns what the
+   grinder is for at the moment they are reaching for it.
+
+   Deliberately the complement of doseNudge: that offers the half-gram
+   when the shot is within five seconds of the window, this names the
+   principle when it is further out, and they never both fire. */
+function grindIsFor(shot, target) {
+  const t = num(shot && shot.time);
+  if (t === null) return '';
+  const place = placeOf(shot, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return '';
+  const off = place.time === 'fast' ? target.timeLo - t : t - target.timeHi;
+  if (off <= 5) return '';
+  /* Said while it is still being learned, not on every card for ever.
+
+     This is the principle behind the whole method and it was firing on
+     every far-out shot, which is how a NEXT card reached a hundred and
+     fifty words. Once the board can name a number of clicks it has
+     demonstrated the principle rather than asserting it, and the sentence
+     has done its job. */
+  if (GRIND.sensitivity()) return '';
+  /* One sentence, not three. The rest of it — that the small moves come
+     from dose and yield once the shot is close — is advice about a
+     situation the reader is not in yet, and doseNudge says it at the
+     moment they are. Two sentences of it were riding on a card that had
+     reached a hundred and sixty-seven words. */
+  return ` A correction this size is what the grinder is for.`;
+}
+
+/* The half-gram instead of the purge.
+
+   Straight out of the dial-in episodes, twice. A shot that is nearly
+   right does not need the grinder: half a gram more coffee adds a little
+   resistance, slows the shot a few seconds, and costs nothing — where
+   changing the grind costs five to ten grams of purge on most grinders,
+   which is coffee nobody drinks. In one episode exactly this move took a
+   shot from 25 seconds to 28 or 29.
+
+   Two conditions, both his. It only applies when already in the
+   neighbourhood of good — a long way out, leave the dose alone and fix
+   the grind. And going up needs room under the basket's figure, which is
+   a ceiling: he notes he could do it because he was nowhere near the top
+   of the range. Coming down has no such limit.
+
+   Offered as an alternative, never as the instruction. The grinder is
+   still the variable that moves time; this is the way to avoid paying
+   for it. */
+function doseNudge(shot, target) {
+  /* The whole argument for this is that a grind change costs a purge.
+     On a single-doser it does not, and offering it anyway produced a
+     sentence that talked itself out of its own suggestion — "a cheaper
+     option than the grinder ... though moving the grind costs you no
+     coffee either". If there is no purge to avoid, there is nothing
+     here worth saying. */
+  if (!retains()) return '';
+  const t = num(shot && shot.time);
+  if (t === null) return '';
+  const place = placeOf(shot, target);
+  if (place.time !== 'fast' && place.time !== 'slow') return '';
+  const off = place.time === 'fast' ? target.timeLo - t : t - target.timeHi;
+  if (off > 5) return '';                       // not in the neighbourhood yet
+
+  const dose = num(shot.dose);
+  if (dose === null) return '';
+  const ceiling = basketCap();
+
+  if (place.time === 'fast') {
+    // More coffee, more resistance — but only if the basket has room.
+    if (ceiling !== null && dose + 0.5 > ceiling + 0.1) return '';
+    return ` This one is close enough that you have a cheaper option than the grinder: half a gram more coffee, ${fmtDose(dose + 0.5)}g instead of ${fmtDose(dose)}g, adds enough resistance to buy a few seconds${ceiling !== null ? ' and still sits inside the basket' : ''} — and it costs nothing, where a grind change costs a purge.`;
+  }
+  return ` This one is close enough that you have a cheaper option than the grinder: half a gram less coffee, ${fmtDose(dose - 0.5)}g instead of ${fmtDose(dose)}g, takes out enough resistance to lose a few seconds — and there is less to extract, so it should still come out well. It costs nothing, where a grind change costs a purge.`;
+}
+
+/* What the bag says about the instruction the app is about to give.
+
+   "Sour means grind finer" is the first rule anybody learns and there
+   are coffees it is wrong about. On a heavily processed lot, sour is as
+   likely to be uneven extraction from a bed that is already too tight:
+   one source works exactly this case on camera, finds nine bar on a
+   light heavily-processed coffee, reasons that parts of the bed must be
+   over-extracting while the rest barely brews, goes COARSER at the same
+   yield and fixes it. An app that only knows "sour, therefore finer"
+   sends that person the wrong way for a whole bag.
+
+   Attached to the finer instruction rather than replacing it, because
+   finer is still the better first guess. What it buys is the second
+   guess being right. */
+function finerCaveat(c) {
+  if (!c) return '';
+  const sol = solubility(c);
+  const bits = [];
+  if (sol.flags.processed) {
+    bits.push(' One caution from the bag: on a lot this heavily processed, sour is as often uneven extraction as it is under-extraction. Too fine and part of the bed gives up everything while the rest hardly brews, which tastes sour and harsh at once. If finer does not fix it, try coarser at the same yield before going finer again.');
+  }
+  if (sol.flags.aged) {
+    bits.push(' This bag has also lost the gas that gave the puck much of its resistance, which is most of why it runs fast. Grinding finer to hit a time on a stale bag mostly buys bitterness.');
+  }
+  if (sol.flags.decaf) {
+    bits.push(' Decaf flows faster than the same coffee with its caffeine, so it will want a finer setting than you are used to — that part is expected.');
+  }
+  return bits.join('');
+}
+
+// Shorthands, so each advice site reads as one sentence with a hole in it.
+const grindMoveLine = (shot, target, finer) => grindMoveParts(shot, target, finer).move;
+const grindWhyLine = (shot, target, finer) => grindMoveParts(shot, target, finer).why;
+
+function clockAdvice(shot, target, c) {
   const place = placeOf(shot, target);
   if (place.time === null) return null;
   const lo = Math.round(target.timeLo), hi = Math.round(target.timeHi);
@@ -432,13 +1267,13 @@ function clockAdvice(shot, target) {
 
   if (place.time === 'fast') {
     const off = Math.round(lo - t);
-    return { sure: true, move: 'Grind finer.',
-      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only lever that does. Go one small step — you are after a few seconds, not ten. Say how it tasted and the app can check the one case this does not fix: a shot that is both quick and bitter is the water finding a channel, and grinding finer makes that worse.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
+      why: `It came in ${off}s short of the ${lo}–${hi}s window, so the water got through the puck before it had taken much with it. Finer slows it down, and it is the only variable that does.${grindWhyLine(shot, target, true)}${grindIsFor(shot, target)}${doseNudge(shot, target)}${finerCaveat(c)} Say how it tasted too: quick and bitter at once is a channel rather than a coarse grind, and finer makes it worse.` };
   }
   if (place.time === 'slow') {
     const off = Math.round(t - hi);
-    return { sure: true, move: 'Grind coarser.',
-      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up. One small step. Say how it tasted and the app can check the one case this does not fix: a shot that is both slow and sour usually means the water went round the puck rather than through it.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
+      why: `It ran ${off}s past the ${lo}–${hi}s window, so the water spent longer in the puck than the recipe asks for. Coarser speeds it up.${grindWhyLine(shot, target, false)}${grindIsFor(shot, target)}${doseNudge(shot, target)} Say how it tasted too: slow and sour at once usually means the water went round the puck rather than through it.` };
   }
   /* In the window, and nobody has said how it tastes.
 
@@ -461,71 +1296,280 @@ function clockAdvice(shot, target) {
    So: two corners get an instruction, two get a list and no pick, and
    the app says which kind of answer it is giving. It takes the cupping
    sheet's line on this — direction is a habit, not a verdict. */
-function suggest(shot, target) {
+// The shot logged immediately before this one, chronologically.
+function shotBefore(c, shot) {
+  const rows = (c && c.shots) || [];
+  const i = rows.indexOf(shot);
+  return i > 0 ? rows[i - 1] : null;
+}
+
+/* Did they already take the app's advice, and did it not work?
+
+   The most important thing a dial-in tool can notice, and this one did
+   not. Walking a whole session found it: the board said "let it run 2 to
+   4g further", the yield went from 42g to 46g, the shot still tasted
+   sour — and the board said "let it run 2 to 4g further" again, word for
+   word, with the evidence of its own failed suggestion sitting in the
+   log above it.
+
+   The grinder calibration closes this loop for grind. Nothing closed it
+   for yield. Returns the move that was made when the yield went the way
+   the app asked and the wall did not shift, so the next answer can start
+   by admitting the last one did not land.
+
+   Ratio rather than grams, because the dose may have moved too and
+   0.08 of a ratio is about a gram and a half on a normal dose. */
+function yieldTried(c, shot, side) {
+  const prev = shotBefore(c, shot);
+  if (!prev || !side || side === 'neither') return null;
+  if (tasteFault(prev) !== side) return null;
+  const r0 = ratioOf(prev), r1 = ratioOf(shot);
+  if (r0 === null || r1 === null) return null;
+  const want = side === 'sour' ? 1 : -1;
+  if ((r1 - r0) * want < 0.08) return null;
+  const g0 = num(prev.yield), g1 = num(shot.yield);
+  return { from: r0, to: r1, grams: (g0 !== null && g1 !== null) ? Math.abs(g1 - g0) : null };
+}
+
+/* Has this wall shown up before, or is this one cup?
+
+   Temperature earns a change only when a fault persists: the same slight
+   acidity shot after shot, after ratio and dose have failed to shift it.
+   One sour cup is not evidence about temperature, because too much else
+   varies between two shots of the same coffee — the grind, the prep, the
+   beans themselves. See DIALIN.md step 5. */
+function wallPersists(c, side) {
+  if (!c || !side || side === 'neither') return false;
+  const seen = (c.shots || [])
+    .filter(sh => tasteFault(sh) === side)
+    .length;
+  return seen >= 2;
+}
+
+function suggest(shot, target, c) {
   const place = placeOf(shot, target);
-  const side = tasteSide(shot.taste);
+  const side = tasteFault(shot);
   if (side === null || place.time === null) return null;
 
   if (side === 'sour' && place.time === 'fast') {
-    return { sure: true, move: 'Grind finer.',
-      why: 'It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the lever that fixes both at once.' };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
+      why: `It ran short of the window and tasted sour — water moved through the puck too fast to take enough with it. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (side === 'bitter' && place.time === 'slow') {
-    return { sure: true, move: 'Grind coarser.',
-      why: 'It ran past the window and tasted bitter — water spent too long in the puck. Grind is the lever that fixes both at once.' };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
+      why: `It ran past the window and tasted bitter — water spent too long in the puck. Grind is the variable that fixes both at once.${grindWhyLine(shot, target, false)}` };
   }
   if (side === 'sour' && place.time === 'slow') {
     return { sure: false, move: 'Not grind, this time.',
-      why: `Sour and slow together do not point at grind: going finer would make it slower still. ${canSetTemp()
-        ? 'Look at brew temperature, at whether the puck channelled, and at how long ago it was roasted.'
-        : 'Look at whether the puck channelled, and at how long ago it was roasted.'}` };
+      noGrind: true,
+      why: `Sour and slow together do not point at grind: going finer would make it slower still.${puckOrNot(shot, target, c, false)}` };
   }
   if (side === 'bitter' && place.time === 'fast') {
-    return { sure: false, move: 'Not grind, this time.',
-      why: 'Bitter and fast together do not point at grind: going coarser would make it faster still. This pattern usually means the water found a channel, so look at distribution and tamp before anything else.' };
+    return { sure: false, noGrind: true, move: 'Not grind, this time.',
+      why: `Bitter and fast together do not point at grind: going coarser would make it faster still.${puckOrNot(shot, target, c, true)}` };
   }
   // "This is the one" over a cup somebody has just called muddy is the app
   // not reading its own sheet. Both walls have to be quiet for this.
-  if (side === 'neither' && place.time === 'in' && bodySide(shot.body) !== 'muddy' && bodySide(shot.body) !== 'watery') {
+  if (side === 'neither' && place.time === 'in' && bodySide(shot.body) === 'neither') {
     // Once it has been marked, saying "mark it" is the app not reading its
     // own screen — the keeper card is pinned six inches above this line.
     return shot.verdict === 'keeper'
-      ? { sure: true, move: 'Dialled in.',
-          why: 'In the window and tasting of neither wall. This is the recipe at the top of the board; pull the next one to it and change nothing.' }
-      : { sure: true, move: 'This is the one.',
-          why: 'In the window and tasting of neither wall. Mark it as the keeper and the recipe pins to the top of this board.' };
+      ? (() => {
+          /* The recipe is a floor, not a ceiling. */
+          const next = nextExperiment(c, shot);
+          if (!next) {
+            return { sure: true, move: 'Dialled in.',
+              why: `${shot.bright
+                ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
+                : 'In the window and sweet.'} You have been longer, shorter and heavier around this one and come back to it, which is as good a reason to trust a recipe as there is. Pull the next one to it and change nothing.` };
+          }
+          /* The experiment first, the argument for it second. The
+             preamble explaining why a finished dial-in is not finished is
+             the most interesting sentence on the card and the least
+             actionable, and putting it first pushed the actual
+             instruction behind the disclosure. */
+          return { sure: false, move: next.move,
+            why: `${next.why} The recipe is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number here, and the only way to find out is to taste them together.` };
+        })()
+      : (() => {
+          /* A second good shot is a comparison, not a first find.
+
+             With a recipe already pinned, "Mark it as the keeper" is the
+             board forgetting it has one — and the reader has just run an
+             experiment it asked for, so the question in front of them is
+             not "is this good" but "is this better". Both shots are in
+             the window and both are sweet, which means every number on
+             this board has run out of things to say and the mouth
+             decides. That is the whole point of the second phase. */
+          const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+          if (keeper && keeper !== shot) {
+            const mine = `${fmtDose(num(shot.yield))}g out in ${Math.round(num(shot.time))}s`;
+            const theirs = `${fmtDose(num(keeper.yield))}g out in ${keeper.time === null ? '—' : Math.round(keeper.time)}s`;
+            return { sure: false, move: 'Two good shots. Which one?',
+              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, mark it the one and the recipe moves; if not, leave it and the board offers the next thing to try.` };
+          }
+          return { sure: true, move: 'This is the one.',
+            why: `${shot.bright
+              ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
+              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Mark it as the keeper and the recipe pins to the top of this board — then the board starts looking for something better than it.` };
+        })();
   }
+  /* Out of the window and right in the cup.
+
+     This is the case the whole app exists to get right and it used to end
+     in a shrug: "either move the window to fit the coffee, or change the
+     ratio and see whether the cup follows" — two options, no
+     recommendation, and nothing to tap. The window is a starting guess
+     written down before the first shot; the cup is a measurement of the
+     actual coffee. When they disagree the guess is what gives, and the
+     app should say which one it trusts and then offer to act on it.
+
+     A dial-in ends at a shot you want to drink again, not at a number
+     between 20 and 28. */
   if (side === 'neither') {
-    return { sure: false, move: 'Taste says nothing is wrong.',
-      why: `It is ${place.time === 'fast' ? 'faster' : 'slower'} than the window but tastes of neither wall, which is worth more than the window is. Either move the window to fit the coffee, or change the ratio and see whether the cup follows.` };
+    const secs = Math.round(num(shot.time));
+    const win = `${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s`;
+    const off = place.time === 'in' ? null : (place.time === 'fast' ? 'quicker' : 'slower');
+    if (bodySide(shot.body) === null) {
+      return { sure: false, move: 'Sweet. Now say how it feels.',
+        why: off === null
+          ? `Sweet is the middle of the extraction and it is where a dial-in ends — the sour compounds come out first, the sweet ones through the middle, the bitter ones last. Mark watery or muddy as well and this is your recipe.`
+          : `At ${secs}s it is ${off} than the ${win} you wrote down, and the cup does not care: sweet is the middle of the extraction and it is where a dial-in ends. Mark watery or muddy as well — if the texture is right too, then the window is what is wrong here, not the shot.` };
+    }
+    // Texture is off but the extraction is not: that is ratio and dose, and
+    // bodyNote owns it. Nothing to say here.
+    if (bodySide(shot.body) !== 'neither') return null;
+    return { sure: true, act: 'window', at: secs,
+      move: `This is the one — at ${secs}s.`,
+      why: `Sweet, and the texture is right. It is ${off} than the ${win} window, and the window is the part that is wrong: those numbers were a guess written down before you had pulled anything, and this cup is a measurement of the coffee actually in front of you. Keep the shot and move the window onto it, and the board judges the next one against something true.` };
   }
   /* In the window, and still tasting of one of the walls.
 
-     This is where a kit-blind tool falls over. Brew temperature is the
-     textbook next lever and most home machines do not have one, so the
-     answer has to be the lever the person in front of it actually has.
-     Ratio is that lever, and it is a real one: more water through the same
-     puck takes more with it, less takes less. */
-  if (canSetTemp()) {
-    return { sure: false, move: 'Grind has done its job.',
-      why: `The shot is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Brew temperature is the usual next lever — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.` };
+     The ordering here was wrong and is now the other way round. The app
+     used to tell anyone with a PID that brew temperature was the next
+     variable and ratio came after it. The series says the reverse: on a
+     single sour shot, reach for ratio first, and temperature is rarely
+     what gets changed at all, because ratio and dose have a bigger
+     effect. Temperature is for a fault that keeps coming back after
+     those have failed — so it is offered on the second sighting, not the
+     first, and even then as a degree at minimum rather than a nudge. */
+  const persists = wallPersists(c, side);
+  /* In grams off the scale, not in deltas to work out.
+
+     "Let it run 2 to 4g further" asks somebody holding a cooling shot to
+     do arithmetic the board could have done: it knows what came out last
+     time. And it names the grinder as parked, because "should I go
+     coarser and keep the yield, or move the yield?" is the question this
+     whole corner of the app exists to answer, and the instruction was
+     answering only half of it. */
+  const yTo = yieldTo(shot, side === 'sour' ? 3 : -3);
+  const yFrom = num(shot.yield);
+  const named = yTo !== null && yFrom !== null;
+  const yieldMove = side === 'sour'
+    ? `${named ? `Take it from ${fmtDose(yFrom)}g out to about ${fmtDose(yTo)}g` : 'Let it run 2 to 4g further'}, same dose and same grind: more water through the same puck takes more with it, and that is the reliable way to raise extraction.`
+    : `${named ? `Stop it at about ${fmtDose(yTo)}g instead of ${fmtDose(yFrom)}g` : 'Stop it 2 to 4g shorter'}, same dose and same grind: the harsh end of the extraction comes out last, so ending sooner leaves it in the puck.`;
+  const lighter = (() => { const e = roastEntry(c && c.roast); return Boolean(e && e.dose <= -1); })();
+  const ceiling = side === 'sour'
+    ? ` Past about 4g you are diluting it into a different drink rather than dialling it, and the move is a lower dose instead${
+        lighter ? ' — which is also what a light roast wants, having less to extract' : ''}.`
+    : ' If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.';
+
+  /* Temperature is not symmetric, and the app used to treat it as if it
+     were — "a degree hotter" for sour, "a degree cooler" for bitter.
+
+     Cooler is agreed on by everyone: darker roasts, heavily processed
+     coffees and old coffees all want less heat, and dropping it is how
+     you take harshness out. Hotter is contested. Two of the three
+     sources argue against reaching for it — the view is that heat buys
+     bitterness more readily than it buys the extraction you wanted, and
+     that the extraction should come from yield instead. Hedrick puts it
+     bluntly: yield is the number one way to increase extraction.
+
+     So bitter and persistent gets the instruction; sour and persistent
+     gets the yield, with temperature named as the second thing to try
+     and the disagreement stated rather than hidden. */
+  /* The yield was already moved the way the app asked, and the wall is
+     still there. Saying the same thing again is the app not reading its
+     own log — so this admits the last suggestion did not land, and moves
+     on to the next variable rather than round the same one. */
+  const tried = yieldTried(c, shot, side);
+  if (tried) {
+    const took = tried.grams ? `${fmtDose(tried.grams)}g` : `from 1:${tried.from.toFixed(1)} to 1:${tried.to.toFixed(1)}`;
+    const e = roastEntry(c && c.roast);
+    const lighter = e && e.dose <= -1;
+    const next = side === 'sour'
+      ? (lighter
+          ? `Drop the dose half a gram instead, keeping the yield where it is now. Less coffee is less to extract, which is the same direction a lighter roast wants anyway, and it gets there without diluting the cup further.`
+          : `Drop the dose half a gram instead, keeping the yield where it is now — less coffee is less to extract, and it gets there without watering the shot down any more.`)
+      : `Bring the dose up half a gram instead, keeping the yield where it is. More coffee under the same water is less extraction per gram, and it does not cost you any more of the cup.`;
+    const heat = canSetTemp()
+      ? ` Your machine can also move ${side === 'sour' ? 'hotter' : 'cooler'} by a degree, and with the yield already spent this is the point where that is worth trying.`
+      : '';
+    return { sure: false, move: 'That did not land — try the dose instead.',
+      // No light-roast note here: roastNote already appends one to
+      // whatever move wins, and saying it twice in one card was the two
+      // halves of the app talking over each other.
+      why: `You already took the yield ${took} and it still tastes ${side}, so the ratio is not the answer here. ${next}${heat}` };
   }
-  return { sure: false, move: 'Grind has done its job.',
-    why: side === 'sour'
-      ? 'The shot is in the window and still tastes sour. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Let it run longer on the same dose: more water through the same puck takes more with it. Still sour at 1:2.5 and the bag probably wants a few more days off the roast.'
-      : 'The shot is in the window and still tastes bitter. Grind moves time, and this is the part grind does not reach — and your machine holds one temperature, so the lever is the ratio. Stop it shorter and the harsh end of the extraction stays in the puck. If that leaves the cup thin, drop the dose half a gram rather than pushing the ratio further.' };
+
+  /* The documented exception to "ratio first, temperature on the second
+     sighting".
+
+     That ordering is right for an ordinary coffee and it was applied to
+     every coffee. A tester on a seven-week-old dark Italian blend, on a
+     machine that had told the app "I set it", got four rounds of ratio and
+     puck advice before temperature was mentioned at all — and cooler was
+     the answer. DIALIN.md is explicit that a coffee which gives up its
+     solubles too easily gets cooled, and dark, aged, heavily processed and
+     decaf are exactly the coffees the bag can say that about in advance.
+     Where the bag has already said it, heat is not a last resort. */
+  const soluble = solubility(c).shift >= 1;
+  if (canSetTemp() && side === 'bitter' && soluble && !persists) {
+    const sol = solubility(c);
+    return { sure: false, move: 'Try it a degree cooler.',
+      why: `Bitter in the window is usually a ratio question, but not on this bag: ${sol.why.join('; ')}. A coffee that gives up its solubles that readily is the one case where heat comes first, and cooler is the direction everyone agrees on. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
+  }
+
+  if (canSetTemp() && persists && side === 'bitter') {
+    return { sure: false, move: 'Try it a degree cooler.',
+      why: `That is the ${nth(countSide(c, side, shot))} shot of this coffee to taste bitter, which makes it a temperature question rather than a one-off. Cooler extracts less, and it is the reliable direction — darker roasts, heavily processed coffees and older bags all want less heat than ${grindThing()} probably has. Move a whole degree; half a degree will not answer anything. ${yieldMove}${ceiling}` };
+  }
+  if (canSetTemp() && persists) {
+    return { sure: false, move: 'More yield before more heat.',
+      why: `That is the ${nth(countSide(c, side, shot))} shot of this coffee to taste sour, so it is worth doing something about rather than putting down to one cup. ${yieldMove}${ceiling} Your machine can go hotter and that will extract more, but it is the contested move: the argument against it is that heat brings bitterness on faster than it brings the sweetness you were after, and that yield is the more reliable way to get the extraction up. Try the yield first, and the temperature only if that runs out of room.` };
+  }
+  return { sure: false, move: 'Grind has done its job — move the yield.',
+    why: `The shot is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach, so the next variable is how much you let into the cup. ${yieldMove}${ceiling}${
+      canSetTemp()
+        ? ' Brew temperature comes after this, not before it: it is worth changing when a coffee tastes the same way shot after shot, and this is the first one.'
+        : ' Your machine holds one temperature, so the ratio is where the work happens.'}` };
 }
+
+/* How many shots of this coffee have tasted this way, for the prose.
+
+   Including the one being judged, which is the whole point of the
+   sentence — "that is the 5th shot of this coffee to taste bitter" was
+   said over the sixth, because the shot on the open sheet is not in
+   c.shots until it is saved. Passed in rather than assumed, and only
+   counted when it is not already in the log. */
+function countSide(c, side, shot) {
+  const rows = (c && c.shots) || [];
+  let n = rows.filter(sh => tasteFault(sh) === side).length;
+  if (shot && rows.indexOf(shot) < 0 && tasteFault(shot) === side) n += 1;
+  return n;
+}
+const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : `${n}th`);
 
 /* Both walls at once, which is one fault rather than two.
 
-   Advised separately the two axes can disagree about the same lever: a
+   Advised separately the two axes can disagree about the same variable: a
    sour, thin shot got "let it run longer" from the taste scale and "stop
    it shorter" from the body scale, stacked, both about the ratio. Two
    instructions for one shot is not advice, and a dial-in moves one thing
    at a time anyway.
 
    Taken together they disagree about nothing, and each pair has exactly
-   one lever — a better read than either wall alone gives:
+   one variable — a better read than either wall alone gives:
 
      sour + thin      under-extracted        grind finer
      bitter + heavy   over-extracted         grind coarser
@@ -540,8 +1584,8 @@ function suggest(shot, target) {
    The clock still outranks the cup on the two grind answers. Finer is the
    wrong move on a shot that is already slow however it tastes, and the
    pair says so rather than repeating itself louder. */
-function wallPair(shot, target) {
-  const t = tasteSide(shot.taste);
+function wallPair(shot, target, c) {
+  const t = tasteFault(shot);
   const b = bodySide(shot.body);
   if (t === null || b === null || t === 'neither' || b === 'neither') return null;
   const place = placeOf(shot, target);
@@ -550,19 +1594,19 @@ function wallPair(shot, target) {
 
   if (t === 'sour' && b === 'watery') {
     if (place.time === 'slow') {
-      return { sure: false, move: 'Under-extracted — but not for want of grind.',
-        why: 'Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower. Water that runs long and still takes little with it has found a way round the puck rather than through it. Distribution and tamp first.' };
+      return { sure: false, noGrind: true, move: 'Under-extracted — but not for want of grind.',
+        why: `Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower.${puckOrNot(shot, target, c, false)}` };
     }
-    return { sure: true, move: 'Grind finer.',
-      why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
+      why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
     if (place.time === 'fast') {
-      return { sure: false, move: 'Over-extracted — but not for want of grind.',
-        why: 'Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster. Water that runs quickly and still takes too much is going through part of the puck and not the rest. Distribution and tamp first.' };
+      return { sure: false, noGrind: true, move: 'Over-extracted — but not for want of grind.',
+        why: `Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster.${puckOrNot(shot, target, c, true)}` };
     }
-    return { sure: true, move: 'Grind coarser.',
-      why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
+      why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
   }
   /* The two ratio answers move the clock as a side effect, and on a shot
      already outside the window that reads as the app contradicting the
@@ -579,7 +1623,7 @@ function wallPair(shot, target) {
       place.time === 'fast' ? ' It will come in faster still than the window you set, which is the window needing to move rather than the shot.' : ''}` };
 }
 
-/* The second wall, advised on its own levers.
+/* The second wall, advised on its own variables.
 
    Grind is not in this answer anywhere, and that is the point. A watery
    shot is not under-extracted by definition — it can be perfectly
@@ -635,21 +1679,21 @@ function bodyNote(shot) {
    takes the place of the taste axis and the four corners resolve exactly
    as they do when somebody has tasted it. The copy says where the
    reading came from: nobody said "sour", the timer did. */
-function clockPair(shot, target) {
+function clockPair(shot, target, c) {
   const b = bodySide(shot.body);
-  if (tasteSide(shot.taste) !== null || b === null || b === 'neither') return null;
+  if (tasteFault(shot) !== null || b === null || b === 'neither') return null;
   const place = placeOf(shot, target);
   if (place.time !== 'fast' && place.time !== 'slow') return null;
   const quick = place.time === 'fast';
   const light = b === 'watery';
 
   if (quick && light) {
-    return { sure: true, move: 'Grind finer.',
-      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.` };
+    return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
+      why: `It came in short of the window and you called it thin. Those are one fault: the water was through the puck before it had taken much with it, so there is little in the cup and it is probably sharp with it. Finer moves both, and brings the time up on the way.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (!quick && !light) {
-    return { sure: true, move: 'Grind coarser.',
-      why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
+    return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
+      why: `It ran past the window and you called it heavy. Those are one fault: the water sat in the puck taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.${grindWhyLine(shot, target, false)}` };
   }
   if (quick && !light) {
     return { sure: true, move: 'Let it run longer.',
@@ -659,9 +1703,274 @@ function clockPair(shot, target) {
     why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and stop it shorter.` };
 }
 
-function nextMove(shot, target) {
-  const pair = wallPair(shot, target);
-  if (pair) return [pair];
+/* The dose against the basket it is going into.
+
+   A basket is built for a weight and has perhaps a gram and a half of
+   give either side. Two grams over and the puck hits the screen before
+   the pump does, which channels whatever you do at the grinder; two
+   under and there is space above the bed for the water to move it
+   around, which channels too. Either way the grinder is the wrong
+   machine to be standing at, and the app knows the basket because it
+   asked once and the dose because it is on the sheet. */
+// A target dose is "18g"; a measurement off a scale keeps its decimal.
+const fmtDose = v => (v === null ? '—' : (Math.round(v * 10) % 10 === 0 ? String(Math.round(v)) : v.toFixed(1)));
+
+function basketFault(shot) {
+  /* Against what the basket actually holds, not what is stamped on it.
+     Where the coin test has found the real figure that is the one a dose
+     can be over, and the prose says which it is measuring against so the
+     reader is never told their 18g basket is built for 19. */
+  const want = basketCap();
+  const got = num(shot && shot.dose);
+  if (want === null || got === null || want <= 0) return null;
+  const off = got - want;
+  const basket = (kit().basket || '').trim();
+  const measured = num(kit().doseFits) !== null;
+  // "a 18g basket" — an article chosen by a developer who knew the number
+  // would always start with a one.
+  const article = /^[aeiou18]/i.test(fmtDose(want)) ? 'an' : 'a';
+  const named = basket ? `your ${basket}` : `${article} ${fmtDose(want)}g basket`;
+  // Where the coin test found the figure, it is the authority, and saying
+  // so is the difference between the app citing the hardware and the app
+  // citing the reader's own measurement.
+  const ceilingSaid = measured
+    ? `over the ${fmtDose(want)}g you found fits${basket ? ` ${basket}` : ' it'}`
+    : `over what ${named} is built for`;
+
+  /* Over the basket's figure is a real fault and it outranks the grinder:
+     the puck meets the shower screen before the pump gets going and
+     channels around the edge whatever the grind is. About a gram is the
+     working tolerance — this used to allow 1.6g, which was looser than
+     the source it claimed. */
+  if (off > 1.1) {
+    return { sure: true, act: 'dose', move: `Drop the dose to about ${fmtDose(want)}g.`,
+      why: `${fmtDose(got)}g is ${fmtDose(off)}g ${ceilingSaid}, and that figure is an upper limit. Overfilled, the puck meets the shower screen before the pump gets going and channels around the edge however the grinder is set, which makes the clock and the cup both untrustworthy. This one is worth fixing before anything else.` };
+  }
+
+  /* Under the basket's figure used to return a note here, and that was
+     wrong twice over — found by walking a whole dial-in rather than by
+     testing this function.
+
+     basketFault is in the outranking tier, so a note returned from here
+     suppressed every other piece of advice on the board. Seven shots
+     into a dial-in the app had said nothing about the clock even once,
+     because it was busy repeating that the dose was fine.
+
+     Worse, it was arguing with itself: doseStart recommends going under
+     the basket's figure for a lighter roast, so the app recommended
+     16.5g in an 18g basket and then flagged 16.5g as underdosed. One
+     half was answering the other.
+
+     Underdosing is not a fault — the printed figure is a ceiling, and a
+     low dose tastes fine — so it was never a move. It is expectation
+     setting, and it belongs with the recommendation that causes it, said
+     once on the start card. See renderNext. */
+  return null;
+}
+
+/* The temperature is simply set wrong for the coffee.
+
+   This is a different thing from "the shot tastes sour, try a degree
+   hotter", and the dial-in episodes make the difference plain. Twice the
+   fault was not a fault at all but a setting left over from the last
+   coffee: 95°C carried onto a medium roast, and 88°C left on a blend
+   that wanted 93. Both were caught on the first shot, and the fix in the
+   second case was a five-degree jump described as transformative.
+
+   So the trigger is not a taste that keeps coming back. It is arithmetic
+   the app can do before anything is tasted: the roast level gives a
+   band, the sheet gives the setting, and a setting outside the band is
+   worth saying on shot one. The advice is a correction to the band's
+   edge and not a nudge — the same episodes are explicit that a small
+   temperature tweak is rarely the answer, and that these worked because
+   they were large.
+
+   A machine with one temperature cannot act on any of this, so it is
+   never told. */
+function tempFault(shot, c) {
+  if (!canSetTemp() || !shot || !c) return null;
+  const e = roastEntry(c.roast);
+  if (!e) return null;
+  const t = num(Number(shot.temp));
+  if (shot.temp === '' || t === null) return null;
+  if (t >= e.lo && t <= e.hi) return null;
+
+  const hot = t > e.hi;
+  const aim = hot ? e.hi : e.lo;
+  const gap = Math.abs(t - aim);
+  return { sure: true,
+    move: `Bring the temperature ${hot ? 'down' : 'up'} to about ${Math.round(aim)}°.`,
+    why: `You are brewing at ${Math.round(t)}° and a ${e.label.toLowerCase()} roast sits in ${e.tempRange}. That is ${gap < 1.5 ? 'just outside' : `${Math.round(gap)}° outside`} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because ${hot
+      ? 'too hot extracts more than the roast wants and puts a rough, aggressive bitterness up front'
+      : 'too cool cannot reach what is in the bean, and no grind setting makes up for it'}. Move the whole way, not a degree: a small temperature tweak rarely answers anything, and a correction this size can change the shot completely.` };
+}
+
+/* Turning the grinder and getting nowhere.
+
+   The failure that wastes a whole bag: three moves in the same direction
+   and the clock has barely noticed. At that point the grinder is not the
+   thing in the way — the burrs are holding grounds between shots, the
+   dose is wrong for the basket, or the coffee is too fresh to behave —
+   and telling somebody to go finer a fourth time is the app not reading
+   its own log. */
+function stuckNote(c) {
+  const rows = (c.shots || []).filter(x => num(x.time) !== null && x.grind !== '' && num(Number(x.grind)) !== null);
+  if (rows.length < 4) return null;
+  const last = rows.slice(-4);
+  const steps = [];
+  for (let i = 1; i < last.length; i++) {
+    steps.push({ dg: Number(last[i].grind) - Number(last[i - 1].grind), dt: num(last[i].time) - num(last[i - 1].time) });
+  }
+  if (steps.some(x => x.dg === 0)) return null;
+  const sign = Math.sign(steps[0].dg);
+  if (!steps.every(x => Math.sign(x.dg) === sign)) return null;
+  const moved = Math.abs(num(last[last.length - 1].time) - num(last[0].time));
+  if (moved > 2.5) return null;
+  const dist = Math.abs(Number(last[last.length - 1].grind) - Number(last[0].grind));
+  return { sure: false, move: 'Three moves and the clock has not answered.',
+    why: `The grinder has gone the same way three times, a total of ${fmtSteps(dist)}, and the shot time has moved ${moved < 1 ? 'barely at all' : `${moved.toFixed(0)}s`}. Take a bigger step. A move the clock cannot see is a move that teaches you nothing, and three careful ones cost three shots and tell you less than a single decisive one: go two or three times as far as you have been going, and read what happens. If a real move still does nothing, ${retains() ? 'the burrs are probably still holding grounds from the last setting — purge five to ten grams and throw them away, then pull again' : 'your grinder holds almost nothing between settings, so it is not stale grounds — which makes it more likely the move itself was too small, or that the burrs are new and have not settled in'} — and after that, check the dose against the basket and how long ago the bag was roasted.` };
+}
+
+/* What the calendar is doing to the shot.
+
+   Not advice on its own — a sentence appended to whatever the move is,
+   because roast age does not change what to do so much as how much to
+   trust what you are seeing. Fresh coffee is full of gas and runs fast
+   and channels; old coffee has lost what made it worth dialling. The
+   board already knows the date and said nothing about it where the
+   advice is. */
+function ageNote(c) {
+  const age = daysSinceRoast(c);
+  if (age === null) return '';
+  if (age <= 3) return ` The bag is ${age === 0 ? 'roasted today' : age === 1 ? 'one day off roast' : `${age} days off roast`} and still full of gas, which runs shots fast and breaks pucks — expect it to keep moving for a few days yet, and do not chase it far with the grinder.`;
+  if (age >= 45) return ` The bag is ${age} days off roast. Past about six weeks the shot goes quick and flat and no grind setting brings back what has gone; if this one is fighting you, it may be the coffee rather than ${grindThing()}.`;
+  return '';
+}
+
+/* One move, and the order that decides which one.
+
+   A dial-in changes one thing at a time, so this returns one instruction
+   and never a list to choose from. The order is not arbitrary — it is
+   what has to be true before the next thing can be measured:
+
+     1. the dose fits the basket        or the puck channels regardless
+     2. the shot ran even, and did not  or the clock and the cup are
+        taste of both walls at once      both readings of an accident
+     3. the grinder is actually moving  or "finer" is the fourth wrong
+                                        answer in a row
+     4. the walls, the clock, the cup   the ordinary dial-in
+
+   Each of the first three has to be settled before the readings under it
+   mean anything, which is exactly why they come first. Roast age rides
+   on the end of whichever move wins, because it does not change what to
+   do — it changes how much to believe what you are looking at. */
+/* THE SECOND HALF OF A DIAL-IN.
+
+   The board used to end with "pull the next one to it and change
+   nothing", which is the app telling somebody they are finished. They are
+   not. Getting into the window and out of both walls is the part a
+   machine can reason about; finding the shot you actually want is the
+   part that happens afterwards, by taste, and on a good coffee a 24s pull
+   can beat a 28s one that scores identically against every number here.
+
+   So the dial-in has two phases and the board says which one you are in.
+
+     WINDOW — no shot is sweet yet. One instruction at a time, grind for
+       the clock and yield for the wall, and the target is the target.
+
+     TASTE  — there is a recipe. The target has done its job and the only
+       question left is whether something nearby is better. Moves get
+       small, they are offered one at a time, and the board asks you to
+       compare rather than to correct.
+
+   The experiments are walked in order of what they cost and how much they
+   teach: yield first (free, forgiving, and the variable that moves
+   extraction most reliably), then dose, then temperature. Each is offered until the log shows it has
+   been tried, so the board works through the neighbourhood instead of
+   repeating itself, and says so when the neighbourhood is explored.
+
+   This is also where the app finally states the thing it has implied all
+   along: the window is a means, and the cup is the end. */
+function phaseOf(c) {
+  return c && c.shots.some(sh => sh.verdict === 'keeper') ? 'taste' : 'window';
+}
+
+function nextExperiment(c, keeper) {
+  const rows = (c.shots || []).filter(sh => sh !== keeper);
+  const ky = num(keeper.yield), kd = num(keeper.dose), kt = num(Number(keeper.temp));
+  const tried = (read, want) => rows.some(sh => {
+    const v = read(sh);
+    return v !== null && (want > 0 ? v > want : v < -want);
+  });
+
+  if (ky !== null) {
+    const longer = Math.round((ky + 2) * 2) / 2;
+    if (!rows.some(sh => num(sh.yield) !== null && num(sh.yield) >= ky + 1.5)) {
+      return { move: `Try it longer — ${fmtDose(longer)}g out.`,
+        why: `Same dose, same grind, two grams more water. Pull it and taste them side by side. It is the cheapest experiment you have and the most forgiving: it raises extraction without touching the clock, and if it is worse you have lost one shot and learned the edge of the recipe.` };
+    }
+    const shorter = Math.round((ky - 2) * 2) / 2;
+    if (shorter > 0 && !rows.some(sh => num(sh.yield) !== null && num(sh.yield) <= ky - 1.5)) {
+      return { move: `Now the other way — ${fmtDose(shorter)}g out.`,
+        why: `Same dose, same grind. You have been longer than the recipe; go shorter before deciding. The last of a shot is its thinnest and most bitter part, so stopping earlier concentrates what you have — a shorter pull is often sweeter and always heavier, and which of the three you want is a question only you can answer.` };
+    }
+  }
+  if (kd !== null) {
+    const cap = basketCap();
+    const up = Math.round((kd + 0.5) * 2) / 2;
+    if ((cap === null || up <= cap + 0.1) && !rows.some(sh => num(sh.dose) !== null && num(sh.dose) >= kd + 0.4)) {
+      return { move: `Half a gram more — ${fmtDose(up)}g in, nothing else moves.`,
+        why: `The move for a recipe that tastes right but drinks thin. More coffee under the same water is a shorter ratio without touching the yield: less extraction from each gram, more body in the cup. It will slow the shot a second or two, and that is the point rather than a problem.` };
+    }
+  }
+  if (canSetTemp() && kt !== null && !rows.some(sh => num(Number(sh.temp)) !== null && num(Number(sh.temp)) <= kt - 0.5)) {
+    return { move: `A degree cooler — ${Math.round(kt - 1)}°.`,
+      why: `Everything else stays. Cooler extracts a little less and takes the hard edge off the finish — the one temperature move everybody agrees on, and on a good recipe a polish rather than a correction. A whole degree; half of one tells you nothing.` };
+  }
+  return null;
+}
+
+/* You already found this. Go back to it.
+
+   The board treated every shot as if the dial-in were still running. A
+   tester with a pinned recipe at grind 28 pulled one at 31 out of
+   curiosity, got the predictable sour shot, and was told "Grind finer —
+   about 1.3 on the dial, down to 29.7" — a fresh calculation toward a
+   number it had already found and printed six inches higher up the same
+   screen. The obvious sentence, "you have this one; go back to 28", was
+   never available.
+
+   Only where the grinder has actually moved off the recipe and the shot is
+   worse for it. A shot at the recipe's own grind is the recipe being
+   pulled, and a better one is a new recipe worth marking. */
+function backToRecipe(shot, target, c) {
+  const keeper = c && c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
+  if (!keeper || keeper === shot || !keeper.grind) return null;
+  const was = num(Number(keeper.grind));
+  const now = num(Number(shot && shot.grind));
+  if (was === null || now === null || was === now) return null;
+  // Something has to be wrong with this shot, or there is nothing to fix.
+  const place = placeOf(shot, target);
+  const t = tasteFault(shot), b = bodySide(shot.body);
+  const bad = place.time === 'fast' || place.time === 'slow'
+    || (t && t !== 'neither') || (b && b !== 'neither');
+  if (!bad) return null;
+  const dist = fmtSteps(Math.abs(now - was));
+  return { sure: true, move: `Back to ${escapeHTML(String(keeper.grind))} — you already found this.`,
+    why: `The grinder is ${dist} off the recipe at the top of this board, and this shot is worse for it. ${
+      keeper.time === null ? '' : `That setting gave you ${Math.round(keeper.time)}s at ${fmtRatio(ratioOf(keeper))}. `}Put it back before changing anything else: a dial-in you have already finished is not worth running twice, and if the coffee has genuinely moved since — an older bag runs faster — the board will say so from there.` };
+}
+
+function nextMove(shot, target, c) {
+  const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
+    || tempFault(shot, c) || (c ? stuckNote(c) : null);
+  if (first) return [withAge(first, c, shot, target)];
+
+  const back = backToRecipe(shot, target, c);
+  if (back) return [withAge(back, c, shot, target)];
+
+  const pair = wallPair(shot, target, c);
+  if (pair) return [withAge(pair, c, shot, target)];
   /* One wall named, and it is the body one.
 
      The body note is then the whole answer. Printing "Taste says nothing
@@ -671,28 +1980,225 @@ function nextMove(shot, target) {
      works on. */
   // Body named, taste not, and a clock that is saying something: the
   // clock stands in for the taste axis and the pair resolves properly.
-  const cp = clockPair(shot, target);
-  if (cp) return [cp];
+  const cp = clockPair(shot, target, c);
+  if (cp) return [withAge(cp, c, shot, target)];
   const b = bodyNote(shot);
-  if (b) return [{ sure: false, move: b.move, why: b.why }];
-  const t = suggest(shot, target);
-  if (t) return [t];
+  if (b) return [withAge({ sure: false, move: b.move, why: b.why }, c, shot, target)];
+  const t = suggest(shot, target, c);
+  if (t) return [withAge(halfAnswered(t, shot), c, shot, target)];
   // No taste on the sheet: the clock still knows which way the grinder goes.
-  const clock = clockAdvice(shot, target);
-  return clock ? [clock] : [];
+  const clock = clockAdvice(shot, target, c);
+  return clock ? [withAge(clock, c, shot, target)] : [];
+}
+
+/* An answer given on half the evidence should say so.
+
+   With one wall named and the other blank, wallPair cannot run and the
+   single-axis advice takes over — and delivers a settled-looking verdict.
+   A tester marked a shot sour, read "Grind has done its job — move the
+   yield", then dragged the second slider to "a little thin" and watched
+   the same panel become "Grind finer". The second answer is the right one
+   and the reversal is honest, but the first arrived looking final, and
+   somebody in a hurry acts on what they read first.
+
+   This is the same fault as the run chips sitting below the advice they
+   change, one axis down, and the same remedy: the card names the question
+   that could change it. It does not hedge the instruction — the advice is
+   the best available on what has been said — it says what is missing. */
+function halfAnswered(tip, shot) {
+  if (!tip) return tip;
+  const t = tasteFault(shot);
+  const b = bodySide(shot && shot.body);
+  if (t === null || t === 'neither' || b !== null) return tip;
+  /* Not where the clock has already ruled the grinder out. On a shot that
+     is bitter AND fast, "coarser would make it faster still" and "the
+     answer is the grinder — coarser" are the same card contradicting
+     itself two sentences apart. */
+  if (tip.noGrind) return tip;
+  const other = t === 'sour' ? 'thin' : 'heavy';
+  const instead = t === 'sour' ? 'finer' : 'coarser';
+  return Object.assign({}, tip, {
+    why: `${tip.why} Watery or muddy is still blank, and it is the half that decides this: if the cup is ${other} as well as ${t}, both come from the same fault and the answer is the grinder — ${instead} — rather than the yield.`,
+  });
+}
+
+/* What a light roast is always going to taste like, when the complaint
+   is that it tastes like that.
+
+   The dial-in episode that finishes on a light single origin ends with
+   the shot on the acidic end and says so plainly: that is the raw
+   material, and the expectation of how much acidity a balanced shot will
+   carry has to be realistic for the coffee. Without this the app happily
+   sends somebody finer, longer and hotter for ever, chasing an acidity
+   that was never going to leave.
+
+   Only on the lighter roasts, only when the complaint is sourness, and
+   only once the clock is where it should be — while the shot is still
+   running fast there is a real fault to fix first. */
+function roastNote(c, shot, target) {
+  if (!c || !shot) return '';
+  const e = roastEntry(c.roast);
+  if (!e || e.dose > -1) return '';
+  if (tasteFault(shot) !== 'sour') return '';
+  if (placeOf(shot, target).time !== 'in') return '';
+  return ` And a word about the coffee: a ${e.label.toLowerCase()} roast lands on the acidic end even when it is dialled in well. Some of what you are tasting is the bean rather than the extraction, so if the next change gets it clean and sweet but still bright, that is the shot — not a step on the way to somewhere else.`;
+}
+
+// The qualifiers that ride on the end of whatever the move turned out to
+// be. Neither changes what to do; both change how much to read into it.
+function withAge(tip, c, shot, target) {
+  let note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '');
+  /* Not twice in one card. The age tail is thirty words and it was landing
+     on every advice state a tester saw — eleven of them, verbatim — which
+     is how a reader learns to skip the last third of every card, including
+     the times it is the new part. Where the advice has already reached for
+     the bag's age in its own reasoning, the tail has nothing to add. */
+  if (note && /six weeks/.test(tip.why)) note = note.replace(ageNote(c) || '\u0000', '');
+  return note ? { ...tip, why: tip.why + note } : tip;
+}
+
+/* A tip may carry one action, and it is rendered as a button rather than
+   as a sentence telling somebody to go and find a screen. Advice you can
+   act on where you are reading it is the difference between a tool and a
+   pamphlet; "check the dose with a coin, in Settings" is the pamphlet. */
+/* ONE PLACE OWNS HOW MUCH OF THIS YOU HAVE TO READ.
+
+   `why` is a string that six different functions append to — the base
+   reason, the calibration figure, the grind-is-for principle, the dose
+   nudge, the processed-lot caveat, the roast-age tail, the half-answered
+   note. Every one of them is true and every one was written by somebody
+   who had just decided it was worth saying. Nobody owned the total, so
+   the total went where totals go: a first-shot card reached 216 words
+   once, was cut by hand, and grew straight back, because trimming the
+   text never touched the mechanism that produced it.
+
+   The mechanism is here now. A card shows the instruction and about
+   thirty-five words of reason; everything after that goes behind a
+   disclosure. It holds whatever gets appended in future without anybody
+   having to remember a budget, and it is the right shape anyway — the
+   person at the machine reads the bold line and moves, and the person who
+   wants to know why the board thinks a click is worth 1.6 seconds can
+   open it.
+
+   Split on sentence ends, because that is where the appendices join. The
+   first sentences are the base reason by construction; the tail is
+   everything the other five functions added. */
+const WHY_WORDS = 35;
+
+function splitWhy(why) {
+  const text = String(why || '').trim();
+  if (!text) return { head: '', tail: '' };
+  // Not on "1:2.6" or "2.5g" — a full stop only ends a sentence when
+  // whitespace follows it.
+  const parts = text.split(/(?<=[.?!])\s+/);
+  const head = [];
+  let words = 0;
+  for (const part of parts) {
+    const n = part.split(/\s+/).length;
+    // Always at least one sentence, however long: a card that opens with
+    // a disclosure and no reason is worse than a long one.
+    if (head.length && words + n > WHY_WORDS) break;
+    head.push(part);
+    words += n;
+  }
+  return { head: head.join(' '), tail: parts.slice(head.length).join(' ') };
 }
 
 function tipHTML(tip, cls) {
+  const { head, tail } = splitWhy(tip.why);
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
+      <span class="tip-why">${escapeHTML(head)}</span>
+      ${tail ? `<details class="tip-more"><summary>Why this</summary><span class="tip-why">${escapeHTML(tail)}</span></details>` : ''}
+      ${tip.act === 'dose' ? '<button type="button" class="tip-act" data-act="dose">Check the dose with a coin</button>' : ''}
+      ${tip.act === 'pinch' ? '<button type="button" class="tip-act" data-act="pinch">Find a starting grind</button>' : ''}
+      ${tip.act === 'window' ? `<button type="button" class="tip-act" data-act="window" data-secs="${escapeHTML(String(tip.at))}">Move the window onto this shot</button>` : ''}
     </div>`;
+}
+
+// Bind whatever actions the tips in a container asked for.
+function bindTipActions(wrap) {
+  wrap.querySelectorAll('.tip-act[data-act="dose"]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); openDoseCheck(); });
+  });
+  wrap.querySelectorAll('.tip-act[data-act="pinch"]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); openPinchTest(); });
+  });
+  /* Dialling by taste, made one tap.
+
+     The card can say the window is the thing that is wrong all it likes;
+     if the only way to act on that is to open a sheet and edit two
+     numbers, nobody does it and the board goes on calling a good shot
+     fast for the rest of the bag. Three seconds either side of the shot
+     that earned it, because a target of "22s" is one nobody hits twice. */
+  wrap.querySelectorAll('.tip-act[data-act="window"]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      /* The time comes off the button, not off `editing` — this binder
+         serves the board's card as well as the open sheet, and on the
+         board `editing` is whatever was last looked at. */
+      const c = activeCoffee();
+      const t = num(Number(b.dataset.secs));
+      if (!c || t === null) return;
+      c.target.timeLo = Math.max(5, Math.round(t) - 3);
+      c.target.timeHi = Math.round(t) + 3;
+      save();
+      haptic();
+      renderBoard();
+      if (editing) renderReadout(c);
+      toast(`The window is ${c.target.timeLo}–${c.target.timeHi}s now`);
+    });
+  });
 }
 
 /* ---------- formatting ---------- */
 
 const fmt1 = v => (v === null ? '—' : v.toFixed(1));
 const fmt2 = v => (v === null ? '—' : v.toFixed(2));
+
+/* What the ratio makes it. The bands are roughly agreed rather than
+   defined — ristretto up to about 1:1.5, espresso through about 1:2.5,
+   lungo beyond — but they are the frame the yield ceiling makes sense
+   inside: past 2 to 4 grams of adjustment you are not dialling the shot
+   any more, you are ordering a different drink. Null inside the espresso
+   band, because naming that one on every card would be noise.
+
+   Named against the target, not against the scale alone. The word exists
+   to catch somebody who has quietly stopped dialling and started ordering
+   a different drink, and that is a question about where they meant to be.
+   A light roast starts around 1:2.6 in this app, which is over the lungo
+   line by the bands above — so the board recommended a ratio and then
+   labelled hitting it "lungo" on every card, which tells the reader
+   nothing except that the app has not been introduced to itself. Where
+   the shot and the target are in the same band there is nothing to say;
+   where they differ, the word is the whole point. */
+function ratioBand(r) {
+  if (r === null || !isFinite(r)) return null;
+  if (r < 1.5) return 'ristretto';
+  if (r > 2.5) return 'lungo';
+  return 'espresso';
+}
+
+/* The band word, but only where it is news: the shot has left the band the
+   target sits in. Inside it — including a target that is itself a lungo —
+   there is nothing to report. */
+function bandDrift(r, targetRatio) {
+  const band = ratioBand(r);
+  if (band === null || band === 'espresso') return null;
+  /* Quiet only where the shot is actually AT the target, not merely in the
+     same band as it.
+
+     The first version suppressed the word whenever the shot and the target
+     shared a band — which was meant to stop the board calling 1:2.55
+     "lungo" on a target it had itself set to 1:2.55. It did that, and it
+     also silenced 1:5.0 and 1:6.67 against a 1:2.6 target, because those
+     are all "lungo" too. A tester poured 120g through 18g of coffee and
+     the app had nothing to say about it. Sharing a band with the target is
+     not the same as being where you meant to be. */
+  const aim = num(Number(targetRatio));
+  if (aim !== null && Math.abs(num(r) - aim) < 0.2) return null;
+  return band;
+}
 
 function fmtRatio(r) {
   return r === null ? '—' : `1:${r.toFixed(2)}`;
@@ -870,6 +2376,7 @@ function numField(opts) {
    "neither" — a default and a judgement are the same pixel otherwise. */
 function tasteScale(opts) {
   const { value, onChange, words, low, high, labelledBy, empty } = opts;
+  // The middle anchor carries a value of its own — see TASTE_WORDS.
   const wrap = el('div', 'scale');
   wrap.innerHTML = `
     <div class="scale-track" tabindex="0" role="slider"
@@ -880,7 +2387,7 @@ function tasteScale(opts) {
       <div class="scale-knob"></div>
     </div>
     <div class="scale-anchors">
-      <span>${low}</span><span class="scale-anchor-mid">neither</span><span>${high}</span>
+      <span>${low}</span><span class="scale-anchor-mid">${opts.mid || 'neither'}</span><span>${high}</span>
     </div>
     <div class="scale-readout"></div>
   `;
@@ -902,7 +2409,16 @@ function tasteScale(opts) {
 
   const setFromX = clientX => {
     const r = track.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    let frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    /* A detent at the middle.
+
+       "Neither" is not one value among several — it is the answer that
+       means the wall is quiet and the app should stop moving the grinder
+       for it, and it is the one a dial-in ends on. Getting back to it took
+       a tester three attempts, landing on "a little heavy" each time. A
+       few per cent of the track either side snaps to it, which is what the
+       tick above the rail has been promising all along. */
+    if (Math.abs(frac - 0.5) < 0.045) frac = 0.5;
     const next = Math.round(TASTE_MIN + frac * (TASTE_MAX - TASTE_MIN));
     if (next !== v) { v = next; haptic(); render(); onChange(v); }
     else if (v === null) { v = next; render(); onChange(v); }
@@ -992,18 +2508,57 @@ function renderNext(c) {
      else, so aim at the window and move from there. */
   if (!newest) {
     const t = c.target;
-    const out = Math.round(t.dose * t.ratio);
+    /* The dose comes from the basket and the roast together, because
+       extraction is work and a light roast cannot do as much of it. The
+       basket's figure is the ceiling; this decides where inside its range
+       to start. */
+    /* The target is the authority here, not a second opinion beside it.
+
+       This used to read doseStart(c) ?? t.dose, which meant the bold line
+       recommended one dose while the AIMING AT row directly beneath it
+       showed another and the shot sheet pre-filled a third. The roast now
+       sets the target dose in the coffee sheet, where the change is
+       visible and can be overridden, and every surface reads that one
+       number. */
+    const start = num(t.dose) ?? doseStart(c) ?? basketCap();
+    const out = Math.round(start * t.ratio);
+    const e = roastEntry(c.roast);
+    const cap = basketCap();
+    const measured = num(kit().doseFits) !== null;
+    const under = cap !== null && start !== null && start < cap - 0.2;
+    /* The sentence has to name the roast it is actually talking about.
+       It was written for light roasts and fired for medium ones too,
+       which had the card telling somebody with a medium roast about what
+       a light roast does in a full basket. */
+    /* Kept short on purpose. This had reached 216 words and 533px —
+       nearly two thirds of the screen — because four separate commits
+       each added one more true and useful sentence to it. Every one of
+       them was worth saying and the paragraph was no longer worth
+       reading. The detail lives in the pinch-test sheet and the help;
+       this is the instruction. */
+    /* Only where the reader has actually said so. With the kit screen
+       skipped, "that is under the 18g on the basket" is the default value
+       being read back as a fact about hardware nobody has described. */
+    const told = kit().asked || measured;
+    const why = under && told && e && e.dose < 0
+      ? ` That is under the ${fmtDose(cap)}g ${measured ? 'you found fits the basket' : 'on the basket'} because a ${e.label.toLowerCase()} roast is harder to extract, and less coffee is less work. Expect the puck to blow apart at the end — messy, harmless.`
+      : '';
+    /* Through tipHTML like every other card, so the same word budget
+       applies. Built by hand it had its own paragraph and its own habits,
+       which is how it reached 216 words the first time and 95 the second
+       — a card outside the mechanism is a card that grows. */
     wrap.className = 'next-card';
-    wrap.innerHTML = `
-      <span class="next-label">Where to start</span>
-      <div class="tip open">
-        <span class="tip-move">${fmt1(t.dose)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.</span>
-        <span class="tip-why">Set the grinder wherever it is and pull one. If it gushes out in ten seconds, go finer; if it drips past forty, go coarser. Nobody can tell you the number — it is different on every grinder and it moves as the bag ages — but the window tells you which way, and this board will keep the one that works.</span>
-      </div>`;
+    wrap.innerHTML = `<span class="next-label">Where to start</span>`
+      + tipHTML({
+          act: 'pinch',
+          move: `${fmtDose(start)}g in, about ${out}g out, in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds.`,
+          why: `Start coarse and come finer: a coarse bed flows evenly, so the shot teaches you more than a choked one does.${why} If it gushes out in ten seconds, do not taste it — fix the flow first.`,
+        }, 'tip');
+    bindTipActions(wrap);
     return;
   }
 
-  const tips = nextMove(newest, c.target);
+  const tips = nextMove(newest, c.target, c);
   if (!tips.length) {
     // Nothing to say is still worth saying, when what is missing is one tap
     // away. The clock covers most of this now; this is the case with no
@@ -1013,14 +2568,21 @@ function renderNext(c) {
       <span class="next-label">Next</span>
       <div class="tip open">
         <span class="tip-move">Add the time to that shot.</span>
-        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grinder changes, and it is what decides whether "finer" or "coarser" is the right answer. Tap the shot above and put it in.</span>
+        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grinder changes, and it is what decides whether "finer" or "coarser" is the right answer. Tap the shot below and put it in.</span>
       </div>`;
     return;
   }
 
   wrap.className = 'next-card';
-  wrap.innerHTML = `<span class="next-label">Next</span>`
+  /* The label names the half of the dial-in you are in.
+
+     Two phases that want different things from the reader: one is
+     correcting toward a target, the other is exploring around a recipe,
+     and a card headed "Next" for both was hiding the change. */
+  wrap.innerHTML = `<span class="next-label">${
+    phaseOf(c) === 'taste' ? 'Finding the better shot' : 'Finding the window'}</span>`
     + tips.map(t => tipHTML(t, 'tip')).join('');
+  bindTipActions(wrap);
 }
 
 /* The keeper.
@@ -1049,9 +2611,9 @@ function renderKeeper(c) {
       <span class="keeper-big">${fmt1(num(keeper.dose))}<small>g in</small></span>
       <span class="keeper-arrow" aria-hidden="true">→</span>
       <span class="keeper-big">${fmt1(num(keeper.yield))}<small>g out</small></span>
-      <span class="keeper-big">${keeper.time === null ? '—' : Math.round(keeper.time)}<small>sec</small></span>
+      <span class="keeper-big">${keeper.time === null ? '—' : Math.round(keeper.time)}<small>s</small></span>
     </div>
-    <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · grind ${escapeHTML(String(keeper.grind))}` : ''}${
+    <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · grind ${escapeHTML(String(keeper.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}` : ''}${
       keeper.temp ? ` · ${escapeHTML(String(keeper.temp))}°` : ''}${
       ey !== null ? ` · ${fmt1(ey)}% extraction` : ''}</div>
     ${/* The recipe is not rewritten as the coffee ages. Beans degas, the
@@ -1072,19 +2634,60 @@ function renderKeeper(c) {
   if (nowBtn) nowBtn.addEventListener('click', () => openGrindNow(c, keeper));
 }
 
+/* Whether the target still describes something other than the recipe.
+
+   A board that has declared a keeper and still says "aiming at 1:2.6 ·
+   19.0g" is showing two answers to one question, and a first-run test read
+   it as the app failing to notice what it had just concluded. The target is
+   not wrong — it is where you were aiming, and you landed a little past it
+   — but once there is a recipe, the aim is a loose end rather than a plan,
+   and the reader should be able to close it in one tap. */
+function targetDrift(c) {
+  const keeper = c && c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
+  if (!keeper) return null;
+  const r = ratioOf(keeper), d = num(keeper.dose), t = num(keeper.time);
+  if (r === null || d === null) return null;
+  const ratio = Math.round(r * 10) / 10;
+  const off = Math.abs(ratio - num(c.target.ratio)) >= 0.05
+    || Math.abs(d - num(c.target.dose)) >= 0.05
+    || (t !== null && (t < c.target.timeLo || t > c.target.timeHi));
+  if (!off) return null;
+  return { keeper, ratio, dose: d, time: t };
+}
+
 function renderTarget(c) {
   const wrap = $('#target-card');
   wrap.classList.toggle('hidden', !c);
   if (!c) { wrap.innerHTML = ''; return; }
   const t = c.target;
+  const drift = targetDrift(c);
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
       <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp && canSetTemp() ? ` · ${t.temp}°` : ''}</span>
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    ${drift ? `<button class="target-adopt" id="btn-adopt" type="button">Aim at the recipe instead — ${fmtDose(drift.dose)}g, 1:${drift.ratio}${
+      drift.time === null ? '' : `, ${Math.round(drift.time)}s`}</button>` : ''}
   `;
   wrap.querySelector('#btn-target').addEventListener('click', () => openEdit(c));
+  const adopt = wrap.querySelector('#btn-adopt');
+  if (adopt) adopt.addEventListener('click', () => {
+    /* The window around the keeper's own time rather than the keeper's time
+       exactly: a target of "22s" is a target nobody hits twice, and the
+       board judges every later shot against this. Three seconds either
+       side is about the spread of a well-behaved machine. */
+    c.target.dose = drift.dose;
+    c.target.ratio = drift.ratio;
+    if (drift.time !== null) {
+      c.target.timeLo = Math.max(5, Math.round(drift.time) - 3);
+      c.target.timeHi = Math.round(drift.time) + 3;
+    }
+    save();
+    haptic();
+    renderBoard();
+    toast('The recipe is the target now');
+  });
 }
 
 function renderShots(c) {
@@ -1105,7 +2708,7 @@ function renderShots(c) {
     if (!kit().asked) {
       empty.innerHTML = `
         <div class="empty-title">What are you pulling on?</div>
-        <p class="empty-body">Four questions about your machine and grinder, once. The shot sheet is built from the answers: there is no point in a temperature field on a machine with one temperature, and no point in advice that tells you to raise it.</p>
+        <p class="empty-body">A handful of questions about your machine and grinder, once. The shot sheet is built from the answers: there is no point in a temperature field on a machine with one temperature, and no point in advice that tells you to raise it.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — most machines are the default</button>
         <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
@@ -1161,7 +2764,19 @@ function shotCard(shot, prev, c, n) {
   if (prev) {
     const g = (a, b) => (num(a) !== null && num(b) !== null ? a - b : null);
     const dGrind = g(Number(shot.grind), Number(prev.grind));
-    if (dGrind !== null && dGrind !== 0) diffs.push(`grind ${fmtDelta(dGrind, '', 1)}`);
+    /* Which way the grinder went, in words, because the sign alone is a
+       puzzle: on a dial where lower is finer, "grind −2.0" means finer,
+       printed under a card that also says "aim: Finer" — so the minus is
+       either redundant or backwards, and the reader has to know which
+       before it helps. The board has already worked out which way this
+       grinder runs from the log; it may as well say. */
+    if (dGrind !== null && dGrind !== 0) {
+      const sens = GRIND.sensitivity();
+      const dist = fmtSteps(Math.abs(dGrind));
+      diffs.push(sens
+        ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? 'finer' : 'coarser'}`
+        : `grind ${fmtDelta(dGrind, '', 1)}`);
+    }
     const dDose = g(shot.dose, prev.dose);
     if (dDose) diffs.push(`${fmtDelta(dDose, 'g in')}`);
     const dYield = g(shot.yield, prev.yield);
@@ -1197,7 +2812,11 @@ function shotCard(shot, prev, c, n) {
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
     ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
     ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
+    ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
+    ${shot.bright && !shot.harsh ? '<div class="log-run">Bright, not sour</div>' : ''}
+    ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
     ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
+    ${twoVariables(shot, prev) ? `<div class="log-mismatch">${escapeHTML(twoVariables(shot, prev))}</div>` : ''}
     ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
     ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
     ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
@@ -1243,6 +2862,11 @@ function tasteMarks(v) {
 
 let editing = null;      // the shot being edited, or a fresh one
 let editingIsNew = false;
+/* The settings as they were carried onto a fresh sheet, so a change to
+   one can be told from the copy that arrived by itself. See
+   shotHasContent. */
+let carriedSeed = '';
+let editingSeed = '';
 
 function openShot(shot) {
   const c = activeCoffee();
@@ -1264,6 +2888,13 @@ function openShot(shot) {
     body: null,
     verdict: null,
     intent: null,
+    // How it looked coming out. Not carried over: it is an observation of
+    // one shot, and the last shot's is not evidence about this one.
+    run: null,
+    // Sour and bitter in the same sip, which is not a point on the
+    // sour-to-bitter axis but a statement that the axis does not apply.
+    harsh: false,
+    bright: false,
     // where the grinder is as far as anyone has said, which is the board's
     // "grinder today" when it is set and the last shot otherwise
     grind: grindStart(c),
@@ -1274,6 +2905,14 @@ function openShot(shot) {
     tds: null,
   };
   if (editing.grind === undefined) editing.grind = '';
+  carriedSeed = carriedOf(editing);
+  /* What the shot looked like when the sheet opened, so closing an edit
+     can tell whether anything was changed. A tester opened a saved shot,
+     changed its time, closed with the X, and the change was gone without a
+     word — the guard only covered new sheets. The fields on an existing
+     shot are edited in place, so by the time the X is tapped the object is
+     already different from the log; the snapshot is the only way back. */
+  editingSeed = JSON.stringify(editing);
 
   $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${c.shots.indexOf(shot) + 1}`;
   /* Remove this shot.
@@ -1303,22 +2942,58 @@ function openShot(shot) {
 
    Used to decide whether closing it costs the person anything. The X used
    to throw away a fully typed shot without a word. */
+/* Carried over rather than typed: these arrive on a fresh sheet from the
+   last shot, because a dial-in holds them still and moves one thing. So
+   their presence is not somebody's work — but a change to one is. */
+const CARRIED = ['dose', 'grind', 'temp', 'press', 'basket'];
+const carriedOf = sh => JSON.stringify(CARRIED.map(k => (sh ? sh[k] : null)));
+
 function shotHasContent() {
   if (!editing) return false;
-  return ['dose', 'yield', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
+  /* Dose used to be counted as content outright. It is prefilled on every
+     new sheet, so every new sheet claimed to have something on it, and
+     closing one you had not touched asked whether you wanted to throw
+     away work that did not exist — which is how a confirm dialog gets
+     trained out of a person before the one that matters arrives. */
+  const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'bright', 'notes', 'tds']
     .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+  return typed || carriedOf(editing) !== carriedSeed;
 }
 
 function closeShotSheet() {
-  if (editingIsNew && shotHasContent()
-      && !confirm('Close without saving? What you have put on this sheet goes with it.')) return;
+  const dirty = editingIsNew
+    ? shotHasContent()
+    : (editing && JSON.stringify(editing) !== editingSeed);
+  if (dirty && !confirm(editingIsNew
+    ? 'Close without saving? What you have put on this sheet goes with it.'
+    : 'Close without saving? The changes you have made to this shot go with it.')) return;
+  /* An abandoned edit must not leave its changes in the log.
+
+     `editing` IS the stored object on an existing shot, so the fields were
+     being written straight into the record and only the save was optional.
+     Closing therefore had to put it back, which it never did — it worked
+     only because renderBoard read from `state`, which had not been saved;
+     any later save of anything else would have written the abandoned edit
+     to disk with it. */
+  if (!editingIsNew && editing && editingSeed) {
+    try {
+      const back = JSON.parse(editingSeed);
+      // Keys added during the edit have to go too, not just keys changed:
+      // JSON.stringify drops undefined, so the snapshot cannot clear them.
+      Object.keys(editing).forEach(k => { if (!(k in back)) delete editing[k]; });
+      Object.assign(editing, back);
+    } catch (e) { /* keep what is there */ }
+  }
   closeModal('#shot-modal');
+  renderBoard();
 }
 
 function buildShotSheet(c) {
   const row = $('#num-row');
   row.innerHTML = '';
-  const refresh = () => { renderReadout(c); };
+  /* The numbers feed the verdict row as well as the readout: the keeper
+     chip unblocks the moment a yield is typed, without a save and reopen. */
+  const refresh = () => { buildVerdict(c); renderReadout(c); };
 
   row.appendChild(numField({
     label: 'In', unit: 'g', value: editing.dose, min: 0, max: 60, step: 0.1, digits: 1,
@@ -1359,24 +3034,25 @@ function buildShotSheet(c) {
 
   // Two walls, two questions. Asked separately because they are answered
   // separately: grind for one, ratio and dose for the other.
-  const taste = $('#taste-scale');
-  taste.innerHTML = '';
-  taste.appendChild(tasteScale({
-    value: editing.taste, words: tasteWord, low: 'sour', high: 'bitter',
-    labelledBy: 'taste-label', empty: 'not tasted yet',
-    onChange: v => { editing.taste = v; renderReadout(c); },
-  }));
+  buildTaste(c);
   const body = $('#body-scale');
   body.innerHTML = '';
   body.appendChild(tasteScale({
-    value: editing.body, words: bodyWord, low: 'watery', high: 'muddy',
+    value: editing.body, words: bodyWord, low: 'watery', high: 'muddy', mid: 'syrupy',
     labelledBy: 'body-label', empty: 'not said yet',
     onChange: v => { editing.body = v; renderReadout(c); },
   }));
 
   buildIntent(c);
+  buildHarsh(c);
+  buildRun(c);
   buildVerdict(c);
+  buildNotes(c);
   buildMore(c);
+  /* Notes lives on the sheet now rather than in the drawer, so it binds
+     here alongside the rest. */
+  const notes = $('#f-notes');
+  if (notes) notes.addEventListener('input', () => { editing.notes = notes.value; });
   renderReadout(c);
 }
 
@@ -1396,10 +3072,27 @@ function grindStart(c) {
 }
 
 /* Stated before the numbers, because that is when you know it. */
+/* The shot this one is being compared against, or null when there is not
+   one yet. The intent row and the readout need the same answer. */
+function prevShotOf(c) {
+  const rows = shotsNewestFirst(c);
+  return editingIsNew ? (rows[0] || null) : (rows[rows.indexOf(editing) + 1] || null);
+}
+
 function buildIntent(c) {
   const wrap = $('#intent');
   if (!wrap) return;
   wrap.innerHTML = '';
+
+  /* "What are you changing?" needs something to be changing from. On the
+     first shot of a coffee every answer here is unanswerable — finer than
+     what? — and "Same again" is a claim about a shot that does not exist.
+     The row leaves the sheet until there is a shot behind this one. */
+  const block = wrap.closest('.intent-block');
+  const prev = prevShotOf(c);
+  if (block) block.classList.toggle('hidden', !prev);
+  if (!prev) { editing.intent = null; return; }
+
   // "Hotter" is not an intention on a machine with one temperature, and
   // offering it invites somebody to record a change they did not make.
   INTENTS.filter(i => i.field !== 'temp' || canSetTemp()).forEach(i => {
@@ -1418,31 +3111,154 @@ function buildIntent(c) {
   });
 }
 
+/* The sour–bitter scale.
+
+   Its own function because the chip underneath it can supersede it, and
+   the screen has to say so. With "sour and bitter at once" set, the scale
+   read "not tasted yet" directly above a chip the reader had just turned
+   black — the app telling them they had not tasted a shot they had just
+   described. The finding is recorded either way; it looked broken. */
+function buildTaste(c) {
+  const taste = $('#taste-scale');
+  if (!taste) return;
+  const both = Boolean(editing.harsh);
+  const bright = Boolean(editing.bright);
+  taste.innerHTML = '';
+  taste.classList.toggle('scale-superseded', both && editing.taste === null);
+  taste.appendChild(tasteScale({
+    value: editing.taste, words: v => (bright && v < 0 ? `${tasteWord(v)} — but bright rather than under` : tasteWord(v)),
+    low: 'sour', high: 'bitter', mid: 'sweet',
+    labelledBy: 'taste-label',
+    empty: both ? 'both at once — this scale does not apply'
+      : bright ? 'bright, and no fault in it' : 'not tasted yet',
+    onChange: v => { editing.taste = v; renderReadout(c); },
+  }));
+}
+
+/* The "both at once" chip.
+
+   Not a point on the scale above it — a statement that the scale does
+   not apply. A shot that is sharp and harsh in the same sip has not
+   landed somewhere between sour and bitter; part of the bed gave up too
+   much while the rest gave up almost nothing, and averaging that into a
+   position on one axis throws away the finding. */
+function buildHarsh(c) {
+  const wrap = $('#harsh');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const add = (key, label) => {
+    const on = Boolean(editing[key]);
+    const b = el('button', 'chip' + (on ? ' on' : ''), label);
+    b.type = 'button';
+    b.setAttribute('role', 'checkbox');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      editing[key] = !on;
+      /* They are contradictory claims about the same cup: one says the
+         position is meaningless, the other says the position is right and
+         benign. Turning on either clears the other. */
+      if (editing[key]) editing[key === 'harsh' ? 'bright' : 'harsh'] = false;
+      haptic();
+      buildHarsh(c);
+      // The scale above has to agree with the chips below it.
+      buildTaste(c);
+      renderReadout(c);
+    });
+    wrap.appendChild(b);
+  };
+  add('harsh', 'Sour and bitter at once');
+  // Offered on the roasts where the confusion is real. A dark roast that
+  // tastes sour is under-extracted, and the chip would be an excuse.
+  const e = roastEntry(c && c.roast);
+  if (!e || e.dose < 0) add('bright', 'Bright, not sour');
+}
+
+/* The run chips. Tapping the chosen one again clears it, because an
+   observation nobody made is not "it ran even". */
+function buildRun(c) {
+  const wrap = $('#run');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  runOptions().forEach(r => {
+    const on = editing.run === r.key;
+    const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(r.label));
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.title = r.sub;
+    b.addEventListener('click', () => {
+      editing.run = on ? null : r.key;
+      haptic();
+      buildRun(c);
+      renderReadout(c);
+    });
+    wrap.appendChild(b);
+  });
+}
+
 const VERDICTS = [
   { key: 'off', label: 'Off', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
   { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
 ];
 
+/* What a shot is missing before it can be called the recipe.
+
+   A recipe is a thing you hand to somebody so they can repeat it, and you
+   cannot repeat "18g in, — out". A first-run test saved a shot with no
+   yield, watched the log say so in as many words — "No yield recorded, so
+   this shot has no ratio and no flow" — and then marked it The one. The
+   board printed THE RECIPE: 18.0g in → —g out, under the heading
+   "Dialled in. Pull the next one to it and change nothing." Pull it to
+   what? The app knew the shot was incomplete in one place and promoted it
+   in another. */
+function keeperMissing(shot) {
+  const want = [];
+  if (num(shot && shot.dose) === null) want.push('a dose');
+  if (num(shot && shot.yield) === null) want.push('a yield');
+  if (num(shot && shot.time) === null) want.push('a time');
+  return want;
+}
+
 function buildVerdict(c) {
   const wrap = $('#verdict');
   wrap.innerHTML = '';
+  const missing = keeperMissing(editing);
   VERDICTS.forEach(v => {
-    const b = el('button', 'verdict-btn' + (editing.verdict === v.key ? ' on' : ''),
-      `<span class="verdict-label">${v.label}</span><span class="verdict-sub">${v.sub}</span>`);
+    const blocked = v.key === 'keeper' && missing.length > 0;
+    /* Not hidden, and not silently inert. A control that is there and does
+       nothing is the same lie as the pinch-test cards were: it says what
+       it needs and comes back the moment it has it. */
+    const sub = blocked ? `needs ${listWords(missing)}` : v.sub;
+    const b = el('button', 'verdict-btn' + (editing.verdict === v.key ? ' on' : '') + (blocked ? ' is-blocked' : ''),
+      `<span class="verdict-label">${v.label}</span><span class="verdict-sub">${escapeHTML(sub)}</span>`);
     b.type = 'button';
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', editing.verdict === v.key ? 'true' : 'false');
+    if (blocked) b.setAttribute('aria-disabled', 'true');
     b.addEventListener('click', () => {
+      if (blocked) {
+        haptic();
+        toast(`A recipe needs ${listWords(missing)} — fill ${missing.length === 1 ? 'it' : 'them'} in and this comes back`);
+        return;
+      }
       // tapping the chosen one again clears it: a verdict you did not give
       // is not "off"
       editing.verdict = editing.verdict === v.key ? null : v.key;
       haptic();
       buildVerdict(c);
+      // Marking this one the recipe changes what the notes field is asking.
+      buildNotes(c);
       renderReadout(c);
     });
     wrap.appendChild(b);
   });
+}
+
+// "a yield", "a yield and a time", "a dose, a yield and a time"
+function listWords(xs) {
+  if (xs.length <= 1) return xs[0] || '';
+  return xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
 }
 
 /* The drawer holds what your machine can change, and nothing else.
@@ -1458,23 +3274,35 @@ function buildMore(c) {
     const bits = [];
     if (canSetTemp()) bits.push('temperature');
     if (canSetPressure()) bits.push('pressure');
-    summary.textContent = bits.length
-      ? `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())} and the rest`
-      : 'Basket, notes and the rest';
+    // Notes left this drawer for the sheet itself, so the summary stops
+    // advertising them.
+    bits.push('basket');
+    summary.textContent = `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())}${
+      prefs.tds ? ' and the reading' : ''}`;
   }
   body.innerHTML = `
     <div class="more-grid">
       ${canSetTemp() ? `<label class="field"><span class="field-label">Brew temp</span>
-        <input class="field-input" id="f-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 93"></label>` : ''}
-      ${canSetPressure() ? `<label class="field"><span class="field-label">Pressure / flow</span>
-        <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="e.g. 6 bar, 2ml/s"></label>` : ''}
-      <label class="field"><span class="field-label">Basket</span>
-        <input class="field-input" id="f-basket" type="text" autocomplete="off" placeholder="${escapeHTML(kit().basket || 'e.g. 18g IMS')}"></label>
+        <input class="field-input" id="f-temp" type="text" inputmode="decimal" autocomplete="off" placeholder="${
+          num(c && c.target && c.target.temp) === null ? 'e.g. 93' : String(Math.round(c.target.temp))}"></label>` : ''}
+      ${/* A gauge you can read is worth a field even though it is not a
+            variable you can change: it is the one direct reading anybody
+            gets of what happened inside the puck, and a shot that spiked
+            to 11 bar explains itself. The setup asked the question and
+            then had nowhere to put the answer, which a tester noticed —
+            either ask or do not. */ ''}
+      ${seesPressure() ? `<label class="field"><span class="field-label">${canSetPressure() ? 'Pressure / flow' : 'What the gauge read'}</span>
+        <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="${canSetPressure() ? 'e.g. 6 bar, 2ml/s' : 'e.g. 9 bar, steady'}"></label>` : ''}
       ${prefs.tds ? `<label class="field"><span class="field-label">TDS %</span>
         <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
-    <label class="field"><span class="field-label">Notes</span>
-      <input class="field-input" id="f-notes" type="text" maxlength="120" autocomplete="off" placeholder="what you noticed"></label>
+    <!-- Out of the two-column grid, because it holds a name rather than a
+         number. On a machine with one temperature and no pressure gauge it
+         was the grid's only child, so it sat in the left column at half
+         width with nothing beside it and "18g stock Breville double" ran
+         off the end of the box. -->
+    <label class="field"><span class="field-label">Basket</span>
+      <input class="field-input" id="f-basket" type="text" autocomplete="off" placeholder="${escapeHTML(kit().basket || 'e.g. 18g IMS')}"></label>
   `;
   const bind = (sel, key, asNumber) => {
     const input = body.querySelector(sel);
@@ -1495,12 +3323,43 @@ function buildMore(c) {
   bind('#f-press', 'press', false);
   bind('#f-basket', 'basket', false);
   bind('#f-tds', 'tds', true);
-  bind('#f-notes', 'notes', false);
 
   // Open it and it stays open — whatever is in here, somebody who filled it
   // in on the last shot is filling it in on this one.
   const more = $('#more');
-  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.notes || editing.tds);
+  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.tds);
+}
+
+/* The question the notes field is asking, which is not always the same one.
+
+   A dial-in ends on a preference, and a preference with no reason attached
+   is worth very little next week and nothing on the next bag. Once there
+   is a recipe the board has nothing left to compute — both shots are in
+   the window and both are sweet — so the only thing that decides is what
+   the person drinking them thought, and the sheet should ask for it in
+   those words rather than offering a grey box captioned "what you
+   noticed".
+
+   Before there is a recipe the question is descriptive: what did it taste
+   of. After there is one it is comparative: which, and why. */
+function buildNotes(c) {
+  const box = $('#f-notes');
+  const sub = $('#notes-sub');
+  if (!box) return;
+  const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+  const comparing = Boolean(keeper && keeper !== editing);
+  if (sub) {
+    sub.textContent = comparing
+      ? 'Nothing else here can separate two good shots.'
+      : 'Anything the numbers do not hold.';
+  }
+  box.placeholder = comparing
+    ? `Better or worse than the recipe, and what made the difference?`
+    : 'e.g. jasmine, but it falls away fast';
+  // Never clobber what is being typed: this is rebuilt when the verdict
+  // moves, which can happen with a caret sitting in the box.
+  const want = editing.notes || '';
+  if (box.value !== want) box.value = want;
 }
 
 /* Everything read out of the three numbers, and nothing typed.
@@ -1513,7 +3372,7 @@ function renderReadout(c) {
   const flow = flowOf(editing);
   const ey = extractionOf(editing);
   const place = placeOf(editing, c.target);
-  const tips = nextMove(editing, c.target);
+  const tips = nextMove(editing, c.target, c);
   /* The "you said finer and the grinder has not moved" check, live.
 
      It only ran on the saved card, which is to say it arrived after the
@@ -1521,11 +3380,8 @@ function renderReadout(c) {
      steps from the grinder, and once it is saved you are reading history.
      The prior shot is the one before this one in the log — the last one
      for a new sheet, the one before it for an edit. */
-  const rows = shotsNewestFirst(c);
-  const prevShot = editingIsNew
-    ? (rows[0] || null)
-    : (rows[rows.indexOf(editing) + 1] || null);
-  const mismatch = intentCheck(editing, prevShot);
+  const mismatch = intentCheck(editing, prevShotOf(c));
+  const twoVars = twoVariables(editing, prevShotOf(c));
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null
@@ -1538,7 +3394,7 @@ function renderReadout(c) {
     <div class="readout-row">
       <div class="readout-cell">
         <span class="readout-value">${fmtRatio(r)}</span>
-        <span class="readout-label">ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
+        <span class="readout-label">${bandDrift(r, c.target.ratio) ? `${bandDrift(r, c.target.ratio)} · ` : ''}ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
       </div>
       <div class="readout-cell">
         <span class="readout-value">${fmt2(flow)}</span>
@@ -1550,14 +3406,46 @@ function renderReadout(c) {
       </div>` : ''}
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
-    ${tips.map(t => tipHTML(t, 'tip')).join('')}
-    ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
   `;
+
+  /* The advice goes in its own block further down the sheet, after the
+     chips that can change it. See the comment on #live-advice. */
+  const live = $('#live-advice');
+  if (live) {
+    live.innerHTML = `
+      ${tips.map(t => tipHTML(t, 'tip')).join('')}
+      ${twoVars ? `<div class="log-mismatch">${escapeHTML(twoVars)}</div>` : ''}
+      ${mismatch ? `<div class="log-mismatch">${escapeHTML(mismatch)}</div>` : ''}
+    `;
+    // The sheet's own copy of the advice carries the same action, and a
+    // button that does nothing is worse than no button.
+    bindTipActions(live);
+  }
+}
+
+/* A field the app has refused to read stops the save.
+
+   The number field already does the honest thing on its own: "999" is out
+   of range, so nothing is recorded, the note says so and the typo stays on
+   screen. What it could not do was stop Save. A tester typed 999 into the
+   time, pressed Save, and got "Shot updated" over a shot with no time in
+   it — walked away believing it was recorded. The field was right and the
+   button lied on top of it. */
+function badFields(sel) {
+  return Array.from($(sel).querySelectorAll('.num-field.bad'))
+    .map(f => (f.querySelector('.num-label') || {}).textContent)
+    .filter(Boolean);
 }
 
 function saveShot() {
   const c = activeCoffee();
   if (!c) return;
+  const bad = badFields('#shot-modal');
+  if (bad.length) {
+    haptic();
+    toast(`${listWords(bad)} ${bad.length === 1 ? 'has' : 'have'} something in ${bad.length === 1 ? 'it' : 'them'} the app cannot read — fix or clear ${bad.length === 1 ? 'it' : 'them'} first`);
+    return;
+  }
   if (!isComplete(editing) && editingIsNew) {
     const missing = missingFields(editing);
     // Saving a half-recorded shot is allowed — a bar is a bar, and a shot
@@ -1566,6 +3454,21 @@ function saveShot() {
   }
   const wasNew = editingIsNew;
   if (wasNew) c.shots.push(editing);
+  /* One recipe to a coffee.
+
+     "The one — this is the recipe" is singular in its own label, and
+     marking a second shot used to leave the first one flagged too. Two
+     testers independently ended a session looking at a board with three
+     cards each headed THE KEEPER while the recipe at the top showed one
+     set of numbers — three contradictory answers to the question the
+     board exists to answer. It survived a reload, because it was in the
+     data rather than the render.
+
+     Demoted to "drinkable" rather than cleared: a shot you once called
+     the recipe was, at minimum, drinkable. */
+  if (editing.verdict === 'keeper') {
+    c.shots.forEach(sh => { if (sh !== editing && sh.verdict === 'keeper') sh.verdict = 'ok'; });
+  }
   save();
   closeModal('#shot-modal');
   renderBoard();
@@ -1643,6 +3546,24 @@ function openEdit(c, opts) {
   const adding = Boolean(opts && opts.adding);
   const body = $('#edit-body');
   const t = c.target;
+  /* Which of the target's numbers are still the app's suggestion and which
+     are the reader's own.
+
+     The starting point is a consequence of the roast — a light roast can
+     do less extraction work, so it wants less coffee, a longer ratio and a
+     shorter window — and until somebody moves a field by hand there is no
+     reason for it to disagree with the roast they just picked. Picking
+     "Light" and then reading a card that recommends 17.5g at 1:2.5 above a
+     target that says 19g at 1:2 is the app arguing with itself, which is
+     what a first-run test found it doing on four separate surfaces.
+
+     Per field, not one flag for the lot: somebody who sets their own dose
+     has not thereby made a decision about the brew window. A coffee that
+     already has shots against it has been dialled around its target, so
+     every field on it is theirs. */
+  const own = { dose: false, ratio: false, time: false, temp: false };
+  if (!adding || c.shots.length > 0) { own.dose = own.ratio = own.time = own.temp = true; }
+  let gridBuilt = false;
   // the grind-today sheet borrows this shell and hides the destructive
   // control; so does a coffee that is not on the shelf yet
   $('#edit-delete').classList.toggle('hidden', adding);
@@ -1657,6 +3578,25 @@ function openEdit(c, opts) {
 
     <span class="field-label section">Roast level</span>
     <div class="chips" id="e-roastlevel" role="radiogroup" aria-label="Roast level"></div>
+
+    <details class="more" id="e-more">
+      <summary>What else the bag says</summary>
+      <div class="more-body">
+        <p class="sheet-note">All optional, and each one only narrows the starting point. Roast level does most of the work; these say how hard the coffee will be to extract around it.</p>
+        <span class="field-label">Process</span>
+        <div class="chips" id="e-process" role="radiogroup" aria-label="Process"></div>
+        <span class="field-label">Grown at</span>
+        <div class="chips" id="e-altitude" role="radiogroup" aria-label="Altitude"></div>
+        <label class="switch-row" for="e-decaf">
+          <span class="switch-text">
+            <span class="switch-title">Decaf</span>
+            <span class="switch-sub">Worth saying: decaffeination opens the bean up, so it extracts far more readily and runs faster with it — which pull in opposite directions.</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="e-decaf"><span class="switch-track"><span class="switch-knob"></span></span></span>
+        </label>
+      </div>
+    </details>
+
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
@@ -1680,6 +3620,49 @@ function openEdit(c, opts) {
      finished by taste. */
   const roastWrap = body.querySelector('#e-roastlevel');
   const baseWrap = body.querySelector('#e-baseline');
+
+  /* The rest of what a bag says. Behind a summary because most people
+     will answer roast level and stop, and a sheet that wants four
+     answers before it will help is a sheet people skip. Each handler
+     writes straight to the coffee, which the sheet's commit already
+     saves. */
+  const chipRow = (wrap, items, current, pick) => {
+    wrap.innerHTML = '';
+    items.forEach(i => {
+      const on = current === i.key;
+      const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(i.label));
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.addEventListener('click', () => { pick(on ? '' : i.key); haptic(); });
+      wrap.appendChild(b);
+    });
+  };
+  const renderExtras = () => {
+    chipRow(body.querySelector('#e-process'), PROCESSES, c.process,
+      k => { c.process = k; applyStart(); renderExtras(); renderRoast(); });
+    chipRow(body.querySelector('#e-altitude'), ALTITUDES, c.altitude,
+      k => { c.altitude = k; applyStart(); renderExtras(); renderRoast(); });
+  };
+  /* The roast date has to reach the model while the sheet is open.
+
+     c.roastDate was written only by commit(), which runs on Save — so the
+     "A PLACE TO START" panel on the add-a-coffee sheet never knew the bag
+     was seven weeks old, while the identical panel on the edit sheet,
+     opened later on the same coffee, carried three extra sentences about
+     it. Same coffee, same data, two different texts, and the one a new
+     bag is entered on was the wrong one. */
+  const dateBox = body.querySelector('#e-roast');
+  if (dateBox) dateBox.addEventListener('change', () => {
+    c.roastDate = dateBox.value;
+    applyStart();
+    renderRoast();
+  });
+
+  const decafBox = body.querySelector('#e-decaf');
+  decafBox.checked = Boolean(c.decaf);
+  decafBox.addEventListener('change', () => { c.decaf = decafBox.checked; applyStart(); renderRoast(); });
+  if (c.process || c.altitude || c.decaf) body.querySelector('#e-more').open = true;
   const renderRoast = () => {
     roastWrap.innerHTML = '';
     ROASTS.forEach(r => {
@@ -1688,10 +3671,16 @@ function openEdit(c, opts) {
       b.type = 'button';
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', on ? 'true' : 'false');
-      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
+      b.addEventListener('click', () => {
+        c.roast = on ? '' : r.key;
+        // The target follows the bag until somebody claims a field.
+        applyStart();
+        haptic();
+        renderRoast();
+      });
       roastWrap.appendChild(b);
     });
-    /* The baseline offers the levers this machine has.
+    /* The baseline offers the variables this machine has.
 
        Quoting a brew temperature at somebody whose machine holds one is
        the same mistake the shot sheet used to make, one screen earlier:
@@ -1699,20 +3688,50 @@ function openEdit(c, opts) {
        On a fixed-temperature machine the roast still says something — it
        says what ratio to start at — so the sentence keeps the range as
        context and the button applies only the ratio. */
-    const e = roastEntry(c.roast);
+    const sp = startingPoint(c);
+    const e = sp && sp.e;
+    const spDose = doseStart(c);
     const withTemp = canSetTemp();
-    baseWrap.innerHTML = e
+    /* The sentence says what moved the numbers and why, because a
+       starting point somebody cannot interrogate is a recipe, and this
+       app does not hand out recipes. */
+    const shifted = sp && sp.sol.why.length
+      ? ` Then ${sp.sol.why.join('; ')} — so this starts ${sp.sol.shift < 0
+          ? 'a little longer on the ratio than the roast alone would'
+          : 'shorter, and cooler, than the roast alone would'}.`
+      : '';
+    baseWrap.innerHTML = sp
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, machine, water and palate finish the job.${
-             withTemp ? '' : ` Your machine holds one temperature, so the ratio is the part of this you can take.`}</p>
-           <button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${withTemp ? `${e.temp}° and ` : ''}1:${e.ratio}</button>
+           ${/* The numbers, then everything that argues for them behind a
+                disclosure — the same rule the advice cards run on. This was
+                a hundred and five words of unbroken prose with the one
+                actionable line at the bottom, which is the shape a reader
+                skips. */ ''}
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <details class="tip-more"><summary>Why these</summary>
+             <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
+               e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
+               withTemp ? '' : ' Your machine holds one temperature, so the rest of this is the part you can take.'} Your grinder, water and palate finish the job.</p>
+             ${sp.extra.map(x => `<p class="baseline-body">${escapeHTML(x)}</p>`).join('')}
+           </details>
+           ${(startApplied(sp, spDose) || c.shots.length)
+             /* The button is a starting point, and a coffee with shots
+                against it has started. It sat above a DOSE field reading
+                18 offering "Start at 16.5g" after six shots and a keeper —
+                one tap from throwing the dial-in away, with no warning. */
+             ? `<p class="baseline-body"><strong>${spDose === null ? '' : `${fmtDose(spDose)}g, `}1:${sp.ratio}${
+                  withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</strong> is where this bag starts from cold.${
+                  c.shots.length ? ` You are ${c.shots.length} shot${c.shots.length === 1 ? '' : 's'} past that — the target below is what the board is judging against, and it is yours to edit.` : ' That is what the target below is set to. Change any of it and it stays changed.'}</p>`
+             : `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}${withTemp ? `${sp.temp}° and ` : ''}1:${sp.ratio}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</button>`}
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');
     if (apply) apply.addEventListener('click', () => {
-      t.ratio = e.ratio;
-      if (withTemp) t.temp = e.temp;
+      // Everything the button names, including fields the reader had
+      // already claimed — tapping a button that lists the numbers is a
+      // request to have those numbers, and from here they are theirs.
+      applyStart(true);
       commit();
       if (!adding) save();
       haptic();
@@ -1720,11 +3739,13 @@ function openEdit(c, opts) {
       // the conversation. It used to close the whole sheet, which is a
       // bigger act than the button admits to and left people unsure
       // whether the name they had just typed had gone in with it.
-      toast(withTemp ? `Aiming at 1:${e.ratio}, ${e.temp}°` : `Aiming at 1:${e.ratio}`);
+      toast(`Aiming at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}1:${sp.ratio}${
+        withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s`);
       buildTargetGrid();
       renderBoard();
     });
   };
+  renderExtras();
   renderRoast();
 
   /* The window, as fields.
@@ -1738,23 +3759,59 @@ function openEdit(c, opts) {
      board advertised "aiming at 94°" with no way to reach it: the number
      could only be set by tapping the roast suggestion, which also
      overwrote the ratio. */
+  /* The starting point, applied to whatever the reader has not claimed.
+
+     Called when the roast or anything else on the bag changes, and by the
+     button that names the numbers out loud. Rebuilds the grid rather than
+     writing behind the reader's back: the fields are on screen and they
+     have to show what changed. */
+  const applyStart = force => {
+    const sp = startingPoint(c);
+    const d = doseStart(c);
+    if (d !== null && (force || !own.dose)) { t.dose = d; if (force) own.dose = true; }
+    if (sp) {
+      if (force || !own.ratio) { t.ratio = sp.ratio; if (force) own.ratio = true; }
+      if (force || !own.time) { t.timeLo = sp.timeLo; t.timeHi = sp.timeHi; if (force) own.time = true; }
+      if (canSetTemp() && (force || !own.temp)) { t.temp = sp.temp; if (force) own.temp = true; }
+    }
+    if (gridBuilt) buildTargetGrid();
+  };
+
+  /* Whether the target already holds the starting point. A button offering
+     numbers the fields underneath it already show is a button that does
+     nothing, and one a reader will tap to find out. Where they match, the
+     sentence says so instead. */
+  // A declaration, not a const: renderRoast calls it while building its
+  // markup, and that happens before this line is reached.
+  function startApplied(sp, spDose) {
+    const near = (a, b) => a !== null && b !== null && Math.abs(a - b) < 0.051;
+    if (!sp) return false;
+    if (spDose !== null && !near(num(t.dose), spDose)) return false;
+    if (!near(num(t.ratio), sp.ratio)) return false;
+    if (Math.round(num(t.timeLo)) !== Math.round(sp.timeLo)) return false;
+    if (Math.round(num(t.timeHi)) !== Math.round(sp.timeHi)) return false;
+    if (canSetTemp() && !near(num(t.temp), sp.temp)) return false;
+    return true;
+  }
+
   const grid = body.querySelector('#target-grid');
   const buildTargetGrid = () => {
     grid.innerHTML = '';
     grid.appendChild(numField({ label: 'Dose', unit: 'g', value: t.dose, min: 5, max: 40, step: 0.5, digits: 1,
-      onChange: v => { t.dose = v === null ? 18 : v; } }));
+      onChange: v => { own.dose = true; t.dose = v === null ? 18 : v; } }));
     grid.appendChild(numField({ label: 'Ratio 1:', unit: '', value: t.ratio, min: 1, max: 6, step: 0.1, digits: 1,
-      onChange: v => { t.ratio = v === null ? 2 : v; } }));
+      onChange: v => { own.ratio = true; t.ratio = v === null ? 2 : v; } }));
     grid.appendChild(numField({ label: 'From', unit: 's', value: t.timeLo, min: 5, max: 90, step: 1, digits: 0,
-      onChange: v => { t.timeLo = v === null ? 25 : v; } }));
+      onChange: v => { own.time = true; t.timeLo = v === null ? 25 : v; } }));
     grid.appendChild(numField({ label: 'To', unit: 's', value: t.timeHi, min: 5, max: 120, step: 1, digits: 0,
-      onChange: v => { t.timeHi = v === null ? 30 : v; } }));
+      onChange: v => { own.time = true; t.timeHi = v === null ? 30 : v; } }));
     if (canSetTemp()) {
       grid.appendChild(numField({ label: 'Temp', unit: '°', value: t.temp, min: 80, max: 100, step: 1, digits: 0,
-        onChange: v => { t.temp = v; } }));
+        onChange: v => { own.temp = true; t.temp = v; } }));
     }
   };
   buildTargetGrid();
+  gridBuilt = true;
 
   /* Every way out of this sheet commits the same fields.
 
@@ -1773,6 +3830,12 @@ function openEdit(c, opts) {
   };
 
   $('#edit-save').onclick = () => {
+    const bad = badFields('#edit-modal');
+    if (bad.length) {
+      haptic();
+      toast(`${listWords(bad)} ${bad.length === 1 ? 'has' : 'have'} something the app cannot read — fix or clear ${bad.length === 1 ? 'it' : 'them'} first`);
+      return;
+    }
     commit();
     if (adding && !state.coffees.some(x => x.id === c.id)) {
       state.coffees.push(c);
@@ -1784,7 +3847,12 @@ function openEdit(c, opts) {
   };
   $('#edit-delete').onclick = () => {
     const n = c.shots.length;
-    if (n && !confirm(`Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it, and there is no undo.`)) return;
+    // Always, not only where there are shots to lose: a bag somebody named
+    // and described is worth one question, and the control sits in the same
+    // bar as Save.
+    if (!confirm(n
+      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it, and there is no undo.`
+      : `Remove ${coffeeLabel(c)}? There is no undo.`)) return;
     state.coffees = state.coffees.filter(x => x.id !== c.id);
     if (state.activeId === c.id) state.activeId = state.coffees.length ? state.coffees[0].id : null;
     save();
@@ -1840,30 +3908,91 @@ function segRow(label, sub, options, current, onPick) {
 
    See defaultKit for why this screen exists at all. The short version: a
    field you can see and cannot change is a field you will eventually fill
-   in with a guess, and advice that names a lever you do not have is worse
+   in with a guess, and advice that names a variable you do not have is worse
    than no advice. */
+/* The picker options. "Something else" is not a fallback tucked at the
+   bottom of a list somebody has to scroll past — it is the first entry
+   after the blank, because the list is a convenience for the common case
+   and not a claim to be exhaustive. */
+function pickerOptions(items, current) {
+  const known = items.some(i => i.name === current);
+  const other = Boolean(current) && !known;
+  return `<option value=""${!current ? ' selected' : ''}>Choose…</option>`
+    + `<option value="__other"${other ? ' selected' : ''}>Something else</option>`
+    + items.map(i => `<option value="${escapeHTML(i.name)}"${
+        i.name === current ? ' selected' : ''}>${escapeHTML(i.name)}</option>`).join('');
+}
+const machineOptions = cur => pickerOptions(MACHINES, cur);
+const grinderOptions = cur => pickerOptions(GRINDERS, cur);
+
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a lever your machine does not have. The names are your own record — nothing is read out of them.</p>
+    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a variable your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.</p>
     <label class="field"><span class="field-label">Machine</span>
+      <select class="field-input" id="k-machine-pick">${machineOptions(k.machine)}</select></label>
+    <label class="field hidden" id="k-machine-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-machine" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Breville Bambino Plus"></label>
     <div id="k-temp"></div>
     <div id="k-press"></div>
     <label class="field"><span class="field-label">Grinder</span>
+      <select class="field-input" id="k-grinder-pick">${grinderOptions(k.grinder)}</select></label>
+    <label class="field hidden" id="k-grinder-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. DF64"></label>
     <div id="k-steps"></div>
+    <div id="k-retains"></div>
+    <div id="k-porta"></div>
     <div class="kit-basket">
       <label class="field"><span class="field-label">Basket</span>
         <input class="field-input" id="k-basket" type="text" maxlength="60" autocomplete="off" placeholder="e.g. IMS Competizione"></label>
       <label class="field field-narrow"><span class="field-label">Its dose</span>
         <input class="field-input" id="k-dose" type="text" inputmode="decimal" autocomplete="off" placeholder="18"></label>
     </div>
+    <p class="sheet-note">The number on the side of the basket is a starting point. What settles it is the gap the puck leaves under the shower screen, and that changes with the coffee — so it is worth a minute with a coin before the first shot.</p>
+    <!-- The coin test's answer, said out loud. It lives in its own field
+         rather than overwriting the printed figure, and a number the app
+         keeps to itself is a number the reader cannot argue with: the
+         board works from this one, so the board has to show it. -->
+    <div id="k-fits"></div>
+    <button type="button" class="btn btn-ghost" id="k-dose-check">Check it with a coin</button>
   `;
   body.querySelector('#k-machine').value = k.machine;
   body.querySelector('#k-grinder').value = k.grinder;
   body.querySelector('#k-basket').value = k.basket;
+
+  /* Picking a machine answers the two capability questions below it, and
+     picking a grinder answers the one below that. The answers are then
+     ordinary editable segments: the list has made a suggestion, not a
+     ruling. */
+  const mPick = body.querySelector('#k-machine-pick');
+  const gPick = body.querySelector('#k-grinder-pick');
+  const mOther = body.querySelector('#k-machine-other');
+  const gOther = body.querySelector('#k-grinder-other');
+  const syncOther = () => {
+    mOther.classList.toggle('hidden', mPick.value !== '__other');
+    gOther.classList.toggle('hidden', gPick.value !== '__other');
+  };
+  if (k.machine && !machineEntry(k.machine)) mPick.value = '__other';
+  if (k.grinder && !grinderEntry(k.grinder)) gPick.value = '__other';
+  syncOther();
+
+  mPick.addEventListener('change', () => {
+    syncOther();
+    const e = machineEntry(mPick.value);
+    if (e) { k.temp = e.temp; k.pressure = e.pressure; k.machine = e.name; redraw(); toast('Filled in from your machine'); }
+    else if (mPick.value === '__other') body.querySelector('#k-machine').focus();
+  });
+  gPick.addEventListener('change', () => {
+    syncOther();
+    const e = grinderEntry(gPick.value);
+    if (e) {
+      k.steps = e.steps; k.grinder = e.name;
+      if (typeof e.retains === 'boolean') k.retains = e.retains;
+      redraw(); toast('Filled in from your grinder');
+    }
+    else if (gPick.value === '__other') body.querySelector('#k-grinder').focus();
+  });
   body.querySelector('#k-dose').value = k.basketDose === null ? '' : k.basketDose;
 
   const redraw = () => {
@@ -1877,9 +4006,23 @@ function openKit() {
     const pr = body.querySelector('#k-press');
     pr.innerHTML = '';
     pr.appendChild(segRow('Pressure and flow',
-      'A gauge you can read is not the same as a lever you can move.',
+      'A gauge you can read is not the same as a variable you can change.',
       [['fixed', 'Neither'], ['gauge', 'I can see it'], ['profile', 'I can change it']], k.pressure,
       key => { k.pressure = key; redraw(); }));
+
+    const rt = body.querySelector('#k-retains');
+    rt.innerHTML = '';
+    rt.appendChild(segRow('Does it hold on to grounds?',
+      'A grinder that keeps some of the last setting has to be purged before a new one means anything, which is why this app sends you to dose and yield for small changes. A single-doser makes grind cheap to move.',
+      [['yes', 'It needs a purge'], ['no', 'Single dose, almost none']], k.retains === false ? 'no' : 'yes',
+      key => { k.retains = key === 'yes'; redraw(); }));
+
+    const pf = body.querySelector('#k-porta');
+    pf.innerHTML = '';
+    pf.appendChild(segRow('Portafilter',
+      'This decides what channelling looks like. Through a bottomless you see the bed go uneven and spray; with spouts you cannot see it at all, and the tell is a sudden surge of flow late in the shot.',
+      [['spouted', 'Spouted'], ['bottomless', 'Bottomless']], k.portafilter === 'bottomless' ? 'bottomless' : 'spouted',
+      key => { k.portafilter = key; redraw(); }));
 
     const st = body.querySelector('#k-steps');
     st.innerHTML = '';
@@ -1888,14 +4031,80 @@ function openKit() {
       [['stepless', 'A number'], ['stepped', 'Clicks']], k.steps,
       key => { k.steps = key; redraw(); }));
   };
+  /* What the coin found, and a way to disown it. */
+  const drawFits = () => {
+    const box = body.querySelector('#k-fits');
+    if (!box) return;
+    const fits = num(k.doseFits);
+    box.innerHTML = '';
+    if (fits === null) return;
+    const printed = num(k.basketDose);
+    const same = printed !== null && Math.abs(fits - printed) < 0.05;
+    const row = el('div', 'kit-fits');
+    /* Capacity, and only capacity. The toast used to say this was "the
+       figure the board works from", and then a light roast started 1.5g
+       under it — the four-doses bug in one sentence. What the coin settles
+       is the ceiling; where in its range to sit is the roast's business,
+       and the start card says so where it happens. */
+    row.innerHTML = `<span class="kit-fits-text">The coin says <strong>${fmtDose(fits)}g</strong> is the most this basket will take${
+      same ? '' : `, not the ${fmtDose(printed)}g printed on it`}. A lighter roast starts under it; nothing goes over.</span>`;
+    const clear = el('button', 'kit-fits-clear', 'Forget it');
+    clear.type = 'button';
+    clear.addEventListener('click', () => {
+      k.doseFits = null; k.doseChecked = null;
+      state.kit = k; save(); haptic(); drawFits();
+    });
+    row.appendChild(clear);
+    box.appendChild(row);
+  };
+
   redraw();
+  drawFits();
+
+  /* A different basket is a different measurement. The coin test's answer
+     is about one basket and one coffee; typing a new figure on the side of
+     a new basket makes the old finding a claim about something that is no
+     longer in the machine. */
+  /* The two names, from whichever control is holding them. */
+  const captureNames = () => {
+    const mv = body.querySelector('#k-machine-pick').value;
+    const gv = body.querySelector('#k-grinder-pick').value;
+    k.machine = (mv && mv !== '__other') ? mv : body.querySelector('#k-machine').value.trim();
+    k.grinder = (gv && gv !== '__other') ? gv : body.querySelector('#k-grinder').value.trim();
+  };
+
+  const setPrinted = d => {
+    if (!(isFinite(d) && d > 0 && d <= 60)) return;
+    if (k.basketDose !== d) k.doseFits = null;
+    k.basketDose = d;
+  };
+
+  /* Saves what is on the screen first, so the check runs against the dose
+     just typed rather than the one from before this sheet was opened. */
+  body.querySelector('#k-dose-check').addEventListener('click', () => {
+    const d = Number(body.querySelector('#k-dose').value.replace(',', '.').trim());
+    setPrinted(d);
+    k.basket = body.querySelector('#k-basket').value.trim();
+    /* Everything Save would have taken, because this is the other way out
+       of the sheet and it used to be the lossy one: the free-text machine
+       and grinder names were read only by Save, and "asked" was set only by
+       Save — so somebody who filled the sheet in and went straight to the
+       coin test came back to a board still offering to set their kit up. */
+    captureNames();
+    k.asked = true;
+    state.kit = k;
+    save();
+    sheetFrom['dose'] = 'kit';
+    closeModal('#kit-modal');
+    openDoseCheck();
+  });
 
   $('#kit-save').onclick = () => {
-    k.machine = body.querySelector('#k-machine').value.trim();
-    k.grinder = body.querySelector('#k-grinder').value.trim();
+    captureNames();
     k.basket = body.querySelector('#k-basket').value.trim();
     const d = Number(body.querySelector('#k-dose').value.replace(',', '.').trim());
-    k.basketDose = isFinite(d) && d > 0 && d <= 60 ? d : null;
+    if (isFinite(d) && d > 0 && d <= 60) setPrinted(d);
+    else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
     state.kit = k;
     save();
@@ -1921,6 +4130,173 @@ function kitLine() {
   return bits.length ? bits.join(' · ') : 'Not set — the sheet is using the defaults';
 }
 
+/* The dose, checked by volume.
+
+   The scale gives the weight; the basket cares about the volume, and the
+   two only track each other within one bag. A light roast is denser than
+   a dark one and a coarser grind settles differently, so 18g that left
+   the right gap under the shower screen last week can leave none at all
+   with the next coffee — and no gap means the puck meets the screen
+   before the pump does, which channels whatever the grinder is set to.
+
+   The gap has a name, headspace, a working target of about 2mm (3mm if a
+   puck screen is in there, counting its thickness), and a test that needs
+   a coin and nothing else. See DIALIN.md step 1: this is the bottom of
+   the stack, because a dose that does not fit the basket makes every
+   later measurement a reading of an accident.
+
+   The three outcomes each move the dose by a gram, which is the size of
+   step that shows in the gap without being a different recipe. */
+function openDoseCheck() {
+  const k = kit();
+  const dose = basketCap();
+  const basket = (k.basket || '').trim();
+  const body = $('#dose-body');
+
+  const outcome = (delta, label, sub) => {
+    const b = el('button', 'dose-outcome',
+      `<span class="dose-outcome-label">${escapeHTML(label)}</span><span class="dose-outcome-sub">${escapeHTML(sub)}</span>`);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      /* The answer goes into doseFits, never into basketDose. The printed
+         figure is a fact about the basket and the app has no business
+         rewriting it — that is how the board ended up telling somebody
+         with an 18g basket that 17.5g was "under the 19g on the basket".
+         Confirming with no move still records the figure, because
+         "18g fits" is a measurement too. */
+      const cur = basketCap();
+      if (cur !== null) {
+        state.kit.doseFits = Math.round((cur + delta) * 10) / 10;
+      }
+      state.kit.doseChecked = Date.now();
+      save();
+      haptic();
+      closeModal('#dose-modal');
+      /* Answering the coin test from inside kit setup used to close the
+         whole setup sheet, before Save had been pressed. It had saved, but
+         a tester had no way of knowing that and went to Settings to check. */
+      const from = sheetFrom['dose'];
+      sheetFrom['dose'] = null;
+      if (from === 'kit') openKit();
+      else if (from === 'settings') openSettings();
+      renderBoard();
+      toast(delta === 0
+        ? `${fmtDose(basketCap())}g fits — that is the most this basket will take`
+        : `${fmtDose(basketCap())}g is what fits — pull one and check again`);
+    });
+    return b;
+  };
+
+  body.innerHTML = `
+    <p class="sheet-note">Your scale gives the weight. The basket cares about the volume, and the two only agree within one bag: a light roast is denser than a dark one, so the same ${dose === null ? 'dose' : fmtDose(dose) + 'g'} can leave the right gap under the shower screen with one coffee and none with the next.</p>
+    <p class="sheet-note">That gap is the room the puck needs to swell into — about 2mm, or 3mm if you use a puck screen. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around before it is wet. Both channel, and neither is fixable at the grinder.</p>
+    <div class="dose-steps">
+      <span class="field-label">The coin test</span>
+      <ol class="dose-list">
+        <li>Dose ${dose === null ? 'as usual' : `${fmtDose(dose)}g`}${basket ? ` into your ${escapeHTML(basket)}` : ''} and tamp as you normally would.</li>
+        <li>Lay a coin flat on the puck.</li>
+        <li>Lock the portafilter in, then take it straight back out.</li>
+        <li>Look at the coin and the surface of the puck.</li>
+      </ol>
+    </div>
+    <span class="field-label">What did you find?</span>
+    <div class="dose-outcomes" id="dose-outcomes"></div>
+  `;
+
+  const wrap = body.querySelector('#dose-outcomes');
+  wrap.appendChild(outcome(0, 'The coin is just marked',
+    'Touched but not buried. That is the gap — this dose fits the basket.'));
+  wrap.appendChild(outcome(-1, 'The coin is pressed in',
+    'Or there is a screw imprint on the puck. Too little room: a gram down.'));
+  wrap.appendChild(outcome(1, 'The coin is untouched',
+    'It never reached the screen. Too much room: a gram up.'));
+
+  openModal('#dose-modal');
+}
+
+// When the dose was last checked against the basket by volume, in words.
+function doseCheckLine() {
+  const at = kit().doseChecked;
+  /* "Never done on this setup" reads as a gap in the setup, so a tester
+     who had filled the kit in and saved it kept being told something was
+     outstanding. Nothing is outstanding — it is a guide, and the two
+     minutes it costs are worth offering rather than nagging about. */
+  if (!at) return 'A coin, two minutes, and the dose settled by volume as well as weight';
+  const days = Math.floor((Date.now() - at) / 86400000);
+  return days <= 0 ? 'The coin test — done today'
+    : days === 1 ? 'The coin test — done yesterday'
+    : `The coin test — done ${days} days ago`;
+}
+
+/* Where to put the grinder before the first shot, without spending one.
+
+   The dial-in sources all start somewhere and none of them can tell you
+   where, because a grinder's numbers mean nothing across machines. One
+   of them has a way round that which costs no coffee: grind a few beans
+   and feel them. Texture is comparable across grinders in a way numbers
+   are not.
+
+   It carries the coarse-first principle with it, which is the same
+   source's, and the reason is worth having: a coarse bed lets water
+   through more evenly, so the shot tells you more, and coming down to
+   the right setting beats climbing back out of a choked one. */
+function openPinchTest() {
+  const body = $('#pinch-body');
+  body.innerHTML = `
+    <p class="sheet-note">Nobody can tell you a number — every grinder is marked differently and yours moves as the bag ages. But you can feel roughly where you are before spending a shot on it.</p>
+    <div class="dose-steps">
+      <span class="field-label">The pinch</span>
+      <ol class="dose-list">
+        <li>Grind a few beans at wherever ${grindThing()} is sitting.</li>
+        <li>Tip them into your palm and pinch them between finger and thumb.</li>
+        <li>Look at what your fingers left, and listen to it as you rub.</li>
+      </ol>
+    </div>
+    <div class="dose-outcomes">
+      <div class="dose-read"><span class="dose-read-label">Little peaks where your fingers were, and a grainy, sandy sound</span><span class="dose-read-sub">That is the neighbourhood. Pull one and let the clock take over.</span></div>
+      <div class="dose-read"><span class="dose-read-label">You can see your fingerprints pressed into it</span><span class="dose-read-sub">Too fine — it is behaving like powder. Come coarser before you pull anything.</span></div>
+      <div class="dose-read"><span class="dose-read-label">It clumps into a ball</span><span class="dose-read-sub">That is static and moisture rather than grind size. A drop of water on the beans before grinding settles it.</span></div>
+    </div>
+    <p class="sheet-note">When in doubt, start coarser than you think and come finer. A coarse bed lets water through more evenly, so the shot teaches you more — and coming down is quicker than climbing out of a puck that has choked the machine.</p>
+  `;
+  openModal('#pinch-modal');
+}
+
+/* The one exercise in the app that records nothing.
+
+   The sheet has asked people to place a cup between sour and bitter
+   since the first version, and has never shown them what either end
+   tastes like. In a finished shot they arrive mixed, and in a very light
+   or very dark roast they are genuinely hard to tell apart.
+
+   Extraction runs in the same order every time — the sour compounds
+   come out first, the sweet and balanced ones in the middle, the bitter
+   ones last — so catching a shot in three glasses separates them for
+   you. It is also the clearest demonstration of why ratio works: the
+   last glass is what extending a shot adds more of. */
+function openSalami() {
+  const body = $('#salami-body');
+  body.innerHTML = `
+    <p class="sheet-note">This one measures nothing and goes in no log. It is here because the sheet keeps asking you whether a shot is sour or bitter, and in a finished cup the two arrive mixed together.</p>
+    <p class="sheet-note">Water pulls things out of coffee in the same order every time: the sour compounds first, the sweet and balanced ones through the middle, the bitter ones last. Catch a shot in three glasses and they come apart.</p>
+    <div class="dose-steps">
+      <span class="field-label">The three glasses</span>
+      <ol class="dose-list">
+        <li>Set up a shot exactly as you normally would, with three small glasses to hand.</li>
+        <li>Start it, and swap the glass about every third of the way to your usual yield.</li>
+        <li>Taste them in order, then go back and forth between the first and the last.</li>
+      </ol>
+    </div>
+    <div class="dose-outcomes">
+      <div class="dose-read"><span class="dose-read-label">First glass</span><span class="dose-read-sub">Sharp and sour, and darker than you expect. This is what the app means by sour.</span></div>
+      <div class="dose-read"><span class="dose-read-label">Middle glass</span><span class="dose-read-sub">The balanced, sweet part — and usually missing something on its own.</span></div>
+      <div class="dose-read"><span class="dose-read-label">Last glass</span><span class="dose-read-sub">Pale, thin and the most bitter of the three. This is what a longer ratio adds more of.</span></div>
+    </div>
+    <p class="sheet-note">Do it once with a coffee you know and the sour-or-bitter question stops being guesswork. It is worth repeating on a very light and a very dark roast, which are the two where the ends are hardest to tell apart.</p>
+  `;
+  openModal('#salami-modal');
+}
+
 function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
@@ -1940,8 +4316,38 @@ function openSettings() {
     <span class="field-label section">Appearance</span>
     <div class="seg" id="theme-seg" role="radiogroup" aria-label="Appearance"></div>
 
+    <button class="btn btn-ghost kit-btn" id="btn-pinch">
+      <span class="kit-btn-title">Find a starting grind</span>
+      <span class="kit-btn-sub">The pinch test — where to set ${grindThing()} before spending a shot</span>
+    </button>
+
+    <button class="btn btn-ghost kit-btn" id="btn-salami">
+      <span class="kit-btn-title">Taste sour against bitter</span>
+      <span class="kit-btn-sub">One shot into three glasses, so the taste question means something</span>
+    </button>
+
+    <button class="btn btn-ghost kit-btn" id="btn-dose-check">
+      <span class="kit-btn-title">Check the dose</span>
+      <span class="kit-btn-sub">${doseCheckLine()}</span>
+    </button>
+
     <button class="btn btn-ghost" id="btn-help">What the numbers mean</button>
   `;
+  body.querySelector('#btn-pinch').addEventListener('click', () => {
+    sheetFrom['pinch'] = 'settings';
+    closeModal('#settings-modal');
+    openPinchTest();
+  });
+  body.querySelector('#btn-salami').addEventListener('click', () => {
+    sheetFrom['salami'] = 'settings';
+    closeModal('#settings-modal');
+    openSalami();
+  });
+  body.querySelector('#btn-dose-check').addEventListener('click', () => {
+    sheetFrom['dose'] = 'settings';
+    closeModal('#settings-modal');
+    openDoseCheck();
+  });
   const tds = body.querySelector('#t-tds');
   tds.checked = prefs.tds;
   tds.addEventListener('change', () => { prefs.tds = tds.checked; savePrefs(); });
@@ -1965,18 +4371,44 @@ function openSettings() {
 // used to land on the board, because Settings had already been closed to
 // make room — a tester went in for the refractometer toggle, read the
 // help, and had to walk the whole path again.
+/* Where a sheet was opened from, so closing it goes back there.
+
+   Help had this and the others did not, so closing the taste-test guide
+   returned to Settings while closing the coin test dropped you on the
+   board from inside kit setup — same gesture, same nesting, two answers,
+   reported by two testers. One variable for all of them. */
 let helpFrom = null;
+let sheetFrom = {};
 
 function openHelp() {
   $('#help-body').innerHTML = `
     <p><strong>Ratio</strong> is what came out divided by what went in. 18g in and 36g out is 1:2. It is a description of the shot, not a measure of how much was extracted from the coffee.</p>
     <p><strong>Flow</strong> is grams a second. It is the number that moves first when the grind moves, and a fast shot with a coarse-looking puck usually shows up here before it shows up in the taste.</p>
     <p><strong>Extraction yield</strong> is the share of the dry coffee that ended up dissolved in the cup — beverage mass × TDS ÷ dose. It needs a refractometer. This app will not print one without a reading: ratio is not extraction, time is not extraction, and a shot that tastes right is not a measurement. Turn the refractometer setting on if you have one.</p>
+    <p><strong>How far to move the grinder</strong> is the question every tool like this dodges, because the number on your grinder means nothing on anybody else's. It means something on yours: two shots that differ only in grind are a measurement of it, and once this board has a couple it tells you how many ${grindUnit() === 'clicks' ? 'clicks' : 'points on your dial'} rather than "a step", along with where that lands on your own dial and what the clock should read. It also works out from the log whether your numbers go up or down as the burrs close, so it never has to ask.</p>
+    <p><strong>The dose</strong> is settled by weight and by volume, and the second one is the part most guides skip. Your scale gives grams; the basket cares about the space the grounds take up, and the two only agree within one bag — a light roast is denser than a dark one. The gap the puck leaves under the shower screen is what matters, about 2mm of it, and a coin on the puck will tell you whether you have it. Too little and the puck meets the screen before the pump does; too much and the water moves the dry bed around. Both channel, and neither is fixable at the grinder.</p>
+    <p><strong>Which variable, and which way.</strong> Two of them move extraction and they are not interchangeable. <strong>Grind</strong> changes how hard it is for water to get through the bed, so it moves the clock and the extraction together — it is the coarse variable and it overcorrects easily. <strong>Yield</strong> changes how much water you push through, so it moves extraction and strength without touching the grinder — it is the fine variable and it is far more forgiving. The order that follows is: get into the ballpark with grind, then finish with yield. Reaching for the grinder to fix a shot that is already in the window is how a dial-in goes round in circles.</p>
+    <p><strong>What the two answers together tell you.</strong> The clock says where the flow is and the cup says where the extraction is, and it is the pair that names the move — which is why this app asks for both and will not guess one from the other.</p>
+    <p><strong>Short and sour</strong> — grind finer, same yield. Under-extracted because the water was through too fast, and grind is the only variable that fixes the clock and the cup at once.<br>
+    <strong>Long and bitter</strong> — grind coarser, same yield. Over-extracted for the opposite reason, and again one change moves both.<br>
+    <strong>In the window and sour</strong> — leave the grinder alone and take the yield out 2 to 4g on the same dose. The clock is already right, so there is nothing for grind to fix; more water through the same puck takes more with it.<br>
+    <strong>In the window and bitter</strong> — leave the grinder alone and stop it 2 to 4g shorter. The harsh end of an extraction comes out last, so ending sooner leaves it in the puck.<br>
+    <strong>Short and bitter</strong>, or <strong>long and sour</strong> — neither variable. Going coarser on a shot that is already fast makes it faster; going finer on one that is already slow makes it slower. These two corners are a channelled puck, a coffee far outside what the window assumed, or water that is too hot — and the board says which it thinks, rather than sending you to the grinder.</p>
+    <p><strong>Past four grams you are changing the drink, not dialling it.</strong> Yield is forgiving but it is not free: more water is more dilution, and past about four grams either way you are making a longer or shorter drink rather than a better version of the one you have. The move at that point is the dose — half a gram at a time — because less coffee is less to extract and more coffee is more body.</p>
+    <p><strong>Then it stops being arithmetic.</strong> Once a shot is in the window and tastes sweet, every number on the board has said what it can. A 24-second pull can be better than a 28-second one on the same coffee, at the same dose, and nothing here can tell you which — so the board changes its job: it stops correcting and starts suggesting one small experiment at a time, longer, shorter, heavier, cooler, and asks you to drink them side by side and keep the one you want tomorrow morning. The window gets you to a shot worth comparing. Your mouth does the rest.</p>
+    <p><strong>Sour and bitter at once</strong> is not a point between the two. It is two different extractions in one cup — water round part of the bed and sitting in the rest — and it is the clearest sign in the whole method that the puck, not the grinder, is what needs attention.</p>
+    <p><strong>How soluble the coffee is</strong> decides how much extraction it needs, and roast level is the biggest part of that but not all of it. Washed and high-grown beans are denser and give up less readily, so they want more; naturals and heavily fermented lots come out more easily, so they want less. Decaf is the odd one — decaffeination opens the bean up, so it extracts more readily <em>and</em> flows faster, which means a tighter ratio but a finer grind. Tell the app what the bag says and the starting point moves accordingly.</p>
+    <p><strong>Heavily processed coffees are the exception to "sour means finer".</strong> The flavour you bought is the one the process put there, and pushing extraction burns it off. Sour in one of these is as often a bed that is already too tight — part of it giving up everything while the rest barely brews — so if finer does not fix it, coarser at the same yield is the next thing to try.</p>
+    <p><strong>Grind is for the big moves; dose and yield are for the small ones.</strong> Grind is the only thing that really moves the clock, so it is what gets a shot into the window. After that it is an expensive tool: most grinders hold on to some of the last setting, so every change costs five to ten grams of purge and a shot you cannot read. Once you are close, half a gram of coffee or two of yield will do what you need and cost nothing. If your grinder is a single-doser and holds nothing back, that calculation changes and the app says so.</p>
+    <p><strong>One flow variable at a time.</strong> Grind and dose both change how hard it is for the water to get through. Move both in the same shot and the clock cannot tell you which one did it, so the board says so when it sees it happen.</p>
+    <p><strong>Ristretto, espresso, lungo</strong> are ratios rather than sizes. Up to about 1:1.5 is a ristretto, roughly 1:1.5 to 1:2.5 is espresso, and beyond that you are into lungo territory. The board names it when a shot lands outside that middle band and away from what you are aiming at, because that is the difference between dialling a shot in and quietly ordering a different drink. A target that is itself a long ratio — which is where a light roast often belongs — does not get told off for being hit.</p>
+    <p><strong>Your portafilter decides what you can see.</strong> Through a bottomless you watch the bed itself, and channelling shows as uneven flow and spray. With spouts the bed is hidden, and the tell is a sudden surge of flow in the last third. The sheet asks whichever question you can actually answer.</p>
+    <p><strong>How it ran</strong> is the question that outranks the rest. Most bad espresso at home is water finding a crack and going round the puck instead of through it, and when that happens the clock and the cup are both readings of an accident — so the app stops talking about the grinder until the shot runs even. Grinding finer on a puck that channels tightens the bed and makes it worse.</p>
     <p><strong>The window</strong> is yours, per coffee. Nothing here calls a shot fast or slow until you have said what it is being measured against.</p>
     <p><strong>What to try next</strong> is a suggestion and it says which kind it is. Sour and fast, or bitter and slow, and grind is the answer — those two get an instruction. The other two corners do not point at grind at all, and the app says so rather than guessing, because grinding finer on a shot that is already slow makes it worse.</p>
     <p><strong>Sour, bitter, watery, muddy</strong> are two questions, not four, and the app asks them separately because they are answered separately.</p>
-    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the puck; bitter is water that took too much. Grind is the lever, because grind moves time — finer is slower is more extracted.</p>
-    <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the lever. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
+    <p><strong>Sour and bitter</strong> are the extraction walls. Sour is water that did not take enough out of the puck; bitter is water that took too much. Grind is the variable, because grind moves time — finer is slower is more extracted.</p>
+    <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the variable. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
     <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole shot.</p>
     <p><strong>Your setup</strong> decides what this app asks you for. Say your machine holds one temperature and the temperature field leaves the sheet and stops appearing in the advice — a field you cannot change is a field you will end up filling in with a guess. Change it any time in Settings.</p>
     <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>
@@ -2021,6 +4453,12 @@ function openModal(sel) {
   const m = $(sel);
   lastFocus = document.activeElement;
   m.classList.remove('hidden');
+  /* The board scrolled behind every open sheet. On a phone that means a
+     drag meant for a slider or a long sheet moves the page underneath it
+     instead, and the "Log a shot" bar stays visible under the Settings
+     modal. Locked while anything is open, released when the last one
+     closes. */
+  document.documentElement.classList.add('sheet-open');
   if (!m.dataset.trapped) {
     m.dataset.trapped = '1';
     m.addEventListener('keydown', e => trapTab(m, e));
@@ -2031,6 +4469,9 @@ function openModal(sel) {
 
 function closeModal(sel) {
   $(sel).classList.add('hidden');
+  if (!document.querySelector('.modal:not(.hidden)')) {
+    document.documentElement.classList.remove('sheet-open');
+  }
   // Focus goes back where it came from. A sheet that dismisses to the top
   // of the document makes a keyboard user walk the page again.
   if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
@@ -2051,11 +4492,29 @@ function wire() {
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
   $('#shot-close').addEventListener('click', closeShotSheet);
+  /* The taste guide, opened from the taste question rather than from
+     Settings. The shot sheet stays open underneath: this is a reference
+     consulted mid-answer, not a detour. */
+  $('#taste-help').addEventListener('click', () => { sheetFrom['salami'] = null; openSalami(); });
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
   $('#shot-save').addEventListener('click', saveShot);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
+  /* Closing a nested guide goes back to whatever opened it. */
+  const backFrom = (key, sel) => () => {
+    closeModal(sel);
+    const from = sheetFrom[key];
+    sheetFrom[key] = null;
+    if (from === 'settings') openSettings();
+    else if (from === 'kit') openKit();
+  };
+  $('#pinch-close').addEventListener('click', backFrom('pinch', '#pinch-modal'));
+  $('#pinch-done').addEventListener('click', backFrom('pinch', '#pinch-modal'));
+  $('#salami-close').addEventListener('click', backFrom('salami', '#salami-modal'));
+  $('#salami-done').addEventListener('click', backFrom('salami', '#salami-modal'));
+  $('#dose-close').addEventListener('click', backFrom('dose', '#dose-modal'));
+  $('#dose-done').addEventListener('click', backFrom('dose', '#dose-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {

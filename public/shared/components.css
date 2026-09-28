@@ -48,6 +48,34 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+  /* No double-tap zoom.
+
+     Tapping a stepper twice — which is the normal way to put 2g on a dose
+     — was being read as the double-tap-to-zoom gesture, so the board
+     lurched mid dial-in. `manipulation` keeps scrolling and pinch-zoom and
+     drops only the double-tap, which no part of this app uses.
+
+     The cupping sheet has had this on its own body since it was written;
+     the shared component layer the other two instruments are built from
+     never got it, which is why the bug is in the dial-in and the brew log
+     and not in the cupping sheet. Surfaces that manage their own gestures
+     are unaffected: the scale track sets touch-action: none for its drag
+     and is the more specific rule. */
+  touch-action: manipulation;
+  /* iOS enlarges text in landscape without this, which moves every size
+     measured in here. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* And on the controls themselves, not only on body.
+
+   touch-action is not inherited: the effective value for a gesture is the
+   intersection along the ancestor chain, and that walk is truncated by a
+   scrolling ancestor — every sheet in this app scrolls, so a stepper
+   inside one is behind a scroll container that says `auto`. Declaring it
+   where the finger lands removes the question. */
+button, input, select, textarea, summary, label, .chip, .seg-btn, .verdict-btn {
+  touch-action: manipulation;
 }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
@@ -478,6 +506,93 @@ input { font: inherit; color: inherit; }
   border-top: 1px solid var(--line);
 }
 .sheet-actions .btn { flex: 1; }
+/* A destructive control is not the peer of Save, and the first attempt at
+   saying so made it worse.
+
+   Giving it `flex: 0 0 auto` in the action bar let "Remove this coffee"
+   claim its full intrinsic 356px of a 390px sheet and push Save off the
+   right edge — about five pixels of a 63px button left reachable. Two
+   testers hit it independently. The bar now holds one action; the
+   destructive one sits at the foot of the sheet it belongs to, right
+   aligned, quiet, and nowhere near a thumb going for Save. */
+/* The notes field, which is the only one on the sheet nobody checks.
+
+   Two rows rather than one line: a preference needs a clause, not a word,
+   and a single-line input tells you to be brief at the exact moment being
+   brief costs you the reason. */
+.notes-block { display: flex; flex-direction: column; gap: var(--space-2); }
+.field-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.notes-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+/* A label with its own help, on one line. The help is quiet — it is for
+   the person who needs it and invisible to the person who does not, which
+   is the whole scaffolding rule. */
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.field-help {
+  flex: 0 0 auto;
+  padding: var(--space-2) 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--data);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  cursor: pointer;
+}
+.field-help:focus-visible { outline: 2px solid var(--data); outline-offset: 3px; }
+
+/* Nothing behind a sheet moves while the sheet is open.
+
+   `touch-action: none` was the first version of this and it is too big a
+   hammer: it disables touch scrolling for every descendant that does not
+   set its own, so any scrollable region inside an open sheet is dead to a
+   finger unless it happens to declare otherwise. Hidden overflow with a
+   contained overscroll stops the board moving underneath without taking
+   the sheet's own scrolling with it. */
+html.sheet-open, html.sheet-open body {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.sheet-destroy {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-5) var(--space-4);
+}
+/* No gap on a sheet with nothing to remove — the button carries .hidden on
+   a shot that has not been saved yet. */
+.sheet-destroy:not(:has(button:not(.hidden))) { display: none; }
+.btn-quiet-danger {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--red);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.btn-quiet-danger:active { border-color: var(--red); }
+@media (hover: hover) { .btn-quiet-danger:hover { border-color: var(--red); } }
+.btn-quiet-danger:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 .sheet-note {
   font-size: 13px;
@@ -633,7 +748,7 @@ input { font: inherit; color: inherit; }
 .readout-window.in { color: var(--text-dim); }
 
 /* What to try next. Two shapes, because the app gives two kinds of
-   answer: an instruction when grind is the lever, and a list when it is
+   answer: an instruction when grind is the variable, and a list when it is
    not. The difference is carried by the words and by the rule down the
    side, never by colour alone. */
 .tip {
@@ -644,6 +759,36 @@ input { font: inherit; color: inherit; }
 .tip.sure { border-left-color: var(--data); }
 .tip-move { display: block; font-size: 15px; font-weight: 700; }
 .tip-why { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--text-dim); }
+
+/* The rest of the reasoning, for the reader who wants it. Closed by
+   default and quiet when closed: on a card somebody is reading with a
+   portafilter in one hand, the disclosure must not compete with the
+   instruction above it. */
+.tip-more { margin-top: var(--space-2); }
+.tip-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+}
+.tip-more > summary::-webkit-details-marker { display: none; }
+.tip-more > summary::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.tip-more[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.tip-more > summary:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+.tip-more .tip-why { margin-top: 0; }
 
 /* ---------- the scale ---------- */
 
@@ -670,12 +815,19 @@ input { font: inherit; color: inherit; }
   align-items: center;
   touch-action: none;
 }
+/* A band rather than a hairline.
+
+   The track has always been 44px tall and takes a drag anywhere along it,
+   but drawn as a 2px line it read as decoration: a tester described
+   "aiming at a thin line above the word sour" and expected to miss it with
+   a thumb. The hit area is unchanged; it now looks like what it is. */
 .scale-rail {
   position: absolute;
   left: 0; right: 0;
-  height: 2px;
+  height: 4px;
   background: var(--rail);
   border-radius: 999px;
+  opacity: 0.55;
 }
 /* The one tick that carries a meaning of its own — the middle, where a
    cup tastes of neither wall — sits above the rail rather than below it. */
@@ -683,7 +835,7 @@ input { font: inherit; color: inherit; }
   position: absolute;
   left: 50%;
   width: 2px;
-  height: 12px;
+  height: 14px;
   margin-left: -1px;
   background: var(--rail);
 }
@@ -695,7 +847,9 @@ input { font: inherit; color: inherit; }
   background: var(--data);
   box-shadow: var(--shadow);
   transition: left 0.18s var(--settle);
+  cursor: grab;
 }
+.scale-track:active .scale-knob { cursor: grabbing; }
 /* Untouched is drawn hollow and dashed, because a default and a judgement
    must not be the same pixel. */
 .scale-knob.untouched {
@@ -723,7 +877,8 @@ input { font: inherit; color: inherit; }
 
 /* ---------- chips ---------- */
 
-.intent-block { display: flex; flex-direction: column; gap: var(--space-3); }
+.intent-block,
+.run-block { display: flex; flex-direction: column; gap: var(--space-3); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   min-height: 44px;
@@ -800,6 +955,7 @@ input { font: inherit; color: inherit; }
 /* ---------- intent, on the log card ---------- */
 
 .log-intent,
+.log-run,
 .log-mismatch {
   margin-top: var(--space-2);
   padding-left: calc(18px + var(--space-3));
@@ -807,6 +963,10 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 .log-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
+/* How the shot ran, and only when it ran badly — "Ran even" on every card
+   is a column of the word "fine". Measured ink, not the faint tertiary:
+   this one is the reason the rest of the card reads the way it does. */
+.log-run { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-dim); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */
@@ -855,17 +1015,174 @@ input { font: inherit; color: inherit; }
 .more-body { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-3); }
 .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
 
+/* The platform draws a select's dropdown itself, and it picks the palette
+   from color-scheme rather than from anything this stylesheet says. Stated
+   here so the list matches the app even when somebody has overridden the
+   theme against their system setting — a dark app that opens a white
+   dropdown is the seam showing. It lives in this file rather than in the
+   tokens so it reaches the two instruments and leaves the cupping sheet's
+   rendering alone. */
+:root { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
+/* 16px, not 15px, and it is not a taste decision.
+
+   iOS Safari zooms the page in when a focused input's text is smaller
+   than 16px — it is trying to help somebody read what they are typing,
+   and the page stays zoomed after the field is dismissed. Every text
+   field in the app was one pixel under the threshold, so typing a
+   coffee's name or a note pulled the board out of shape.
+
+   The alternative is `maximum-scale=1` in the viewport meta, which stops
+   the zoom by taking pinch-zoom away from everyone including the people
+   who need it. Sizing the field correctly costs a pixel. */
 .field-input {
   min-height: 44px;
   padding: var(--space-3);
   border: 1px solid var(--rail);
   border-radius: var(--radius);
   background: var(--bg-card);
-  font-size: 15px;
+  font-size: 16px;
   width: 100%;
 }
 .field-input::placeholder { color: var(--text-faint); }
+
+/* A select is a field, not a control from a different century. The native
+   picker is kept — on a phone it is a full-height wheel that beats any
+   list this app could draw — and only the chrome is brought into line,
+   with room made on the right for the chevron the platform draws. */
+select.field-input {
+  appearance: none;
+  -webkit-appearance: none;
+  /* A select does not inherit colour the way an input does. Left alone it
+     came out as the platform's black on the dark ground — about 1.05:1,
+     which is not low contrast, it is invisible. The dropdown the platform
+     draws needs telling separately, which is what color-scheme does. */
+  color: var(--text);
+  font: inherit;
+  /* Above the threshold too — `font: inherit` resets it back to the body's
+     15px, so the size has to be restated after it. */
+  font-size: 16px;
+  padding-right: var(--space-7);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7178' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  background-size: 18px 18px;
+}
+
+/* ---------- the dose check ---------- */
+
+.dose-steps { display: flex; flex-direction: column; gap: var(--space-2); }
+.dose-list {
+  margin: 0;
+  padding-left: var(--space-6);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.dose-list li { margin-top: var(--space-2); }
+.dose-outcomes { display: flex; flex-direction: column; gap: var(--space-2); }
+/* One outcome per row with its consequence underneath, because the three
+   answers are a sentence each and a row of chips would make the reader
+   guess which one their coin looked like. */
+.dose-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.dose-outcome:active { background: var(--chrome-soft); }
+@media (hover: hover) { .dose-outcome:hover { background: var(--chrome-soft); } }
+.dose-outcome:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+.dose-outcome-label { font-size: 15px; font-weight: 700; }
+.dose-outcome-sub { font-size: 13px; color: var(--text-dim); }
+
+/* The same three-row shape, for rows that only tell you something.
+
+   The pinch test and the salami test list what you might see, and they
+   used the class above — a bordered card with a bold title, a hover state
+   and a pointer cursor, identical to the coin-test rows that change your
+   dose and close the sheet. A first-time user tapped one, expecting the
+   dose to move, and got nothing at all: no highlight, no toast, no change.
+   Nothing was broken; the row had simply promised to be a button.
+
+   No box, no cursor, a rule down the left instead. It reads as a list of
+   observations, which is what it is. */
+.dose-read {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px var(--space-4);
+  border-left: 2px solid var(--line);
+}
+.dose-read-label { font-size: 14px; font-weight: 700; }
+.dose-read-sub { font-size: 13px; color: var(--text-dim); }
+
+/* A scale whose question has been answered another way. Dimmed rather than
+   disabled: it still takes a value, because somebody may want to say which
+   wall the cup leaned towards as well as that it hit both. */
+.scale-superseded { opacity: 0.55; }
+
+/* Closing the gap between where you aimed and where you landed. Quiet: it
+   is an offer, and the target above it is not wrong, only stale. */
+.target-adopt {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text-dim);
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.target-adopt:active { background: var(--chrome-soft); }
+
+/* A verdict the shot is not yet eligible for. Legible, not greyed into
+   invisibility — it has something to tell you, and it says it in its own
+   sub-line rather than waiting to be tapped. */
+.verdict-btn.is-blocked { opacity: 0.5; }
+.verdict-btn.is-blocked .verdict-sub { font-style: italic; }
+
+/* The action a tip carries. Outlined rather than filled: the card's
+   instruction is the thing to do, and this is the shortcut to the screen
+   that helps with it — a second primary button would compete with the
+   sentence above it. */
+.tip-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-3);
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.tip-act:active { background: var(--chrome-soft); }
+@media (hover: hover) { .tip-act:hover { background: var(--chrome-soft); } }
+.tip-act:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 
 /* ---------- coffee list ---------- */
 
@@ -895,7 +1212,7 @@ input { font: inherit; color: inherit; }
 
 /* ---------- edit / settings ---------- */
 
-.edit-body, .settings-body, .help-body, .kit-body {
+.edit-body, .settings-body, .help-body, .kit-body, .dose-body {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);
@@ -977,6 +1294,30 @@ input { font: inherit; color: inherit; }
 .kit-basket { display: flex; gap: var(--space-3); align-items: flex-end; }
 .kit-basket .field { flex: 1; }
 .field-narrow { flex: 0 0 88px !important; }
+/* What the coin test found, shown where the dose is set. */
+.kit-fits {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-left: 2px solid var(--data);
+  background: var(--chrome-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.kit-fits-text { flex: 1; font-size: 13px; line-height: 1.5; }
+.kit-fits-clear {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
 
 /* The way back into the setup, from Settings. Two lines: what it is, and
    what is currently in it. */

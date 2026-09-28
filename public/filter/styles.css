@@ -19,6 +19,43 @@
 
 .pour-block { display: flex; flex-direction: column; gap: var(--space-3); }
 
+/* Which number the water column wants. It sits under the block label
+   rather than inside the field, because it is one sentence that governs
+   every row and a note repeated five times is noise. */
+.pour-hint {
+  margin-top: calc(-1 * var(--space-2));
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+/* The weight of the pour, derived from the totals either side of it. The
+   reader types what the scale says and still gets to see what they
+   poured. Faint, because it is not a field.
+
+   It hugs the row it describes and keeps its distance from the next one.
+   Sat evenly between the two, it read as a label for the pour below it,
+   which is the one number it is not about. */
+.pour-added {
+  /* A span, so it needs saying: vertical margins do nothing on an inline
+     box, and the spacing below was silently having no effect. */
+  display: block;
+  margin: var(--space-1) 0 var(--space-3);
+  padding-left: 52px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+/* A schedule that goes backwards. Measured ink rather than the faint
+   tertiary, because this one is telling the reader something is wrong. */
+.pour-added.bad { color: var(--text-dim); }
+
+/* A label gutter wide enough for the widest label in this app. "COFFEE"
+   measures 46px at 11px with the tracking the label carries, so the
+   shared 44px shaved its final E on every width. The dial-in's longest
+   is "GRIND" and it keeps the tighter gutter. */
+.num-field:not(.compact) .num-label { width: 52px; }
+
 .pour-row {
   display: flex;
   align-items: center;
