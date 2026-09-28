@@ -36,6 +36,16 @@ function load() {
   } catch (e) { /* private mode, or a shape this build cannot read */ }
   if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null };
   if (!state.kit) state.kit = defaultKit();
+  /* One grinder across the tools. Seed the shared record from this app if
+     it is the one that knows, then take whatever the shared record says —
+     so somebody who set their grinder up in the brew log is not asked
+     again here, and the calibration the two apps share is reasoning about
+     one machine rather than two answers about the same one. */
+  LentoKit.seed(state.kit);
+  // Written back, not just adopted into memory: without the save the
+  // change lives until the next reload and then reverts, which is worse
+  // than not sharing at all because it looks like it worked.
+  if (LentoKit.adopt(state.kit)) save();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -154,25 +164,10 @@ const MACHINES = [
   { name: 'La Pavoni (lever)',                temp: 'set',   pressure: 'profile' },
 ];
 
-const GRINDERS = [
-  { name: 'Niche Zero',                steps: 'stepless', retains: false },
-  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless', retains: false },
-  { name: 'DF54',                      steps: 'stepless', retains: false },
-  { name: 'Turin DF83',                steps: 'stepless', retains: false },
-  { name: 'Eureka Mignon',             steps: 'stepless', retains: true },
-  { name: 'Mazzer Mini',               steps: 'stepless', retains: true },
-  { name: 'Option-O Lagom P64',        steps: 'stepless', retains: false },
-  { name: 'Weber Key / EG-1',          steps: 'stepless', retains: false },
-  { name: 'Fellow Ode Gen 2',          steps: 'stepped',  retains: false },
-  { name: 'Baratza Encore / Encore ESP', steps: 'stepped', retains: true },
-  { name: 'Baratza Sette 270',         steps: 'stepped',  retains: false },
-  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped', retains: true },
-  { name: 'Breville/Sage built-in grinder',  steps: 'stepped', retains: true },
-  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped',  retains: false },
-  { name: 'Comandante C40',            steps: 'stepped',  retains: false },
-  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped',  retains: false },
-  { name: 'Kingrinder (K4, K6)',       steps: 'stepped',  retains: false },
-];
+/* The grinder list moved to public/shared/kit.js, because the brew log
+   needs it too — it was asking for the same grinder with a bare text
+   field while this app offered seventeen rows that fill in two answers. */
+const GRINDERS = LentoKit.GRINDERS;
 
 const machineEntry = name => MACHINES.find(m => m.name === name) || null;
 const grinderEntry = name => GRINDERS.find(g => g.name === name) || null;
@@ -4296,6 +4291,9 @@ function openKit() {
     else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
     state.kit = k;
+    // The grinder is the tools' shared answer, so the last place you told
+    // it is the place that is right.
+    LentoKit.write(k);
     save();
     closeModal('#kit-modal');
     renderBoard();

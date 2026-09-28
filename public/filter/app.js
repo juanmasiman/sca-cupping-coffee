@@ -41,6 +41,13 @@ function load() {
      double conversion the first time anything reads the store without
      going through here. */
   if (migrated) { save(); migrated = false; }
+  /* One grinder across the tools — see public/shared/kit.js. This app
+     asked for it with a bare text field while the dial-in offered a list
+     that fills in whether it counts clicks and whether it holds grounds,
+     which are the two things grind.js needs and the two this app was
+     making people answer twice. */
+  LentoKit.seed(state.kit);
+  if (LentoKit.adopt(state.kit)) save();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -2162,7 +2169,19 @@ function openKit() {
     <label class="field"><span class="field-label">Kettle</span>
       <input class="field-input" id="k-kettle" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Fellow Stagg EKG"></label>
     <div id="k-temp"></div>
+    ${/* The same list the dial-in offers, because it is the same grinder.
+          The objection in this file's own kit comment — that a brand table
+          goes stale and is wrong about every hybrid — is answered the way
+          the dial-in answers it: the row seeds two editable answers once,
+          the text field is still there for anything not on it, and nothing
+          is read out of the name when advice is given. */ ''}
     <label class="field"><span class="field-label">Grinder</span>
+      <select class="field-input" id="k-grinder-pick">
+        <option value="">Choose…</option>
+        <option value="__other">Something else</option>
+        ${LentoKit.GRINDERS.map(g => `<option value="${escapeHTML(g.name)}">${escapeHTML(g.name)}</option>`).join('')}
+      </select></label>
+    <label class="field hidden" id="k-grinder-other"><span class="field-label">Which one</span>
       <input class="field-input" id="k-grinder" type="text" maxlength="60" autocomplete="off" placeholder="e.g. Comandante C40"></label>
     <div id="k-steps"></div>
     <div id="k-scale"></div>
@@ -2170,6 +2189,26 @@ function openKit() {
   body.querySelector('#k-brewer').value = k.brewer;
   body.querySelector('#k-kettle').value = k.kettle;
   body.querySelector('#k-grinder').value = k.grinder;
+  /* Prefill, and an escape hatch that says so. A grinder somebody has
+     modified beats any list, which is why both answers stay editable
+     underneath and the list only ever seeds them. */
+  const gPick = body.querySelector('#k-grinder-pick');
+  const gOther = body.querySelector('#k-grinder-other');
+  const syncGrinder = () => gOther.classList.toggle('hidden', gPick.value !== '__other');
+  if (k.grinder) gPick.value = LentoKit.grinderEntry(k.grinder) ? k.grinder : '__other';
+  syncGrinder();
+  gPick.addEventListener('change', () => {
+    syncGrinder();
+    const e = LentoKit.grinderEntry(gPick.value);
+    if (e) {
+      k.grinder = e.name;
+      k.steps = e.steps;
+      redraw();
+      toast('Filled in from your grinder');
+    } else if (gPick.value === '__other') {
+      body.querySelector('#k-grinder').focus();
+    }
+  });
 
   const redraw = () => {
     const put = (sel, row) => { const n = body.querySelector(sel); n.innerHTML = ''; n.appendChild(row); };
@@ -2198,10 +2237,13 @@ function openKit() {
   const finish = () => {
     k.brewer = body.querySelector('#k-brewer').value.trim();
     k.kettle = body.querySelector('#k-kettle').value.trim();
-    k.grinder = body.querySelector('#k-grinder').value.trim();
+    const gv = body.querySelector('#k-grinder-pick').value;
+    k.grinder = (gv && gv !== '__other') ? gv : body.querySelector('#k-grinder').value.trim();
     k.asked = true;
     const flowChanged = !state.kit || state.kit.flow !== k.flow;
     state.kit = k;
+    // Shared with the dial-in — see public/shared/kit.js.
+    LentoKit.write(k);
     /* Changing how the water moves changes what a sensible window is, so
        a coffee nobody has moved off the defaults follows. One somebody
        has set by hand is left exactly alone — it is their window, and
