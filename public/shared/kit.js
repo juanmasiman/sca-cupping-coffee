@@ -102,8 +102,16 @@
       retains: kit.retains !== false,
       updated: Date.now(),
     };
-    try { localStorage.setItem(STORE, JSON.stringify(rec)); } catch (e) { /* quota, private mode */ }
+    store(rec);
     return rec;
+  }
+
+  /* Stored verbatim, stamp and all. `write` is for somebody answering the
+     question; this is for a record that arrived from another device and
+     already knows when it was answered. Restamping it here would make the
+     copy that merely arrived beat the device it came from. */
+  function store(rec) {
+    try { localStorage.setItem(STORE, JSON.stringify(rec)); } catch (e) { /* quota, private mode */ }
   }
 
   /* Copy the shared record onto an app's own kit object. Returns true when
@@ -129,8 +137,34 @@
     return true;
   }
 
+  /* The grinder, across devices.
+
+     It syncs as its own record rather than inside either app's kit,
+     because it is the one answer that is genuinely about the same object:
+     the dial-in and the brew log each keep a kit of their own (a basket is
+     not a brewer), and the grinder is the part they share. One record id,
+     one answer, last write wins on the stamp `write` put there.
+
+     Returns true when the shared record moved, so the caller knows to
+     adopt it and save rather than doing both on every sync. */
+  async function sync() {
+    var A = root.LentoAccount;
+    if (!A || !A.enabled() || !A.user()) return false;
+    var rows = await A.pull('kit');
+    if (!rows) return false;
+    var row = null;
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === 'grinder') row = rows[i];
+    var mine = read();
+    var mineAt = mine && mine.updated ? mine.updated : 0;
+    var theirs = row && row.updated ? row.updated : 0;
+    if (row && row.data && theirs > mineAt) { store(row.data); return true; }
+    if (mine && mineAt > theirs) await A.push('kit', 'grinder', mine, mineAt);
+    return false;
+  }
+
   root.LentoKit = {
     STORE: STORE,
+    sync: sync,
     GRINDERS: GRINDERS,
     grinderEntry: entry,
     read: read,

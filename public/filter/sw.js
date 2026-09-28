@@ -3,12 +3,15 @@
 
    A kitchen at seven in the morning may have signal and may not,
    and nothing here needs it: the whole app is served from cache
-   and works with nothing behind it. There is no relay and no
-   account, so offline is the normal case rather than the
-   fallback.
+   and works with nothing behind it. There is an account now, and it
+   changes none of that: signing in adds a copy that follows you to
+   another device, and everything the app does it still does signed
+   out, with no signal, for ever. Which is why the account layer is
+   precached like everything else — an app that will not boot because
+   its auth file did not arrive is not an offline app.
    ============================================================ */
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
@@ -27,6 +30,8 @@ const SHELL = [
   // The components both instruments are built from. A stylesheet that only
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
+  '/shared/config.js',
+  '/shared/account.js',
   '/shared/kit.js',
   '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
