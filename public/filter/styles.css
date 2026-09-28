@@ -313,3 +313,30 @@
   color: var(--data);
   box-shadow: inset 0 0 0 1px var(--data-soft);
 }
+
+/* ---------- the valve ----------
+
+   A brewer with a switch records when it was opened and closed, because
+   on that brewer the sequence IS the recipe. Only drawn where there is a
+   valve — see hasValve. */
+
+/* A valve row has a time and nothing else, so the time field takes the
+   space the water field would have had rather than sitting in a third of
+   the row with two thirds empty. */
+.pour-row.is-valve .pour-field { flex: 1; }
+.pour-row.is-valve .pour-label { color: var(--chrome); }
+
+.pour-valves { display: flex; gap: var(--space-3); margin-top: var(--space-3); }
+.pour-valve-add { flex: 1; }
+
+/* On the card and the recipe: the word, in the data ink, because a valve
+   move is a thing the brewer did and not a measurement of what happened.
+   The eye should be able to read the shape — open, pour, close, pour,
+   open — without reading the figures. */
+.pour-chip.is-valve {
+  border-color: var(--data-soft);
+  background: var(--data-soft);
+  color: var(--data);
+  font-weight: 600;
+}
+.pour-chip.is-valve i { color: var(--data); opacity: 0.7; }

@@ -2458,7 +2458,9 @@ function numField(opts) {
     return Math.round(v * p) / p;
   };
   const commit = v => {
-    value = v === null ? null : Math.max(opts.min, Math.min(opts.max, round(v)));
+    // `max` is optional: a grind dial has no ceiling this app can know.
+    const ceil = opts.max === undefined ? Infinity : opts.max;
+    value = v === null ? null : Math.max(opts.min, Math.min(ceil, round(v)));
     render();
     const nt = wrap.querySelector('.num-note');
     if (nt) { nt.textContent = ''; wrap.classList.remove('bad'); }
@@ -2513,8 +2515,12 @@ function numField(opts) {
     if (!isFinite(v)) {
       return take(null, `“${typed}” is not a number, so nothing is recorded here.`);
     }
-    if (v < opts.min || v > opts.max) {
-      return take(null, `${opts.label} takes ${opts.min} to ${opts.max}${opts.unit ? ' ' + opts.unit : ''}. Nothing is recorded until it is one of those.`);
+    const hi = opts.max === undefined ? Infinity : opts.max;
+    if (v < opts.min || v > hi) {
+      const unit = opts.unit ? ' ' + opts.unit : '';
+      // A field with no ceiling cannot print one.
+      const range = hi === Infinity ? `${opts.min}${unit} or more` : `${opts.min} to ${hi}${unit}`;
+      return take(null, `${opts.label} takes ${range}. Nothing is recorded until it is.`);
     }
     take(round(v), '');
   });
@@ -3356,8 +3362,28 @@ function buildShotSheet(c) {
     // No unit in the slot: a grind setting has none, and "clicks" does not
     // fit a 16px gutter — it overlapped the stepper it sat beside. The word
     // belongs in the prose, where it is doing work.
+    /* NO CEILING ON A GRIND SETTING.
+
+       This was 0 to 100, and a Kingrinder K6 counts past two hundred
+       clicks from closed. Somebody set theirs up, typed 105, and got
+       "Grind takes 0 to 100. Nothing is recorded until it is one of
+       those" — the app refusing the number printed on their own grinder.
+
+       There is no ceiling that is right for every grinder, and this is not
+       the app's to decide: a grind setting is read off the instrument in
+       your hand, and all this log does with it is compare it to the last
+       one on the SAME grinder. The shipped list still says whether a
+       grinder counts clicks or reads a number, because that changes the
+       words and the step size — that is what knowing a grinder is for. The
+       extent of its dial is not.
+
+       The cost, written down: a fat-fingered 1050 is recorded and feeds
+       the seconds-per-step estimate. That estimate already refuses to
+       speak below a noise floor and wants agreeing pairs, and a
+       wrong-but-plausible value poisons it just as well as a wild one — so
+       the cap was never the thing protecting it. */
     label: 'Grind', unit: '', value: num(editing.grind),
-    min: 0, max: 100, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
+    min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
     startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
   }));
 
@@ -3854,9 +3880,15 @@ function openGrindNow(c, keeper) {
   `;
   const grid = body.querySelector('#now-grid');
   const start = Number(keeper.grind);
+  /* In the grinder's own units, like every other grind field. This one
+     stepped by tenths and printed a decimal whatever the kit said, so a
+     clicked grinder read "Now 105.0" and moved half a click at a time —
+     the app using a precision the instrument has not got, on the one
+     screen whose whole job is to say where that instrument is sitting. */
+  const stepped = kit().steps === 'stepped';
   grid.appendChild(numField({
     label: 'Now', unit: '', value: c.grindNow === '' ? null : Number(c.grindNow),
-    min: 0, max: 100, step: 0.1, digits: 1,
+    min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
     startAt: isFinite(start) ? start : 0,
     onChange: v => { c.grindNow = v === null ? '' : String(v); },
   }));

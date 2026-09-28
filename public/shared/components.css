@@ -442,27 +442,33 @@ input { font: inherit; color: inherit; }
    alone against an empty left half. Under the clock it qualifies, which
    is what it is for. */
 .log-set {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  /* A WRAPPING ROW, NOT TWO FIXED COLUMNS.
+
+     It was `grid-template-columns: 1fr auto`, which is right until the
+     left cell is too long: the grid keeps both cells on one row and the
+     text inside the first one breaks, so "grind 105 clicks · 0:30" sat
+     above a lone "drawdown" with the window note hanging beside the first
+     line. That is the fault this row exists to remove, arriving from the
+     other direction.
+
+     Wrapping flex instead. When both fit they sit at opposite ends as
+     before; when they do not, the window note takes a line of its own and
+     the settings keep their phrase intact. It degrades at every width
+     rather than at one breakpoint, which is why the 374px rule that used
+     to be here has gone. */
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
   margin-top: var(--space-2);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-dim);
 }
+.log-set .log-grind { flex: 1 1 auto; min-width: 0; }
 .log-set .log-place { margin: 0; flex: none; }
-/* Below 375px the brew log's version of this line — a grind, its unit
-   word and a drawdown — no longer fits beside the window note, and a grid
-   that wraps one cell leaves the other hanging on the first baseline,
-   which is the exact fault this row was built to remove. Two rows there
-   instead: what it was set to, then where the clock landed. The dial-in's
-   is one short figure and never reaches this. */
-@media (max-width: 374px) {
-  .log-set { grid-template-columns: 1fr; gap: var(--space-1); }
-  .log-set .log-place { justify-self: start; }
-}
 /* The grind is the figure the barista moved and the one they come back to
    the board to read. Full ink beside a secondary neighbour — enough to
    find by eye without becoming a second headline. */
