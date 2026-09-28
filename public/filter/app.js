@@ -2429,7 +2429,7 @@ function openSettings() {
   body.innerHTML = `
     ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
       <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
-      <span class="kit-btn-sub">${escapeHTML(accountLine())}</span>
+      <span class="kit-btn-sub">${escapeHTML(LentoAccountSheet.line())}</span>
     </button>` : ''}
 
     <button class="btn btn-ghost kit-btn" id="btn-kit">
@@ -2465,7 +2465,7 @@ function openSettings() {
   });
 
   const acc = body.querySelector('#btn-account');
-  if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); openAccount(); });
+  if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); LentoAccountSheet.open(); });
   body.querySelector('#btn-kit').addEventListener('click', () => { closeModal('#settings-modal'); openKit(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
@@ -2683,128 +2683,6 @@ function queueSync() {
 
 /* ---------- account UI ---------- */
 
-const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
-
-function brewCount() {
-  return (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0);
-}
-
-// What the row in Settings says. Signed in, it is the address; signed out,
-// it is what an account would be for — in one line, because the sentence
-// that explains sync belongs in the sheet and not on the button.
-function accountLine() {
-  const u = cloudUser();
-  if (u) return u.email || u.name || 'Signed in';
-  return 'Your log on every device you use';
-}
-
-function openAccount() {
-  const body = $('#account-body');
-  const u = cloudUser();
-  const n = brewCount();
-  // "Your account" is wrong on the sheet that does not have one yet.
-  $('#account-title').textContent = u ? 'Your account' : 'Sign in';
-
-  if (u) {
-    body.innerHTML = `
-      <p class="sheet-note">${escapeHTML(u.email || u.name || '')}</p>
-      <p class="sheet-note" id="account-status">${n} brew${n === 1 ? '' : 's'}, backed up as you log them.</p>
-      <div class="sheet-actions">
-        <button class="btn btn-ghost" id="btn-signout">Sign out</button>
-        <button class="btn btn-primary" id="btn-sync">Sync now</button>
-      </div>
-      <p class="sheet-foot">Signing out leaves every brew here.</p>
-    `;
-    body.querySelector('#btn-signout').addEventListener('click', async () => {
-      await LentoAccount.signOut();
-      closeModal('#account-modal');
-      toast('Signed out — your log stays on this device');
-    });
-    body.querySelector('#btn-sync').addEventListener('click', async () => {
-      const status = body.querySelector('#account-status');
-      status.textContent = 'Syncing…';
-      const ok = await syncNow();
-      const m = brewCount();
-      status.textContent = ok
-        ? `Synced · ${m} brew${m === 1 ? '' : 's'}`
-        : 'Could not reach the cloud — it will try again';
-    });
-  } else {
-    body.innerHTML = `
-      <p class="sheet-note">A code by email, no password. Your log then follows you to any device — and still works with no signal.</p>
-      <label class="field-label" for="account-email">Your email</label>
-      <input class="field-input" id="account-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
-      <p class="sheet-note" id="account-status" role="status"></p>
-      <div class="sheet-actions">
-        <button class="btn btn-primary" id="btn-email-code">Email me a code</button>
-      </div>
-      <div class="auth-or"><span>or</span></div>
-      <button class="btn btn-ghost auth-google" id="btn-google">${googleIconSVG} Continue with Google</button>
-      <p class="sheet-foot">Nothing leaves this device without an account.</p>
-    `;
-    body.querySelector('#btn-google').addEventListener('click', () => LentoAccount.signInWith('google'));
-    const send = async () => {
-      const input = body.querySelector('#account-email');
-      const status = body.querySelector('#account-status');
-      const email = input.value.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        status.textContent = 'That does not look like an email address.';
-        return;
-      }
-      status.textContent = 'Sending…';
-      let ok = false;
-      try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
-      if (!ok) { status.textContent = 'Could not send it — check the connection and try again.'; return; }
-      openCode(email);
-    };
-    body.querySelector('#btn-email-code').addEventListener('click', send);
-    body.querySelector('#account-email').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); send(); }
-    });
-  }
-  openModal('#account-modal');
-}
-
-/* The code sheet. One field rather than six boxes: a paste of the whole
-   code works, and Supabase codes are not always six digits. */
-function openCode(email) {
-  closeModal('#account-modal');
-  const body = $('#code-body');
-  body.innerHTML = `
-    <p class="sheet-note">Sent to ${escapeHTML(email)}.</p>
-    <label class="field-label" for="code-input">Code</label>
-    <input class="field-input" id="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456">
-    <p class="sheet-note" id="code-status" role="status"></p>
-    <div class="sheet-actions">
-      <button class="btn btn-ghost" id="btn-code-resend">Send a new code</button>
-      <button class="btn btn-primary" id="btn-code-verify">Sign in</button>
-    </div>
-  `;
-  const status = body.querySelector('#code-status');
-  const verify = async () => {
-    const code = body.querySelector('#code-input').value.replace(/\s+/g, '');
-    if (code.length < 6) { status.textContent = 'Keep going — the code is at least six digits.'; return; }
-    status.textContent = 'Checking…';
-    const ok = await LentoAccount.verifyEmailCode(email, code);
-    if (!ok) { status.textContent = 'That code did not work. Send a new one.'; return; }
-    closeModal('#code-modal');
-    toast('Signed in — your log is backing up');
-    renderBoard();
-    syncNow();
-  };
-  body.querySelector('#btn-code-verify').addEventListener('click', verify);
-  body.querySelector('#code-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); verify(); }
-  });
-  body.querySelector('#btn-code-resend').addEventListener('click', async () => {
-    status.textContent = 'Sending…';
-    let ok = false;
-    try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
-    status.textContent = ok ? 'A new code is on its way.' : 'Could not send it — try again in a minute.';
-  });
-  openModal('#code-modal');
-}
-
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
@@ -2815,8 +2693,6 @@ function wire() {
   $('#btn-add-coffee').addEventListener('click', addCoffee);
   $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
-  $('#account-close').addEventListener('click', () => closeModal('#account-modal'));
-  $('#code-close').addEventListener('click', () => closeModal('#code-modal'));
   $('#settings-close').addEventListener('click', () => closeModal('#settings-modal'));
   $('#settings-done').addEventListener('click', () => closeModal('#settings-modal'));
   const closeHelp = () => {
@@ -2845,6 +2721,19 @@ function wire() {
 function boot() {
   load();
   applyTheme();
+  /* Before wire(), because the sheet injects its own markup and wire()
+     walks `.modal` once to bind the backdrop click. */
+  if (window.LentoAccountSheet) {
+    LentoAccountSheet.install({
+      open: sel => openModal(sel),
+      close: sel => closeModal(sel),
+      toast: msg => toast(msg),
+      refresh: () => renderBoard(),
+      sync: () => syncNow(),
+      count: () => (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0),
+      noun: { one: 'brew', many: 'brews' },
+    });
+  }
   wire();
   renderBoard();
   /* An OAuth return lands as a fragment on this URL, so it is consumed
