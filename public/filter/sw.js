@@ -8,7 +8,7 @@
    fallback.
    ============================================================ */
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
@@ -27,6 +27,7 @@ const SHELL = [
   // The components both instruments are built from. A stylesheet that only
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
+  '/shared/kit.js',
   '/shared/grind.js',
   '/shared/fonts/plex-sans-var.woff2',
   '/shared/fonts/plex-mono-400.woff2',

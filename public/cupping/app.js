@@ -42,7 +42,10 @@ const RELAY_URL = APP_URL + 'api';
 const SUPABASE_URL = window.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
 const OTP_LENGTH = Math.min(10, Math.max(6, window.OTP_LENGTH || 6));
-const AUTH_KEY = 'sca-cupping-auth-v1';
+// One account across the three tools, so the token lives under a name that
+// is not one tool's name. /shared/account.js owns the key and migrates the
+// old `sca-cupping-auth-v1` in place, so nobody signed in gets signed out.
+const AUTH_KEY = (window.LentoAccount && window.LentoAccount.AUTH_KEY) || 'lento-auth-v1';
 
 // Captured before anything can rewrite the address bar, so sign-in tokens
 // and join codes survive whatever else happens during startup.
@@ -708,6 +711,10 @@ function saveAuth(auth) {
 }
 
 function clearAuth() {
+  // Delegated, because signing out has to clear the legacy key as well:
+  // leave it behind and the migration in /shared/account.js restores the
+  // session on the next load.
+  if (window.LentoAccount) { window.LentoAccount.clearAuth(); return; }
   try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
 }
 

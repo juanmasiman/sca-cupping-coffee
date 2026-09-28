@@ -52,23 +52,37 @@ Live codes are the Apple-TV-style 4-digit codes for joining a cupping. Without t
 
 Codes expire after 12 hours; nothing else is stored.
 
-## 5. Sign-in and cloud history sync (optional)
+## 5. Sign-in and cloud sync (optional)
 
-Without this, history stays on each device and the profile sheet says so. To enable Google and email sign-in:
+One account across all three instruments. Without it, every tool keeps its
+history on the device it was logged on and says so; with it, the cupping
+history, the shot log and your kit follow you to any device you sign in on.
+Nothing else changes — all three work signed out, with no signal, for ever.
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. SQL Editor → run `server/supabase-schema.sql` (creates the `cuppings` table with row-level security).
-3. Authentication → URL Configuration → **Site URL**: `https://lento.cafe/cupping/`.
+2. SQL Editor → run `server/supabase-schema.sql`. It creates two tables with
+   row-level security: `cuppings` (the cupping sheet's own history) and
+   `records` (everything else, keyed by tool and record id). It is safe to
+   run on a project that already has `cuppings` — every statement creates
+   what is missing or replaces a policy with an identical one, and no row is
+   touched.
+3. Authentication → URL Configuration → **Site URL**: `https://lento.cafe/cupping/`,
+   and add `https://lento.cafe/espresso/` and `https://lento.cafe/filter/` to
+   **Redirect URLs**. Sign-in returns you to the tool you started from, so a
+   URL that is not on that list comes back to the wrong app — or to an error.
 4. **Google provider** (free): in [Google Cloud Console](https://console.cloud.google.com) create a project → OAuth consent screen (External) → Credentials → OAuth client ID (Web application), with authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`. Paste the client ID and secret into Supabase → Authentication → Providers → Google.
 5. **Email magic links** work out of the box using Supabase's built-in mailer, which is rate-limited to a few messages an hour. Before real launch, add free SMTP (Resend, Brevo) under Authentication → SMTP settings so mail comes from `cupping@lento.cafe`.
-6. Put the project URL and anon key into `public/cupping/app.js`:
+6. Put the project URL and anon key into `public/shared/config.js` — one file,
+   read by all three tools:
 
 ```js
-const SUPABASE_URL = window.SUPABASE_URL || 'https://<project-ref>.supabase.co';
-const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '<anon public key>';
+window.SUPABASE_URL = 'https://<project-ref>.supabase.co';
+window.SUPABASE_ANON_KEY = '<anon public key>';
 ```
 
-The anon key is meant to be public — row-level security is what protects user data.
+The anon key is meant to be public — row-level security is what protects user
+data. The `service_role` key is not, and must never go in this file or any
+other file served to a browser: it bypasses every policy in the schema.
 
 ## Sending sign-in email from lento.cafe
 

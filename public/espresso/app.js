@@ -34,8 +34,23 @@ function load() {
     const raw = localStorage.getItem(STORE);
     if (raw) state = migrate(JSON.parse(raw));
   } catch (e) { /* private mode, or a shape this build cannot read */ }
-  if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null };
+  if (!state || !Array.isArray(state.coffees)) state = { v: 1, coffees: [], activeId: null, dead: {}, kitUpdated: 0 };
   if (!state.kit) state.kit = defaultKit();
+  /* Before anything can save. Every save stamps what changed since the
+     last one, and "the last one" has to mean what is on disk — prime this
+     after the first save and a phone that merely opened the app would
+     claim every record on it was edited this second. */
+  primeStamps();
+  /* One grinder across the tools. Seed the shared record from this app if
+     it is the one that knows, then take whatever the shared record says —
+     so somebody who set their grinder up in the brew log is not asked
+     again here, and the calibration the two apps share is reasoning about
+     one machine rather than two answers about the same one. */
+  LentoKit.seed(state.kit);
+  // Written back, not just adopted into memory: without the save the
+  // change lives until the next reload and then reverts, which is worse
+  // than not sharing at all because it looks like it worked.
+  if (LentoKit.adopt(state.kit)) save();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -43,7 +58,89 @@ function load() {
 }
 
 function save() {
+  stamp();
+  writeState();
+  queueSync();
+}
+
+/* Written without stamping, for the one caller that must not stamp: a
+   sync has just merged records whose timestamps came from another device,
+   and giving them this second's clock would make a pulled shot look
+   locally edited and then beat the device it came from. */
+function writeState() {
   try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* quota, private mode */ }
+}
+
+/* ---------- when each record last changed ----------
+
+   Sync is last-write-wins per shot, so every shot needs an honest
+   `updated` and so does every coffee. Stamping it at the twenty-odd
+   places that mutate them is how you get a stale timestamp: the site
+   somebody adds next year is the one that forgets, and a forgotten stamp
+   does not look like a bug — it looks like the other device winning.
+
+   So it is done here, once, against the only thing that cannot lie: the
+   content. Every save compares each record with what was written last
+   time and gives the clock to the ones that actually changed. A save that
+   touched one shot leaves the other nine alone, which matters, because a
+   record that claims to be newer than it is beats a real edit on another
+   phone. */
+
+let lastSaved = new Map();
+
+// `updated` is excluded from its own fingerprint, or stamping a record
+// would make it differ again at the next save, for ever.
+function fingerprint(o) {
+  return JSON.stringify(o, (k, v) => (k === 'updated' ? undefined : v));
+}
+
+// A coffee without its shots: they carry their own stamps, and a coffee
+// whose name is unchanged should not look edited because a shot was added.
+function coffeeShell(c) {
+  const shell = Object.assign({}, c);
+  delete shell.shots;
+  return shell;
+}
+
+function stampAll(fn) {
+  const next = new Map();
+  (state.coffees || []).forEach(c => {
+    (c.shots || []).forEach(sh => {
+      if (!sh.id) sh.id = uid();
+      fn('s:' + sh.id, fingerprint(sh), sh, next);
+    });
+    fn('c:' + c.id, fingerprint(coffeeShell(c)), c, next);
+  });
+  fn('k:kit', fingerprint(state.kit || {}), state, next);
+  lastSaved = next;
+}
+
+function stamp() {
+  const now = Date.now();
+  stampAll((key, fp, rec, next) => {
+    next.set(key, fp);
+    if (lastSaved.get(key) !== fp) {
+      if (key === 'k:kit') state.kitUpdated = now;
+      else rec.updated = now;
+    }
+  });
+}
+
+/* Primed from what was on disk, so the first save of a session stamps
+   nothing. Without this, opening the app on a second device would tell
+   the cloud that every record there is brand new, and a phone that merely
+   launched would overwrite a phone that was used. */
+function primeStamps() {
+  stampAll((key, fp, rec, next) => next.set(key, fp));
+}
+
+// What a record's timestamp is, for the purpose of deciding a conflict.
+// A coffee is as new as its newest shot: the shots are the thing being
+// edited, and a coffee whose shell never changes still has work in it.
+function coffeeUpdated(c) {
+  let t = c.updated || 0;
+  (c.shots || []).forEach(sh => { if ((sh.updated || 0) > t) t = sh.updated; });
+  return t;
 }
 
 function savePrefs() {
@@ -52,10 +149,36 @@ function savePrefs() {
 
 // Older shapes get repaired rather than discarded: somebody's shot log is
 // the only copy of an afternoon's work.
+const TOMB_DAYS = 180;
+
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
   s.kit = Object.assign(defaultKit(), s.kit || {});
+  /* What was deleted, and when.
+
+     Last-write-wins has no opinion about absence: a shot you removed on
+     this phone is simply missing here and present in the cloud, so the
+     next sync puts it back and the delete looks like it did not take. So
+     a delete writes down that it happened, and a record whose tombstone
+     is newer than the copy on offer stays deleted.
+
+     They are pruned after half a year, which is the one case this gets
+     wrong: a device that was offline for longer than that, and still holds
+     the shot, will bring it back. Keeping them for ever to close that is a
+     log that only grows. */
+  if (!s.dead || typeof s.dead !== 'object') s.dead = {};
+  /* The kit has one stamp for all of it, because it is one answer about
+     one bar rather than a list. A kit somebody actually filled in counts
+     as current; an untouched default counts as never answered, so the
+     device that knows wins against the device that was only opened. */
+  if (typeof s.kitUpdated !== 'number') {
+    s.kitUpdated = s.kit.asked ? (s.kit.doseChecked || Date.now()) : 0;
+  }
+  const stale = Date.now() - TOMB_DAYS * 86400000;
+  Object.keys(s.dead).forEach(k => { if ((s.dead[k] || 0) < stale) delete s.dead[k]; });
   (s.coffees || []).forEach(c => {
+    if (!c.dead || typeof c.dead !== 'object') c.dead = {};
+    Object.keys(c.dead).forEach(k => { if ((c.dead[k] || 0) < stale) delete c.dead[k]; });
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
@@ -71,7 +194,12 @@ function migrate(s) {
       if (typeof sh.run === 'undefined') sh.run = null;
       if (typeof sh.harsh === 'undefined') sh.harsh = false;
       if (typeof sh.bright === 'undefined') sh.bright = false;
+      // Shots written before sync existed: the time they were pulled is
+      // the truest thing available, and it is older than anything the
+      // cloud can hold for them, which is the safe direction to be wrong.
+      if (typeof sh.updated !== 'number') sh.updated = sh.at || Date.now();
     });
+    if (typeof c.updated !== 'number') c.updated = coffeeUpdated(c) || Date.now();
   });
   return s;
 }
@@ -154,25 +282,10 @@ const MACHINES = [
   { name: 'La Pavoni (lever)',                temp: 'set',   pressure: 'profile' },
 ];
 
-const GRINDERS = [
-  { name: 'Niche Zero',                steps: 'stepless', retains: false },
-  { name: 'DF64 / DF64 Gen 2',         steps: 'stepless', retains: false },
-  { name: 'DF54',                      steps: 'stepless', retains: false },
-  { name: 'Turin DF83',                steps: 'stepless', retains: false },
-  { name: 'Eureka Mignon',             steps: 'stepless', retains: true },
-  { name: 'Mazzer Mini',               steps: 'stepless', retains: true },
-  { name: 'Option-O Lagom P64',        steps: 'stepless', retains: false },
-  { name: 'Weber Key / EG-1',          steps: 'stepless', retains: false },
-  { name: 'Fellow Ode Gen 2',          steps: 'stepped',  retains: false },
-  { name: 'Baratza Encore / Encore ESP', steps: 'stepped', retains: true },
-  { name: 'Baratza Sette 270',         steps: 'stepped',  retains: false },
-  { name: 'Breville/Sage Smart Grinder Pro', steps: 'stepped', retains: true },
-  { name: 'Breville/Sage built-in grinder',  steps: 'stepped', retains: true },
-  { name: '1Zpresso (J, JX, K, ZP6)',  steps: 'stepped',  retains: false },
-  { name: 'Comandante C40',            steps: 'stepped',  retains: false },
-  { name: 'Timemore (C2, C3, 078)',    steps: 'stepped',  retains: false },
-  { name: 'Kingrinder (K4, K6)',       steps: 'stepped',  retains: false },
-];
+/* The grinder list moved to public/shared/kit.js, because the brew log
+   needs it too — it was asking for the same grinder with a bare text
+   field while this app offered seventeen rows that fill in two answers. */
+const GRINDERS = LentoKit.GRINDERS;
 
 const machineEntry = name => MACHINES.find(m => m.name === name) || null;
 const grinderEntry = name => GRINDERS.find(g => g.name === name) || null;
@@ -1391,7 +1504,18 @@ function suggest(shot, target, c) {
           return { sure: false, move: next.move,
             why: `${next.why} The recipe is a floor rather than a ceiling: on a good coffee a quicker shot can beat a slower one that scores the same against every number here, and the only way to find out is to taste them together.` };
         })()
-      : (() => {
+      : shot.verdict === 'off' || shot.verdict === 'ok'
+        /* The advice reads the clock and the cup and never read the one
+           field labelled "Keep it?". So "This is the one." printed over a
+           shot the barista had just marked "Drinkable — not there yet" —
+           the app talking over its user with the user's own data, one
+           field away on the same sheet. The numbers can say a shot is in
+           the window and sweet; only the person who drank it can say
+           whether it is the one, and if they have said, that settles it. */
+        ? { sure: false,
+            move: shot.verdict === 'off' ? 'The numbers liked it. You did not.' : 'Close, by your own account.',
+            why: `Everything measurable about this shot is where it should be — in the ${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s window and tasting of neither wall — and you marked it ${shot.verdict === 'off' ? 'undrinkable' : 'not there yet'}. That is the more informative of the two readings, because the board can only see four numbers and you drank it. Say what was wrong with it in your own words and the next change has something to work from; the notes field is the only part of this sheet that can hold it.` }
+        : (() => {
           /* A second good shot is a comparison, not a first find.
 
              With a recipe already pinned, "Mark it as the keeper" is the
@@ -2210,12 +2334,21 @@ function fmtDelta(v, unit, digits) {
   return `${v > 0 ? '+' : '−'}${s}${unit}`;
 }
 
+/* The document's own voice, not the browser's.
+
+   The app writes "dialling", "colour" and "flavour" throughout and then
+   printed "12:42 AM" on every card. These are timestamps on a log, not
+   appointments, so a 24-hour clock is the one that matches the rest of
+   the figures on the card — and it reads the document's lang rather than
+   hard-coding a locale, so changing the one changes the other. */
+const docLocale = () => document.documentElement.lang || 'en-GB';
+
 function fmtDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return sameDay ? time : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${time}`;
+  const time = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  return sameDay ? time : `${d.toLocaleDateString(docLocale(), { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
 function escapeHTML(s) {
@@ -2235,12 +2368,44 @@ function el(tag, cls, html) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+/* The toast, and the undo it can carry.
+
+   Two dialogs in this app said "There is no undo." By this product's own
+   standard — it refuses to print an extraction it cannot measure — that
+   is not a disclaimer, it is a defect written in the voice of a feature.
+
+   One slot, not a stack: the thing worth taking back is always the thing
+   you just did, and a history of undos is a different product. The offer
+   lives on the toast because the toast is already a role="status" live
+   region that appears exactly when something has happened, and it expires
+   with the toast — eight seconds rather than the usual two and a half,
+   because reading a sentence and deciding to reverse it takes longer than
+   reading a confirmation. */
+let undoSlot = null;
+
+function toast(msg, undo) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  t.appendChild(document.createTextNode(msg));
+  undoSlot = undo || null;
+  if (undo) {
+    const b = el('button', 'toast-undo', 'Undo');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const act = undoSlot;
+      undoSlot = null;
+      t.classList.add('hidden');
+      if (!act) return;
+      act.restore();
+      haptic();
+      renderBoard();
+      toast(act.after || 'Put back');
+    });
+    t.appendChild(b);
+  }
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2400);
+  toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
 }
 
 function haptic() {
@@ -2458,6 +2623,7 @@ function tasteScale(opts) {
 
 function renderBoard() {
   const c = activeCoffee();
+  renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
   $('#coffee-sub').textContent = c
     ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
@@ -2655,6 +2821,13 @@ function targetDrift(c) {
   return { keeper, ratio, dose: d, time: t };
 }
 
+/* The board's heading follows the bag on the board. */
+function renderHeading(c) {
+  const h = $('#board-heading');
+  if (!h) return;
+  h.textContent = c ? coffeeLabel(c) : 'No coffee yet';
+}
+
 function renderTarget(c) {
   const wrap = $('#target-card');
   wrap.classList.toggle('hidden', !c);
@@ -2711,7 +2884,7 @@ function renderShots(c) {
         <p class="empty-body">A handful of questions about your machine and grinder, once. The shot sheet is built from the answers: there is no point in a temperature field on a machine with one temperature, and no point in advice that tells you to raise it.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — most machines are the default</button>
-        <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
+        <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
         state.kit = Object.assign(defaultKit(), { asked: true });
@@ -2730,7 +2903,7 @@ function renderShots(c) {
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
-         <p class="empty-foot">Everything stays on this device. No account, no upload, works with no signal.</p>`;
+         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
     return;
   }
 
@@ -2745,7 +2918,28 @@ function renderShots(c) {
 }
 
 function shotCard(shot, prev, c, n) {
-  const card = el('div', 'log-card');
+  /* A record you can reach without a pointer.
+
+     It was a bare <div> with a click handler, which meant the board's four
+     shot cards took no tab stop at all: editing or deleting a mis-logged
+     shot was pointer-only, and a screen reader got an unstructured run of
+     numbers with nothing to land on. It carries everything a barista needs
+     to recognise it before opening it — which shot, how long, what ratio,
+     where the grinder was — because that is exactly what the sighted
+     version of this card says at a glance. */
+  const card = el('button', 'log-card');
+  card.type = 'button';
+  card.setAttribute('aria-label', (() => {
+    const bits = [`Shot ${n}`];
+    if (num(shot.time) !== null) bits.push(`${Math.round(num(shot.time))} seconds`);
+    const r = ratioOf(shot);
+    if (r !== null) bits.push(`ratio 1 to ${r.toFixed(2)}`);
+    if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
+      bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
+    }
+    if (shot.verdict === 'keeper') bits.push('the keeper');
+    return `${bits.join(', ')}. Edit.`;
+  })());
   const r = ratioOf(shot);
   const flow = flowOf(shot);
   const ey = extractionOf(shot);
@@ -2772,7 +2966,13 @@ function shotCard(shot, prev, c, n) {
        grinder runs from the log; it may as well say. */
     if (dGrind !== null && dGrind !== 0) {
       const sens = GRIND.sensitivity();
-      const dist = fmtSteps(Math.abs(dGrind));
+      /* Short form here. fmtSteps says "0.5 on the dial", which is the
+         right phrase in an instruction and four words too many in a row
+         of deltas beside "+2s". */
+      const d = Math.abs(dGrind);
+      const dist = grindUnit() === 'clicks'
+        ? `${Math.round(d)} ${Math.round(d) === 1 ? 'click' : 'clicks'}`
+        : (Math.round(d * 10) / 10).toFixed(1);
       diffs.push(sens
         ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? 'finer' : 'coarser'}`
         : `grind ${fmtDelta(dGrind, '', 1)}`);
@@ -2793,35 +2993,76 @@ function shotCard(shot, prev, c, n) {
     : place.time === 'fast' ? `${Math.round(c.target.timeLo - shot.time)}s fast`
     : `${Math.round(shot.time - c.target.timeHi)}s slow`;
 
+  /* THE CARD IS A RECORD OF ONE SHOT, SO IT LEADS WITH THE SHOT.
+
+     It used to lead with `1:2.50` at 30px — which across a dial-in at a
+     fixed ratio is the same figure repeated down the board, the loudest
+     thing on screen and the one number nobody set. What a barista says out
+     loud is "sixteen and a half in, forty-one out, twenty-two seconds",
+     and that is now the headline: dose, yield and clock, in the mono
+     figures, on one line. The ratio does not disappear — it is a real
+     description of that shot and it sits directly underneath with the
+     grind and the flow, where it reads as a consequence of the three
+     numbers above rather than as a replacement for them.
+
+     The second thing the card was missing is structure. Fifteen stacked
+     rows of near-identical weight is a pile, not a record. There are four
+     bands now, in the order somebody reads them: what this shot was, what
+     it came out as, what moved since the last one, and what it tasted
+     like. A hairline separates the measurement from the reading of it.
+
+     And the figures are laid on a grid so they align down the column. Four
+     cards of `16.5 → 41.0` stacked with their arrows and their seconds at
+     the same x is a table you can scan; four cards of ragged left-aligned
+     prose is not, however good each one is on its own. */
+  const dose = num(shot.dose), yld = num(shot.yield);
+  const secs = num(shot.time);
+  /* Grind first, and in the full ink. It is the figure that changed
+     between these cards and the one somebody comes back to the board to
+     read; the ratio and the flow are descriptions of the three numbers
+     above and can stay quiet. */
+  const support = [];
+  if (num(Number(shot.grind)) !== null && shot.grind !== '') {
+    support.push(`<span class="is-set">grind ${escapeHTML(String(shot.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}</span>`);
+  }
+  if (r !== null) support.push(escapeHTML(fmtRatio(r)));
+  if (flow !== null) support.push(`${fmt2(flow)} g/s`);
+  if (ey !== null) support.push(`${fmt1(ey)}% EY`);
+  const flags = [];
+  if (shot.harsh) flags.push('Sour and bitter at once');
+  if (shot.bright && !shot.harsh) flags.push('Bright, not sour');
+  if (shot.run && shot.run !== 'even') flags.push((runEntry(shot.run) || {}).label || '');
+  const notes = [];
+  if (twoVariables(shot, prev)) notes.push(twoVariables(shot, prev));
+  if (intentCheck(shot, prev)) notes.push(intentCheck(shot, prev));
+
   card.innerHTML = `
-    <div class="log-top">
-      <span class="log-n">${n}</span>
-      <span class="log-headline">
-        <span class="log-ratio">${fmtRatio(r)}</span>
-        <span class="log-time ${timeClass}">${shot.time === null ? '—' : Math.round(shot.time) + 's'}</span>
-      </span>
-      <span class="log-when">${fmtDate(shot.at)}</span>
+    <div class="log-meta">
+      <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}${
+        shot.intent ? `<span class="log-dot">·</span>aim ${escapeHTML(((intentEntry(shot.intent) || {}).label || '').toLowerCase())}` : ''}</span>
+      ${shot.verdict === 'keeper' ? '<span class="log-flag">the keeper</span>' : ''}
     </div>
-    <div class="log-numbers">
-      ${num(shot.dose) === null ? '—' : `${fmt1(num(shot.dose))}<small>g</small>`} <span aria-hidden="true">→</span> ${
-        num(shot.yield) === null ? '—' : `${fmt1(num(shot.yield))}<small>g</small>`}
-      ${flow !== null ? ` · ${fmt2(flow)}<small>g/s</small>` : ''}
-      ${ey !== null ? ` · ${fmt1(ey)}<small>% EY</small>` : ''}
-      ${num(Number(shot.grind)) !== null && shot.grind !== '' ? ` · grind ${escapeHTML(String(shot.grind))}<small>${escapeHTML(grindUnit() === 'clicks' ? ' clicks' : '')}</small>` : ''}
+
+    <div class="log-shot">
+      <span class="log-inout">${dose === null ? '—' : fmt1(dose)}<span class="log-arrow" aria-hidden="true">→</span>${
+        yld === null ? '—' : fmt1(yld)}<small>g</small></span>
+      <span class="log-secs ${timeClass}">${secs === null ? '—' : Math.round(secs)}<small>s</small></span>
     </div>
+    ${support.length ? `<div class="log-support">${support.join(' · ')}</div>` : ''}
     ${missing.length ? `<div class="log-missing">${escapeHTML(missingLine(missing))}</div>` : ''}
-    ${timeNote ? `<div class="log-place ${timeClass}">${timeNote}</div>` : ''}
-    ${diffs.length ? `<div class="log-diff">${escapeHTML(diffs.join(' · '))}</div>` : ''}
-    ${shot.harsh ? '<div class="log-run">Sour and bitter at once</div>' : ''}
-    ${shot.bright && !shot.harsh ? '<div class="log-run">Bright, not sour</div>' : ''}
-    ${shot.run && shot.run !== 'even' ? `<div class="log-run">${escapeHTML((runEntry(shot.run) || {}).label || '')}</div>` : ''}
-    ${shot.intent ? `<div class="log-intent">aim: ${escapeHTML((intentEntry(shot.intent) || {}).label || '')}</div>` : ''}
-    ${twoVariables(shot, prev) ? `<div class="log-mismatch">${escapeHTML(twoVariables(shot, prev))}</div>` : ''}
-    ${intentCheck(shot, prev) ? `<div class="log-mismatch">${escapeHTML(intentCheck(shot, prev))}</div>` : ''}
-    ${shot.taste !== null ? `<div class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></div>` : ''}
-    ${shot.body !== null && typeof shot.body === 'number' ? `<div class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></div>` : ''}
+
+    ${(diffs.length || timeNote) ? `<div class="log-read">
+      <span class="log-diff">${escapeHTML(diffs.join(' · '))}</span>
+      ${timeNote ? `<span class="log-place ${timeClass}">${timeNote}</span>` : ''}
+    </div>` : ''}
+
+    ${(shot.taste !== null || (shot.body !== null && typeof shot.body === 'number')) ? `<div class="log-tastes">
+      ${shot.taste !== null ? `<span class="log-taste">${tasteMarks(shot.taste)}<span>${escapeHTML(tasteWord(shot.taste))}</span></span>` : ''}
+      ${shot.body !== null && typeof shot.body === 'number' ? `<span class="log-taste">${tasteMarks(shot.body)}<span>${escapeHTML(bodyWord(shot.body))}</span></span>` : ''}
+    </div>` : ''}
+    ${flags.length ? `<div class="log-run">${escapeHTML(flags.join(' · '))}</div>` : ''}
+    ${notes.map(x => `<div class="log-mismatch">${escapeHTML(x)}</div>`).join('')}
     ${shot.notes ? `<div class="log-notes">${escapeHTML(shot.notes)}</div>` : ''}
-    ${shot.verdict === 'keeper' ? '<div class="log-keeper-flag">the keeper</div>' : ''}
   `;
   card.addEventListener('click', () => openShot(shot));
   return card;
@@ -2927,12 +3168,22 @@ function openShot(shot) {
   del.onclick = () => {
     const i = c.shots.indexOf(shot);
     if (i < 0) return;
-    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it. There is no undo.`)) return;
+    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it.`)) return;
+    const gone = c.shots[i];
     c.shots.splice(i, 1);
+    // Written down, so a sync does not hand it back. See migrate().
+    if (gone.id) c.dead[gone.id] = Date.now();
     save();
     closeModal('#shot-modal');
     renderBoard();
-    toast('Shot removed');
+    toast('Shot removed', {
+      after: 'Shot back in the log',
+      restore: () => {
+        c.shots.splice(Math.min(i, c.shots.length), 0, gone);
+        if (gone.id) delete c.dead[gone.id];
+        save();
+      },
+    });
   };
   buildShotSheet(c);
   openModal('#shot-modal');
@@ -2955,8 +3206,22 @@ function shotHasContent() {
      closing one you had not touched asked whether you wanted to throw
      away work that did not exist — which is how a confirm dialog gets
      trained out of a person before the one that matters arrives. */
+/* ...and it broke again the moment two booleans joined the list.
+
+     `harsh` and `bright` are initialised to FALSE, and false is not null,
+     not '' and not undefined — so the test passed on every field of a
+     sheet nobody had touched, and the dialog fired every single time. The
+     comment above describes this failure as fixed; it was fixed for the
+     carried fields and re-broken by two flags added later.
+
+     A boolean is content when it is true. Nothing else about it is a
+     statement the reader made. */
+  const FLAGS = ['harsh', 'bright'];
+  const said = k => (FLAGS.includes(k)
+    ? editing[k] === true
+    : editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
   const typed = ['yield', 'time', 'taste', 'body', 'verdict', 'intent', 'run', 'harsh', 'bright', 'notes', 'tds']
-    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+    .some(said);
   return typed || carriedOf(editing) !== carriedSeed;
 }
 
@@ -2980,8 +3245,21 @@ function closeShotSheet() {
       const back = JSON.parse(editingSeed);
       // Keys added during the edit have to go too, not just keys changed:
       // JSON.stringify drops undefined, so the snapshot cannot clear them.
+      const undone = JSON.stringify(editing);
+      const target = editing;
       Object.keys(editing).forEach(k => { if (!(k in back)) delete editing[k]; });
       Object.assign(editing, back);
+      if (dirty) {
+        toast('Changes discarded', {
+          after: 'Changes back',
+          restore: () => {
+            const redo = JSON.parse(undone);
+            Object.keys(target).forEach(k => { if (!(k in redo)) delete target[k]; });
+            Object.assign(target, redo);
+            save();
+          },
+        });
+      }
     } catch (e) { /* keep what is there */ }
   }
   closeModal('#shot-modal');
@@ -3197,7 +3475,9 @@ function buildRun(c) {
 }
 
 const VERDICTS = [
-  { key: 'off', label: 'Off', sub: 'not drinkable' },
+  // "Off" reads as a toggle state. What somebody says about a shot they
+  // poured away is that they poured it away.
+  { key: 'off', label: 'Tipped it', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
   { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
 ];
@@ -3393,15 +3673,15 @@ function renderReadout(c) {
   wrap.innerHTML = `
     <div class="readout-row">
       <div class="readout-cell">
-        <span class="readout-value">${fmtRatio(r)}</span>
+        <span class="readout-value${r === null ? ' empty' : ''}">${fmtRatio(r)}</span>
         <span class="readout-label">${bandDrift(r, c.target.ratio) ? `${bandDrift(r, c.target.ratio)} · ` : ''}ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
       </div>
       <div class="readout-cell">
-        <span class="readout-value">${fmt2(flow)}</span>
+        <span class="readout-value${flow === null ? ' empty' : ''}">${fmt2(flow)}</span>
         <span class="readout-label">g per second</span>
       </div>
       ${prefs.tds ? `<div class="readout-cell">
-        <span class="readout-value">${ey === null ? '—' : fmt1(ey) + '%'}</span>
+        <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
         <span class="readout-label">${ey === null ? 'extraction · needs a TDS reading' : 'extraction yield'}</span>
       </div>` : ''}
     </div>
@@ -3466,12 +3746,31 @@ function saveShot() {
 
      Demoted to "drinkable" rather than cleared: a shot you once called
      the recipe was, at minimum, drinkable. */
+  /* Replacing the recipe is the biggest state change this app makes and it
+     was the quietest: the previous keeper was demoted in silence, the
+     pinned card rewrote itself, and the feedback was "Shot updated" — the
+     same three words you get for fixing a typo in a note. The recipe is
+     what somebody spent a bag finding. It gets named, and it gets an
+     undo like every other destructive act. */
+  let replaced = null;
   if (editing.verdict === 'keeper') {
-    c.shots.forEach(sh => { if (sh !== editing && sh.verdict === 'keeper') sh.verdict = 'ok'; });
+    c.shots.forEach(sh => {
+      if (sh !== editing && sh.verdict === 'keeper') { sh.verdict = 'ok'; replaced = sh; }
+    });
   }
   save();
   closeModal('#shot-modal');
   renderBoard();
+  if (replaced) {
+    const was = `${fmtDose(num(replaced.yield))}g out in ${replaced.time === null ? '—' : Math.round(replaced.time)}s`;
+    const now = `${fmtDose(num(editing.yield))}g out in ${editing.time === null ? '—' : Math.round(editing.time)}s`;
+    const mine = editing, theirs = replaced;
+    toast(`${now} is the recipe now — was ${was}`, {
+      after: 'Recipe put back',
+      restore: () => { mine.verdict = 'ok'; theirs.verdict = 'keeper'; save(); },
+    });
+    return;
+  }
   // The card you just made is the one you want to look at, and the board
   // used to leave you wherever you happened to be scrolled.
   if (wasNew) {
@@ -3848,17 +4147,28 @@ function openEdit(c, opts) {
   $('#edit-delete').onclick = () => {
     const n = c.shots.length;
     // Always, not only where there are shots to lose: a bag somebody named
-    // and described is worth one question, and the control sits in the same
-    // bar as Save.
+    // and described is worth one question. (The control has since moved out
+    // of the action bar to the foot of the sheet; the question stays.)
     if (!confirm(n
-      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it, and there is no undo.`
-      : `Remove ${coffeeLabel(c)}? There is no undo.`)) return;
+      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it.`
+      : `Remove ${coffeeLabel(c)}?`)) return;
+    const at = state.coffees.indexOf(c);
+    const wasActive = state.activeId === c.id;
     state.coffees = state.coffees.filter(x => x.id !== c.id);
-    if (state.activeId === c.id) state.activeId = state.coffees.length ? state.coffees[0].id : null;
+    state.dead[c.id] = Date.now();
+    if (wasActive) state.activeId = state.coffees.length ? state.coffees[0].id : null;
     save();
     closeModal('#edit-modal');
     renderBoard();
-    toast('Removed');
+    toast('Removed', {
+      after: `${coffeeLabel(c)} is back`,
+      restore: () => {
+        state.coffees.splice(Math.min(at < 0 ? state.coffees.length : at, state.coffees.length), 0, c);
+        delete state.dead[c.id];
+        if (wasActive) state.activeId = c.id;
+        save();
+      },
+    });
   };
   openModal('#edit-modal');
 }
@@ -4107,6 +4417,9 @@ function openKit() {
     else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
     state.kit = k;
+    // The grinder is the tools' shared answer, so the last place you told
+    // it is the place that is right.
+    LentoKit.write(k);
     save();
     closeModal('#kit-modal');
     renderBoard();
@@ -4300,6 +4613,11 @@ function openSalami() {
 function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
+    ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
+      <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
+      <span class="kit-btn-sub">${escapeHTML(accountLine())}</span>
+    </button>` : ''}
+
     <button class="btn btn-ghost kit-btn" id="btn-kit">
       <span class="kit-btn-title">Your setup</span>
       <span class="kit-btn-sub">${escapeHTML(kitLine())}</span>
@@ -4362,6 +4680,8 @@ function openSettings() {
     seg.appendChild(b);
   });
 
+  const acc = body.querySelector('#btn-account');
+  if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); openAccount(); });
   body.querySelector('#btn-kit').addEventListener('click', () => { closeModal('#settings-modal'); openKit(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
@@ -4411,7 +4731,7 @@ function openHelp() {
     <p><strong>Watery and muddy</strong> are the concentration walls, and grind is not the variable. A shot can be extracted perfectly and still be thin, because thin is about how much coffee ended up in the cup: that is ratio and dose. Watery means stop the shot earlier or put more in the basket; muddy means let it run further, or put less in.</p>
     <p>A cup can sit on one wall, both, or neither, which is why they get a scale each rather than one word for the whole shot.</p>
     <p><strong>Your setup</strong> decides what this app asks you for. Say your machine holds one temperature and the temperature field leaves the sheet and stops appearing in the advice — a field you cannot change is a field you will end up filling in with a guess. Change it any time in Settings.</p>
-    <p class="sheet-note">Everything is stored on this device. No account, no upload, and it works with no signal.</p>
+    <p class="sheet-note">Everything is stored on this device and works with no signal. An account is optional, and all it does is copy the log to the other devices you sign in on.</p>
   `;
   openModal('#help-modal');
 }
@@ -4449,9 +4769,15 @@ function trapTab(m, e) {
   }
 }
 
+/* Which sheet is on top, in the order they were opened rather than the
+   order they appear in the document. */
+let modalStack = [];
+const topModal = () => (modalStack.length ? modalStack[modalStack.length - 1] : null);
+
 function openModal(sel) {
   const m = $(sel);
   lastFocus = document.activeElement;
+  modalStack = modalStack.filter(x => x !== sel).concat([sel]);
   m.classList.remove('hidden');
   /* The board scrolled behind every open sheet. On a phone that means a
      drag meant for a slider or a long sheet moves the page underneath it
@@ -4459,6 +4785,13 @@ function openModal(sel) {
      modal. Locked while anything is open, released when the last one
      closes. */
   document.documentElement.classList.add('sheet-open');
+  /* Keyboard was already trapped; a screen reader's virtual cursor was not
+     — it relied on aria-modal alone, and the board's whole content stayed
+     in the accessibility tree behind the sheet. `inert` removes it from
+     both, which is what aria-modal has always been asking the browser to
+     do on its behalf. */
+  const board = $('#screen-board');
+  if (board && board !== m.closest('.screen')) board.setAttribute('inert', '');
   if (!m.dataset.trapped) {
     m.dataset.trapped = '1';
     m.addEventListener('keydown', e => trapTab(m, e));
@@ -4468,9 +4801,12 @@ function openModal(sel) {
 }
 
 function closeModal(sel) {
+  modalStack = modalStack.filter(x => x !== sel);
   $(sel).classList.add('hidden');
   if (!document.querySelector('.modal:not(.hidden)')) {
     document.documentElement.classList.remove('sheet-open');
+    const board = $('#screen-board');
+    if (board) board.removeAttribute('inert');
   }
   // Focus goes back where it came from. A sheet that dismisses to the top
   // of the document makes a keyboard user walk the page again.
@@ -4481,6 +4817,280 @@ function applyTheme() {
   const root = document.documentElement;
   if (prefs.theme === 'auto') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', prefs.theme);
+}
+
+/* ============================================================
+   ACCOUNT AND CLOUD COPY (optional)
+
+   The dial-in works with no account and no signal, for ever. That is not
+   a limitation being worked around here — it is the product, and this
+   section is only allowed to add to it.
+
+   What it adds is one thing: the log follows you. A bar that dials in on
+   the till iPad and reads the recipe off a phone at the machine had two
+   separate histories, and somebody who replaced a phone had none. The
+   cupping sheet has had an account since it was built; this is the same
+   account, the same project and the same row-level security, reached
+   through /shared/account.js.
+
+   HOW A CONFLICT IS SETTLED, AND WHAT IT COSTS
+
+   Newest wins, per shot. Two phones logging shots on the same bag produce
+   a union, because a shot is written once and never touched again — that
+   is the case this is built for, and it is lossless. Two phones EDITING
+   the same shot while both offline is the case that costs: the later save
+   wins and the earlier one is gone, without being mentioned. It is a
+   deliberate choice over interleaving two people's numbers into a shot
+   that neither of them pulled.
+
+   The coffee around the shots is settled as a block on the same rule, and
+   its one invariant is repaired afterwards rather than trusted: see
+   oneKeeper().
+   ============================================================ */
+
+function cloudOn() { return Boolean(window.LentoAccount && LentoAccount.enabled()); }
+function cloudUser() { return cloudOn() ? LentoAccount.user() : null; }
+
+/* One recipe to a coffee, still true after a merge.
+
+   Two devices can each mark a keeper offline, and the union of their shots
+   holds both. The board's whole job is to answer "what is the recipe" with
+   one set of numbers, and it has already been caught showing three cards
+   headed THE KEEPER. So the merge does not hope: the newest keeper keeps
+   the flag and the rest go back to ok. */
+function oneKeeper(shots) {
+  const keepers = shots.filter(sh => sh.verdict === 'keeper');
+  if (keepers.length < 2) return shots;
+  let best = keepers[0];
+  keepers.forEach(sh => { if ((sh.updated || 0) > (best.updated || 0)) best = sh; });
+  keepers.forEach(sh => { if (sh !== best) sh.verdict = 'ok'; });
+  return shots;
+}
+
+function mergeCoffee(local, remote) {
+  // Both sides' deletions, each at its latest time. A tombstone travels
+  // inside the coffee record, which is how a delete on one device reaches
+  // the other at all.
+  const dead = Object.assign({}, local.dead || {});
+  Object.keys(remote.dead || {}).forEach(k => {
+    if ((remote.dead[k] || 0) > (dead[k] || 0)) dead[k] = remote.dead[k];
+  });
+
+  const byId = new Map();
+  const take = sh => {
+    if (!sh || !sh.id) return;
+    const mine = byId.get(sh.id);
+    if (!mine || (sh.updated || 0) > (mine.updated || 0)) byId.set(sh.id, sh);
+  };
+  (local.shots || []).forEach(take);
+  (remote.shots || []).forEach(take);
+
+  const shots = oneKeeper(
+    Array.from(byId.values())
+      // A shot deleted after the copy on offer was written stays deleted.
+      .filter(sh => !((dead[sh.id] || 0) > (sh.updated || 0)))
+      .sort((a, b) => (a.at || 0) - (b.at || 0))
+  );
+
+  const base = (remote.updated || 0) > (local.updated || 0) ? remote : local;
+  const merged = Object.assign({}, base, { shots: shots, dead: dead });
+  // Returned unchanged when nothing moved, so a sync that found nothing
+  // does not rewrite the log and does not look like an edit.
+  return JSON.stringify(merged) === JSON.stringify(local) ? local : merged;
+}
+
+/* The kit is one answer about one bar, so it syncs as a single record with
+   a single stamp rather than as a list. It is also the record the other
+   tools read their grinder from, so a pull writes through to /shared. */
+async function syncKit() {
+  const rows = await LentoAccount.pull('kit');
+  if (!rows) return false;
+  const row = rows.filter(r => r.id === 'kit')[0];
+  const mine = state.kitUpdated || 0;
+  if (row && (row.updated || 0) > mine) {
+    state.kit = Object.assign(defaultKit(), row.data);
+    state.kitUpdated = row.updated;
+    LentoKit.write(state.kit);
+    primeStamps();
+    writeState();
+  } else if (mine && (!row || mine > (row.updated || 0))) {
+    await LentoAccount.push('kit', 'kit', state.kit, mine);
+  }
+  return true;
+}
+
+let syncing = false;
+let syncTimer = null;
+let lastSync = 0;
+
+async function syncNow() {
+  if (!cloudUser() || syncing) return false;
+  syncing = true;
+  try {
+    // Deletions first. A row left in the cloud comes back on the next
+    // pull, so a delete that is only local is a delete that undoes itself
+    // on the other device.
+    for (const id of Object.keys(state.dead || {})) {
+      await LentoAccount.remove('espresso', id);
+    }
+    const ok = await LentoAccount.syncTool('espresso', {
+      load: () => state.coffees,
+      save: rows => {
+        state.coffees = rows.filter(c => !((state.dead[c.id] || 0) > coffeeUpdated(c)));
+        if (!state.coffees.some(c => c.id === state.activeId)) {
+          state.activeId = state.coffees.length ? state.coffees[0].id : null;
+        }
+        // primeStamps before writing: these timestamps are other devices'
+        // and must survive. See writeState().
+        primeStamps();
+        writeState();
+      },
+      idOf: c => c.id,
+      updatedOf: coffeeUpdated,
+      merge: mergeCoffee,
+    });
+    const kitOk = await syncKit();
+    lastSync = Date.now();
+    renderBoard();
+    return Boolean(ok && kitOk);
+  } catch (e) {
+    return false;
+  } finally {
+    syncing = false;
+  }
+}
+
+/* Every save asks for a sync, and the debounce is what stops that being
+   one request per keystroke. Signed out, or with nothing configured, this
+   costs a boolean and does nothing at all. */
+function queueSync() {
+  if (!cloudUser()) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { syncTimer = null; syncNow(); }, 4000);
+}
+
+/* ---------- account UI ---------- */
+
+const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
+
+function shotCount() {
+  return (state.coffees || []).reduce((n, c) => n + (c.shots || []).length, 0);
+}
+
+// What the row in Settings says. Signed in, it is the address; signed out,
+// it is what an account would be for — in one line, because the sentence
+// that explains sync belongs in the sheet and not on the button.
+function accountLine() {
+  const u = cloudUser();
+  if (u) return u.email || u.name || 'Signed in';
+  return 'Your log on every device you use';
+}
+
+function openAccount() {
+  const body = $('#account-body');
+  const u = cloudUser();
+  const n = shotCount();
+  // "Your account" is wrong on the sheet that does not have one yet.
+  $('#account-title').textContent = u ? 'Your account' : 'Sign in';
+
+  if (u) {
+    body.innerHTML = `
+      <p class="sheet-note">${escapeHTML(u.email || u.name || '')}</p>
+      <p class="sheet-note" id="account-status">${n} shot${n === 1 ? '' : 's'}, backed up as you log them.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-ghost" id="btn-signout">Sign out</button>
+        <button class="btn btn-primary" id="btn-sync">Sync now</button>
+      </div>
+      <p class="sheet-foot">Signing out leaves every shot here.</p>
+    `;
+    body.querySelector('#btn-signout').addEventListener('click', async () => {
+      await LentoAccount.signOut();
+      closeModal('#account-modal');
+      toast('Signed out — your log stays on this device');
+    });
+    body.querySelector('#btn-sync').addEventListener('click', async () => {
+      const status = body.querySelector('#account-status');
+      status.textContent = 'Syncing…';
+      const ok = await syncNow();
+      const m = shotCount();
+      status.textContent = ok
+        ? `Synced · ${m} shot${m === 1 ? '' : 's'}`
+        : 'Could not reach the cloud — it will try again';
+    });
+  } else {
+    body.innerHTML = `
+      <p class="sheet-note">A code by email, no password. Your log then follows you to any device — and still works with no signal.</p>
+      <label class="field-label" for="account-email">Your email</label>
+      <input class="field-input" id="account-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+      <p class="sheet-note" id="account-status" role="status"></p>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" id="btn-email-code">Email me a code</button>
+      </div>
+      <div class="auth-or"><span>or</span></div>
+      <button class="btn btn-ghost auth-google" id="btn-google">${googleIconSVG} Continue with Google</button>
+      <p class="sheet-foot">Nothing leaves this device without an account.</p>
+    `;
+    body.querySelector('#btn-google').addEventListener('click', () => LentoAccount.signInWith('google'));
+    const send = async () => {
+      const input = body.querySelector('#account-email');
+      const status = body.querySelector('#account-status');
+      const email = input.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.textContent = 'That does not look like an email address.';
+        return;
+      }
+      status.textContent = 'Sending…';
+      let ok = false;
+      try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
+      if (!ok) { status.textContent = 'Could not send it — check the connection and try again.'; return; }
+      openCode(email);
+    };
+    body.querySelector('#btn-email-code').addEventListener('click', send);
+    body.querySelector('#account-email').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); send(); }
+    });
+  }
+  openModal('#account-modal');
+}
+
+/* The code sheet. One field rather than six boxes: a paste of the whole
+   code works, and Supabase codes are not always six digits. */
+function openCode(email) {
+  closeModal('#account-modal');
+  const body = $('#code-body');
+  body.innerHTML = `
+    <p class="sheet-note">Sent to ${escapeHTML(email)}.</p>
+    <label class="field-label" for="code-input">Code</label>
+    <input class="field-input" id="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456">
+    <p class="sheet-note" id="code-status" role="status"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" id="btn-code-resend">Send a new code</button>
+      <button class="btn btn-primary" id="btn-code-verify">Sign in</button>
+    </div>
+  `;
+  const status = body.querySelector('#code-status');
+  const verify = async () => {
+    const code = body.querySelector('#code-input').value.replace(/\s+/g, '');
+    if (code.length < 6) { status.textContent = 'Keep going — the code is at least six digits.'; return; }
+    status.textContent = 'Checking…';
+    const ok = await LentoAccount.verifyEmailCode(email, code);
+    if (!ok) { status.textContent = 'That code did not work. Send a new one.'; return; }
+    closeModal('#code-modal');
+    toast('Signed in — your log is backing up');
+    renderBoard();
+    syncNow();
+  };
+  body.querySelector('#btn-code-verify').addEventListener('click', verify);
+  body.querySelector('#code-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); verify(); }
+  });
+  body.querySelector('#btn-code-resend').addEventListener('click', async () => {
+    status.textContent = 'Sending…';
+    let ok = false;
+    try { ok = await LentoAccount.sendEmailCode(email); } catch (e) { ok = false; }
+    status.textContent = ok ? 'A new code is on its way.' : 'Could not send it — try again in a minute.';
+  });
+  openModal('#code-modal');
 }
 
 /* ============================================================
@@ -4497,6 +5107,8 @@ function wire() {
      consulted mid-answer, not a detour. */
   $('#taste-help').addEventListener('click', () => { sheetFrom['salami'] = null; openSalami(); });
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
+  $('#account-close').addEventListener('click', () => closeModal('#account-modal'));
+  $('#code-close').addEventListener('click', () => closeModal('#code-modal'));
   $('#shot-save').addEventListener('click', saveShot);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
   $('#btn-add-coffee').addEventListener('click', addCoffee);
@@ -4524,13 +5136,34 @@ function wire() {
   $('#help-close').addEventListener('click', closeHelp);
   $('#help-done').addEventListener('click', closeHelp);
 
+  /* Every exit from a sheet goes through the same door.
+
+     There were three ways out of the shot sheet and three behaviours. The
+     X called closeShotSheet(), which owns the dirty check and the
+     snapshot restore. Escape and a tap on the backdrop called closeModal()
+     directly, so a typed shot — the one measurement that cannot be
+     re-created, because the coffee is already in the cup — vanished
+     without a word. On a 390px screen the sheet leaves about 135px of
+     board exposed, an inch from where a wet thumb reaches for the X.
+
+     Also: `querySelector` returns the FIRST matching element in document
+     order, not the most recently opened, so Escape over two stacked
+     sheets closed the one underneath. The stack knows better. */
+  const dismissTop = () => {
+    const sel = topModal();
+    if (!sel) return;
+    if (sel === '#shot-modal') closeShotSheet();
+    else closeModal(sel);
+  };
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    const open = document.querySelector('.modal:not(.hidden)');
-    if (open) closeModal('#' + open.id);
+    if (e.key === 'Escape') dismissTop();
   });
   document.querySelectorAll('.modal').forEach(m => {
-    m.addEventListener('click', e => { if (e.target === m) closeModal('#' + m.id); });
+    m.addEventListener('click', e => {
+      if (e.target !== m) return;
+      if (m.id === 'shot-modal') closeShotSheet();
+      else closeModal('#' + m.id);
+    });
   });
 }
 
@@ -4539,6 +5172,18 @@ function boot() {
   applyTheme();
   wire();
   renderBoard();
+  /* An OAuth return lands as a fragment on this URL, so it is consumed
+     before anything else can rewrite the address bar. Then a sync, which
+     is a no-op signed out. */
+  if (window.LentoAccount) {
+    LentoAccount.onChange(() => renderBoard());
+    LentoAccount.adoptRedirect()
+      .then(signedIn => {
+        if (signedIn) toast('Signed in — your log is backing up');
+        if (cloudUser()) return syncNow();
+      })
+      .catch(() => {});
+  }
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }

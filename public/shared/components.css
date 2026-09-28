@@ -91,6 +91,20 @@ input { font: inherit; color: inherit; }
 
 .hidden { display: none !important; }
 
+/* Present to a screen reader, absent to the eye. The board's heading is
+   already visible in the header button; this is the same words in the one
+   place a non-visual reader can navigate by. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- the screen ---------- */
 
 .screen {
@@ -180,13 +194,18 @@ input { font: inherit; color: inherit; }
   border-radius: var(--radius);
   padding: var(--space-5);
 }
+/* Everything on this card sits on the 10-14% data tint, where the faintest
+   ink measures 4.15:1 in light and 4.32:1 in dark against a 4.5 threshold.
+   It clears on every plain surface; only the tint drops it. This is the
+   pinned recipe — the one thing on the board meant to be read across a
+   bar — so nothing on it takes the quietest ink. */
 .keeper-label {
   display: block;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
   margin-bottom: var(--space-3);
 }
 .keeper-line {
@@ -205,11 +224,11 @@ input { font: inherit; color: inherit; }
 .keeper-big small {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-dim);
   margin-left: 2px;
   font-family: var(--mono);
 }
-.keeper-arrow { color: var(--text-faint); font-size: 17px; }
+.keeper-arrow { color: var(--text-dim); font-size: 17px; }
 .keeper-meta {
   margin-top: var(--space-3);
   font-size: 13px;
@@ -289,7 +308,13 @@ input { font: inherit; color: inherit; }
 
 .log-list { display: flex; flex-direction: column; gap: var(--space-4); }
 
+/* A <button> now, not a div — so it needs the resets a button brings with
+   it. Full width and block display, because the card is the row. */
 .log-card {
+  display: block;
+  width: 100%;
+  font: inherit;
+  color: inherit;
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -297,53 +322,131 @@ input { font: inherit; color: inherit; }
   cursor: pointer;
   text-align: left;
 }
+.log-card:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .log-card:active { background: var(--chrome-soft); }
 .log-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
+/* On the tinted card the faintest ink measures 4.15:1 in light and 4.32:1
+   in dark against a 4.5 threshold — it clears everywhere else and only the
+   10-14% tint drops it. Nothing on this card needs to be the quietest
+   thing on the board, so it takes the next ink up (6.5:1+). */
+.log-card.is-keeper .log-meta,
+.log-card.is-keeper .log-diff,
+.log-card.is-keeper .log-place.out,
+.log-card.is-keeper .log-missing,
+.log-card.is-keeper .log-inout small,
+.log-card.is-keeper .log-secs small { color: var(--text-dim); }
 
-.log-top {
+/* Four bands, in the order somebody reads them: which shot this was, what
+   it was, what it came out as, and what it tasted like. */
+.log-meta {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
-}
-.log-n {
-  flex: none;
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 600;
   color: var(--text-faint);
-  min-width: 18px;
 }
-.log-headline { flex: 1; display: flex; align-items: baseline; gap: var(--space-4); min-width: 0; }
-.log-ratio {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 24px;
-  font-weight: 600;
+.log-dot { padding: 0 6px; opacity: 0.6; }
+.log-flag {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--data);
 }
-.log-time {
+
+/* The shot itself: dose, yield, clock. A two-column grid rather than a flex
+   row, so the arrow and the seconds land at the same x on every card and
+   the log stacks into something you can scan down. */
+.log-shot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
+}
+.log-inout {
+  font-size: 26px;
   font-weight: 600;
+  color: var(--data);
+  white-space: nowrap;
+}
+/* The arrow is the shot. Lighter than the figures it joins, because it is
+   punctuation rather than a measurement. */
+/* Punctuation, but meaningful punctuation — it is the "into" in "16.5
+   into 41". At --rail it measured 2.73:1, under even the 3:1 a graphic
+   needs, so it takes the secondary ink and still reads lighter than the
+   figures it joins. */
+.log-arrow {
+  padding: 0 var(--space-3);
+  font-size: 19px;
   color: var(--text-dim);
 }
-.log-when {
-  flex: none;
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--text-faint);
+.log-inout small,
+.log-secs small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+  padding-left: 2px;
 }
+.log-secs {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+/* In the window takes the data ink; outside it takes the full ink. Not a
+   warning colour — "direction is a habit, not a verdict", and a fast shot
+   is a reading, not an error. (The rule here was `var(--alert)`, which is
+   documented in DESIGN.md and defined nowhere in tokens.css: it was this
+   file's only use of the token and it silently resolved to inherit.) */
+.log-secs.in { color: var(--data); }
 
-.log-numbers {
-  margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
+/* Ratio, grind and flow. Real descriptions of the three figures above, and
+   read as consequences of them rather than as competitors for the line. */
+.log-support {
+  margin-top: var(--space-1);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-dim);
 }
-.log-numbers small { font-size: 11px; color: var(--text-faint); }
+/* The grind is the one figure on this line the barista moved, and the one
+   they come back to the board to read. Full ink while its neighbours stay
+   secondary — enough to find by eye without becoming a second headline. */
+.log-support .is-set { color: var(--text); font-weight: 600; }
+
+/* What moved, and where it landed. One row, two ends: the change on the
+   left because it is what you did, the verdict on the right because it is
+   what happened. A hairline above, separating the measurement from the
+   reading of it. */
+.log-read {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.log-read .log-diff { color: var(--text-dim); margin: 0; }
+.log-read .log-place { flex: none; margin: 0; }
+
+/* Both scales on one row. They were two stacked rows saying the same kind
+   of thing, which doubled the card's height for no added meaning. */
+.log-tastes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-3);
+}
 
 /* A record the arithmetic could not finish says which measurement is
    missing rather than printing a dash and leaving you to guess. */
@@ -352,7 +455,6 @@ input { font: inherit; color: inherit; }
 .log-diff,
 .log-notes {
   margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
@@ -376,13 +478,11 @@ input { font: inherit; color: inherit; }
 /* A part-recorded entry drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
    signal — an incomplete record is not a wrong one. */
-.log-card.is-partial .log-ratio,
-.log-card.is-partial .log-time { color: var(--text-dim); }
+.log-card.is-partial .log-inout,
+.log-card.is-partial .log-secs { color: var(--text-dim); }
 
 .log-taste {
-  margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-3);
   font-size: 13px;
@@ -407,16 +507,6 @@ input { font: inherit; color: inherit; }
   border-left: 2px solid var(--rail);
 }
 .log-tip.sure { border-left-color: var(--data); }
-
-.log-keeper-flag {
-  margin-top: var(--space-3);
-  padding-left: calc(18px + var(--space-3));
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--data);
-}
 
 /* ---------- empty ---------- */
 
@@ -543,12 +633,20 @@ input { font: inherit; color: inherit; }
   justify-content: space-between;
   gap: var(--space-3);
 }
+/* The whole point of this control was that the taste guide had been
+   unreachable in Settings. Putting it beside the question and then giving
+   it a 28px target repeats the mistake at a smaller scale. */
+/* A control, not a value — so the underline carries the affordance and
+   the ink stays out of the data colour. */
 .field-help {
   flex: 0 0 auto;
-  padding: var(--space-2) 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   font: inherit;
   font-size: 13px;
-  color: var(--data);
+  color: var(--text-dim);
   background: none;
   border: 0;
   border-bottom: 1px solid currentColor;
@@ -598,6 +696,44 @@ html.sheet-open, html.sheet-open body {
   font-size: 13px;
   color: var(--text-dim);
   padding: 0 0 var(--space-3);
+}
+
+/* The last line of a sheet — the caveat, not the instruction. Dimmer than
+   a note and never carrying anything you need in order to act. */
+.sheet-foot {
+  margin: var(--space-4) 0 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* ---------- sign-in ---------- */
+
+/* "or" on a rule, between the two ways in. Neither is the fallback: the
+   code is for everyone and Google is for whoever prefers one tap. */
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.auth-or::before,
+.auth-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.auth-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 100%;
 }
 
 /* ---------- the record sheet ---------- */
@@ -730,6 +866,10 @@ html.sheet-open, html.sheet-open body {
 }
 .readout-row { display: flex; gap: var(--space-5); flex-wrap: wrap; }
 .readout-cell { flex: 1; min-width: 92px; display: flex; flex-direction: column; gap: 2px; }
+/* Colour encodes value and nothing else. An em dash is the absence of a
+   value, so it takes the secondary ink — the same rule the number field
+   already follows with `.num-field.empty`, where a default and a
+   measurement are religiously distinguished. */
 .readout-value {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -737,6 +877,7 @@ html.sheet-open, html.sheet-open body {
   font-weight: 600;
   color: var(--data);
 }
+.readout-value.empty { color: var(--text-dim); }
 .readout-label { font-size: 11px; color: var(--text-faint); }
 .readout-window {
   margin-top: var(--space-4);
@@ -765,11 +906,13 @@ html.sheet-open, html.sheet-open body {
    portafilter in one hand, the disclosure must not compete with the
    instruction above it. */
 .tip-more { margin-top: var(--space-2); }
+/* 44px, like every other target on a phone. It was 32 — the one control
+   on the advice card, on a screen used with one wet hand. */
 .tip-more > summary {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 32px;
+  min-height: 44px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -915,6 +1058,13 @@ html.sheet-open, html.sheet-open body {
 
 /* ---------- where the grinder is today ---------- */
 
+/* A row, not a card inside a card.
+
+   This was a bordered, filled box sitting inside the bordered, filled
+   recipe card — the nested-card shape the design law forbids outright, and
+   the reason the recipe card read as two things stacked rather than one
+   answer. It is a rule and a row now: same tap target, same information,
+   no second frame. */
 .keeper-now {
   display: flex;
   align-items: center;
@@ -922,20 +1072,23 @@ html.sheet-open, html.sheet-open body {
   width: 100%;
   min-height: 44px;
   margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--rail);
-  border-radius: var(--radius);
-  background: var(--bg-card);
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--rail);
+  border-radius: 0;
+  background: none;
   text-align: left;
 }
+.keeper-now:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .keeper-now:active { background: var(--chrome-soft); }
+/* On the tinted card, so the same rule as the rest of it. */
 .keeper-now-label {
   flex: none;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .keeper-now-value {
   flex: 1;
@@ -954,15 +1107,12 @@ html.sheet-open, html.sheet-open body {
 
 /* ---------- intent, on the log card ---------- */
 
-.log-intent,
 .log-run,
 .log-mismatch {
   margin-top: var(--space-2);
-  padding-left: calc(18px + var(--space-3));
   font-size: 13px;
   color: var(--text-dim);
 }
-.log-intent { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint); }
 /* How the shot ran, and only when it ran badly — "Ran even" on every card
    is a column of the word "fine". Measured ink, not the faint tertiary:
    this one is the reason the rest of the card reads the way it does. */
@@ -971,10 +1121,14 @@ html.sheet-open, html.sheet-open body {
    this card worth interrupting for, and it earns that with a rule rather
    than a colour — the same two shapes the suggestion uses. */
 .log-mismatch {
-  margin-left: calc(18px + var(--space-3));
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
 }
+/* Never a stripe inside a stripe — but only where there genuinely is one.
+   Measured: in the shot sheet and on the board this note is a SIBLING of
+   the advice card, not a child of it, so it keeps its own rule there and
+   reads as the separate observation it is. Scoped to real nesting. */
+.tip .log-mismatch { border-left: 0; padding-left: 0; }
 
 /* ---------- verdict ---------- */
 
@@ -1003,6 +1157,14 @@ html.sheet-open, html.sheet-open body {
   border-top: 1px solid var(--line);
   padding-top: var(--space-4);
 }
+/* A disclosure has to look like one.
+
+   `display: flex` on a <summary> removes the browser's own marker, so
+   these rendered as bold text with a blank space under them — and the
+   first of them holds process, altitude and decaf, which the method says
+   move the starting point. Nobody opens a paragraph. Same chevron as the
+   advice card's "why this", so the two disclosures in this app read as
+   one control rather than two. */
 .more summary {
   font-size: 13px;
   font-weight: 700;
@@ -1011,7 +1173,19 @@ html.sheet-open, html.sheet-open body {
   min-height: 44px;
   display: flex;
   align-items: center;
+  gap: var(--space-3);
+  list-style: none;
 }
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.more[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.more summary:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .more-body { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-3); }
 .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
 
@@ -1142,7 +1316,7 @@ select.field-input {
   display: block;
   width: 100%;
   margin-top: var(--space-2);
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
   font: inherit;
   font-size: 13px;
@@ -1208,7 +1382,7 @@ select.field-input {
 .coffee-row.on { border-color: var(--rail); background: var(--data-soft); }
 .coffee-row-text { display: flex; flex-direction: column; min-width: 0; }
 .coffee-row-name { font-size: 15px; font-weight: 700; }
-.coffee-row-sub { font-size: 11px; font-family: var(--mono); color: var(--text-faint); }
+.coffee-row-sub { font-size: 11px; font-family: var(--mono); color: var(--text-dim); }
 
 /* ---------- edit / settings ---------- */
 
@@ -1360,7 +1534,26 @@ select.field-input {
   font-size: 13px;
   font-weight: 600;
   box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
+/* The offer to take it back. Inside the toast rather than beside it, so it
+   inherits the toast's own lifetime and cannot outlive the thing it undoes. */
+.toast-undo {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--on-chrome);
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.toast-undo:focus-visible { outline: 2px solid var(--on-chrome); outline-offset: 2px; }
 
 /* ---------- wider than a phone ---------- */
 
