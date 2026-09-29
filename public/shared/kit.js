@@ -68,7 +68,14 @@
 
   /* ---------- the store ----------
 
-     { grinders: [{ name, steps, retains }], updated }
+     { grinders: [{ name, steps, retains, use }], updated }
+
+     `use` is which tools a grinder is used with — { espresso, filter }.
+     A DF64 on the machine and a hand grinder for filter is the setup this
+     list was built for, but plenty of people run one grinder for both,
+     and until now the list could not say which. It is marked rather than
+     inferred: a grinder appearing in a tool's kit says it is used there,
+     and nothing removes the other mark on your behalf.
 
      `retains` may be null, meaning nobody has been asked. The brew log
      does not ask — retention matters to a dial-in and barely to a pour
@@ -97,14 +104,31 @@
           // answer, so this one goes back to unanswered and the built-in
           // table fills it if the name is known.
           retains: null,
+          // Unmarked: this shape predates the marks, and whichever tool
+          // saved it will mark it on its next boot.
+          use: { espresso: false, filter: false },
         }] : [],
         updated: v.updated || 0,
       };
     }
     if (!Array.isArray(v.grinders)) return empty();
-    return { grinders: v.grinders.filter(function (g) {
-      return g && typeof g.name === 'string' && g.name;
-    }), updated: v.updated || 0 };
+    return {
+      grinders: v.grinders
+        .filter(function (g) { return g && typeof g.name === 'string' && g.name; })
+        .map(function (g) {
+          // A grinder written before the marks existed is unmarked, not
+          // marked false: it was used somewhere, and guessing which one
+          // would hide it from the tool it actually lives on.
+          var u = g.use && typeof g.use === 'object' ? g.use : {};
+          return {
+            name: g.name,
+            steps: g.steps === 'stepped' ? 'stepped' : 'stepless',
+            retains: typeof g.retains === 'undefined' ? null : g.retains,
+            use: { espresso: u.espresso === true, filter: u.filter === true },
+          };
+        }),
+      updated: v.updated || 0,
+    };
   }
 
   function store(rec) {
@@ -136,13 +160,15 @@
   /* Write down what an app's kit says about its own grinder, so the other
      tools can offer it rather than ask again. `retains` is only recorded
      when the app in hand actually asks about it — see `asksRetains`. */
-  function remember(kit, asksRetains) {
+  function remember(kit, asksRetains, tool) {
     if (!kit || !kit.grinder) return null;
     var rec = read();
+    var mark = tool === 'espresso' || tool === 'filter' ? tool : null;
     var next = {
       name: String(kit.grinder),
       steps: kit.steps === 'stepped' ? 'stepped' : 'stepless',
       retains: asksRetains ? kit.retains !== false : null,
+      use: { espresso: mark === 'espresso', filter: mark === 'filter' },
     };
     var found = false;
     var changed = false;
@@ -155,8 +181,17 @@
         name: next.name,
         steps: next.steps,
         retains: next.retains === null && typeof g.retains !== 'undefined' ? g.retains : next.retains,
+        /* Marks only ever go on here. The dial-in saying "this is my
+           grinder" is not the brew log saying it is not — plenty of
+           people run one grinder for both, and a tool that unmarked the
+           other on every save would make that setup impossible to hold. */
+        use: {
+          espresso: g.use.espresso || next.use.espresso,
+          filter: g.use.filter || next.use.filter,
+        },
       };
-      if (merged.steps !== g.steps || merged.retains !== g.retains) changed = true;
+      if (merged.steps !== g.steps || merged.retains !== g.retains
+          || merged.use.espresso !== g.use.espresso || merged.use.filter !== g.use.filter) changed = true;
       return merged;
     });
     if (!found) { rec.grinders.push(next); changed = true; }
@@ -191,6 +226,34 @@
     return false;
   }
 
+  /* Marked by hand, from the setup sheet. `remember` only ever adds a
+     mark, because a tool saving its own kit cannot know that you stopped
+     using that grinder elsewhere. Saying so explicitly can. */
+  function setUse(name, tool, on) {
+    if (tool !== 'espresso' && tool !== 'filter') return read();
+    var rec = read();
+    var changed = false;
+    rec.grinders = rec.grinders.map(function (g) {
+      if (g.name !== name || g.use[tool] === Boolean(on)) return g;
+      changed = true;
+      var use = { espresso: g.use.espresso, filter: g.use.filter };
+      use[tool] = Boolean(on);
+      return { name: g.name, steps: g.steps, retains: g.retains, use: use };
+    });
+    if (!changed) return rec;
+    rec.updated = Date.now();
+    return store(rec);
+  }
+
+  /* The grinders marked for one tool, with the unmarked ones included:
+     a list written before the marks existed, or by a build that did not
+     set them, must not read as an empty shelf. */
+  function knownFor(tool) {
+    return known().filter(function (g) {
+      return g.use[tool] || (!g.use.espresso && !g.use.filter);
+    });
+  }
+
   root.LentoKit = {
     STORE: STORE,
     GRINDERS: GRINDERS,
@@ -199,6 +262,8 @@
     // The table corrected by what this person has said. Prefer this.
     entryFor: entryFor,
     known: known,
+    knownFor: knownFor,
+    setUse: setUse,
     remember: remember,
     read: read,
     sync: sync,
