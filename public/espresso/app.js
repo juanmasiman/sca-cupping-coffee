@@ -50,12 +50,157 @@ function load() {
      told the espresso grinder held grounds because a hand grinder had
      been entered next door. Picking from the list is a choice somebody
      makes in the kit sheet, once, on purpose. */
-  LentoKit.remember(state.kit, true);
+  LentoKit.remember(state.kit, true, 'espresso');
+  /* The shelf, joined to this app's rows. After the migration write
+     above, because it may add rows of its own and wants the same save. */
+  if (reconcileCoffees()) writeState();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
   } catch (e) { /* defaults are fine */ }
 }
+
+/* ============================================================
+   THE SHELF, AND THIS TOOL'S ROWS ON IT
+   ============================================================
+
+   /shared/coffees.js holds what a bag says. This app holds what it does
+   with one: a target, where the grinder is, and the log. They are joined
+   by id, and this is the join.
+
+   Three jobs, in this order:
+
+   1. Hand over anything this app knew before the shelf existed, once.
+   2. Take the bag onto every local row, so `c.name` and the rest keep
+      working exactly as they did — every screen in this file reads them.
+   3. Make a row for any bag marked for espresso that has none yet, which
+      is how a coffee marked in the other tool turns up here.
+
+   Step 2 is a copy, and a copy can drift. It does not, because the shelf
+   is the only thing anything writes to: the coffee sheet commits there
+   and then calls this. The copy exists so that fifty call sites did not
+   have to become fifty lookups, and it is excluded from this app's own
+   fingerprint so a bag edit syncs once, as a bag, rather than twice. */
+/* WHICH TOOLS BREW THIS BAG.
+
+   The one control on this sheet that is not about this app. A bag marked
+   for the other tool turns up on its shelf the next time it loads, with
+   its own target and an empty log — this file never writes into another
+   app's store, because that races whatever it is holding in memory.
+
+   Unmarking the last tool takes the bag off the shelf entirely: a coffee
+   nobody brews is not a coffee. Unmarking this one when there is a log
+   here is the same as removing it, so it says so and sends you to the
+   button that does it properly. */
+function buildUse(c, adding) {
+  const wrap = document.querySelector('#e-use');
+  if (!wrap || !window.LentoCoffees) return;
+  const bag = LentoCoffees.get(c.id);
+  const use = bag ? bag.use : { espresso: true, filter: false };
+  wrap.innerHTML = '<span class="field-label">Brewed with</span>'
+    + '<div class="chips" role="group" aria-label="Brewed with"></div>'
+    + '<p class="sheet-note use-note"></p>';
+  const chips = wrap.querySelector('.chips');
+  const note = wrap.querySelector('.use-note');
+  const logged = (c.shots || []).length;
+
+  [['espresso', 'Espresso'], ['filter', 'Filter']].forEach(([key, word]) => {
+    const on = use[key] !== false;
+    const b = el('button', 'chip' + (on ? ' on' : ''), word);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      haptic();
+      if (key === 'espresso' && on && logged) {
+        note.textContent = `There ${logged === 1 ? 'is' : 'are'} ${logged} ${
+          logged === 1 ? 'shot' : 'shots'} logged here. Use Remove below, which says what goes with it.`;
+        return;
+      }
+      commitBag(c);
+      LentoCoffees.setUse(c.id, key, !on);
+      buildUse(c, adding);
+      renderBoard();
+    });
+    chips.appendChild(b);
+  });
+
+  const other = use.filter;
+  note.textContent = adding
+    ? 'Marked for this tool. Mark it for the other and it appears there too, with its own target.'
+    : (other ? 'On both shelves. What the bag says is shared; the target and the log are this tool\u2019s.'
+             : 'Mark the other tool and this bag appears there too, with its own target and an empty log.');
+}
+
+/* The bag, onto the shelf. Every way out of the coffee sheet calls this
+   before anything else, because the shelf is the only copy anything
+   writes to — see reconcileCoffees. */
+function commitBag(c) {
+  if (!window.LentoCoffees) return;
+  const existing = LentoCoffees.get(c.id);
+  const next = { id: c.id, use: existing ? existing.use : { espresso: true, filter: false } };
+  LentoCoffees.BAG.forEach(f => { next[f] = c[f] || ''; });
+  next.decaf = c.decaf === true;
+  LentoCoffees.put(next);
+}
+
+function reconcileCoffees() {
+  /* Returns whether it changed anything, rather than setting a flag: the
+     brew log has a `migrated` it can piggyback on and the dial-in does
+     not, and reaching for one that was not there is how this function
+     threw "migrated is not defined" on every espresso boot — silently,
+     because load() swallows it, leaving a board with no coffees on it. */
+  if (!root().LentoCoffees) return false;
+  const L = root().LentoCoffees;
+  let touched = false;
+
+  // 1. Once. Flagged in this app's store, so a bag taken off the shelf
+  //    does not walk back on at the next boot.
+  if (!state.shelved) {
+    L.adopt('espresso', state.coffees || []);
+    state.shelved = true;
+    touched = true;
+  }
+
+  // 2. The bag, onto the row.
+  const shelf = {};
+  L.all().forEach(c => { shelf[c.id] = c; });
+  (state.coffees || []).forEach(c => {
+    const bag = shelf[c.id];
+    if (!bag) return;
+    L.BAG.forEach(f => { c[f] = bag[f]; });
+    c.decaf = bag.decaf;
+  });
+
+  // 3. A bag marked for this tool with nothing to brew it with yet.
+  const have = {};
+  (state.coffees || []).forEach(c => { have[c.id] = true; });
+  L.forTool('espresso').forEach(bag => {
+    if (have[bag.id] || (state.dead || {})[bag.id]) return;
+    if (!L.said(bag)) return;
+    const c = newCoffee('');
+    c.id = bag.id;
+    L.BAG.forEach(f => { c[f] = bag[f]; });
+    c.decaf = bag.decaf;
+    state.coffees.push(c);
+    touched = true;
+  });
+  return touched;
+}
+
+/* Which of this app's rows are on the shelf for this tool. A row whose
+   bag has been unmarked keeps its log — nothing here destroys one — but
+   it stops being offered, because you said you do not brew it here. */
+function shelfCoffees() {
+  const L = root().LentoCoffees;
+  if (!L) return state.coffees || [];
+  const on = {};
+  L.forTool('espresso').forEach(c => { on[c.id] = true; });
+  return (state.coffees || []).filter(c => on[c.id] || !L.get(c.id));
+}
+
+// `window`, named, because this file is not a module and a bare global
+// read is the one thing a reader cannot grep for.
+function root() { return window; }
 
 function save() {
   stamp();
@@ -99,6 +244,13 @@ function fingerprint(o) {
 function coffeeShell(c) {
   const shell = Object.assign({}, c);
   delete shell.shots;
+  /* The bag belongs to /shared/coffees.js and syncs as its own record.
+     It is copied onto this row so every screen here can read it — see
+     reconcileCoffees — and a copy in the fingerprint would mean one name
+     change pushing two rows to the cloud, the second of them carrying a
+     stale target the moment the two disagree. */
+  (window.LentoCoffees ? LentoCoffees.BAG : []).forEach(f => { delete shell[f]; });
+  delete shell.decaf;
   return shell;
 }
 
@@ -182,8 +334,34 @@ function migrate(s) {
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
+    /* A TRANSCRIPTION AND A CLASSIFICATION ARE TWO THINGS.
+
+       `process` and `altitude` were this app's model keys — 'washed',
+       'high' — because this app is the only one that reasoned from them.
+       The shelf is shared with the brew log now, where the same two
+       fields are what the bag actually prints: "Anaerobic natural, 72h",
+       "1,900–2,100 masl". Those are not the same fact. One is what the
+       roaster wrote; the other is which of four bands this app should
+       shift the starting point by.
+
+       So the words stay in `process` and `altitude`, shared, and the
+       bands move to `processKey` and `altKey`, which are this app's and
+       travel with its own row. The migration puts the band's own label in
+       the words, because that is what somebody answering the old chips
+       was telling us. */
+    if (typeof c.processKey !== 'string') {
+      c.processKey = PROCESSES.some(x => x.key === c.process) ? c.process : '';
+      if (c.processKey) c.process = processEntry(c.processKey).label;
+    }
+    if (typeof c.altKey !== 'string') {
+      c.altKey = ALTITUDES.some(x => x.key === c.altitude) ? c.altitude : '';
+      if (c.altKey) c.altitude = altitudeEntry(c.altKey).label;
+    }
     if (typeof c.process !== 'string') c.process = '';
     if (typeof c.altitude !== 'string') c.altitude = '';
+    if (typeof c.origin !== 'string') c.origin = '';
+    if (typeof c.variety !== 'string') c.variety = '';
+    if (typeof c.bagNotes !== 'string') c.bagNotes = '';
     if (typeof c.decaf !== 'boolean') c.decaf = false;
     if (typeof c.grindNow !== 'string') c.grindNow = '';
     if (!Array.isArray(c.shots)) c.shots = [];
@@ -575,7 +753,7 @@ function solubility(c) {
   const why = [];
   const flags = {};
 
-  const pr = processEntry(c.process);
+  const pr = processEntry(c.processKey);
   if (pr) {
     shift += pr.shift;
     if (pr.key === 'fermented') {
@@ -588,7 +766,7 @@ function solubility(c) {
     }
   }
 
-  const al = altitudeEntry(c.altitude);
+  const al = altitudeEntry(c.altKey);
   if (al) {
     shift += al.shift;
     if (al.key === 'high') why.push('high-grown beans are denser again');
@@ -648,9 +826,17 @@ function newCoffee(name) {
     // What else the bag says about how hard this will be to extract.
     // See solubility(). All optional — an unanswered one simply does not
     // contribute, rather than defaulting to a guess.
+    /* What the bag prints, shared with the brew log. */
     process: '',
     altitude: '',
+    origin: '',
+    variety: '',
+    bagNotes: '',
     decaf: false,
+    /* Which band this app shifts the starting point by. Its own, because
+       only it reasons from them — see the migration note. */
+    processKey: '',
+    altKey: '',
     // How far the grinder has moved from the dialled-in recipe. The recipe
     // itself is never rewritten; see the keeper card.
     grindNow: '',
@@ -3897,13 +4083,22 @@ function openGrindNow(c, keeper) {
   openModal('#edit-modal');
 }
 
+/* Is this bag on the other tool's shelf as well? */
+function alsoThere(c) {
+  if (!window.LentoCoffees) return false;
+  const bag = LentoCoffees.get(c.id);
+  return Boolean(bag && bag.use.espresso && bag.use.filter);
+}
+
 /* WHAT THE BAG SAYS, ON THE ROW. See the brew log's copy of this — the
    two apps ask for different fields, because this one reasons from
    process and elevation and that one keeps them as a record, so the line
    is built separately and the row it goes in is shared. */
 function bagLine(c) {
-  const proc = processEntry(c.process);
-  return [c.roaster, proc ? proc.label : '', c.decaf ? 'decaf' : '']
+  // What the bag says, which is the shared field — not the band this app
+  // reasons from. A coffee that arrived from the brew log has words here
+  // and no band yet, and the row should still read.
+  return [c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
     .map(x => (x || '').trim()).filter(Boolean).join(' · ');
 }
 
@@ -3913,7 +4108,7 @@ function openCoffees() {
   if (!state.coffees.length) {
     list.appendChild(el('p', 'sheet-note', 'Nothing on the shelf yet. Add the bag you are dialling in and the board is yours.'));
   }
-  state.coffees.forEach(c => {
+  shelfCoffees().forEach(c => {
     const keeper = c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
     const bag = bagLine(c);
     const roast = roastEntry(c.roast);
@@ -3930,6 +4125,11 @@ function openCoffees() {
       <span class="coffee-row-text">
         <span class="coffee-row-name">${escapeHTML(coffeeLabel(c))}</span>
         ${bag ? `<span class="coffee-row-bag">${escapeHTML(bag)}</span>` : ''}
+        ${/* A bag the other tool brews too. Worth a word on the row: what
+              is written on it is shared, so a correction here is a
+              correction there, and somebody should know that before
+              making one. */
+          alsoThere(c) ? `<span class="coffee-row-both">also on the brew log</span>` : ''}
         <span class="coffee-row-sub">${escapeHTML(counts)}</span>
       </span>
     `);
@@ -4002,7 +4202,29 @@ function openEdit(c, opts) {
     <details class="more" id="e-more">
       <summary>What else the bag says</summary>
       <div class="more-body">
-        <p class="sheet-note">All optional, and each one only narrows the starting point. Roast level does most of the work; these say how hard the coffee will be to extract around it.</p>
+        <p class="sheet-note">All optional. The first four are the bag, written down and shared with the brew log. The two rows of chips are what this app reasons from, and only roast level does much — these narrow it.</p>
+        <label class="field"><span class="field-label">Origin</span>
+          <input class="field-input" id="e-origin" type="text" maxlength="60" placeholder="e.g. Ethiopia, Guji"></label>
+        <label class="field"><span class="field-label">Variety</span>
+          <input class="field-input" id="e-variety" type="text" maxlength="60" placeholder="e.g. Heirloom, Gesha"></label>
+        <label class="field"><span class="field-label">Process</span>
+          <input class="field-input" id="e-process-text" type="text" maxlength="40" placeholder="what the bag prints"></label>
+        <label class="field"><span class="field-label">Grown at</span>
+          <input class="field-input" id="e-altitude-text" type="text" maxlength="40" placeholder="whatever the bag prints, or nothing"></label>
+        <label class="field"><span class="field-label">It says it tastes like</span>
+          <input class="field-input" id="e-bagnotes" type="text" maxlength="120" placeholder="e.g. peach, jasmine, honey"></label>
+
+        ${/* THE BANDS, WHICH ARE NOT THE WORDS.
+
+              The two rows above take what the roaster printed; these two
+              take which of four buckets this app should shift the
+              starting point by. They were one control doing both jobs,
+              which worked only while this app owned the record — the
+              shelf is shared now, and "Anaerobic natural, 72h" is not a
+              key. Separating them is also the honest version: a
+              transcription is not a classification. */ ''}
+        <span class="field-label section">How hard to extract</span>
+        <p class="sheet-note">These two move the starting point. Nothing else on this sheet does.</p>
         <span class="field-label">Process</span>
         <div class="chips" id="e-process" role="radiogroup" aria-label="Process"></div>
         <span class="field-label">Grown at</span>
@@ -4017,6 +4239,8 @@ function openEdit(c, opts) {
       </div>
     </details>
 
+    <div id="e-use"></div>
+
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
@@ -4025,6 +4249,9 @@ function openEdit(c, opts) {
   `;
   body.querySelector('#e-name').value = c.name;
   body.querySelector('#e-roaster').value = c.roaster || '';
+  const BAG = { origin: 'e-origin', variety: 'e-variety', process: 'e-process-text',
+                altitude: 'e-altitude-text', bagNotes: 'e-bagnotes' };
+  Object.keys(BAG).forEach(f => { body.querySelector('#' + BAG[f]).value = c[f] || ''; });
   body.querySelector('#e-roast').value = c.roastDate || '';
 
   /* One variable, and it says so.
@@ -4059,10 +4286,10 @@ function openEdit(c, opts) {
     });
   };
   const renderExtras = () => {
-    chipRow(body.querySelector('#e-process'), PROCESSES, c.process,
-      k => { c.process = k; applyStart(); renderExtras(); renderRoast(); });
-    chipRow(body.querySelector('#e-altitude'), ALTITUDES, c.altitude,
-      k => { c.altitude = k; applyStart(); renderExtras(); renderRoast(); });
+    chipRow(body.querySelector('#e-process'), PROCESSES, c.processKey,
+      k => { c.processKey = k; applyStart(); renderExtras(); renderRoast(); });
+    chipRow(body.querySelector('#e-altitude'), ALTITUDES, c.altKey,
+      k => { c.altKey = k; applyStart(); renderExtras(); renderRoast(); });
   };
   /* The roast date has to reach the model while the sheet is open.
 
@@ -4077,12 +4304,15 @@ function openEdit(c, opts) {
     c.roastDate = dateBox.value;
     applyStart();
     renderRoast();
+  buildUse(c, adding);
   });
 
   const decafBox = body.querySelector('#e-decaf');
   decafBox.checked = Boolean(c.decaf);
   decafBox.addEventListener('change', () => { c.decaf = decafBox.checked; applyStart(); renderRoast(); });
-  if (c.process || c.altitude || c.decaf) body.querySelector('#e-more').open = true;
+  if (c.process || c.altitude || c.processKey || c.altKey || c.decaf || c.origin || c.variety || c.bagNotes) {
+    body.querySelector('#e-more').open = true;
+  }
   const renderRoast = () => {
     roastWrap.innerHTML = '';
     ROASTS.forEach(r => {
@@ -4247,6 +4477,9 @@ function openEdit(c, opts) {
     if (c.target.timeHi < c.target.timeLo) {
       const lo = c.target.timeHi; c.target.timeHi = c.target.timeLo; c.target.timeLo = lo;
     }
+    Object.keys(BAG).forEach(f => { c[f] = body.querySelector('#' + BAG[f]).value.trim(); });
+    // The shelf is where the bag lives; this row only mirrors it.
+    commitBag(c);
   };
 
   $('#edit-save').onclick = () => {
@@ -4270,9 +4503,22 @@ function openEdit(c, opts) {
     // Always, not only where there are shots to lose: a bag somebody named
     // and described is worth one question. (The control has since moved out
     // of the action bar to the foot of the sheet; the question stays.)
-    if (!confirm(n
-      ? `Remove ${coffeeLabel(c)}? Its ${n} shot${n === 1 ? '' : 's'} go with it.`
-      : `Remove ${coffeeLabel(c)}?`)) return;
+    /* WHAT "REMOVE" MEANS ON A SHARED SHELF.
+
+       It used to mean one thing because a bag was this app's alone. It
+       now means: this tool stops pulling it, and its shots go. Whether
+       the bag itself leaves the shelf depends on the other tool — if the
+       brew log still brews it, the bag stays there with everything
+       written on it. The question says which of the two is about to
+       happen, because that is a different promise in each case. */
+    const bag = window.LentoCoffees ? LentoCoffees.get(c.id) : null;
+    const alsoFilter = bag && bag.use.filter && bag.use.espresso;
+    const what = n ? `Its ${n} shot${n === 1 ? '' : 's'} go with it` : 'Nothing has been pulled with it';
+    const fate = alsoFilter
+      ? 'The bag stays on the shelf — the brew log still brews it.'
+      : 'The bag goes off the shelf too, and there is no undo.';
+    if (!confirm(`Remove ${coffeeLabel(c)} from the dial-in? ${what}. ${fate}`)) return;
+    if (window.LentoCoffees) LentoCoffees.setUse(c.id, 'espresso', false);
     const at = state.coffees.indexOf(c);
     const wasActive = state.activeId === c.id;
     state.coffees = state.coffees.filter(x => x.id !== c.id);
@@ -4281,9 +4527,16 @@ function openEdit(c, opts) {
     save();
     closeModal('#edit-modal');
     renderBoard();
-    toast('Removed', {
+    /* Undo puts the bag back too. Unmarking espresso may have taken it
+       off the shelf entirely — it does when nothing else brews it — so
+       the record as it stood is captured above and written back whole,
+       rather than the mark being flipped on a row that is no longer
+       there. An undo that restored the shots and not the coffee they
+       belong to would be worse than no undo. */
+    toast(alsoFilter ? 'Off the dial-in — still on the brew log' : 'Removed', {
       after: `${coffeeLabel(c)} is back`,
       restore: () => {
+        if (window.LentoCoffees && bag) LentoCoffees.put(bag);
         state.coffees.splice(Math.min(at < 0 ? state.coffees.length : at, state.coffees.length), 0, c);
         delete state.dead[c.id];
         if (wasActive) state.activeId = c.id;
@@ -4355,24 +4608,37 @@ function pickerOptions(items, current) {
 }
 const machineOptions = cur => pickerOptions(MACHINES, cur);
 
-/* Grinders you have already told lento about, above the shipped list.
+/* Grinders you already own, above the shipped list.
 
-   A second grinder is the normal case, not the edge, so the brew log's
-   answer belongs here as an offer — named, one tap, and never applied on
-   your behalf. Anything already on your list is left out of the long list
-   below it, because the same name twice in a select is a puzzle. */
+   A second grinder is the normal case, not the edge — a DF64 on the
+   machine and a hand grinder for filter — so the other tool's answer
+   belongs here as an offer: named, one tap, and never applied on your
+   behalf. Anything already on your list is left out of the long list
+   below it, because the same name twice in a select is a puzzle.
+
+   Yours is split by where it is used. Plenty of people run one grinder
+   for both, and the list says which is which rather than making you
+   remember: the ones you grind espresso on first, then the rest of your
+   shelf. Neither group is hidden — a grinder is one tap from being used
+   anywhere, and choosing it here is what marks it. */
 function grinderOptions(cur) {
   const mine = LentoKit.known();
+  const here = LentoKit.knownFor('espresso');
+  const hereNames = here.map(g => g.name);
+  const elsewhere = mine.filter(g => hereNames.indexOf(g.name) < 0);
   const mineNames = mine.map(g => g.name);
-  const rest = GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
-  const known = mineNames.indexOf(cur) >= 0 || GRINDERS.some(g => g.name === cur);
+  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
+  const known = mineNames.indexOf(cur) >= 0 || LentoKit.GRINDERS.some(g => g.name === cur);
   const opt = name => `<option value="${escapeHTML(name)}"${
     name === cur ? ' selected' : ''}>${escapeHTML(name)}</option>`;
+  const group = (label, list) => (list.length
+    ? `<optgroup label="${escapeHTML(label)}">${list.map(g => opt(g.name)).join('')}</optgroup>` : '');
   return `<option value=""${!cur ? ' selected' : ''}>Choose…</option>`
     + `<option value="__other"${cur && !known ? ' selected' : ''}>Something else</option>`
     + (mine.length
-      ? `<optgroup label="Yours">${mine.map(g => opt(g.name)).join('')}</optgroup>`
-        + `<optgroup label="All grinders">${rest.map(g => opt(g.name)).join('')}</optgroup>`
+      ? group('Yours, for espresso', here)
+        + group('Yours, used elsewhere', elsewhere)
+        + group('All grinders', rest)
       : rest.map(g => opt(g.name)).join(''));
 }
 
@@ -4569,7 +4835,7 @@ function openKit() {
     // does and this exit did not — the comment above says "everything Save
     // would have taken", and this line is what made that true again after
     // Save grew one.
-    LentoKit.remember(k, true);
+    LentoKit.remember(k, true, 'espresso');
     save();
     sheetFrom['dose'] = 'kit';
     closeModal('#kit-modal');
@@ -4588,7 +4854,7 @@ function openKit() {
        this app asked about retention, so its answer is worth recording —
        the brew log does not ask, and writing its default there is what
        made the dial-in advise purging a grinder that holds nothing. */
-    LentoKit.remember(k, true);
+    LentoKit.remember(k, true, 'espresso');
     save();
     closeModal('#kit-modal');
     renderBoard();
@@ -5104,7 +5370,7 @@ async function syncKit() {
   if (row && (row.updated || 0) > mine) {
     state.kit = Object.assign(defaultKit(), row.data);
     state.kitUpdated = row.updated;
-    LentoKit.remember(state.kit, true);
+    LentoKit.remember(state.kit, true, 'espresso');
     primeStamps();
     writeState();
   } else if (mine && (!row || mine > (row.updated || 0))) {
@@ -5115,6 +5381,15 @@ async function syncKit() {
      device changes nothing on screen here and nothing about the advice —
      which is the point. */
   await LentoKit.sync();
+  /* The shelf, which belongs to the person rather than to either tool.
+     After the kit for no reason but order; both are independent of this
+     app's own records. Its rows come back through reconcileCoffees on the
+     next render, which is where a bag marked on another device becomes a
+     row here. */
+  if (window.LentoCoffees) {
+    await LentoCoffees.sync();
+    if (reconcileCoffees()) writeState();
+  }
   return true;
 }
 
