@@ -246,12 +246,83 @@
     } catch (e) { return null; }
   }
 
-  /* A record deleted locally, removed from the cloud too.
+  /* ---------- deletions, and why removing the row was not one ----------
 
-     Without this a delete is local only: the row is still there, the next
-     pull hands it straight back, and on another device it never happened.
-     The caller keeps its own tombstone as well, because the pull that
-     races this one has to be told to ignore what it just fetched. */
+     Deleting the cloud row was the whole of the mechanism, and it is not
+     enough. Watched across two devices it does this:
+
+       A removes Kochere, syncs   ->  cloud: [Gesha]
+       B syncs                    ->  B still has [Kochere, Gesha]
+                                  ->  and B pushes Kochere back up
+       A syncs again              ->  A still has [Gesha]
+
+     B never learns of the deletion, because absence in a pull is
+     indistinguishable from "nothing to add" — and B then resurrects the
+     row for everybody else. The two devices disagree from then on, for
+     ever, and a third device signing in fresh gets the deleted record.
+
+     So a deletion is a thing that gets written down, not an absence. It
+     goes under a tool name of its own — `espresso-gone`, `coffee-gone` —
+     for one reason: a device still running the previous build pulls
+     `espresso` and must not find a record shaped like a tombstone sitting
+     in the list. It pulls the same tool it always did and sees exactly
+     what it always saw.
+
+     Tombstones expire after the same half-year the apps prune their local
+     ones after, swept by whichever device notices. That expiry is a real
+     trade and worth stating: a device switched off for longer than that
+     comes back and pushes its copy up, and the record returns. The
+     alternative is a table that only ever grows. */
+
+  var TOMB_DAYS = 180;
+  var TOMB_MS = TOMB_DAYS * 86400000;
+
+  function graveTool(tool) { return tool + '-gone'; }
+
+  /* Write a deletion down, and take the record away.
+
+     Both, and in that order. The tombstone alone leaves the row sitting
+     in the table underneath it, so the day the tombstone expires and is
+     swept the record is still there and comes back to every device at
+     once — which is not the trade the expiry was chosen for. The row
+     goes, and after the half-year there is simply nothing, which is what
+     "expired" should mean.
+
+     Written first so a failure between the two leaves the pair in the
+     state that still behaves: a tombstone over a live row reads as
+     deleted, a live row with no tombstone reads as the bug this replaced.
+
+     `at` is when it happened here, so a record edited elsewhere AFTER
+     that still wins. */
+  async function bury(tool, id, at) {
+    var when = at || Date.now();
+    var ok = await push(graveTool(tool), id, { at: when }, when);
+    if (ok) await remove(tool, id);
+    return ok;
+  }
+
+  /* Every deletion the cloud knows about, as { id: when }. Anything past
+     its half-year is swept on the way through — by whoever is syncing,
+     since there is no server to do it. */
+  async function graves(tool) {
+    var rows = await pull(graveTool(tool));
+    if (!rows) return null;
+    var now = Date.now();
+    var out = {};
+    var stale = [];
+    rows.forEach(function (row) {
+      var at = row.updated || (row.data && row.data.at) || 0;
+      if (!at || now - at > TOMB_MS) { stale.push(row.id); return; }
+      out[row.id] = at;
+    });
+    for (var i = 0; i < stale.length; i++) await remove(graveTool(tool), stale[i]);
+    return out;
+  }
+
+  /* The row itself, gone. Used for sweeping expired tombstones, and by
+     callers that genuinely want the record off the table rather than
+     marked as deleted. A delete anybody else has to hear about goes
+     through `bury`. */
   async function remove(tool, id) {
     if (!enabled()) return false;
     var a = await freshAuth();
@@ -283,14 +354,45 @@
     if (!a || !a.user) return false;
     var rows = await pull(tool);
     if (!rows) return false;
+    // A failed tombstone pull is not a reason to sync without them: that
+    // is the run that resurrects everything anybody deleted.
+    var gone = await graves(tool);
+    if (!gone) return false;
 
+    var now = Date.now();
     var mine = opts.load() || [];
     var byId = new Map(mine.map(function (r) { return [opts.idOf(r), r]; }));
     var changed = false;
 
+    // A deletion made on another device, applied here.
+    Object.keys(gone).forEach(function (id) {
+      var local = byId.get(id);
+      if (!local) return;
+      // Edited here after it was deleted there. The edit wins, and it
+      // goes back up in the push below — which is the same last-write
+      // rule as everywhere else in this file, with absence as one of the
+      // things that can be written.
+      if ((opts.updatedOf(local) || 0) > gone[id]) return;
+      byId.delete(id);
+      changed = true;
+      if (opts.bury) opts.bury(id, gone[id]);
+    });
+
+    var mineGone = (opts.graves && opts.graves()) || {};
+
     rows.forEach(function (row) {
+      // Deleted here after that copy was written: it stays deleted, and
+      // the tombstone goes up below.
+      if ((mineGone[row.id] || 0) >= (row.updated || 0)) return;
       var local = byId.get(row.id);
-      if (!local) { byId.set(row.id, row.data); changed = true; return; }
+      if (!local) {
+        byId.set(row.id, row.data);
+        changed = true;
+        // Deleted here and written there since, so it is back, and this
+        // device's tombstone is wrong.
+        if (mineGone[row.id] && opts.unbury) opts.unbury(row.id);
+        return;
+      }
       var keep = opts.merge
         ? opts.merge(local, row.data, row.updated || 0)
         : ((row.updated || 0) > (opts.updatedOf(local) || 0) ? row.data : local);
@@ -303,7 +405,21 @@
     for (var rec of byId.values()) {
       var id = opts.idOf(rec);
       var up = opts.updatedOf(rec) || 0;
+      if ((gone[id] || 0) >= up) continue;
       if (!remote.has(id) || up > remote.get(id)) await push(tool, id, rec, up);
+    }
+
+    // And the deletions made here that the cloud has not heard about.
+    var ours = Object.keys(mineGone);
+    for (var i = 0; i < ours.length; i++) {
+      var id2 = ours[i];
+      var at2 = mineGone[id2] || 0;
+      if (!at2 || now - at2 > TOMB_MS) continue;
+      if ((gone[id2] || 0) >= at2) continue;
+      // Written there after this device deleted it: that is a
+      // resurrection, not a tombstone to push over the top of.
+      if ((remote.get(id2) || 0) > at2) continue;
+      await bury(tool, id2, at2);
     }
     return true;
   }
@@ -326,6 +442,9 @@
     push: push,
     pull: pull,
     remove: remove,
+    TOMB_DAYS: TOMB_DAYS,
+    bury: bury,
+    graves: graves,
     syncTool: syncTool,
   };
 }(window));

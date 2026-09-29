@@ -456,6 +456,42 @@ the app it never steeps, is the table arguing with the person — so the
 shipped note is shown only where their answer and the table's still
 agree. The flow itself always comes from them first.
 
+**A deletion is a write, not an absence.** Sync removed the cloud row and
+stopped there, and watched across two devices that does this: A removes a
+bag and syncs, B syncs and still has it — because a pull that does not
+mention a record is indistinguishable from a pull with nothing to add —
+and B then pushes its copy back up. The two devices disagree from then
+on, for ever, and a device signing in fresh gets the deleted record.
+Last-write-wins has no opinion about absence, so absence has to be one of
+the things that can be written.
+
+Tombstones go up under a tool name of their own — `espresso-gone`,
+`coffee-gone` — for one reason: a device still running the previous build
+pulls `espresso` and must not find a record shaped like a tombstone in
+the list. It pulls what it always pulled and sees what it always saw.
+Burying also takes the live row away, because a tombstone sitting on top
+of a row means the day the tombstone expires the record is still there
+and returns to every device at once, which is not what expiry should
+mean. They expire after the same half-year the apps prune their local
+ones after, swept by whoever syncs next; the trade that buys is stated
+rather than hidden — a device switched off for longer comes back and
+pushes its copy up.
+
+**And a deletion has to be stamped later than what it deletes.** The same
+rule that makes a later edit win makes a deletion lose if it is stamped
+in its own record's past — which `Date.now()` is, on a record this device
+adopted from a laptop whose clock runs two minutes fast. The row comes
+back on the next sync, apparently edited after it was deleted. Every
+delete path stamps `max(now, record.updated + 1)` instead: a deletion
+beats the version somebody was looking at when they pressed the button,
+and still loses to a write made somewhere else afterwards.
+
+**The bug was older than the button that made it easy to hit.** The front
+door's Remove is the most natural place on the site to tidy a shelf, and
+it was shipped two rounds before this was found — by testing a claim that
+had until then only been reasoned about. A defect nobody has run is still
+a defect; what changes when you run it is whether you know.
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.

@@ -301,6 +301,24 @@ function primeStamps() {
 
 // What a record's timestamp is, for deciding a conflict. A coffee is as
 // new as its newest brew: the brews are the thing being edited.
+/* WHEN A DELETION HAPPENED, WHICH IS NOT ALWAYS NOW.
+
+   A deletion is a write, and it is compared against the record's own
+   timestamp the way every other write is. So it has to be stamped later
+   than the thing it deletes, or deleting a record this device has just
+   taken from the cloud does nothing: the copy it adopted may carry a
+   timestamp from a laptop whose clock runs two minutes fast, and
+   `Date.now()` on this phone is then in that record's past. The row
+   comes back on the next sync, having apparently been edited after it
+   was deleted.
+
+   Later of the two, always. A deletion still loses to an edit made
+   somewhere else afterwards — that is the rule — but never to the
+   version it was looking at when somebody pressed the button. */
+function deletedAt(was) {
+  return Math.max(Date.now(), (was || 0) + 1);
+}
+
 function coffeeUpdated(c) {
   let t = c.updated || 0;
   (c.brews || []).forEach(b => { if ((b.updated || 0) > t) t = b.updated; });
@@ -2182,7 +2200,7 @@ function openBrew(brew) {
     const gone = c.brews[i];
     c.brews.splice(i, 1);
     // Written down, so a sync does not hand it back. See migrate().
-    if (gone && gone.id) c.dead[gone.id] = Date.now();
+    if (gone && gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
     closeModal('#brew-modal');
     renderBoard();
@@ -3143,7 +3161,7 @@ function openCoffee(c, opts) {
     if (!confirm(`Remove ${coffeeLabel(c)} from the brew log? ${what}. ${fate}`)) return;
     if (window.LentoCoffees) LentoCoffees.setUse(c.id, 'filter', false);
     state.coffees = state.coffees.filter(x => x.id !== c.id);
-    state.dead[c.id] = Date.now();
+    state.dead[c.id] = deletedAt(coffeeUpdated(c));
     if (state.activeId === c.id) state.activeId = state.coffees.length ? state.coffees[0].id : null;
     save();
     closeModal('#edit-modal');
@@ -3765,12 +3783,17 @@ async function syncNow() {
   if (!cloudUser() || syncing) return false;
   syncing = true;
   try {
-    // Deletions first. A row left in the cloud comes back on the next
-    // pull, so a delete that is only local undoes itself on the other
-    // device.
-    for (const id of Object.keys(state.dead || {})) {
-      await LentoAccount.remove('filter', id);
-    }
+    /* Deletions travel now, rather than being deleted rows.
+
+       This used to remove the cloud row and stop there, which left the
+       other device with no way to learn that anything had happened: a
+       pull that does not mention a record is a pull with nothing to add,
+       and that device pushed its copy straight back up. Watched across
+       two, a removal here survived on the other one for ever and came
+       back to any third device that signed in.
+
+       syncTool carries them both ways now — see /shared/account.js — so
+       this hands it the tombstones rather than acting on them. */
     const ok = await LentoAccount.syncTool('filter', {
       load: () => state.coffees,
       save: rows => {
@@ -3786,6 +3809,11 @@ async function syncNow() {
       idOf: c => c.id,
       updatedOf: coffeeUpdated,
       merge: mergeCoffee,
+      graves: () => state.dead || {},
+      // Written straight into state; the save above is what puts it on
+      // disk, and it only runs when something actually moved.
+      bury: (id, at) => { state.dead[id] = at; },
+      unbury: id => { delete state.dead[id]; },
     });
     const kitOk = await syncKit();
     renderBoard();
