@@ -141,12 +141,23 @@
      long as the other tool still brews it. See `setUse`. */
   function remove(id) {
     var lib = read();
+    var was = 0;
+    lib.coffees.forEach(function (c) { if (c.id === id) was = c.updated || 0; });
     lib.coffees = lib.coffees.filter(function (c) { return c.id !== id; });
-    lib.dead[id] = Date.now();
+    /* Later than the bag it removes, always. A deletion is a write and is
+       compared against the record's own timestamp like any other, so one
+       stamped in that record's past — which is what `Date.now()` is, on a
+       bag adopted from a device whose clock runs fast — reads on the next
+       sync as a bag edited after it was removed, and comes back. */
+    lib.dead[id] = Math.max(Date.now(), was + 1);
     lib.updated = Date.now();
     store(lib);
+    /* Written down, not deleted. A removed cloud row is invisible to the
+       other device — a pull that does not mention a bag is a pull with
+       nothing to add — so it kept the bag and pushed it back up. See the
+       deletions section of /shared/account.js. */
     var A = root.LentoAccount;
-    if (A && A.remove) A.remove('coffee', id);
+    if (A && A.bury) A.bury('coffee', id, lib.dead[id]);
     return lib;
   }
 
@@ -211,19 +222,40 @@
      the two survive each other — which is the same trade the shots and
      the brews already make.
 
-     Tombstones travel as a bag of their own key, because last-write-wins
-     has no opinion about absence: without them, a bag taken off the shelf
-     here is simply missing, and the next pull hands it straight back. */
+     Tombstones travel, because last-write-wins has no opinion about
+     absence: without them a bag taken off the shelf here is simply
+     missing, the next pull hands it straight back, and on the other
+     device it never happened at all. They go up under a tool name of
+     their own and expire after the same half-year the local ones do —
+     see the deletions section of /shared/account.js, which is where the
+     two instruments' coffee lists get the same treatment. */
   async function sync() {
     var A = root.LentoAccount;
     if (!A || !A.enabled() || !A.user()) return false;
     var rows = await A.pull('coffee');
     if (!rows) return false;
+    // A failed tombstone pull is not a reason to sync without them: that
+    // is the run that puts every bag anybody removed back on the shelf.
+    var gone = A.graves ? await A.graves('coffee') : {};
+    if (!gone) return false;
 
+    var now = Date.now();
     var lib = read();
     var mine = {};
     lib.coffees.forEach(function (c) { mine[c.id] = c; });
     var changed = false;
+
+    // A bag taken off the shelf on another device comes off it here.
+    Object.keys(gone).forEach(function (id) {
+      if ((lib.dead[id] || 0) < gone[id]) { lib.dead[id] = gone[id]; changed = true; }
+      var ours = mine[id];
+      if (!ours) return;
+      // Corrected here after it was removed there: the correction wins,
+      // and it goes back up below.
+      if ((ours.updated || 0) > gone[id]) return;
+      delete mine[id];
+      changed = true;
+    });
 
     rows.forEach(function (row) {
       var theirs = clean(row.data);
@@ -236,6 +268,9 @@
       if (!ours || at > (ours.updated || 0)) {
         theirs.updated = at;
         mine[theirs.id] = theirs;
+        // Removed here and written there since, so it is back, and this
+        // device's tombstone is the stale one.
+        if (lib.dead[theirs.id]) delete lib.dead[theirs.id];
         changed = true;
       }
     });
@@ -252,6 +287,7 @@
     for (var i = 0; i < merged.length; i++) {
       var c = merged[i];
       if (!said(c)) continue;
+      if ((gone[c.id] || 0) >= (c.updated || 0)) continue;
       if (!(c.id in seen) || (c.updated || 0) > seen[c.id]) {
         await A.push('coffee', c.id, c, c.updated || Date.now());
       }
@@ -259,7 +295,14 @@
     // And a removal this device made that the cloud has not heard about.
     var deadIds = Object.keys(lib.dead);
     for (var j = 0; j < deadIds.length; j++) {
-      if (deadIds[j] in seen) await A.remove('coffee', deadIds[j]);
+      var id = deadIds[j];
+      var at = lib.dead[id] || 0;
+      if (!at || now - at > TOMB_DAYS * 86400000) continue;
+      if ((gone[id] || 0) >= at) continue;
+      // Written there after this device removed it: a resurrection, not
+      // a tombstone to push over the top of.
+      if ((seen[id] || 0) > at) continue;
+      await A.bury('coffee', id, at);
     }
     return changed;
   }

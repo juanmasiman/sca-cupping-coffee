@@ -27,7 +27,7 @@
         nothing about.
    v5 — those two sections became two buttons and four sheets, and the
         brewer table came along to describe what is on the shelf. */
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
