@@ -49,6 +49,13 @@
     /* The wordmark was a copper gradient through background-clip: text, which
        the project's own notes flag as an anti-pattern and which no other
        surface here does. It is the ink, at the weight the app headers use. */
+    /* 46px is off the eight-step ramp deliberately and is the only thing
+       on this page that is. A logotype is not UI text: it is set once, at
+       the size it reads at, and pulling it onto a ramp built for labels
+       and figures would be the ramp deciding something it has no opinion
+       about. Everything else here was moved onto it — 12 and 14 had
+       crept in between 11, 13 and 15, which is the accumulation
+       DESIGN.md's type section exists to stop. */
     .mark {
       font-size: 46px;
       font-weight: 800;
@@ -98,7 +105,7 @@
       place-items: center;
     }
     .card-text { min-width: 0; }
-    .card-title { display: block; font-size: 16px; font-weight: 700; }
+    .card-title { display: block; font-size: 17px; font-weight: 700; }
     .card-sub { display: block; font-size: 13px; color: var(--text-dim); margin-top: 1px; }
     .card-arrow { margin-left: auto; flex: none; color: var(--chrome); }
 
@@ -145,9 +152,10 @@
        640px phone the extra eight pixels were the difference between a
        launcher that fits and one that scrolls — and a body centred with
        align-items clips the top of what overflows rather than letting you
-       reach it. The footer is 12px of faint text; it can give up the
-       eight. */
-    footer { margin-top: var(--space-7); font-size: 12px; color: var(--text-faint); }
+       reach it. The footer is the faintest text on the page; it can give
+       up the eight. (It is 11px now — the ramp's bottom step — rather
+       than the 12 this comment was written against.) */
+    footer { margin-top: var(--space-7); font-size: 11px; color: var(--text-faint); }
 
     /* ---------- what is yours ----------
 
@@ -195,8 +203,8 @@
     .vault-text { flex: 1; min-width: 0; }
     .vault-label,
     .vault-count { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .vault-label { font-size: 14px; font-weight: 700; }
-    .vault-count { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+    .vault-label { font-size: 15px; font-weight: 700; }
+    .vault-count { font-size: 13px; color: var(--text-dim); margin-top: 1px; }
     .vault-go { flex: none; color: var(--chrome); }
 
     /* ---------- a row of stock, inside a sheet ----------
@@ -208,7 +216,11 @@
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      width: calc(100% + var(--space-6));
+      /* The negative margins give back 8px a side, so the extra width is
+         16px and not 20: at --space-6 the row was four pixels wider than
+         the box it bleeds into, and the shelf list scrolled sideways by
+         exactly that at every width. */
+      width: calc(100% + var(--space-5));
       margin: 0 calc(var(--space-3) * -1);
       min-height: 52px;
       padding: var(--space-3);
@@ -233,7 +245,7 @@
     .stock-name,
     .stock-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stock-name { font-size: 15px; font-weight: 600; }
-    .stock-sub { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+    .stock-sub { font-size: 13px; color: var(--text-dim); margin-top: 1px; }
 
     /* The marks are the instruments' own glyphs, the same tamper and the
        same dripper drawn on the cards above. "What do I brew this with"
@@ -268,7 +280,19 @@
        one fact about a brewer that does not go stale — see
        /shared/gear-db.js — so it is worth the room. */
     .gear-flow { font-size: 15px; font-weight: 600; }
-    .gear-note { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin-top: var(--space-2); }
+
+    /* The record, in one line. The eye should be able to finish it and
+       decide there is nothing to correct. */
+    .gear-said { font-size: 15px; line-height: 1.5; }
+    .gear-flow + .gear-said { margin-top: var(--space-2); color: var(--text-dim); }
+    /* What nobody has established. The catalogue leaves a field blank
+       rather than guess, and this is where that becomes something a
+       person can act on instead of a gap they never see. */
+    .gear-unsaid { font-size: 13px; line-height: 1.5; color: var(--text-faint); margin-top: var(--space-3); }
+
+    /* At the end of the record rather than pinned above the bar. */
+    .sheet-destroy-inline { margin-top: var(--space-5); padding: 0; }
+    .gear-note { font-size: 13px; line-height: 1.5; color: var(--text-dim); margin-top: var(--space-2); }
     .gear-last {
       display: flex;
       align-items: baseline;
@@ -278,7 +302,7 @@
       font-size: 15px;
       font-weight: 600;
     }
-    .gear-ago { font-family: var(--sans); font-size: 12px; font-weight: 400; color: var(--text-faint); }
+    .gear-ago { font-family: var(--sans); font-size: 11px; font-weight: 400; color: var(--text-faint); }
     /* The way out of a gear sheet is the one button on this site that is
        a link rather than a button, because it goes to another app. `.btn`
        never had to say this before, so it does not. */
@@ -310,7 +334,10 @@
     .stock-plus { flex: none; color: var(--text-faint); }
 
     @media (prefers-reduced-motion: reduce) {
-      .card, .stock-row { transition: none; }
+      /* Every element on this page that declares one. The vault buttons
+         were left off the list while declaring the identical 0.18s
+         transition forty lines above. */
+      .card, .stock-row, .vault-btn { transition: none; }
     }
   </style>
 </head>
@@ -489,12 +516,16 @@
         </button>
       </div>
       <div class="edit-body" id="gear-item-body"></div>
-      <div class="sheet-destroy">
-        <button id="gear-item-remove" class="btn-quiet-danger" type="button">I no longer own this</button>
-      </div>
+      <!-- No destroy band. Pinned between the scrolling body and the
+           actions, a red control marked a false bottom: the form looked
+           finished there and the rest of the record was below it with no
+           cue. It is the last line INSIDE the record now, which is where
+           "I no longer own this" belongs anyway. -->
       <div class="sheet-actions">
         <a id="gear-item-go" class="btn btn-ghost hidden" href="/filter/">Open the brew log</a>
-        <button id="gear-item-save" class="btn btn-primary">Save</button>
+        <button id="gear-item-cancel" class="btn btn-ghost hidden" type="button">Cancel</button>
+        <button id="gear-item-fix" class="btn btn-primary" type="button">Correct this</button>
+        <button id="gear-item-save" class="btn btn-primary hidden">Save</button>
       </div>
     </div>
   </div>
@@ -516,9 +547,6 @@
         </button>
       </div>
       <div class="edit-body" id="bag-body"></div>
-      <div class="sheet-destroy">
-        <button id="bag-remove" class="btn-quiet-danger" type="button">Take off the shelf</button>
-      </div>
       <div class="sheet-actions">
         <button id="bag-save" class="btn btn-primary">Save</button>
       </div>

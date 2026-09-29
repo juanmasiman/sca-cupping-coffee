@@ -1468,6 +1468,27 @@ select.field-input {
 
 /* ---------- edit / settings ---------- */
 
+/* A SHEET THAT SCROLLS HAS TO LOOK LIKE ONE.
+
+   The bag sheet is 732px of record in a 577px window, and the two views
+   — top and bottom — were indistinguishable at the fold, so 155px of it
+   went unread. The destructive control used to sit in a pinned band
+   right at that line, which made the false bottom look like a real one;
+   it has moved inside the record. What was still missing is the cue,
+   and a 20px fade at the bottom edge is the whole of it: no text, no
+   chevron, nothing that needs explaining.
+
+   `--more` is set by the host only while `scrollHeight > clientHeight`,
+   so a sheet that fits is not fading its own last line. */
+.edit-body.has-more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent 100%);
+}
+.edit-body.has-more.at-end {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 .edit-body, .settings-body, .help-body, .kit-body, .dose-body {
   flex: 1;
   overflow-y: auto;
@@ -1602,10 +1623,24 @@ select.field-input {
 
 /* ---------- toast ---------- */
 
+/* A MESSAGE MUST NOT BE ABLE TO TAKE A TAP.
+
+   `.toast` is z-index 60 and `.modal` is 40, so it floats over every
+   sheet — which is right, a message about what just happened belongs in
+   front. What it must not do is SWALLOW the tap aimed at what is behind
+   it. Measured on a 1100px window it landed squarely on Save, and after
+   a removal it sat on the row that had taken the removed item's place
+   for eight seconds. `pointer-events: none` makes it a message again;
+   the Undo inside it takes its own back.
+
+   And over an open sheet it lifts clear of the action bar, because the
+   two things it most often covered were the primary button and the one
+   sentence explaining why a control was disabled. */
 .toast {
   position: fixed;
   left: 50%;
   bottom: calc(var(--sab) + 88px);
+  pointer-events: none;
   transform: translateX(-50%);
   z-index: 60;
   max-width: calc(100vw - 32px);
@@ -1622,7 +1657,12 @@ select.field-input {
 }
 /* The offer to take it back. Inside the toast rather than beside it, so it
    inherits the toast's own lifetime and cannot outlive the thing it undoes. */
+/* Clear of the action bar while a sheet is open. 88px is measured for a
+   board with a bottom bar behind it; a sheet puts its own bar there. */
+.toast.over-sheet { bottom: calc(var(--sab) + 148px); }
+
 .toast-undo {
+  pointer-events: auto;
   flex: 0 0 auto;
   min-height: 32px;
   padding: 0 var(--space-3);
