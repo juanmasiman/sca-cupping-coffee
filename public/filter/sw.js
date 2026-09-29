@@ -11,7 +11,7 @@
    its auth file did not arrive is not an offline app.
    ============================================================ */
 
-const VERSION = 'v17';
+const VERSION = 'v18';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
@@ -35,6 +35,7 @@ const SHELL = [
   '/shared/account-sheet.js',
   '/shared/kit.js',
   '/shared/coffees.js',
+  '/shared/brewers.js',
   '/shared/grind.js',
   '/shared/wheel.js',
   '/shared/wheel.css',

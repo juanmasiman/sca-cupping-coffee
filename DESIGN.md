@@ -406,6 +406,56 @@ before this page existed; adding one verb to one screen is what made them
 visible. **A deletion that no reader can see is the same defect whether
 or not there is a button for it.**
 
+**A vault you scroll past is in the wrong place.** The shelf and the gear
+started as two open sections under the instruments, and they were right
+about what belongs on the page and wrong about the shape: they made the
+front door 2,700px long. The instruments are why somebody opens this page
+and the vault is why they come back to it, and a launcher that scrolls
+past the second to reach the first has the wrong thing in hand. They are
+two small buttons under the account now — a tier below the cards on
+purpose: half the height, no icon tile, two to a row — and the lists live
+in sheets behind them. One screen at every width, and six tab stops
+instead of fifteen.
+
+**A count on a button has a measured width.** "3 grinders · 2 brewers"
+is the better sentence and it needs 118px; a 360px phone gives that
+button 110, which is the commonest Android width there is. A line
+truncated to "3 grinders · 2 …" says less than "7 things" does, and the
+kinds are one tap away, named and in full. Where a sentence and a
+measurement disagree, the measurement decides.
+
+**Stacking sheets means "back" has to mean more than one thing.** One
+`lastFocus` held the page's button through both sheets, so closing a bag
+put you on the front door rather than on the list you opened it from. A
+stack is what back means when there is more than one way in.
+
+**The nouns are the ones people use.** A shot logged in the dial-in is an
+espresso on the front door; a brew in the filter log is a pourover — or a
+steep, when the brewer is a press or an AeroPress, because calling that a
+pourover is wrong about the thing in their hand. The brewer is recorded on
+every brew, so the count does not have to pick one word for both. And the
+account row leads with your name: an email address on the front door of
+your own account is the machine's word for you, not yours. The address is
+on the sheet behind it, where "which account is this" is the question
+actually being asked.
+
+**What is worth shipping about a brewer is the thing that never moves.**
+This project refuses brand tables and is right to — a grind setting read
+out of a model name is stale within a year. How the water leaves is not
+that kind of fact: a V60 has a hole in it and next year's will too. So
+`/shared/brewers.js` ships the flow and one sentence on what the brewer
+asks of you, and nothing else. Tapping the dripper on your own shelf used
+to navigate to the brew log, which answers a question nobody asked; what
+you are asking is what the thing is and what you last made with it. Both
+are already on the device. The way out is still there, at the foot of the
+sheet, where a way out belongs.
+
+**The note defers to the person, like everything else here.** A sentence
+explaining how a valve works, printed under a brewer whose owner has told
+the app it never steeps, is the table arguing with the person — so the
+shipped note is shown only where their answer and the table's still
+agree. The flow itself always comes from them first.
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.

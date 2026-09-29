@@ -151,44 +151,67 @@
 
     /* ---------- what is yours ----------
 
-       The cards above are doors: a border, a fill, an icon in a tile, an
-       arrow at the end. What follows is not a door — it is stock, and
-       stock is a list. No border, no fill, no tile; a hairline between
-       entries and the name carrying the row.
+       The shelf and the gear were two open sections on the page, and
+       they worked, and they made the front door 2,700px long. The tools
+       are why somebody opens this page and the vault is why they come
+       back to it, and a page that scrolls past the second to reach the
+       first has the wrong thing in hand. So they are two small buttons
+       under the account — a tier below the instruments, on purpose: half
+       the height, no icon tile, two to a row — and the lists live in
+       sheets behind them. The launcher is one screen again.
 
-       Two registers on one page, so a glance separates a place to go from
-       a thing you own. Eight more cards would have made the front door a
-       wall of identical rectangles, which is the one shape this page
-       cannot afford: somebody arriving to log a shot reads it in a second
-       and leaves, and the shelf is for the other visit. */
-    .stock-group { margin-top: var(--space-8); text-align: left; }
-
-    .stock-head {
+       Inside those sheets the rows are stock, not doors: no border, no
+       fill, no tile, a hairline between entries and the name carrying
+       the row. Twelve more cards would have been a wall of identical
+       rectangles either way round. */
+    .vault {
+      margin-top: var(--space-4);
       display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: var(--space-4);
-      margin: 0 calc(var(--space-2) * -1);
-      padding: 0 var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--line);
+      gap: var(--space-3);
+      text-align: left;
     }
-    .stock-title { font-size: 13px; font-weight: 700; }
-    /* The sans, not the engraved mono the apps set values in. "3 bags" is
-       a label on a section, not a measurement somebody took, and mono put
-       a full advance of air between the numeral and the word. */
-    .stock-count { font-size: 11px; font-weight: 600; color: var(--text-faint); }
+    .vault-btn {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 52px;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.18s var(--ease);
+    }
+    .vault-btn:active { background: var(--chrome-soft); }
+    @media (hover: hover) {
+      .vault-btn:hover { background: var(--chrome-soft); }
+    }
+    .vault-btn:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+    .vault-text { flex: 1; min-width: 0; }
+    .vault-label,
+    .vault-count { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .vault-label { font-size: 14px; font-weight: 700; }
+    .vault-count { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+    .vault-go { flex: none; color: var(--chrome); }
 
-    /* Four pixels wider than the cards on each side, which is the room a
-       row needs for a hover fill and a focus ring without the rules
-       drifting out of line with the stack above them. */
+    /* ---------- a row of stock, inside a sheet ----------
+
+       The rows bleed into the sheet's own padding so the hover fill and
+       the rules run the full width of it, while the text stays on the
+       sheet's margin with everything else. */
     .stock-row {
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      width: calc(100% + var(--space-4));
-      margin: 0 calc(var(--space-2) * -1);
+      width: calc(100% + var(--space-6));
+      margin: 0 calc(var(--space-3) * -1);
       min-height: 52px;
-      padding: var(--space-3) var(--space-2);
+      padding: var(--space-3);
       background: none;
       border: 0;
       border-bottom: 1px solid var(--line);
@@ -215,10 +238,41 @@
     /* The marks are the instruments' own glyphs, the same tamper and the
        same dripper drawn on the cards above. "What do I brew this with"
        is answered by the thing itself rather than by two more words on
-       every row — and on a page whose whole argument is that it can be
-       read in a second, two words a row is twenty words. */
+       every row — and on a list of twenty bags two words a row is forty
+       words nobody reads. */
     .stock-marks { flex: none; display: flex; gap: var(--space-2); color: var(--chrome); }
     .stock-go { flex: none; color: var(--text-faint); }
+
+    /* Adding is the last line of the list, not a button parked under it. */
+    .stock-add .stock-name { color: var(--text-dim); }
+    .stock-plus { flex: none; color: var(--text-faint); }
+
+    /* ---------- a piece of gear, described ----------
+
+       What the brewer does to the water, and what you last made with it.
+       The sentence is the one fact about a brewer that does not go stale
+       — see /shared/brewers.js — so it is worth a sheet; a grind setting
+       read off a model name would not be. */
+    .gear-flow { font-size: 15px; font-weight: 600; }
+    .gear-note { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin-top: var(--space-2); }
+    .gear-can { display: flex; flex-direction: column; gap: var(--space-2); }
+    .gear-can-row { display: flex; gap: var(--space-3); font-size: 14px; }
+    .gear-can-label { flex: 0 0 96px; color: var(--text-faint); }
+    .gear-can-value { flex: 1; min-width: 0; }
+    .gear-last {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .gear-ago { font-family: var(--sans); font-size: 12px; font-weight: 400; color: var(--text-faint); }
+    /* The way out of a gear sheet is the one button on this site that is
+       a link rather than a button, because it goes to another app. `.btn`
+       never had to say this before, so it does not. */
+    a.btn { text-decoration: none; }
 
     /* ---------- the two sheets ----------
 
@@ -344,29 +398,75 @@
     </button>
 
     <!-- Everything below the account is a thing you own rather than a
-         place to go, and every one of them is shared: the shelf and the
-         grinders live in /shared/, so this is not the dial-in's view of
-         your coffees or the brew log's — it is the shelf. Each section
-         stays out of the page entirely until it has something in it. A
-         front door that shows an empty vault to somebody who has never
-         brewed is telling them about a thing they have not used. -->
-    <section class="stock-group hidden" id="shelf">
-      <div class="stock-head">
-        <h2 class="stock-title">Your coffees</h2>
-        <span class="stock-count" id="shelf-count"></span>
-      </div>
-      <div id="shelf-list"></div>
-    </section>
-
-    <section class="stock-group hidden" id="gear">
-      <div class="stock-head">
-        <h2 class="stock-title">Your gear</h2>
-      </div>
-      <div id="gear-list"></div>
-    </section>
+         place to go, and both are shared: the shelf and the grinders live
+         in /shared/, so this is not the dial-in's view of your coffees or
+         the brew log's — it is the shelf. Each button stays out of the
+         page entirely until it has something behind it. A front door that
+         shows an empty vault to somebody who has never brewed is telling
+         them about a thing they have not used. -->
+    <div class="vault hidden" id="vault">
+      <button type="button" class="vault-btn hidden" id="btn-shelf">
+        <span class="vault-text">
+          <span class="vault-label">Your coffees</span>
+          <span class="vault-count" id="shelf-count"></span>
+        </span>
+        <svg class="vault-go" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="vault-btn hidden" id="btn-gear">
+        <span class="vault-text">
+          <span class="vault-label">Your gear</span>
+          <span class="vault-count" id="gear-count"></span>
+        </span>
+        <svg class="vault-go" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
 
     <footer>lento.cafe</footer>
   </main>
+
+  <div id="shelf-modal" class="modal hidden">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="shelf-title">
+      <div class="sheet-head">
+        <h3 id="shelf-title">Your coffees</h3>
+        <button id="shelf-close" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="edit-body" id="shelf-list"></div>
+    </div>
+  </div>
+
+  <div id="gear-modal" class="modal hidden">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="gear-title">
+      <div class="sheet-head">
+        <h3 id="gear-title">Your gear</h3>
+        <button id="gear-close" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="edit-body" id="gear-list"></div>
+    </div>
+  </div>
+
+  <!-- A brewer or a machine, described. It used to be a link straight
+       into the instrument, which answered a question nobody had asked:
+       tapping the dripper on your own shelf is asking what it is and what
+       you last made with it, not asking to leave. The way out is still
+       there, at the foot, where a way out belongs. -->
+  <div id="gear-item-modal" class="modal hidden">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="gear-item-title">
+      <div class="sheet-head">
+        <h3 id="gear-item-title">&nbsp;</h3>
+        <button id="gear-item-close" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="edit-body" id="gear-item-body"></div>
+      <div class="sheet-actions">
+        <a id="gear-item-go" class="btn btn-ghost" href="/filter/">Open the brew log</a>
+      </div>
+    </div>
+  </div>
 
   <!-- The bag, and only the bag. What is written on a coffee is shared —
        name, roaster, roast, origin, variety, process, altitude, what it
@@ -432,6 +532,7 @@
   <script src="/shared/account-sheet.js"></script>
   <script src="/shared/kit.js"></script>
   <script src="/shared/coffees.js"></script>
+  <script src="/shared/brewers.js"></script>
   <script src="/home.js"></script>
 </body>
 </html>

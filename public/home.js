@@ -53,15 +53,22 @@
 
      The three apps each have a modal layer with their own rules — the
      dial-in stacks sheets and marks the board inert, the cupping sheet
-     runs full-screen panels. This page has one sheet at a time and no
-     board behind it, so it has the small version: show, trap, restore
-     focus. The look comes from components.css, same as everywhere. */
+     runs full-screen panels. This page has the small version: show,
+     trap, restore focus. The look comes from components.css, same as
+     everywhere.
 
-  var lastFocus = null;
+     It stacks now, because the lists moved into sheets: your coffees is
+     a sheet and a bag on it is a second one, your gear is a sheet and a
+     brewer on it is a second one. A single `lastFocus` held the page's
+     button through both, so closing the bag sheet put you back on the
+     front door rather than on the list you opened it from. A stack is
+     what "back" means when there is more than one way in. */
+
+  var focusStack = [];
 
   function openModal(sel) {
     var m = $(sel);
-    lastFocus = document.activeElement;
+    focusStack.push(document.activeElement);
     m.classList.remove('hidden');
     document.documentElement.classList.add('sheet-open');
     if (!m.dataset.trapped) {
@@ -78,7 +85,8 @@
     if (!document.querySelector('.modal:not(.hidden)')) {
       document.documentElement.classList.remove('sheet-open');
     }
-    if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+    var back = focusStack.pop();
+    if (back && back.focus) back.focus({ preventScroll: true });
   }
 
   function trap(m, e) {
@@ -164,21 +172,61 @@
     return Array.isArray(a) ? a.length : null;
   }
 
+  // A non-breaking space, so "1 steep" never wraps into "1" and "steep"
+  // on two lines. Four counts fit one line on most phones and wrap on
+  // some, and where it wraps it should break between the counts — which
+  // is what the separator is for — and never inside one.
   function say(n, one, many) {
-    return n + ' ' + (n === 1 ? one : many);
+    return n + '\u00a0' + (n === 1 ? one : many);
   }
 
-  // Only what is actually there. A front door that says "0 shots" to
+  /* WHAT A FILTER BREW IS CALLED, WHICH DEPENDS ON THE BREWER.
+
+     "1 brew" was the launcher's word and "filter" is the section's, and
+     neither is what anybody says. What they say is a pour over — except
+     when it is a press or an AeroPress, and then it is a steep, and
+     calling that a pour over is simply wrong about the thing in their
+     hand.
+
+     The brewer is recorded on every brew, so this does not have to
+     choose one word for both. Your own answer about your own brewer
+     wins over the shipped table, same as everywhere else. */
+  function filterCounts() {
+    var out = { pour: 0, steep: 0 };
+    var v = readJSON('lento-filter-v1');
+    if (!v || !Array.isArray(v.coffees)) return out;
+    var mine = {};
+    var k = v.kit && typeof v.kit === 'object' ? v.kit : null;
+    if (k && Array.isArray(k.brewers)) {
+      k.brewers.forEach(function (b) { if (b && b.name) mine[b.name] = b.flow; });
+    }
+    var FLOWS = window.LentoBrewers ? LentoBrewers.FLOWS : [];
+    v.coffees.forEach(function (c) {
+      (Array.isArray(c.brews) ? c.brews : []).forEach(function (br) {
+        var name = br && br.brewer;
+        var flow = name && FLOWS.indexOf(mine[name]) >= 0 ? mine[name] : null;
+        if (!flow && name && window.LentoBrewers) flow = LentoBrewers.flowOf(name);
+        // No brewer named, or one nothing knows: the app's own default,
+        // which is also the commonest answer by a distance.
+        if (flow === 'immersion') out.steep++;
+        else out.pour++;
+      });
+    });
+    return out;
+  }
+
+  // Only what is actually there. A front door that says "0 espressos" to
   // somebody who has never opened the dial-in is telling them about a
   // thing they have not used.
   function counts() {
     var bits = [];
     var c = cuppings();
-    var s = countIn('lento-espresso-v1', 'shots');
-    var b = countIn('lento-filter-v1', 'brews');
+    var e = countIn('lento-espresso-v1', 'shots');
+    var f = filterCounts();
     if (c) bits.push(say(c, 'cupping', 'cuppings'));
-    if (s) bits.push(say(s, 'shot', 'shots'));
-    if (b) bits.push(say(b, 'brew', 'brews'));
+    if (e) bits.push(say(e, 'espresso', 'espressos'));
+    if (f.pour) bits.push(say(f.pour, 'pourover', 'pourovers'));
+    if (f.steep) bits.push(say(f.steep, 'steep', 'steeps'));
     return bits;
   }
 
@@ -212,7 +260,13 @@
     // top of its own visible text — and a label that disagreed with that
     // text would be the accessible name for a control saying something
     // else, which is the failure the label was meant to prevent.
-    $('#account-name').textContent = u ? (u.email || u.name || 'Your account') : 'Sign in';
+    /* The name first. It is what somebody calls themselves, and an email
+       address on the front door of your own account is the machine's
+       word for you, not yours. Signing in by code gives us no name, so
+       the address is still the fallback — and it is on the sheet behind
+       this row either way, where "which account is this" is the actual
+       question. */
+    $('#account-name').textContent = u ? (u.name || u.email || 'Your account') : 'Sign in';
     $('#account-note').textContent = rowNote(u);
   }
 
@@ -336,12 +390,12 @@
   }
 
   function renderShelf() {
-    var box = $('#shelf');
+    var btn = $('#btn-shelf');
     var list = $('#shelf-list');
     var bags = window.LentoCoffees ? LentoCoffees.all().slice().sort(byName) : [];
-    if (!bags.length) { box.classList.add('hidden'); return; }
-    box.classList.remove('hidden');
-    $('#shelf-count').textContent = bags.length + (bags.length === 1 ? ' bag' : ' bags');
+    if (!bags.length) { btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
+    $('#shelf-count').textContent = say(bags.length, 'bag', 'bags');
     list.innerHTML = '';
     bags.forEach(function (c) {
       list.appendChild(stockRow({
@@ -357,18 +411,24 @@
 
   /* ---------- what you own ----------
 
-     The grinders are shared and are edited here. The machine, the brewers
-     and the kettle are the instruments' own records — writing into an
-     app's store from this page would race whatever that app is holding in
-     memory — so they are shown as facts and the row is a way in to the
-     tool that owns them. The chevron is the difference: a row with one
-     takes you somewhere, a row without it opens here. */
+     The grinders are shared and are edited here. The machine, the
+     brewers and the kettle are the instruments' own records — writing
+     into an app's store from this page would race whatever that app is
+     holding in memory — so they are not edited here at all. Two of them
+     have something worth saying anyway, and say it in a sheet: what the
+     brewer does to the water, what the machine can change, and what you
+     last made with either.
+
+     The kettle has nothing of the kind. Its row keeps the chevron, which
+     is the only distinction the list needs: a row with one takes you
+     somewhere, a row without it opens here. */
   function gear() {
     var out = [];
 
     if (window.LentoKit) {
       LentoKit.known().forEach(function (g) {
         out.push({
+          kind: 'grinder',
           name: g.name,
           sub: g.steps === 'stepped' ? 'stepped' : 'stepless',
           use: g.use,
@@ -380,29 +440,28 @@
 
     var e = toolKit('lento-espresso-v1');
     if (e && typeof e.machine === 'string' && e.machine.trim()) {
-      out.push({
-        name: e.machine.trim(),
-        sub: machineSub(e),
-        use: { espresso: true },
-        href: '/espresso/',
-        label: e.machine.trim() + ' — open the dial-in',
-      });
+      var machine = { kind: 'machine', name: e.machine.trim(), kit: e };
+      machine.sub = machineSub(e);
+      machine.use = { espresso: true };
+      machine.label = machine.name + ' — what it can change, and your last shot';
+      machine.onPick = function () { openGearItem(machine); };
+      out.push(machine);
     }
 
     var f = toolKit('lento-filter-v1');
     if (f) {
       (Array.isArray(f.brewers) ? f.brewers : []).forEach(function (b) {
         if (!b || typeof b.name !== 'string' || !b.name.trim()) return;
-        out.push({
-          name: b.name.trim(),
-          sub: flowWord(b.flow),
-          use: { filter: true },
-          href: '/filter/',
-          label: b.name.trim() + ' — open the brew log',
-        });
+        var brewer = { kind: 'brewer', name: b.name.trim(), flow: b.flow };
+        brewer.sub = flowWord(b.flow, brewer.name);
+        brewer.use = { filter: true };
+        brewer.label = brewer.name + ' — what it does to the water, and your last brew';
+        brewer.onPick = function () { openGearItem(brewer); };
+        out.push(brewer);
       });
       if (typeof f.kettle === 'string' && f.kettle.trim()) {
         out.push({
+          kind: 'kettle',
           name: f.kettle.trim(),
           sub: 'kettle',
           use: { filter: true },
@@ -423,18 +482,39 @@
     return bits.join(' · ');
   }
 
-  function flowWord(flow) {
-    if (flow === 'switch') return 'switch';
-    if (flow === 'immersion') return 'immersion';
-    return 'pour over';
+  // The person's own answer about their own brewer, then the shipped
+  // table, then the app's default — the same order every other reader of
+  // this fact uses.
+  function flowWord(flow, name) {
+    var B = window.LentoBrewers;
+    if (!B) return 'pour over';
+    if (B.FLOWS.indexOf(flow) < 0) flow = B.flowOf(name) || 'percolation';
+    return B.flowWord(flow);
+  }
+
+  /* A count, not a breakdown.
+
+     "3 grinders · 2 brewers" was the first answer and it is the better
+     sentence, and it does not fit: measured, it needs 118px and a
+     360px-wide phone gives this button 110. Truncating it to
+     "3 grinders · 2 …" says less than the plain total does, on the
+     commonest Android width there is. The kinds are one tap away, named
+     and in full.
+
+     "Things" because the list holds four of them — grinders, a machine,
+     brewers, a kettle — and there is no word that covers those and is
+     not a costume. */
+  function gearCount(rows) {
+    return say(rows.length, 'thing', 'things');
   }
 
   function renderGear() {
-    var box = $('#gear');
+    var btn = $('#btn-gear');
     var list = $('#gear-list');
     var rows = gear();
-    if (!rows.length) { box.classList.add('hidden'); return; }
-    box.classList.remove('hidden');
+    if (!rows.length) { btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
+    $('#gear-count').textContent = gearCount(rows);
     list.innerHTML = '';
     rows.forEach(function (it) { list.appendChild(stockRow(it)); });
   }
@@ -443,6 +523,13 @@
     renderAccount();
     renderShelf();
     renderGear();
+    /* The pair, and whether there is a pair. Each button hides itself
+       when it has nothing behind it, so the row has to answer for both
+       of them — otherwise a first visit gets 12px of empty flexbox under
+       the account row and no way to tell what it was for. */
+    var any = !$('#btn-shelf').classList.contains('hidden')
+      || !$('#btn-gear').classList.contains('hidden');
+    $('#vault').classList.toggle('hidden', !any);
   }
 
   /* ---------- the bag sheet ----------
@@ -689,6 +776,152 @@
     openModal('#grinder-modal');
   }
 
+  /* ---------- a piece of gear, described ----------
+
+     Tapping the dripper on your own shelf used to navigate to the brew
+     log, which answers a question nobody asked. What you are asking is
+     what the thing is and what you last made with it.
+
+     Both answers are cheap and neither is invented. How the water leaves
+     a brewer is the one fact about it that does not go stale, and it is
+     already shipped in /shared/brewers.js because the brew log shapes
+     its whole sheet around it. What the machine can change is the
+     dial-in's own kit, in the dial-in's own terms. And the last brew or
+     shot is sitting in that app's store, where this page already reads
+     defensively for the counts.
+
+     Nothing here is editable. These records belong to the instruments,
+     and the way in is at the foot of the sheet. */
+
+  function num(v) {
+    // Empty is not zero, and Number('') is. Every reader of a free-text
+    // field in this project has had to learn that separately.
+    if (v === '' || v === null || typeof v === 'undefined') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  function grams(v) {
+    var n = num(v);
+    return n === null ? null : (Math.round(n * 10) / 10) + ' g';
+  }
+
+  function secs(v) {
+    var n = num(v);
+    if (n === null || n <= 0) return null;
+    if (n < 60) return Math.round(n) + 's';
+    var m = Math.floor(n / 60);
+    var r = Math.round(n % 60);
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  // Calendar days, not elapsed hours: a brew at eleven last night was
+  // yesterday at nine this morning, whatever the arithmetic says.
+  function ago(at) {
+    var n = num(at);
+    if (n === null) return '';
+    var then = new Date(n);
+    var now = new Date();
+    var days = Math.round(
+      (new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        - new Date(then.getFullYear(), then.getMonth(), then.getDate())) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 14) return days + ' days ago';
+    if (days < 60) return Math.round(days / 7) + ' weeks ago';
+    return Math.round(days / 30) + ' months ago';
+  }
+
+  function latest(store, field, match) {
+    var v = readJSON(store);
+    if (!v || !Array.isArray(v.coffees)) return null;
+    var best = null;
+    v.coffees.forEach(function (c) {
+      (c && Array.isArray(c[field]) ? c[field] : []).forEach(function (r) {
+        if (!r || (match && !match(r))) return;
+        if (!best || (num(r.at) || 0) > (num(best.at) || 0)) best = r;
+      });
+    });
+    return best;
+  }
+
+  function lastLine(bits, at) {
+    var said = bits.filter(Boolean).join(' · ');
+    if (!said) return '';
+    return '<p class="gear-last">' + esc(said)
+      + '<span class="gear-ago">' + esc(ago(at)) + '</span></p>';
+  }
+
+  function lastBlock(label, html) {
+    if (!html) return '';
+    return '<div><span class="field-label">' + esc(label) + '</span>' + html + '</div>';
+  }
+
+  var CAN_TEMP = { set: 'You set it', fixed: 'One temperature' };
+  var CAN_PRESSURE = { profile: 'You can change it', gauge: 'You can see it', fixed: 'Fixed' };
+
+  function canRow(label, value) {
+    if (!value) return '';
+    return '<div class="gear-can-row"><span class="gear-can-label">' + esc(label)
+      + '</span><span class="gear-can-value">' + esc(value) + '</span></div>';
+  }
+
+  function openGearItem(item) {
+    var body = $('#gear-item-body');
+    var go = $('#gear-item-go');
+    $('#gear-item-title').textContent = item.name;
+
+    if (item.kind === 'machine') {
+      var k = item.kit || {};
+      var dose = num(k.basketDose);
+      body.innerHTML = '<div class="gear-can">'
+        + canRow('Temperature', CAN_TEMP[k.temp] || CAN_TEMP.fixed)
+        + canRow('Pressure', CAN_PRESSURE[k.pressure] || CAN_PRESSURE.fixed)
+        + canRow('Basket', [dose ? dose + ' g' : '', k.portafilter === 'bottomless' ? 'bottomless' : '']
+          .filter(Boolean).join(', '))
+        + '</div>'
+        + lastBlock('Your last shot', shotLine());
+      go.textContent = 'Open the dial-in';
+      go.href = '/espresso/';
+    } else {
+      var B = window.LentoBrewers;
+      var d = B ? B.describe({ name: item.name, flow: item.flow }) : null;
+      body.innerHTML = '<div>'
+        + '<p class="gear-flow">' + esc(B ? B.flowLine(d && d.flow) : '') + '</p>'
+        + (d && d.note ? '<p class="gear-note">' + esc(d.note) + '</p>' : '')
+        + '</div>'
+        + lastBlock('Your last brew', brewLine(item.name));
+      go.textContent = 'Open the brew log';
+      go.href = '/filter/';
+    }
+
+    openModal('#gear-item-modal');
+  }
+
+  function shotLine() {
+    var sh = latest('lento-espresso-v1', 'shots', null);
+    if (!sh) return '';
+    var dose = grams(sh.dose);
+    var out = grams(sh.yield);
+    return lastLine([
+      dose && out ? dose + ' → ' + out : (dose || out),
+      secs(sh.time),
+    ], sh.at);
+  }
+
+  function brewLine(name) {
+    var br = latest('lento-filter-v1', 'brews', function (r) { return r.brewer === name; });
+    if (!br) return '';
+    var dose = grams(br.dose);
+    var water = grams(br.water);
+    var t = num(br.temp);
+    return lastLine([
+      dose && water ? dose + ' → ' + water : (dose || water),
+      t === null ? null : t + '°',
+      secs(br.time),
+    ], br.at);
+  }
+
   /* ---------- the cloud ----------
 
      The front door syncs now, which it never did: it had nothing of its
@@ -759,10 +992,21 @@
        configured, no network and nobody signed in. A page that hid what
        is on this device because a sign-in script did not arrive would be
        hiding it for the one reason that has nothing to do with it. */
-    $('#bag-close').addEventListener('click', function () { closeModal('#bag-modal'); });
-    $('#grinder-close').addEventListener('click', function () { closeModal('#grinder-modal'); });
+    ['shelf', 'gear', 'gear-item', 'bag', 'grinder'].forEach(function (id) {
+      $('#' + id + '-close').addEventListener('click', function () {
+        closeModal('#' + id + '-modal');
+      });
+    });
+    $('#btn-shelf').addEventListener('click', function () { openModal('#shelf-modal'); });
+    $('#btn-gear').addEventListener('click', function () { openModal('#gear-modal'); });
+    // A way out of a sheet that leaves the page is still a way out of the
+    // sheet: without this the stack keeps a frame for a modal nobody will
+    // close, and the next Escape restores focus to the wrong control.
+    $('#gear-item-go').addEventListener('click', function () { closeModal('#gear-item-modal'); });
     renderShelf();
     renderGear();
+    $('#vault').classList.toggle('hidden',
+      $('#btn-shelf').classList.contains('hidden') && $('#btn-gear').classList.contains('hidden'));
 
     if (!window.LentoAccountSheet || !window.LentoAccount) {
       /* No account layer at all. The row stays hidden, as it does on a
