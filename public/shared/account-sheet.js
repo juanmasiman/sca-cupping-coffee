@@ -150,7 +150,15 @@
      no records. It holds two shared ones now — the grinders and the
      shelf — so it passes one.) */
   function signedIn(body, u) {
-    body.innerHTML = '<p class="sheet-note">' + esc(u.email || u.name || '') + '</p>'
+    /* The name, then the address under it. The row that opened this
+       sheet says whichever one it has; this is the place where "which
+       account am I actually in" is the question being asked, and the
+       address is the answer to that one. Either alone when that is all
+       there is — signing in by code gives no name. */
+    var who = u.name && u.email
+      ? esc(u.name) + '<br>' + esc(u.email)
+      : esc(u.name || u.email || '');
+    body.innerHTML = '<p class="sheet-note">' + who + '</p>'
       + '<p class="sheet-note" id="account-status">' + esc(host.status('idle')) + '</p>'
       + '<div class="sheet-actions">'
       + '<button class="btn btn-ghost" id="btn-signout">Sign out</button>'

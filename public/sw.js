@@ -24,8 +24,10 @@
    v2 — the account moved from a fixed corner button into a row.
    v4 — the shelf and the gear arrived, which added two shared scripts to
         the shell and two sections to the page that the old home.js knows
-        nothing about. */
-const VERSION = 'v4';
+        nothing about.
+   v5 — those two sections became two buttons and four sheets, and the
+        brewer table came along to describe what is on the shelf. */
+const VERSION = 'v5';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
@@ -39,6 +41,7 @@ const SHELL = [
   '/shared/account-sheet.js',
   '/shared/kit.js',
   '/shared/coffees.js',
+  '/shared/brewers.js',
   '/shared/fonts/plex-sans-var.woff2',
 ];
 

@@ -480,38 +480,18 @@ function defaultKit() {
 
 /* WHAT THE APP IS ALLOWED TO KNOW FROM A BRAND NAME.
 
-   This file's kit comment refuses brand tables, and it is right about
-   what it was refusing: a grind setting read out of a model name goes
-   stale within a year and is wrong about every hybrid on the shelf.
+   The table lives in /shared/brewers.js now — the front door asks the
+   same question for a different reason, to say what a brewer on your
+   shelf actually is, and two copies of a list of facts is two lists
+   within a month. The reasoning for keeping such a list at all is in
+   that file's header, and it has not changed: how the water leaves a
+   brewer is not the kind of fact a brand table gets wrong.
 
-   Whether the water drains out of the bottom is not that kind of fact. A
-   V60 has a hole in it. A press does not. Next year's V60 will still have
-   a hole, and the hybrids — the ones that steep and then open — are not a
-   gap in the table, they are the third answer it already had a word for.
-
-   So the table seeds one editable answer once, and everything else about
-   the name stays the person's own record. What you said about your own
-   brewer always wins: see brewerEntry. */
-const BREWERS = [
-  { name: 'Hario V60', flow: 'percolation' },
-  { name: 'Kalita Wave', flow: 'percolation' },
-  { name: 'Chemex', flow: 'percolation' },
-  { name: 'Origami', flow: 'percolation' },
-  { name: 'Orea', flow: 'percolation' },
-  { name: 'April', flow: 'percolation' },
-  { name: 'Fellow Stagg [X]', flow: 'percolation' },
-  { name: 'Melitta', flow: 'percolation' },
-  { name: 'Tricolate', flow: 'percolation' },
-  { name: 'Clever Dripper', flow: 'switch' },
-  { name: 'Hario Switch', flow: 'switch' },
-  { name: 'French press', flow: 'immersion' },
-  /* The press at the end of an AeroPress is quick and the extraction has
-     already happened in the chamber, so it is logged as a steep. Anybody
-     who disagrees can say so on their own entry, which is the point of
-     the entry. */
-  { name: 'AeroPress', flow: 'immersion' },
-  { name: 'Cupping bowl', flow: 'immersion' },
-];
+   It grew a sentence per brewer when it moved. Nothing in this app reads
+   it; the sheet that shows it is on lento.cafe. What is read here is
+   `flow`, exactly as before, and what you said about your own brewer
+   still wins — see brewerEntry. */
+const BREWERS = LentoBrewers.ALL;
 
 const kit = () => (state && state.kit) || defaultKit();
 // Whether the shelf holds more than one, which is the only condition
