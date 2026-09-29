@@ -335,6 +335,77 @@ The schedule is also what forced a second form of the number field. Five pairs o
 
 **The two walls hold, with filter's own second variable.** Sour and bitter are extraction and grind is the variable; thin and strong are concentration and the *amount of water* is the variable. Read together each corner has one move — grind finer, grind coarser, more water, less water — and the diagonal is the pair every brewer learns first. Where the dial-in says "run longer", the brew log says "more water", and they are the same sentence about the same physics. The vocabulary is the act, not the arithmetic: "less water" and "tighten the ratio" are one instruction, and an app that uses both makes a reader wonder whether they are two.
 
+## The front door, and the things that stopped belonging to a tool
+
+lento.cafe was a list of links, and then it held the account, and for a
+while that was the whole of it. But the shared layer kept growing
+underneath it: the grinders came out of the two instruments, then the
+coffees, and each extraction moved something from *the dial-in's* or
+*the brew log's* into nobody's in particular — which in practice meant
+nobody's screen. **A record that belongs to the person and appears only
+inside a tool is still that tool's record, whatever the file path says.**
+There was no page anywhere that showed you your coffees as your coffees;
+only the dial-in's view of the shelf and the brew log's view of it.
+
+So the front door is where the three of them live: who you are, what you
+own, what is on the shelf — with the instruments above them, because
+somebody arriving to log a shot reads this page in a second and leaves,
+and the shelf is for the other visit. The account row sits between the
+two halves, which is where it belongs in more than layout: above it is
+everything that works with no signal and no sign-in, below it everything
+that follows you once there is one.
+
+**Two registers, so a glance can tell a place to go from a thing you own.**
+The instruments are doors — a border, a fill, an icon in a tile, an arrow
+at the end. The shelf and the gear are stock, and stock is a list: no
+border, no fill, no tile, a hairline between entries and the name
+carrying the row. Eight more cards would have made the front door a wall
+of identical rectangles, which is the one shape a page read in a second
+cannot afford. Within the ledger a chevron is the only other distinction
+it needs: a row with one takes you somewhere, a row without it opens
+here.
+
+**The marks are the instruments' own glyphs.** Which tools a bag or a
+grinder is used with is the fact every row carries, and the same tamper
+and the same dripper drawn on the cards above say it at 16px with no
+words at all. Twenty rows × two words is forty words nobody reads. The
+accessible name says it in words, because a picture of a tamper is not a
+label.
+
+**This page writes the shared records and only those.** A bag's name,
+roaster, origin, variety, process, altitude and marks are shared, so the
+sheet here edits them — and it is not a third copy of either app's coffee
+sheet, because a target dose, a ratio, a grind setting and a log are the
+instrument's answers and 1:2 in 28 seconds and 1:16 in three minutes are
+not two values of one setting. The same line runs through the gear: the
+grinders are shared and editable here, the espresso machine and the
+brewers are their tools' and are shown as facts with a way in. Cross-app
+writes stay refused for the reason `/shared/coffees.js` gives — an app
+holds its state in memory and writing into its store from here races it —
+so marking a bag is the whole of the mechanism, and the tool reconciles
+on its next load, which is work it does anyway.
+
+**A control whose effect is invisible is worse than no control.** The
+grinder sheet here offers the marks and a way to cross the grinder out,
+and does not offer stepped-or-stepless, because each app's own kit is the
+authority for that app: editing it here would move the prefill and leave
+the advice exactly where it was. For the same reason a grinder an
+instrument is currently set to cannot be unmarked or forgotten here —
+`remember` runs on that app's next boot and would put it straight back,
+so both are shown as the facts they are, with one line saying where to go
+and change it.
+
+**Being able to take something off the shelf is what exposed that nothing
+was reading the tombstone.** `shelfCoffees` hid a bag you had unmarked
+and kept a bag the library had never held — and a bag *removed* from the
+library is absent in exactly the same way, so it walked back on and
+stayed. Worse, `activeCoffee` never consulted the shelf at all: the board
+went on sitting on a coffee you had said you do not brew here, offering
+to pull another shot of it. Both were already true across two devices
+before this page existed; adding one verb to one screen is what made them
+visible. **A deletion that no reader can see is the same defect whether
+or not there is a button for it.**
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.

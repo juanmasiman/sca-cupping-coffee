@@ -245,6 +245,58 @@
     return store(rec);
   }
 
+  /* A grinder back exactly as it was, for an undo.
+
+     `remember` cannot do this. It only ever ORs marks on, and it takes
+     retention from the app in hand rather than from the record — so a
+     grinder forgotten with the filter mark off would come back with it
+     on, and one whose retention nobody had answered would come back
+     answered. An undo that puts back something slightly different is
+     not an undo. */
+  function put(g) {
+    if (!g || typeof g.name !== 'string' || !g.name) return read();
+    var rec = read();
+    var u = g.use && typeof g.use === 'object' ? g.use : {};
+    var next = {
+      name: g.name,
+      steps: g.steps === 'stepped' ? 'stepped' : 'stepless',
+      retains: typeof g.retains === 'undefined' ? null : g.retains,
+      use: { espresso: u.espresso === true, filter: u.filter === true },
+    };
+    var found = false;
+    rec.grinders = rec.grinders.map(function (x) {
+      if (x.name !== next.name) return x;
+      found = true;
+      return next;
+    });
+    if (!found) rec.grinders.push(next);
+    rec.updated = Date.now();
+    return store(rec);
+  }
+
+  /* CORRECTING AND FORGETTING, FROM THE FRONT DOOR.
+
+     Everything above is written by a tool saving its own kit, and a tool
+     only ever adds. Nothing anywhere could take a grinder off this list,
+     so a grinder somebody sold two years ago stayed on it, was still
+     offered by both apps, and there was no screen on the site where it
+     could be crossed out. `forget` is that screen's verb.
+
+     It removes the grinder from the shared list and nothing else. The
+     app that is using it keeps its own kit — `state.kit.grinder` is that
+     app's authority and this file has never written into it — which is
+     also why the front door refuses to forget a grinder a tool is
+     currently set to: `remember` runs on that app's next boot and would
+     put it straight back, so the button would be a lie. */
+  function forget(name) {
+    var rec = read();
+    var next = rec.grinders.filter(function (g) { return g.name !== name; });
+    if (next.length === rec.grinders.length) return rec;
+    rec.grinders = next;
+    rec.updated = Date.now();
+    return store(rec);
+  }
+
   /* The grinders marked for one tool, with the unmarked ones included:
      a list written before the marks existed, or by a build that did not
      set them, must not read as an empty shelf. */
@@ -264,6 +316,8 @@
     known: known,
     knownFor: knownFor,
     setUse: setUse,
+    put: put,
+    forget: forget,
     remember: remember,
     read: read,
     sync: sync,

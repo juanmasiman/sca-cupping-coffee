@@ -189,13 +189,22 @@ function reconcileCoffees() {
 
 /* Which of this app's rows are on the shelf for this tool. A row whose
    bag has been unmarked keeps its log — nothing here destroys one — but
-   it stops being offered, because you said you do not brew it here. */
+   it stops being offered, because you said you do not brew it here.
+
+   The last clause is for a row the library never held: an app opened
+   before the shelf existed, on a build that has not adopted yet. It is
+   not for a bag somebody took OFF the shelf, which is also absent from
+   the library and would otherwise walk back on here for good — so the
+   tombstone is consulted, which is the whole reason the library keeps
+   one. Taking a bag off the shelf on the front door is exactly that
+   case, and before this line it did nothing anyone could see. */
 function shelfCoffees() {
   const L = root().LentoCoffees;
   if (!L) return state.coffees || [];
   const on = {};
   L.forTool('espresso').forEach(c => { on[c.id] = true; });
-  return (state.coffees || []).filter(c => on[c.id] || !L.get(c.id));
+  const gone = L.read().dead || {};
+  return (state.coffees || []).filter(c => on[c.id] || (!L.get(c.id) && !gone[c.id]));
 }
 
 // `window`, named, because this file is not a module and a bare global
@@ -845,9 +854,22 @@ function newCoffee(name) {
   };
 }
 
+/* The coffee the board is showing, and it comes off the shelf rather
+   than out of the store.
+
+   Those were the same list until a bag could be taken off the shelf
+   somewhere else — in the other instrument, or on the front door. After
+   that the row survives here with its whole log, as it should, and
+   nothing stops it being the board: remove the coffee you were dialling
+   in from lento.cafe, come back, and the dial-in is still sitting on it,
+   offering to pull another shot of a bag you said you do not brew here.
+
+   Falling back to the first coffee ON the shelf is the same fallback it
+   always made, against the same list the coffee sheet offers. */
 function activeCoffee() {
-  if (!state.coffees.length) return null;
-  return state.coffees.find(c => c.id === state.activeId) || state.coffees[0];
+  const shelf = shelfCoffees();
+  if (!shelf.length) return null;
+  return shelf.find(c => c.id === state.activeId) || shelf[0];
 }
 
 function coffeeLabel(c) {

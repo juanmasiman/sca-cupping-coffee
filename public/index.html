@@ -149,8 +149,97 @@
        eight. */
     footer { margin-top: var(--space-7); font-size: 12px; color: var(--text-faint); }
 
+    /* ---------- what is yours ----------
+
+       The cards above are doors: a border, a fill, an icon in a tile, an
+       arrow at the end. What follows is not a door — it is stock, and
+       stock is a list. No border, no fill, no tile; a hairline between
+       entries and the name carrying the row.
+
+       Two registers on one page, so a glance separates a place to go from
+       a thing you own. Eight more cards would have made the front door a
+       wall of identical rectangles, which is the one shape this page
+       cannot afford: somebody arriving to log a shot reads it in a second
+       and leaves, and the shelf is for the other visit. */
+    .stock-group { margin-top: var(--space-8); text-align: left; }
+
+    .stock-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-4);
+      margin: 0 calc(var(--space-2) * -1);
+      padding: 0 var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--line);
+    }
+    .stock-title { font-size: 13px; font-weight: 700; }
+    /* The sans, not the engraved mono the apps set values in. "3 bags" is
+       a label on a section, not a measurement somebody took, and mono put
+       a full advance of air between the numeral and the word. */
+    .stock-count { font-size: 11px; font-weight: 600; color: var(--text-faint); }
+
+    /* Four pixels wider than the cards on each side, which is the room a
+       row needs for a hover fill and a focus ring without the rules
+       drifting out of line with the stack above them. */
+    .stock-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      width: calc(100% + var(--space-4));
+      margin: 0 calc(var(--space-2) * -1);
+      min-height: 52px;
+      padding: var(--space-3) var(--space-2);
+      background: none;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.18s var(--ease);
+    }
+    .stock-row:active { background: var(--chrome-soft); }
+    @media (hover: hover) {
+      .stock-row:hover { background: var(--chrome-soft); }
+    }
+    .stock-row:focus-visible { outline: 2px solid var(--data); outline-offset: -2px; }
+
+    .stock-text { flex: 1; min-width: 0; }
+    .stock-name,
+    .stock-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stock-name { font-size: 15px; font-weight: 600; }
+    .stock-sub { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+
+    /* The marks are the instruments' own glyphs, the same tamper and the
+       same dripper drawn on the cards above. "What do I brew this with"
+       is answered by the thing itself rather than by two more words on
+       every row — and on a page whose whole argument is that it can be
+       read in a second, two words a row is twenty words. */
+    .stock-marks { flex: none; display: flex; gap: var(--space-2); color: var(--chrome); }
+    .stock-go { flex: none; color: var(--text-faint); }
+
+    /* ---------- the two sheets ----------
+
+       Everything a sheet here is made of comes from components.css, which
+       is why this page links it. These two are the layout the bag sheet
+       needs and nothing else: short answers two to a row, so a record
+       with nine fields in it is not nine screens of scrolling. */
+    .bag-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .bag-group { display: flex; flex-direction: column; gap: var(--space-3); }
+    /* WCAG exempts an inactive control from contrast, and a grinder an app
+       is currently set to is exactly that: the switch is stating a fact
+       the app will rewrite on its next boot, and the line under it says
+       so in words. */
+    .switch input:disabled + .switch-track { opacity: 0.55; }
+
+    /* Adding is the last line of the list, not a button parked under it. */
+    .stock-add .stock-name { color: var(--text-dim); }
+    .stock-plus { flex: none; color: var(--text-faint); }
+
     @media (prefers-reduced-motion: reduce) {
-      .card { transition: none; }
+      .card, .stock-row { transition: none; }
     }
   </style>
 </head>
@@ -254,14 +343,95 @@
       <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
 
+    <!-- Everything below the account is a thing you own rather than a
+         place to go, and every one of them is shared: the shelf and the
+         grinders live in /shared/, so this is not the dial-in's view of
+         your coffees or the brew log's — it is the shelf. Each section
+         stays out of the page entirely until it has something in it. A
+         front door that shows an empty vault to somebody who has never
+         brewed is telling them about a thing they have not used. -->
+    <section class="stock-group hidden" id="shelf">
+      <div class="stock-head">
+        <h2 class="stock-title">Your coffees</h2>
+        <span class="stock-count" id="shelf-count"></span>
+      </div>
+      <div id="shelf-list"></div>
+    </section>
+
+    <section class="stock-group hidden" id="gear">
+      <div class="stock-head">
+        <h2 class="stock-title">Your gear</h2>
+      </div>
+      <div id="gear-list"></div>
+    </section>
+
     <footer>lento.cafe</footer>
   </main>
 
+  <!-- The bag, and only the bag. What is written on a coffee is shared —
+       name, roaster, roast, origin, variety, process, altitude, what it
+       claims to taste like — and this sheet edits that record. What it
+       does not touch is a target dose, a ratio or a grind, because those
+       are the instrument's answers and 1:2 in 28 seconds and 1:16 in
+       three minutes are not two values of one setting. So this is not a
+       third copy of either app's coffee sheet: it is a smaller, different
+       form over the fields the two of them already share. -->
+  <div id="bag-modal" class="modal hidden">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="bag-title">
+      <div class="sheet-head">
+        <h3 id="bag-title">The bag</h3>
+        <button id="bag-close" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="edit-body" id="bag-body"></div>
+      <div class="sheet-destroy">
+        <button id="bag-remove" class="btn-quiet-danger" type="button">Take off the shelf</button>
+      </div>
+      <div class="sheet-actions">
+        <button id="bag-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- A grinder, and the two things about it that are nobody's tool's.
+
+       Which tools you use it with is recorded in /shared/kit.js and is
+       only ever added to by an app saving its own kit — so this is where
+       it can come off. Whether you still own it is the same story: until
+       now, nothing on the site could cross out a grinder you sold.
+
+       Stepped or stepless is deliberately absent. Each app's own kit is
+       the authority for that app, so changing it here would move the
+       prefill and leave the advice where it was — a control with an
+       invisible effect, which is worse than no control. -->
+  <div id="grinder-modal" class="modal hidden">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="grinder-title">
+      <div class="sheet-head">
+        <h3 id="grinder-title">The grinder</h3>
+        <button id="grinder-close" class="icon-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="edit-body" id="grinder-body"></div>
+      <div class="sheet-destroy">
+        <button id="grinder-forget" class="btn-quiet-danger" type="button">I no longer own this</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <!-- The three things that belong to you rather than to a tool. The
+       front door used to load one of them and could only ever answer
+       "who are you"; the other two are why it can now answer "what do
+       you own" and "what is on the shelf" without opening an instrument
+       to find out. -->
   <script src="/shared/config.js"></script>
   <script src="/shared/account.js"></script>
   <script src="/shared/account-sheet.js"></script>
+  <script src="/shared/kit.js"></script>
+  <script src="/shared/coffees.js"></script>
   <script src="/home.js"></script>
 </body>
 </html>
