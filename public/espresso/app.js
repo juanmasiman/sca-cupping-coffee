@@ -3897,6 +3897,16 @@ function openGrindNow(c, keeper) {
   openModal('#edit-modal');
 }
 
+/* WHAT THE BAG SAYS, ON THE ROW. See the brew log's copy of this — the
+   two apps ask for different fields, because this one reasons from
+   process and elevation and that one keeps them as a record, so the line
+   is built separately and the row it goes in is shared. */
+function bagLine(c) {
+  const proc = processEntry(c.process);
+  return [c.roaster, proc ? proc.label : '', c.decaf ? 'decaf' : '']
+    .map(x => (x || '').trim()).filter(Boolean).join(' · ');
+}
+
 function openCoffees() {
   const list = $('#coffee-list');
   list.innerHTML = '';
@@ -3905,20 +3915,48 @@ function openCoffees() {
   }
   state.coffees.forEach(c => {
     const keeper = c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
-    const row = el('button', 'coffee-row' + (c.id === state.activeId ? ' on' : ''), `
+    const bag = bagLine(c);
+    const roast = roastEntry(c.roast);
+    const counts = [
+      `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}`,
+      keeper ? `dialled at ${fmtRatio(ratioOf(keeper))}` : '',
+      roast ? roast.label.toLowerCase() : '',
+    ].filter(Boolean).join(' · ');
+
+    /* Not a button any more — it holds two. See components.css. */
+    const row = el('div', 'coffee-row' + (c.id === state.activeId ? ' on' : ''));
+
+    const pick = el('button', 'coffee-pick', `
       <span class="coffee-row-text">
         <span class="coffee-row-name">${escapeHTML(coffeeLabel(c))}</span>
-        <span class="coffee-row-sub">${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${
-          keeper ? ` · dialled at ${fmtRatio(ratioOf(keeper))}` : ''}</span>
+        ${bag ? `<span class="coffee-row-bag">${escapeHTML(bag)}</span>` : ''}
+        <span class="coffee-row-sub">${escapeHTML(counts)}</span>
       </span>
     `);
-    row.type = 'button';
-    row.addEventListener('click', () => {
+    pick.type = 'button';
+    pick.setAttribute('aria-label', `Pull ${coffeeLabel(c)}`);
+    pick.addEventListener('click', () => {
       state.activeId = c.id;
       save();
       closeModal('#coffee-modal');
       renderBoard();
     });
+
+    /* The way to read or change a coffee that is not the one on the
+       machine. Until now the only door to a coffee's own sheet was the
+       board header, so correcting a typo meant switching bags first. */
+    const edit = el('button', 'icon-btn coffee-edit', '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">'
+      + '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'
+      + '</svg>');
+    edit.type = 'button';
+    edit.setAttribute('aria-label', `Edit ${coffeeLabel(c)}`);
+    edit.addEventListener('click', () => {
+      closeModal('#coffee-modal');
+      openEdit(c, {});
+    });
+
+    row.appendChild(pick);
+    row.appendChild(edit);
     list.appendChild(row);
   });
   openModal('#coffee-modal');
@@ -4341,8 +4379,26 @@ function grinderOptions(cur) {
 function openKit() {
   const k = Object.assign(defaultKit(), state.kit);
   const body = $('#kit-body');
+  /* FIRST RUN IS NOT FOREVER.
+
+     This sheet was written as a wizard — "Asked once", a Skip beside the
+     Save — and then kept that face for the rest of its life. Somebody
+     coming back to change a grinder found a form they had apparently
+     already filled in, with a Skip on it, under a sentence explaining why
+     they were being asked. A Skip on a revisit is a button that throws
+     away what you own.
+
+     Answered once, it is a page: what you have, with Done. Unanswered, it
+     is still the first-run sheet it was, because that framing is right
+     exactly once. */
+  const first = !kit().asked;
+  $('#kit-title').textContent = first ? 'Your setup' : 'My setup';
+  $('#kit-skip').classList.toggle('hidden', !first);
+  $('#kit-save').textContent = first ? 'Save' : 'Done';
   body.innerHTML = `
-    <p class="sheet-note">Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a variable your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.</p>
+    <p class="sheet-note">${first
+      ? 'Asked once. The shot sheet then offers only what you can actually change, and nothing here suggests a variable your machine does not have. Pick yours and the questions below fill themselves in — correct any that are wrong, because a machine you have modified beats any list.'
+      : 'What you pull on. The shot sheet is built from it, so changing something here changes what the sheet asks for next time. A machine you have modified beats any list, so every answer stays editable.'}</p>
     <label class="field"><span class="field-label">Machine</span>
       <select class="field-input" id="k-machine-pick">${machineOptions(k.machine)}</select></label>
     <label class="field hidden" id="k-machine-other"><span class="field-label">Which one</span>
@@ -4550,6 +4606,16 @@ function openKit() {
   openModal('#kit-modal');
 }
 
+/* What is on the shelf, for the row that opens it. A count and the one
+   you are on, because a list of names in a settings row is a paragraph in
+   a slot that holds a phrase. */
+function coffeeShelfLine() {
+  const n = (state.coffees || []).length;
+  if (!n) return 'Nothing on the shelf yet';
+  const active = activeCoffee();
+  return `${n} coffee${n === 1 ? '' : 's'}${active ? ` · on ${coffeeLabel(active)}` : ''}`;
+}
+
 function kitLine() {
   const k = kit();
   const bits = [k.machine, k.grinder, k.basket].filter(Boolean);
@@ -4732,8 +4798,17 @@ function openSettings() {
     </button>` : ''}
 
     <button class="btn btn-ghost kit-btn" id="btn-kit">
-      <span class="kit-btn-title">Your setup</span>
+      <span class="kit-btn-title">My setup</span>
       <span class="kit-btn-sub">${escapeHTML(kitLine())}</span>
+    </button>
+
+    ${/* The second door to the library. The first is the coffee name in
+          the board header, which is where somebody switching bags goes —
+          but that reads as "change the coffee", not "look at what I have",
+          and this row is where you go for the second thing. */ ''}
+    <button class="btn btn-ghost kit-btn" id="btn-coffees">
+      <span class="kit-btn-title">My coffees</span>
+      <span class="kit-btn-sub">${escapeHTML(coffeeShelfLine())}</span>
     </button>
 
     <label class="switch-row" for="t-tds">
@@ -4796,6 +4871,7 @@ function openSettings() {
   const acc = body.querySelector('#btn-account');
   if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); LentoAccountSheet.open(); });
   body.querySelector('#btn-kit').addEventListener('click', () => { closeModal('#settings-modal'); openKit(); });
+  body.querySelector('#btn-coffees').addEventListener('click', () => { closeModal('#settings-modal'); openCoffees(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
 }

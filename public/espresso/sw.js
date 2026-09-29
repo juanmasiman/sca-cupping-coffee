@@ -11,7 +11,7 @@
    because its auth file did not arrive is not.
    ============================================================ */
 
-const VERSION = 'v21';
+const VERSION = 'v22';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [

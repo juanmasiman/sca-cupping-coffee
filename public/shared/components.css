@@ -1413,20 +1413,57 @@ select.field-input {
   flex-direction: column;
   gap: var(--space-3);
 }
+/* A LIST YOU CAN READ, NOT JUST ONE YOU CAN PICK FROM.
+
+   It was a name and a count, and everything a bag says — the roaster, the
+   origin, the variety, the roast — was invisible until you made that
+   coffee the active one and opened its sheet. So the app asked for all of
+   it and then showed none of it back, which is how a field stops being
+   filled in.
+
+   Two targets to a row now, which is why the row is no longer itself a
+   button: the body switches to that coffee, which is what somebody is
+   doing nine times in ten, and the mark on the right opens it to read or
+   change. A button inside a button is not valid HTML and the browser
+   un-nests it, so the row had to stop being one. */
 .coffee-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  gap: var(--space-2);
   width: 100%;
-  min-height: 56px;
-  padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-card);
   text-align: left;
 }
 .coffee-row.on { border-color: var(--rail); background: var(--data-soft); }
-.coffee-row-text { display: flex; flex-direction: column; min-width: 0; }
+.coffee-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-4);
+  text-align: left;
+}
+.coffee-edit {
+  flex: none;
+  align-self: center;
+  margin-right: var(--space-2);
+  color: var(--text-faint);
+}
+.coffee-row-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .coffee-row-name { font-size: 15px; font-weight: 700; }
+/* What the bag says. Sans, because it is names and words — the mono line
+   under it is counts and figures, and the two reading differently is what
+   lets an eye run down the column looking for one or the other. */
+.coffee-row-bag {
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .coffee-row-sub { font-size: 11px; font-family: var(--mono); color: var(--text-dim); }
 
 /* ---------- edit / settings ---------- */
