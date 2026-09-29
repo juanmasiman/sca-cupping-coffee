@@ -3894,8 +3894,12 @@ function boot() {
   /* No protocol test. serviceWorker is only exposed in a secure context
      to begin with, so the check added nothing on the deployed site — and
      it excluded localhost, which is a secure context, meaning this app's
-     offline path had never once run anywhere it could be watched. The
-     other two apps never had it. */
+     offline path had never once run anywhere it could be watched.
+
+     (This comment used to end "The other two apps never had it." The
+     dial-in and the front door never did; the cupping sheet did, in a
+     slightly different form, and went on having it for months because
+     that sentence was written without looking.) */
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline is the normal case here anyway */ });
   }

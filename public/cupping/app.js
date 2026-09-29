@@ -6178,8 +6178,19 @@ function printResults() {
    ============================================================ */
 
 function registerServiceWorker() {
+  /* No protocol test. `serviceWorker` is only exposed in a secure context
+     to begin with, so the test added nothing on the deployed site — and
+     the one that was here allowed `localhost` and not `127.0.0.1`, which
+     the platform treats identically. The cost was not theoretical: the
+     offline suite loads this app over 127.0.0.1, waited on
+     `serviceWorker.ready` for a registration that was never going to
+     happen, and hung there — so cupping's offline path was the one
+     surface no test could watch, found by running the whole site at once.
+
+     The brew log removed the same test and its comment said "the other
+     two apps never had it". They did not; this one did, and nobody
+     looked. */
   if (!('serviceWorker' in navigator)) return;
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
   // Deliberately no reload on controllerchange: the worker claims the page
   // on its first install, and reloading there discarded the sign-in token
   // arriving in the URL. Navigations are network-first, so a new version
