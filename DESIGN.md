@@ -570,6 +570,77 @@ the only place on the site where a dripper can be added, so hiding it
 until you own one answers "where do I add my kettle" with "nowhere until
 you already have a kettle".
 
+## The reward for a good tap must not be a wall of chips
+
+The first gear sheet opened as seventeen controls. That is the honest
+count of what the record can hold, and it was the wrong screen anyway,
+because of what happens one tap earlier: choosing "Comandante C40"
+answers five of those questions at once. That moment — the catalogue
+paying for itself — is the best thing in this feature, and the sheet
+answered it by handing over a form and asking the person to read all
+seventeen looking for the nothing they disagreed with.
+
+**So it opens as what it is: a record.** One line of what is known, in
+the words somebody would use — *by hand · conical burrs · 40 mm ·
+clicks* — one line naming what nobody has established, the marks saying
+which tool uses it, and what you last made with it. Correcting is a
+deliberate act with a button of its own, and only then does a form
+exist. Nothing was deleted to get there: the same seventeen controls are
+one tap away for the person who actually disagrees with one.
+
+**Adding starts at the question that answers the rest.** The model
+picker comes first and the answers it produced are shown *before*
+anything else is asked, so the tap visibly pays. A model the catalogue
+does not know falls through to a name field, and only then does the sheet
+have to ask.
+
+**What nobody established is a line, not a blank.** The catalogue leaves
+a field null rather than guess, which is right, and the first sheet
+rendered that decision as nothing at all — a person saw a gap and no
+reason to care about it. It reads "Not answered: basket dose"
+instead, which is the same fact turned into something you can act on.
+
+**A switch cannot hold three answers.** Four fields were switches —
+retention, bypass, whether a kettle holds its temperature, whether a
+machine has a flow-control paddle — and a switch has two positions where
+the record has three: yes, no, and nobody has said. `null` rendered as a
+plain off, indistinguishable from an explicit No, so the sheet showed a
+"No" nobody chose and asked the person to endorse it by saving; once they
+had touched it there was no way back to unknown. That is precisely the
+failure the catalogue's own null policy exists to prevent — *a wrong
+attribute costs more than an absent one* — committed by the screen built
+on top of it. All four are chips now, which clear on re-tap, so unknown
+stays reachable. It is also one control type fewer in the system.
+
+**A sheet with two states needs Escape to mean the nearer one.** The
+gear and bag sheets can be read or corrected, and Escape closed the whole
+thing from either — losing an in-progress correction to the key people
+press to back out of one. A sheet can now register a guard that Escape
+consults first, so it steps back to reading and only closes from there.
+Stepping back destroys the focused element, which silently unhooked the
+focus trap and left Escape doing nothing at all until focus was put
+somewhere real again; the step-back moves focus to the first control of
+the state it lands in.
+
+**A message must not swallow the tap aimed at what is behind it.** The
+toast floats over every sheet, which is right, and it was also taking the
+press: measured on a 1100px window it sat squarely on Save, and for eight
+seconds after a removal it covered the row that had moved up into the
+removed one's place. `pointer-events: none` makes it a message again and
+the Undo inside it takes its own back. Over an open sheet it also lifts
+clear of the action bar, because the two things it covered most were the
+primary button and the one sentence explaining why a control was
+disabled.
+
+**A false bottom is worse than a scrollbar.** The bag sheet is 732px of
+record in a 577px window and the two views were indistinguishable at the
+fold, so 155px went unread. The destructive control sat in a pinned band
+right at that line, which made the false bottom look like a real one — it
+has moved inside the record, where it is one more fact about the thing
+rather than a permanent threat. The cue that replaces it is a 20px fade
+at the bottom edge, applied only while the sheet actually overflows: no
+text, no chevron, nothing that needs explaining.
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.
@@ -621,7 +692,7 @@ The greys are warm in light and cool in dark, each biased a few degrees toward i
 
 The split is semantic and absolute: if a reader could compare it to another number, it is Mono with `font-variant-numeric: tabular-nums`. Scores, scale values, the anchor phrase, counts, coffee positions. If it is a name or a sentence, it is Sans. This is why a column of scores lines up on the decimal without any layout work — the numerals are the same width by construction.
 
-**The ramp is eight steps and everything sits on one of them:** 11, 13, 15, 17, 20, 24, 30, 40, with a single 9px tick below it for the scale numbers. It carried a 46px step for a while, declared and rendered nowhere, left over from when the score was display-sized and before it moved into the header. The sheet used to carry **twenty-eight** different sizes — 11.5 next to 12 next to 12.5 next to 13 — which is not a hierarchy, it is an accumulation. Collapsing it moved eighty declarations by at most 2px each, so the system arrived without the app being redrawn.
+**The ramp is eight steps and everything sits on one of them:** 11, 13, 15, 17, 20, 24, 30, 40, with a single 9px tick below it for the scale numbers. The 46px step this section once described as declared and rendered nowhere is rendered now, in one place: the launcher's wordmark. It is off the ramp on purpose and is the only thing on the site that is, because a logotype is not UI text — it is set once, at the size it reads at, and pulling it onto a ramp built for labels and figures would be the ramp deciding something it has no opinion about. Everything else on that page was moved onto the ramp, where 12 and 14 had crept in between 11, 13 and 15 — the same accumulation this section exists to stop, arriving on the one page the type system had never been applied to. The sheet used to carry **twenty-eight** different sizes — 11.5 next to 12 next to 12.5 next to 13 — which is not a hierarchy, it is an accumulation. Collapsing it moved eighty declarations by at most 2px each, so the system arrived without the app being redrawn.
 
 The score is the largest thing on the scoring screen and the only one set in the data ink, which is how it earns being the thing the screen exists to produce. It is 30px rather than the 46px this section first claimed: the score moved into the header when the layout went to three bands, and a 46px figure in a header row costs more height than folding it there saved. What matters is not the absolute size but that nothing competes — the eight section values sit a ramp step below it, in the page's own ink, because the knob already carries each of them in the data ink on the control that produced it.
 

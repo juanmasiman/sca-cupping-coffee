@@ -26,8 +26,13 @@
         the shell and two sections to the page that the old home.js knows
         nothing about.
    v5 — those two sections became two buttons and four sheets, and the
-        brewer table came along to describe what is on the shelf. */
-const VERSION = 'v7';
+        brewer table came along to describe what is on the shelf.
+   v6 — deletions became writes, which added the tombstone paths.
+   v7 — the gear catalogue and store arrived as two new shared scripts,
+        and the brewer table moved into the catalogue.
+   v8 — the gear sheet became a record that expands, which is markup and
+        wiring the old home.js has no idea about. */
+const VERSION = 'v8';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
