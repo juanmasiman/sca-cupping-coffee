@@ -143,9 +143,12 @@
      supplied rather than assembled here from a noun and a count, because
      the sentence was never the same shape in the first place.
 
-     `sync` is optional. The launcher has no records of its own, so it has
-     no Sync now to offer, and a button that does nothing is worse than a
-     button that is not there. */
+     `sync` is optional, and it is the cupping sheet that leaves it out:
+     it holds its history in its own store and syncs on its own schedule.
+     A button that does nothing is worse than a button that is not there.
+     (The launcher used to leave it out too, on the grounds that it held
+     no records. It holds two shared ones now — the grinders and the
+     shelf — so it passes one.) */
   function signedIn(body, u) {
     body.innerHTML = '<p class="sheet-note">' + esc(u.email || u.name || '') + '</p>'
       + '<p class="sheet-note" id="account-status">' + esc(host.status('idle')) + '</p>'

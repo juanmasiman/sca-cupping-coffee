@@ -6,17 +6,42 @@
    signed in everywhere, but the page they actually land on could not say
    so, could not sign them in, and could not sign them out.
 
-   WHAT THIS PAGE IS NOT
+   WHAT THIS PAGE IS, NOW THAT THREE THINGS ARE SHARED
 
-   It is not a tool. It holds no records, so it has nothing to sync and it
-   does not offer to — see `sync` being absent below. What it can say, and
-   what nothing else can, is what is on this device across all three
-   tools, because localStorage is one origin and the front door is the
-   only place that sees all of it at once.
+   It is not a tool: it logs nothing, measures nothing and gives no
+   advice. What it holds is everything that stopped belonging to a tool.
 
-   Those stores belong to the apps that write them. They are read
-   defensively and anything unreadable is simply left out of the sentence,
-   rather than this page having an opinion about a shape it does not own.
+   There are three such records, and until now the front door loaded one
+   of them. The account has been here since there was one. The grinders
+   (/shared/kit.js) and the coffees (/shared/coffees.js) were extracted
+   later, so a bag corrected in the dial-in is corrected in the brew log
+   — but there was no screen anywhere that showed you your coffees as
+   YOUR coffees. Only the dial-in's view of the shelf, and the brew log's
+   view of the shelf, and nothing that was simply the shelf.
+
+   So: who you are, what you own, what is on the shelf, and the four
+   instruments in the middle of it.
+
+   WHERE THE LINE IS
+
+   This page writes the shared records and only those. A bag's name,
+   roaster, origin and marks are shared, so they are edited here. A
+   target dose, a ratio, a grind setting and a log are the instrument's,
+   so they are not — the row for them is a link into the instrument that
+   owns it, never a second opinion about it. The same line runs through
+   the gear: the grinders are shared and editable here, the espresso
+   machine and the brewers live in their tools and are shown as facts.
+
+   Cross-app writes are refused for the reason /shared/coffees.js gives:
+   an app holds its state in memory and writing into its store from here
+   races whatever it is holding. Marking a bag is enough — the tool
+   reconciles on its next load, which is work it does anyway.
+
+   The counts in the account row stay raw reads of the three tools'
+   stores, because a cupping, a shot and a brew are logs, and no shared
+   module owns one. They are read defensively and anything unreadable is
+   left out of the sentence, rather than this page having an opinion
+   about a shape it does not own.
    ============================================================ */
 
 (function () {
@@ -69,16 +94,52 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  // The same component the apps use, shown the same way: `.toast` is
-  // always in the page and `hidden` is what moves. It has no undo here —
-  // nothing on this page destroys anything.
+  /* The same component the apps use, shown the same way: `.toast` is
+     always in the page and `hidden` is what moves.
+
+     It carries an undo now, because this page destroys things: a bag can
+     come off the shelf here and a grinder can be crossed out. The offer
+     lives inside the toast so it cannot outlive what it undoes, and it is
+     given eight seconds rather than four — long enough to notice a
+     mistake, short enough not to sit over the page. */
   var toastTimer = null;
-  function toast(msg) {
+  var undoSlot = null;
+  function toast(msg, undo) {
     var t = $('#toast');
-    t.textContent = msg;
+    t.innerHTML = '';
+    t.appendChild(document.createTextNode(msg));
+    undoSlot = undo || null;
+    if (undo) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-undo';
+      b.textContent = 'Undo';
+      b.addEventListener('click', function () {
+        var act = undoSlot;
+        undoSlot = null;
+        t.classList.add('hidden');
+        if (!act) return;
+        act.restore();
+        toast(act.after || 'Put back');
+      });
+      t.appendChild(b);
+    }
     t.classList.remove('hidden');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 4000);
+    toastTimer = setTimeout(function () {
+      t.classList.add('hidden');
+      undoSlot = null;
+    }, undo ? 8000 : 4000);
+  }
+
+  function esc(v) {
+    return String(v === null || typeof v === 'undefined' ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function uid() {
+    return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
   /* ---------- what is on this device ---------- */
@@ -155,6 +216,516 @@
     $('#account-note').textContent = rowNote(u);
   }
 
+  /* ---------- the instruments, as data ----------
+
+     The glyphs are the ones drawn on the cards above, not copies of them:
+     the same tamper and the same dripper, at 16px, standing for "this is
+     what I brew it with" on every row below. A mark that is the
+     instrument's own picture needs no word beside it, and on a list of
+     twenty bags two words a row is forty words nobody reads. */
+
+  var TAMPER = '<path d="M12 3v6"/><path d="M9.5 3h5"/>'
+    + '<rect x="5" y="9" width="14" height="3.4" rx="1.2"/>'
+    + '<path d="M6.5 16.5h11"/><path d="M8 20h8"/>';
+  var DRIPPER = '<path d="M4 5h16l-6 8h-4z"/><path d="M12 13v1.4"/>'
+    + '<path d="M12 22a2.1 2.1 0 0 1-2.1-2.1c0-1.25 2.1-3.15 2.1-3.15s2.1 1.9 2.1 3.15A2.1 2.1 0 0 1 12 22z"/>';
+
+  function glyph(paths, size, weight) {
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none"'
+      + ' stroke="currentColor" stroke-width="' + (weight || 2) + '"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+  }
+
+  var TOOLS = [
+    {
+      key: 'espresso',
+      title: 'Espresso dial-in',
+      there: 'the dial-in',
+      href: '/espresso/',
+      store: 'lento-espresso-v1',
+      log: 'shots',
+      paths: TAMPER,
+    },
+    {
+      key: 'filter',
+      title: 'Filter brew log',
+      there: 'the brew log',
+      href: '/filter/',
+      store: 'lento-filter-v1',
+      log: 'brews',
+      paths: DRIPPER,
+    },
+  ];
+
+  /* The roast levels, by the key both apps store. They are five words and
+     they are not this page's to invent: the same key has to mean the same
+     roast in the dial-in's temperature table and the brew log's, so if
+     either list moves this one moves with it. */
+  var ROASTS = [
+    { key: 'light', label: 'Light' },
+    { key: 'mlight', label: 'Medium-light' },
+    { key: 'medium', label: 'Medium' },
+    { key: 'mdark', label: 'Medium-dark' },
+    { key: 'dark', label: 'Dark' },
+  ];
+
+  // An app's kit, read the way everything else from an app's store is
+  // read here: defensively, and absent rather than guessed at.
+  function toolKit(store) {
+    var v = readJSON(store);
+    return v && v.kit && typeof v.kit === 'object' ? v.kit : null;
+  }
+
+  /* ---------- what is on the shelf ---------- */
+
+  function nameOf(c) { return (c.name || '').trim() || 'Unnamed'; }
+
+  function bagSub(c) {
+    return [c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
+      .map(function (x) { return (x || '').trim(); })
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  function marksHTML(use) {
+    var out = '';
+    TOOLS.forEach(function (t) { if (use && use[t.key]) out += glyph(t.paths, 16); });
+    return out ? '<span class="stock-marks">' + out + '</span>' : '';
+  }
+
+  // The same fact in words, for the row's accessible name. The glyphs are
+  // aria-hidden: a picture of a tamper is not a label.
+  function marksWords(use) {
+    var on = TOOLS.filter(function (t) { return use && use[t.key]; })
+      .map(function (t) { return t.there; });
+    if (!on.length) return 'not marked for either tool';
+    return 'for ' + on.join(' and ');
+  }
+
+  var CHEVRON = '<path d="M9 6l6 6-6 6"/>';
+  var PLUS = '<path d="M12 5v14M5 12h14"/>';
+
+  function stockRow(opts) {
+    var row = document.createElement(opts.href ? 'a' : 'button');
+    row.className = 'stock-row';
+    if (opts.href) row.href = opts.href;
+    else row.type = 'button';
+    row.innerHTML = '<span class="stock-text">'
+      + '<span class="stock-name">' + esc(opts.name) + '</span>'
+      + (opts.sub ? '<span class="stock-sub">' + esc(opts.sub) + '</span>' : '')
+      + '</span>'
+      + marksHTML(opts.use)
+      + (opts.href ? '<span class="stock-go">' + glyph(CHEVRON, 18, 2.5) + '</span>' : '');
+    if (opts.label) row.setAttribute('aria-label', opts.label);
+    if (opts.onPick) row.addEventListener('click', opts.onPick);
+    return row;
+  }
+
+  function addRow(text, onPick) {
+    var row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'stock-row stock-add';
+    row.innerHTML = '<span class="stock-plus">' + glyph(PLUS, 18) + '</span>'
+      + '<span class="stock-text"><span class="stock-name">' + esc(text) + '</span></span>';
+    row.addEventListener('click', onPick);
+    return row;
+  }
+
+  function byName(a, b) {
+    return nameOf(a).toLowerCase().localeCompare(nameOf(b).toLowerCase());
+  }
+
+  function renderShelf() {
+    var box = $('#shelf');
+    var list = $('#shelf-list');
+    var bags = window.LentoCoffees ? LentoCoffees.all().slice().sort(byName) : [];
+    if (!bags.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    $('#shelf-count').textContent = bags.length + (bags.length === 1 ? ' bag' : ' bags');
+    list.innerHTML = '';
+    bags.forEach(function (c) {
+      list.appendChild(stockRow({
+        name: nameOf(c),
+        sub: bagSub(c),
+        use: c.use,
+        label: nameOf(c) + ' — ' + marksWords(c.use),
+        onPick: function () { openBag(c, false); },
+      }));
+    });
+    list.appendChild(addRow('Add a bag', function () { openBag(blankBag(), true); }));
+  }
+
+  /* ---------- what you own ----------
+
+     The grinders are shared and are edited here. The machine, the brewers
+     and the kettle are the instruments' own records — writing into an
+     app's store from this page would race whatever that app is holding in
+     memory — so they are shown as facts and the row is a way in to the
+     tool that owns them. The chevron is the difference: a row with one
+     takes you somewhere, a row without it opens here. */
+  function gear() {
+    var out = [];
+
+    if (window.LentoKit) {
+      LentoKit.known().forEach(function (g) {
+        out.push({
+          name: g.name,
+          sub: g.steps === 'stepped' ? 'stepped' : 'stepless',
+          use: g.use,
+          label: g.name + ' — ' + marksWords(g.use),
+          onPick: function () { openGrinder(g); },
+        });
+      });
+    }
+
+    var e = toolKit('lento-espresso-v1');
+    if (e && typeof e.machine === 'string' && e.machine.trim()) {
+      out.push({
+        name: e.machine.trim(),
+        sub: machineSub(e),
+        use: { espresso: true },
+        href: '/espresso/',
+        label: e.machine.trim() + ' — open the dial-in',
+      });
+    }
+
+    var f = toolKit('lento-filter-v1');
+    if (f) {
+      (Array.isArray(f.brewers) ? f.brewers : []).forEach(function (b) {
+        if (!b || typeof b.name !== 'string' || !b.name.trim()) return;
+        out.push({
+          name: b.name.trim(),
+          sub: flowWord(b.flow),
+          use: { filter: true },
+          href: '/filter/',
+          label: b.name.trim() + ' — open the brew log',
+        });
+      });
+      if (typeof f.kettle === 'string' && f.kettle.trim()) {
+        out.push({
+          name: f.kettle.trim(),
+          sub: 'kettle',
+          use: { filter: true },
+          href: '/filter/',
+          label: f.kettle.trim() + ' — open the brew log',
+        });
+      }
+    }
+
+    return out;
+  }
+
+  function machineSub(k) {
+    var bits = [];
+    var dose = Number(k.basketDose);
+    if (dose) bits.push(dose + ' g basket');
+    if (k.portafilter === 'bottomless') bits.push('bottomless');
+    return bits.join(' · ');
+  }
+
+  function flowWord(flow) {
+    if (flow === 'switch') return 'switch';
+    if (flow === 'immersion') return 'immersion';
+    return 'pour over';
+  }
+
+  function renderGear() {
+    var box = $('#gear');
+    var list = $('#gear-list');
+    var rows = gear();
+    if (!rows.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    list.innerHTML = '';
+    rows.forEach(function (it) { list.appendChild(stockRow(it)); });
+  }
+
+  function renderAll() {
+    renderAccount();
+    renderShelf();
+    renderGear();
+  }
+
+  /* ---------- the bag sheet ----------
+
+     Nine fields, a switch and two marks, and every one of them is a field
+     /shared/coffees.js owns. Nothing about brewing it is here: the target
+     dose, the ratio, the grind and the log belong to the instrument, and
+     a form that offered both would be offering the dial-in's answer and
+     the brew log's in the same box. */
+
+  function blankBag() {
+    var c = { id: uid(), decaf: false, use: { espresso: false, filter: false }, updated: 0 };
+    LentoCoffees.BAG.forEach(function (f) { c[f] = ''; });
+    return c;
+  }
+
+  function textField(id, label, value, placeholder) {
+    return '<div class="field">'
+      + '<label class="field-label" for="' + id + '">' + esc(label) + '</label>'
+      + '<input class="field-input" id="' + id + '" type="text" value="' + esc(value) + '"'
+      + ' autocapitalize="words"'
+      + (placeholder ? ' placeholder="' + esc(placeholder) + '"' : '') + '>'
+      + '</div>';
+  }
+
+  function switchRow(id, title, sub, on, off) {
+    return '<label class="switch-row" for="' + id + '">'
+      + '<span class="switch-text">'
+      + '<span class="switch-title">' + esc(title) + '</span>'
+      + (sub ? '<span class="switch-sub">' + esc(sub) + '</span>' : '')
+      + '</span>'
+      + '<span class="switch"><input type="checkbox" id="' + id + '"'
+      + (on ? ' checked' : '') + (off ? ' disabled' : '')
+      + '><span class="switch-track"><span class="switch-knob"></span></span></span>'
+      + '</label>';
+  }
+
+  function openBag(c, adding) {
+    var body = $('#bag-body');
+    var roast = c.roast || '';
+    $('#bag-title').textContent = adding ? 'A new bag' : 'The bag';
+
+    /* Name, then what you brew it with, then everything the bag itself
+       says. The marks began at the foot of the sheet, in the order a
+       label is read, and on a 390px phone that put the one answer this
+       page owns 155px below the fold with a red "Take off the shelf"
+       sitting where the form appeared to end. They are the second
+       question because they are the reason the bag is on this shelf at
+       all, and no instrument records them. */
+    body.innerHTML = textField('bag-name', 'Name', c.name, 'Kochere')
+      + '<div class="bag-group">'
+      + '<span class="field-label">Brewed with</span>'
+      + switchRow('bag-espresso', 'Espresso dial-in', '', c.use.espresso, false)
+      + switchRow('bag-filter', 'Filter brew log', '', c.use.filter, false)
+      + '</div>'
+      + '<div class="bag-pair">'
+      + textField('bag-roaster', 'Roaster', c.roaster, '')
+      + '<div class="field">'
+      + '<label class="field-label" for="bag-date">Roast date</label>'
+      + '<input class="field-input" id="bag-date" type="date" value="' + esc(c.roastDate) + '">'
+      + '</div></div>'
+      + '<div class="field">'
+      + '<span class="field-label" id="bag-roast-label">Roast</span>'
+      + '<div class="chips" id="bag-roast" role="group" aria-labelledby="bag-roast-label"></div>'
+      + '</div>'
+      + '<div class="bag-pair">'
+      + textField('bag-origin', 'Origin', c.origin, 'Ethiopia')
+      + textField('bag-variety', 'Variety', c.variety, 'Heirloom')
+      + '</div>'
+      + '<div class="bag-pair">'
+      + textField('bag-process', 'Process', c.process, 'Washed')
+      + textField('bag-altitude', 'Altitude', c.altitude, '1,900 m')
+      + '</div>'
+      + '<div class="notes-block">'
+      + '<label class="field-label" for="bag-notes">What the bag says</label>'
+      + '<textarea class="notes-input" id="bag-notes" rows="2"'
+      + ' placeholder="peach, jasmine, black tea">' + esc(c.bagNotes) + '</textarea>'
+      + '</div>'
+      + '<div class="bag-group">'
+      + switchRow('bag-decaf', 'Decaf', '', c.decaf, false)
+      + '</div>';
+
+    var chips = body.querySelector('#bag-roast');
+    function paintRoast() {
+      chips.innerHTML = '';
+      ROASTS.forEach(function (r) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip' + (roast === r.key ? ' on' : '');
+        b.textContent = r.label;
+        b.setAttribute('aria-pressed', roast === r.key ? 'true' : 'false');
+        // Tapping the one that is on clears it. A roast nobody knows is a
+        // real answer, and a chip row with no way back is a trap.
+        b.addEventListener('click', function () {
+          roast = roast === r.key ? '' : r.key;
+          paintRoast();
+        });
+        chips.appendChild(b);
+      });
+    }
+    paintRoast();
+
+    var remove = $('#bag-remove');
+    remove.classList.toggle('hidden', Boolean(adding));
+    remove.onclick = function () { removeBag(c); };
+
+    $('#bag-save').onclick = function () {
+      var next = { id: c.id };
+      next.name = body.querySelector('#bag-name').value.trim();
+      next.roaster = body.querySelector('#bag-roaster').value.trim();
+      next.roastDate = body.querySelector('#bag-date').value;
+      next.roast = roast;
+      next.origin = body.querySelector('#bag-origin').value.trim();
+      next.variety = body.querySelector('#bag-variety').value.trim();
+      next.process = body.querySelector('#bag-process').value.trim();
+      next.altitude = body.querySelector('#bag-altitude').value.trim();
+      next.bagNotes = body.querySelector('#bag-notes').value.trim();
+      next.decaf = body.querySelector('#bag-decaf').checked;
+      next.use = {
+        espresso: body.querySelector('#bag-espresso').checked,
+        filter: body.querySelector('#bag-filter').checked,
+      };
+
+      if (!next.name) {
+        toast('A bag needs a name.');
+        body.querySelector('#bag-name').focus();
+        return;
+      }
+      /* Unmarking both is how a bag leaves the shelf in the library, and
+         a save is not the place to find that out. Taking it off is a
+         button of its own, three inches down, and it says so. */
+      if (!next.use.espresso && !next.use.filter) {
+        toast('Mark it for at least one tool.');
+        return;
+      }
+
+      LentoCoffees.put(next);
+      closeModal('#bag-modal');
+      renderAll();
+      syncSoon();
+      if (adding) toast('On the shelf');
+    };
+
+    openModal('#bag-modal');
+  }
+
+  /* What goes with a bag, counted from the instruments' own stores. It is
+     not "nothing" — each app keeps its log against the bag's id — but the
+     rows stop being offered, which is the same thing from where you are
+     standing, so the toast says the number. */
+  function loggedWith(id) {
+    var bits = [];
+    TOOLS.forEach(function (t) {
+      var v = readJSON(t.store);
+      if (!v || !Array.isArray(v.coffees)) return;
+      var n = 0;
+      v.coffees.forEach(function (c) {
+        if (c && c.id === id && Array.isArray(c[t.log])) n = c[t.log].length;
+      });
+      if (n) bits.push(n + ' ' + (n === 1 ? t.log.slice(0, -1) : t.log));
+    });
+    return bits.join(' and ');
+  }
+
+  function removeBag(c) {
+    var was = LentoCoffees.get(c.id);
+    var went = loggedWith(c.id);
+    LentoCoffees.remove(c.id);
+    closeModal('#bag-modal');
+    renderAll();
+    syncSoon();
+    toast(went ? 'Off the shelf — ' + went + (/^1 \w+$/.test(went) ? ' goes' : ' go') + ' with it' : 'Off the shelf', {
+      after: nameOf(c) + ' is back',
+      restore: function () {
+        if (was) LentoCoffees.put(was);
+        renderAll();
+        syncSoon();
+      },
+    });
+  }
+
+  /* ---------- the grinder sheet ----------
+
+     Two marks and a way out, which is the whole of what /shared/kit.js
+     holds that an instrument does not. Stepped or stepless is absent on
+     purpose: each app's own kit is the authority for that app, so editing
+     it here would move the prefill and leave the advice where it was. */
+  function openGrinder(g) {
+    var body = $('#grinder-body');
+    $('#grinder-title').textContent = g.name;
+
+    /* An app that is set to this grinder writes the mark back on its next
+       boot, so a switch that took it off would flip itself on again, and
+       forgetting it would undo itself. Both are shown as the facts they
+       are instead. */
+    var set = [];
+    var using = {};
+    TOOLS.forEach(function (t) {
+      var k = toolKit(t.store);
+      using[t.key] = Boolean(k && k.grinder === g.name);
+      if (using[t.key]) set.push(t.there);
+    });
+
+    body.innerHTML = '<div class="bag-group">'
+      + TOOLS.map(function (t) {
+        return switchRow('grinder-' + t.key, t.title,
+          using[t.key] ? 'Set to it now' : '',
+          g.use[t.key] || using[t.key], using[t.key]);
+      }).join('')
+      + '</div>'
+      + (set.length
+        ? '<p class="sheet-note">Still set in ' + esc(set.join(' and '))
+          + ' — change it there to let this one go.</p>'
+        : '');
+
+    TOOLS.forEach(function (t) {
+      if (using[t.key]) return;
+      var input = body.querySelector('#grinder-' + t.key);
+      input.addEventListener('change', function () {
+        LentoKit.setUse(g.name, t.key, input.checked);
+        renderAll();
+        syncSoon();
+      });
+    });
+
+    var forget = $('#grinder-forget');
+    forget.classList.toggle('hidden', set.length > 0);
+    forget.onclick = function () {
+      var was = g;
+      LentoKit.forget(g.name);
+      closeModal('#grinder-modal');
+      renderAll();
+      syncSoon();
+      toast('Gone from your gear', {
+        after: was.name + ' is back',
+        restore: function () {
+          LentoKit.put(was);
+          renderAll();
+          syncSoon();
+        },
+      });
+    };
+
+    openModal('#grinder-modal');
+  }
+
+  /* ---------- the cloud ----------
+
+     The front door syncs now, which it never did: it had nothing of its
+     own to send. Two shared records later, signing in here and waiting
+     for an instrument to be opened before your shelf arrives is a page
+     withholding the thing it is showing you.
+
+     Debounced, because a marks switch is a tap somebody makes three times
+     in a row. */
+  var syncTimer = null;
+
+  function signedIn() {
+    return Boolean(window.LentoAccount && LentoAccount.enabled() && LentoAccount.user());
+  }
+
+  function syncSoon() {
+    if (!signedIn()) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { syncMine(); }, 1200);
+  }
+
+  function syncMine() {
+    if (!signedIn()) return Promise.resolve(false);
+    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+    var jobs = [];
+    if (window.LentoKit) jobs.push(LentoKit.sync());
+    if (window.LentoCoffees) jobs.push(LentoCoffees.sync());
+    return Promise.all(jobs.map(function (job) {
+      return Promise.resolve(job).then(function () { return true; }, function () { return false; });
+    })).then(function (results) {
+      renderAll();
+      // Half a sync is not a sync: the sheet's "synced" line has to mean
+      // both records went over.
+      return results.length > 0 && results.every(Boolean);
+    });
+  }
+
   /* A DEAD BUTTON IS THE WORST FAILURE THIS PAGE HAS.
 
      Somebody reported that tapping sign-in here did nothing — no panel, no
@@ -183,6 +754,16 @@
       try { LentoAccountSheet.open(); } catch (e) { fail('Sign-in could not open', e); }
     });
 
+    /* The shelf and the gear before the account layer, and outside its
+       check: they are localStorage and they work with no project
+       configured, no network and nobody signed in. A page that hid what
+       is on this device because a sign-in script did not arrive would be
+       hiding it for the one reason that has nothing to do with it. */
+    $('#bag-close').addEventListener('click', function () { closeModal('#bag-modal'); });
+    $('#grinder-close').addEventListener('click', function () { closeModal('#grinder-modal'); });
+    renderShelf();
+    renderGear();
+
     if (!window.LentoAccountSheet || !window.LentoAccount) {
       /* No account layer at all. The row stays hidden, as it does on a
          deploy with no Supabase project — but that is a deploy-time
@@ -194,9 +775,13 @@
       open: openModal,
       close: closeModal,
       toast: toast,
-      refresh: renderAccount,
-      // No `sync`: this page holds no records, and a Sync now that syncs
-      // nothing is worse than no button at all.
+      refresh: renderAll,
+      /* There is a Sync now here at last. The launcher had no records of
+         its own for as long as it was a list of links; it holds two
+         shared ones now — your grinders and your shelf — and they are
+         exactly the two that are worth having before you open a tool on
+         a phone you have just signed in on. */
+      sync: syncMine,
       status: function () { return deviceLine(); },
       // Not "your log": the front door is not a log. What follows you is
       // whatever the three tools have recorded.
@@ -205,16 +790,20 @@
       signedInToast: 'Signed in — your tools will follow you',
     });
 
-    LentoAccount.onChange(renderAccount);
-    renderAccount();
+    LentoAccount.onChange(function () { renderAll(); syncMine(); });
+    renderAll();
+    // Whatever is already on this device is drawn above; this fills in
+    // what the cloud has and redraws. Failure is silent by design — the
+    // page is complete without it.
+    syncMine();
 
     /* An OAuth return lands here as a fragment when sign-in started here.
        `https://lento.cafe/` has to be in the project's Redirect URLs for
        that to come back to this page rather than the site URL — see
        DEPLOY.md. */
     LentoAccount.adoptRedirect()
-      .then(function (signedIn) {
-        if (signedIn) toast('Signed in — your tools will follow you');
+      .then(function (arrived) {
+        if (arrived) toast('Signed in — your tools will follow you');
       })
       .catch(function () {});
   }

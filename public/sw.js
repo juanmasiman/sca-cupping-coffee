@@ -16,13 +16,16 @@
    and nothing else.
    ============================================================ */
 
-/* v2 — the account moved from a fixed corner button into a row in the page,
-   which means index.html and home.js changed together. Assets are served
-   cache-first here, so without a new cache name a returning visitor would
-   get the new markup (navigations are network-first) alongside the old
-   script that goes looking for the button that is no longer there. The
-   version is what keeps those two from meeting. */
-const VERSION = 'v3';
+/* The version is what keeps a new page and an old script from meeting.
+   Assets are served cache-first here and navigations are network-first,
+   so without a new cache name a returning visitor gets the new markup
+   alongside the script that went looking for the element it replaced.
+
+   v2 — the account moved from a fixed corner button into a row.
+   v4 — the shelf and the gear arrived, which added two shared scripts to
+        the shell and two sections to the page that the old home.js knows
+        nothing about. */
+const VERSION = 'v4';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
@@ -34,6 +37,8 @@ const SHELL = [
   '/shared/config.js',
   '/shared/account.js',
   '/shared/account-sheet.js',
+  '/shared/kit.js',
+  '/shared/coffees.js',
   '/shared/fonts/plex-sans-var.woff2',
 ];
 
