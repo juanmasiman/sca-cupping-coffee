@@ -60,10 +60,79 @@ function load() {
   /* The shelf, joined to this app's rows. After the migration write
      above, because it may add rows of its own and wants the same save. */
   if (reconcileCoffees()) writeState();
+  if (reconcileGear()) writeState();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
   } catch (e) { /* defaults are fine */ }
+}
+
+/* THE GEAR, AND WHOSE LIST IS WHOSE.
+
+   Your brewers and your kettle used to live in this app's kit and
+   nowhere else, which meant the only place to add one was here and the
+   only place to see them all was nowhere. They live in
+   /shared/gear.js now, beside the grinders and the espresso machine,
+   and the front door is where they are added, described and crossed
+   out.
+
+   So `kit.brewers` is a mirror of that list, not the list. It is kept
+   because everything in this app reads it — the picker, the shelf, the
+   per-brew record — and rewriting all of that in the same change that
+   moves the data underneath it is two risks taken at once.
+
+   What stays this app's is `kit.brewer`: which one you reached for
+   last. That is not a fact about the shelf and it never leaves here.  */
+function reconcileGear() {
+  const G = root().LentoGear;
+  if (!G) return false;
+  const k = state.kit;
+  if (!k) return false;
+  let touched = false;
+
+  /* Anything this app's kit holds that the shared list does not, first.
+     A brewer added on another device arrives inside this app's own
+     synced kit, and a reconcile that only mirrored would delete it on
+     the way past. What it must NOT do is hand back one somebody
+     deliberately crossed off — `buried` is how those two are told
+     apart, since from here they look identical. */
+  (k.brewers || []).forEach(b => {
+    if (!b || !b.name) return;
+    if (G.named('brewer', b.name) || G.buried('brewer', b.name)) return;
+    G.remember('brewer', b.name, { flow: b.flow || null }, 'filter');
+    touched = true;
+  });
+
+  const theirs = G.forTool('brewer', 'filter');
+  const want = theirs.map(g => ({
+    name: g.name,
+    // This app's own answer about flow wins: it asked the question in
+    // the shape somebody would answer it, and gear may hold a null.
+    flow: (k.brewers || []).find(b => b && b.name === g.name)?.flow
+      || (G.describe('brewer', g.name) || {}).flow
+      || 'percolation',
+  }));
+  const before = JSON.stringify((k.brewers || []).map(b => [b.name, b.flow]));
+  if (before !== JSON.stringify(want.map(b => [b.name, b.flow]))) {
+    k.brewers = want;
+    touched = true;
+  }
+  // The one you reached for last may be the one that just went.
+  if (k.brewer && !k.brewers.some(b => b.name === k.brewer)) {
+    k.brewer = k.brewers.length ? k.brewers[0].name : '';
+    touched = true;
+  }
+  if (!k.brewer && k.brewers.length) { k.brewer = k.brewers[0].name; touched = true; }
+
+  // The kettle, both ways, for the same reason as the brewers above.
+  if (k.kettle && !G.named('kettle', k.kettle) && !G.buried('kettle', k.kettle)) {
+    G.remember('kettle', k.kettle, { control: k.temp === 'set' ? 'variable' : null }, 'filter');
+  }
+  if (!k.kettle) {
+    const kettle = G.forTool('kettle', 'filter')[0];
+    if (kettle) { k.kettle = kettle.name; touched = true; }
+  }
+  return touched;
 }
 
 /* ============================================================
@@ -3404,6 +3473,11 @@ function openKit() {
       return false;
     }
     k.brewers.push({ name: clean, flow: flow || 'percolation' });
+    // And onto the shared list, so the front door has it before the
+    // next reload rather than after one.
+    if (root().LentoGear) {
+      root().LentoGear.remember('brewer', clean, { flow: flow || 'percolation' }, 'filter');
+    }
     if (!k.brewer) k.brewer = clean;
     pick.innerHTML = brewerOptionsFor(k);
     drawShelf();

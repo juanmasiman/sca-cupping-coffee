@@ -492,6 +492,84 @@ it was shipped two rounds before this was found — by testing a claim that
 had until then only been reasoned about. A defect nobody has run is still
 a defect; what changes when you run it is whether you know.
 
+## The gear, and the one thing this site could not do
+
+You could see your gear and you could not add any. The grinders were in
+`/shared/kit.js`, the brewers and the kettle were inside the brew log's
+own kit, the espresso machine was inside the dial-in's — three stores,
+three shapes, and no screen anywhere that could add a dripper or cross
+out a kettle. Each of those arrived when a tool needed it, and none of
+them was wrong on its own; together they were a person's kit with no
+place to keep it.
+
+**A person owns gear, and which tool they use it with is a fact about
+it.** That is the same sentence the coffee shelf is built on, so
+`/shared/gear.js` is built the same way: one record per thing, marked
+with what you brew on it, each tool keeping its own row for the part
+that is genuinely the tool's. What stays with the instrument is which
+one you reached for this morning.
+
+**What belongs in a brand table, and what never will.** This project
+refuses brand tables and is right about what it was refusing: a grind
+setting read out of a model name is stale within a year and wrong about
+every modified machine. Hardware is not that kind of fact. A Comandante
+has conical burrs and counts clicks; a V60 takes a cone filter; a
+Bambino has a 54mm portafilter. Next year's will too. So
+`/shared/gear-db.js` ships eighty-seven models across four kinds and
+holds nothing but hardware — never a setting, a ratio or a recipe.
+
+**Null is an answer, and it is the honest one.** A field left blank in
+the catalogue means nobody established it, and the app asks. Where a
+name covers several machines that differ — "Eureka Mignon" is a family
+and the burr size is not the same across it — the field is null rather
+than the most likely guess, because a wrong attribute costs more than an
+absent one: an absent one costs a tap and a wrong one quietly changes
+advice. A compound entry that cannot answer a question honestly is
+split, with the old name kept as a `legacy` row that still resolves for
+anybody whose kit names it but is not offered when adding.
+
+**A record holds what was answered; the catalogue layers underneath.**
+The first version seeded new records from the catalogue and that is a
+different thing entirely: it turns a shipped fact into the person's own
+answer, so correcting the catalogue later cannot reach anybody who
+already owns one. A migration is not somebody answering, and neither is
+an app's boot. Only a sheet a person opened writes catalogue values
+down, because what it showed them, they looked at.
+
+**The same field name meaning two things is a bug with a name.** A
+brewer's `flow` is how the water leaves it; a machine's was whether it
+has a flow-control paddle. One type table keyed by field name saw
+"flow", made both booleans, and every brewer came out of the migration
+with a null flow — losing the single fact the brew log shapes its whole
+sheet around. The machine's field is `paddle` now, and the type table is
+keyed by kind and field, so the next collision is a no-op rather than a
+silent loss.
+
+**A mirror has to be allowed to add.** The brew log's `kit.brewers` is a
+copy of the shared list and reconciles against it on every load. A
+reconcile that only mirrored would delete a brewer added on another
+device, because that one arrives inside the app's own synced kit; one
+that only adopted would hand back a brewer somebody deliberately crossed
+off. From the app's side those two look identical — a name the list does
+not have — so deletions are recorded by name as well as by id, and the
+name is what tells them apart. The same holds for the machine and the
+kettle, which are adopted from their tool's kit if they were named after
+the list had already taken what that store held.
+
+**A control that another app will undo is a control that lies.** An
+instrument writes its own gear back on its next boot, so a switch that
+unmarked a grinder the dial-in is set to would flip itself on again, and
+a Remove would undo itself. Both are shown as the facts they are
+instead, with one line saying where to change it. Brewers are the
+exception, and only because their list is a mirror rather than a second
+copy: removing one there propagates properly.
+
+**Where it is always reachable.** Every other section of the front door
+stays out of the way until it has something in it. Gear cannot: it is
+the only place on the site where a dripper can be added, so hiding it
+until you own one answers "where do I add my kettle" with "nowhere until
+you already have a kettle".
+
 ## Colors
 
 Two complete palettes, not one palette with a dark variant bolted on. `PRODUCT.md` records the operating light as **highly variable** — a sunlit counter one week, a dim cellar the next — so both must be first-class, and the app must be able to switch between them.

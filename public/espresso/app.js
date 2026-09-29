@@ -54,6 +54,7 @@ function load() {
   /* The shelf, joined to this app's rows. After the migration write
      above, because it may add rows of its own and wants the same save. */
   if (reconcileCoffees()) writeState();
+  if (reconcileGear()) writeState();
   try {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
@@ -185,6 +186,52 @@ function reconcileCoffees() {
     touched = true;
   });
   return touched;
+}
+
+/* THE MACHINE, WHICH IS YOURS RATHER THAN THIS APP'S.
+
+   It lived in this app's kit and nowhere else, so the only screen that
+   could name it was this one. It is in /shared/gear.js now, beside the
+   grinders, the brewers and the kettle, and the front door is where it
+   is added and described.
+
+   Only a blank is filled. What this app's kit says about temperature
+   and pressure is what its advice reasons from, and it stays the
+   authority for that — see the kit sheet. Somebody naming a machine on
+   the front door before they have ever opened the dial-in should not
+   then be asked to name it again; somebody who has already answered
+   here should not have it quietly changed underneath them. */
+function reconcileGear() {
+  const G = root().LentoGear;
+  if (!G || !state.kit) return false;
+
+  /* A machine named here after the shared list had already taken what
+     this store held — which is the ordinary case, because the front
+     door is often opened first and adopts from a kit that has no
+     machine in it yet. Without this, setting your machine in the kit
+     sheet reaches the shared list never. `buried` is what stops one
+     deliberately crossed off from walking back on. */
+  if (state.kit.machine && !G.named('machine', state.kit.machine)
+      && !G.buried('machine', state.kit.machine)) {
+    G.remember('machine', state.kit.machine, {
+      temp: state.kit.temp === 'set' ? 'set' : 'fixed',
+      pressure: state.kit.pressure === 'profile' || state.kit.pressure === 'gauge'
+        ? state.kit.pressure : 'fixed',
+      portafilter: state.kit.portafilter === 'bottomless' ? 'bottomless' : 'spouted',
+      basketDose: typeof state.kit.basketDose === 'number' ? state.kit.basketDose : null,
+    }, 'espresso');
+  }
+
+  if (state.kit.machine) return false;
+  const mine = G.forTool('machine', 'espresso')[0];
+  if (!mine) return false;
+  state.kit.machine = mine.name;
+  const d = G.describe('machine', mine.name) || {};
+  if (d.temp) state.kit.temp = d.temp;
+  if (d.pressure) state.kit.pressure = d.pressure;
+  if (d.portafilter) state.kit.portafilter = d.portafilter;
+  if (typeof d.basketDose === 'number') state.kit.basketDose = d.basketDose;
+  return true;
 }
 
 /* Which of this app's rows are on the shelf for this tool. A row whose
