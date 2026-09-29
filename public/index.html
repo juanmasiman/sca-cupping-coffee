@@ -247,18 +247,28 @@
     .stock-add .stock-name { color: var(--text-dim); }
     .stock-plus { flex: none; color: var(--text-faint); }
 
-    /* ---------- a piece of gear, described ----------
+    /* ---------- a piece of gear ----------
 
-       What the brewer does to the water, and what you last made with it.
-       The sentence is the one fact about a brewer that does not go stale
-       — see /shared/brewers.js — so it is worth a sheet; a grind setting
-       read off a model name would not be. */
+       The list is grouped, because "add a grinder" belongs under the
+       grinders and not under a heading that says "gear". Four groups,
+       four words; the add row is the last line of each one, so an empty
+       group is still a way in rather than a dead heading. */
+    .gear-group + .gear-group { margin-top: var(--space-6); }
+    .gear-head {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      padding-bottom: var(--space-2);
+    }
+
+    /* What the brewer does to the water, at the head of its sheet. The
+       one fact about a brewer that does not go stale — see
+       /shared/gear-db.js — so it is worth the room. */
     .gear-flow { font-size: 15px; font-weight: 600; }
     .gear-note { font-size: 14px; line-height: 1.5; color: var(--text-dim); margin-top: var(--space-2); }
-    .gear-can { display: flex; flex-direction: column; gap: var(--space-2); }
-    .gear-can-row { display: flex; gap: var(--space-3); font-size: 14px; }
-    .gear-can-label { flex: 0 0 96px; color: var(--text-faint); }
-    .gear-can-value { flex: 1; min-width: 0; }
     .gear-last {
       display: flex;
       align-items: baseline;
@@ -273,6 +283,13 @@
        a link rather than a button, because it goes to another app. `.btn`
        never had to say this before, so it does not. */
     a.btn { text-decoration: none; }
+
+    /* One field: a label, then chips or a control. The gap is tighter
+       than a form's because these stack four and five deep and the
+       sheet has to stay one thumb-scroll. */
+    .gear-field { display: flex; flex-direction: column; gap: var(--space-2); }
+    .gear-field .chips { margin-top: 1px; }
+    .gear-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 
     /* ---------- the two sheets ----------
 
@@ -448,11 +465,21 @@
     </div>
   </div>
 
-  <!-- A brewer or a machine, described. It used to be a link straight
-       into the instrument, which answered a question nobody had asked:
-       tapping the dripper on your own shelf is asking what it is and what
-       you last made with it, not asking to leave. The way out is still
-       there, at the foot, where a way out belongs. -->
+  <!-- A piece of gear: what it is, what you have told us about it, and
+       the way out.
+
+       It used to be a link straight into the instrument, then a
+       read-only page of facts. Neither could add a dripper or cross out
+       a kettle, which is the thing this site could not do at all: your
+       gear was written down in three different apps' stores and none of
+       them had a screen for it.
+
+       The fields are the kind's own. A grinder is asked about its burrs
+       and how it adjusts; a brewer about its filter; a kettle whether
+       it can hold a temperature and which scale it reads in; a machine
+       about its boiler and its portafilter. What /shared/gear-db.js
+       knows about the model is filled in already — see its header for
+       why that is a prefill and never an authority. -->
   <div id="gear-item-modal" class="modal hidden">
     <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="gear-item-title">
       <div class="sheet-head">
@@ -462,8 +489,12 @@
         </button>
       </div>
       <div class="edit-body" id="gear-item-body"></div>
+      <div class="sheet-destroy">
+        <button id="gear-item-remove" class="btn-quiet-danger" type="button">I no longer own this</button>
+      </div>
       <div class="sheet-actions">
-        <a id="gear-item-go" class="btn btn-ghost" href="/filter/">Open the brew log</a>
+        <a id="gear-item-go" class="btn btn-ghost hidden" href="/filter/">Open the brew log</a>
+        <button id="gear-item-save" class="btn btn-primary">Save</button>
       </div>
     </div>
   </div>
@@ -494,32 +525,6 @@
     </div>
   </div>
 
-  <!-- A grinder, and the two things about it that are nobody's tool's.
-
-       Which tools you use it with is recorded in /shared/kit.js and is
-       only ever added to by an app saving its own kit — so this is where
-       it can come off. Whether you still own it is the same story: until
-       now, nothing on the site could cross out a grinder you sold.
-
-       Stepped or stepless is deliberately absent. Each app's own kit is
-       the authority for that app, so changing it here would move the
-       prefill and leave the advice where it was — a control with an
-       invisible effect, which is worse than no control. -->
-  <div id="grinder-modal" class="modal hidden">
-    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="grinder-title">
-      <div class="sheet-head">
-        <h3 id="grinder-title">The grinder</h3>
-        <button id="grinder-close" class="icon-btn" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-        </button>
-      </div>
-      <div class="edit-body" id="grinder-body"></div>
-      <div class="sheet-destroy">
-        <button id="grinder-forget" class="btn-quiet-danger" type="button">I no longer own this</button>
-      </div>
-    </div>
-  </div>
-
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <!-- The three things that belong to you rather than to a tool. The
@@ -530,6 +535,8 @@
   <script src="/shared/config.js"></script>
   <script src="/shared/account.js"></script>
   <script src="/shared/account-sheet.js"></script>
+  <script src="/shared/gear-db.js"></script>
+  <script src="/shared/gear.js"></script>
   <script src="/shared/kit.js"></script>
   <script src="/shared/coffees.js"></script>
   <script src="/shared/brewers.js"></script>

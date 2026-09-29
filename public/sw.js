@@ -27,7 +27,7 @@
         nothing about.
    v5 — those two sections became two buttons and four sheets, and the
         brewer table came along to describe what is on the shelf. */
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
@@ -39,6 +39,8 @@ const SHELL = [
   '/shared/config.js',
   '/shared/account.js',
   '/shared/account-sheet.js',
+  '/shared/gear-db.js',
+  '/shared/gear.js',
   '/shared/kit.js',
   '/shared/coffees.js',
   '/shared/brewers.js',

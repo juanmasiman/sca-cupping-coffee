@@ -411,125 +411,180 @@
 
   /* ---------- what you own ----------
 
-     The grinders are shared and are edited here. The machine, the
-     brewers and the kettle are the instruments' own records — writing
-     into an app's store from this page would race whatever that app is
-     holding in memory — so they are not edited here at all. Two of them
-     have something worth saying anyway, and say it in a sheet: what the
-     brewer does to the water, what the machine can change, and what you
-     last made with either.
+     Four kinds, one store: /shared/gear.js. Grinders, espresso
+     machines, brewers and kettles used to live in three different
+     places with three different shapes, and there was no screen
+     anywhere that could add one or cross one out. The list is grouped
+     because "add a grinder" belongs under the grinders, and every group
+     shows its add row even when it is empty — an empty group with no
+     way in is a heading that lies.
 
-     The kettle has nothing of the kind. Its row keeps the chevron, which
-     is the only distinction the list needs: a row with one takes you
-     somewhere, a row without it opens here. */
-  function gear() {
-    var out = [];
+     What the instruments keep is which one they are using this morning.
+     This page never writes into their stores; it marks, and they
+     reconcile on their next load, which is the same arrangement the
+     coffee shelf has. */
 
-    if (window.LentoKit) {
-      LentoKit.known().forEach(function (g) {
-        out.push({
-          kind: 'grinder',
-          name: g.name,
-          sub: g.steps === 'stepped' ? 'stepped' : 'stepless',
-          use: g.use,
-          label: g.name + ' — ' + marksWords(g.use),
-          onPick: function () { openGrinder(g); },
-        });
-      });
-    }
+  var KINDS = ['grinder', 'machine', 'brewer', 'kettle'];
 
-    var e = toolKit('lento-espresso-v1');
-    if (e && typeof e.machine === 'string' && e.machine.trim()) {
-      var machine = { kind: 'machine', name: e.machine.trim(), kit: e };
-      machine.sub = machineSub(e);
-      machine.use = { espresso: true };
-      machine.label = machine.name + ' — what it can change, and your last shot';
-      machine.onPick = function () { openGearItem(machine); };
-      out.push(machine);
-    }
+  var GROUP = {
+    grinder: 'Grinders',
+    machine: 'Espresso machines',
+    brewer: 'Brewers',
+    kettle: 'Kettles',
+  };
 
-    var f = toolKit('lento-filter-v1');
-    if (f) {
-      (Array.isArray(f.brewers) ? f.brewers : []).forEach(function (b) {
-        if (!b || typeof b.name !== 'string' || !b.name.trim()) return;
-        var brewer = { kind: 'brewer', name: b.name.trim(), flow: b.flow };
-        brewer.sub = flowWord(b.flow, brewer.name);
-        brewer.use = { filter: true };
-        brewer.label = brewer.name + ' — what it does to the water, and your last brew';
-        brewer.onPick = function () { openGearItem(brewer); };
-        out.push(brewer);
-      });
-      if (typeof f.kettle === 'string' && f.kettle.trim()) {
-        out.push({
-          kind: 'kettle',
-          name: f.kettle.trim(),
-          sub: 'kettle',
-          use: { filter: true },
-          href: '/filter/',
-          label: f.kettle.trim() + ' — open the brew log',
-        });
-      }
-    }
+  var ADD = {
+    grinder: 'Add a grinder',
+    machine: 'Add a machine',
+    brewer: 'Add a brewer',
+    kettle: 'Add a kettle',
+  };
 
-    return out;
+  // Which instruments a kind can belong to. A machine is espresso and a
+  // kettle is filter by what it is; only a grinder is genuinely a
+  // question, so only a grinder is asked.
+  var BELONGS = {
+    grinder: ['espresso', 'filter'],
+    machine: ['espresso'],
+    brewer: ['filter'],
+    kettle: ['filter'],
+  };
+
+  /* The words for every answer, and they are the words somebody would
+     use rather than the keys the record stores. One table, because the
+     chips, the summary line on the row and the sheet all need them and
+     three copies is three chances to drift. */
+  var OPTS = {
+    'grinder.drive': [['electric', 'Electric'], ['manual', 'By hand']],
+    'grinder.burr': [['conical', 'Conical'], ['flat', 'Flat']],
+    'grinder.adjust': [['stepless', 'Stepless'], ['stepped', 'Numbered'], ['clicks', 'Clicks']],
+    'brewer.flow': [['percolation', 'Pour over'], ['immersion', 'Immersion'], ['switch', 'Switch']],
+    'brewer.filter': [['cone', 'Cone'], ['flat', 'Flat'], ['basket', 'Basket'],
+      ['mesh', 'Mesh'], ['cloth', 'Cloth'], ['proprietary', 'Its own'], ['none', 'None']],
+    'brewer.body': [['plastic', 'Plastic'], ['glass', 'Glass'], ['ceramic', 'Ceramic'], ['metal', 'Metal']],
+    'kettle.power': [['electric', 'Electric'], ['stovetop', 'Stovetop']],
+    'kettle.spout': [['gooseneck', 'Gooseneck'], ['wide', 'Wide']],
+    'kettle.control': [['variable', 'You set it'], ['boil', 'It boils']],
+    'kettle.units': [['c', '°C'], ['f', '°F']],
+    'machine.drive': [['pump', 'Pump'], ['lever', 'Lever'], ['press', 'Hand press']],
+    'machine.boiler': [['thermoblock', 'Thermoblock'], ['single', 'Single'],
+      ['hx', 'Heat exchanger'], ['dual', 'Dual']],
+    'machine.temp': [['fixed', 'One temperature'], ['set', 'You set it']],
+    'machine.pressure': [['fixed', 'Fixed'], ['gauge', 'You can see it'], ['profile', 'You can change it']],
+    'machine.portafilter': [['spouted', 'Spouted'], ['bottomless', 'Bottomless']],
+  };
+
+  var LABEL = {
+    'grinder.drive': 'Driven by',
+    'grinder.burr': 'Burrs',
+    'grinder.burrSize': 'Burr size',
+    'grinder.adjust': 'Adjusts by',
+    'grinder.retains': 'Holds grounds between settings',
+    'brewer.flow': 'The water',
+    'brewer.filter': 'Filter',
+    'brewer.filterSize': 'Filter size',
+    'brewer.body': 'Made of',
+    'brewer.bypass': 'Water can go round the bed',
+    'kettle.power': 'Power',
+    'kettle.spout': 'Spout',
+    'kettle.control': 'Temperature',
+    'kettle.hold': 'Holds the temperature',
+    'kettle.units': 'Reads in',
+    'machine.drive': 'Driven by',
+    'machine.boiler': 'Boiler',
+    'machine.temp': 'Brew temperature',
+    'machine.pressure': 'Pressure',
+    'machine.paddle': 'Flow control paddle',
+    'machine.pf': 'Portafilter',
+    'machine.portafilter': 'Basket',
+    'machine.basketDose': 'Basket dose',
+  };
+
+  function word(key, value) {
+    var list = OPTS[key] || [];
+    for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
+    return '';
   }
 
-  function machineSub(k) {
-    var bits = [];
-    var dose = Number(k.basketDose);
-    if (dose) bits.push(dose + ' g basket');
-    if (k.portafilter === 'bottomless') bits.push('bottomless');
-    return bits.join(' · ');
+  /* The line under the name: the three or four facts that tell one
+     piece of gear from another of the same kind, lower-cased so it
+     reads as description rather than as a row of labels. */
+  function gearSub(g) {
+    var d = (window.LentoGear && LentoGear.describe(g.kind, g.name)) || g;
+    var bits;
+    if (g.kind === 'grinder') {
+      bits = [word('grinder.drive', d.drive), word('grinder.burr', d.burr) &&
+        (word('grinder.burr', d.burr) + ' burrs'), d.burrSize ? d.burrSize + ' mm' : '',
+        word('grinder.adjust', d.adjust)];
+    } else if (g.kind === 'brewer') {
+      bits = [window.LentoBrewers ? LentoBrewers.flowWord(d.flow) : '',
+        [word('brewer.filter', d.filter), d.filterSize].filter(Boolean).join(' ')];
+    } else if (g.kind === 'kettle') {
+      bits = [word('kettle.power', d.power), word('kettle.spout', d.spout),
+        d.control === 'variable' ? 'set the temperature' : (d.control === 'boil' ? 'boils' : '')];
+    } else {
+      bits = [word('machine.boiler', d.boiler) && (word('machine.boiler', d.boiler) + ' boiler'),
+        d.pf ? d.pf + ' mm' : '', d.portafilter === 'bottomless' ? 'bottomless' : ''];
+    }
+    return bits.filter(Boolean).join(' · ').toLowerCase();
   }
 
-  // The person's own answer about their own brewer, then the shipped
-  // table, then the app's default — the same order every other reader of
-  // this fact uses.
-  function flowWord(flow, name) {
-    var B = window.LentoBrewers;
-    if (!B) return 'pour over';
-    if (B.FLOWS.indexOf(flow) < 0) flow = B.flowOf(name) || 'percolation';
-    return B.flowWord(flow);
-  }
-
-  /* A count, not a breakdown.
-
-     "3 grinders · 2 brewers" was the first answer and it is the better
-     sentence, and it does not fit: measured, it needs 118px and a
-     360px-wide phone gives this button 110. Truncating it to
-     "3 grinders · 2 …" says less than the plain total does, on the
-     commonest Android width there is. The kinds are one tap away, named
-     and in full.
-
-     "Things" because the list holds four of them — grinders, a machine,
-     brewers, a kettle — and there is no word that covers those and is
-     not a costume. */
-  function gearCount(rows) {
-    return say(rows.length, 'thing', 'things');
+  function ownedGear() {
+    return window.LentoGear ? LentoGear.all() : [];
   }
 
   function renderGear() {
     var btn = $('#btn-gear');
     var list = $('#gear-list');
-    var rows = gear();
-    if (!rows.length) { btn.classList.add('hidden'); return; }
+    var owned = ownedGear();
+    /* Always shown, unlike the shelf. Every other section on this page
+       stays out of the way until it has something in it, and this one
+       cannot: it is the only place on the site where a dripper can be
+       added, so hiding it until you own one answers "where do I add my
+       kettle" with "nowhere until you already have a kettle". */
     btn.classList.remove('hidden');
-    $('#gear-count').textContent = gearCount(rows);
+    $('#gear-count').textContent = owned.length
+      ? say(owned.length, 'thing', 'things')
+      : 'Nothing yet';
+
     list.innerHTML = '';
-    rows.forEach(function (it) { list.appendChild(stockRow(it)); });
+    KINDS.forEach(function (kind) {
+      var group = document.createElement('div');
+      group.className = 'gear-group';
+      var head = document.createElement('span');
+      head.className = 'gear-head';
+      head.textContent = GROUP[kind];
+      head.id = 'gear-head-' + kind;
+      group.appendChild(head);
+      owned.filter(function (g) { return g.kind === kind; }).forEach(function (g) {
+        group.appendChild(stockRow({
+          name: g.name,
+          sub: gearSub(g),
+          use: g.use,
+          label: g.name + ' — ' + marksWords(g.use),
+          onPick: function () { openGear(g, false); },
+        }));
+      });
+      group.appendChild(addRow(ADD[kind], function () {
+        openGear(newGear(kind), true);
+      }));
+      list.appendChild(group);
+    });
+  }
+
+  function newGear(kind) {
+    var g = LentoGear.bare(kind, '');
+    BELONGS[kind].forEach(function (t) { g.use[t] = true; });
+    return g;
   }
 
   function renderAll() {
     renderAccount();
     renderShelf();
     renderGear();
-    /* The pair, and whether there is a pair. Each button hides itself
-       when it has nothing behind it, so the row has to answer for both
-       of them — otherwise a first visit gets 12px of empty flexbox under
-       the account row and no way to tell what it was for. */
-    var any = !$('#btn-shelf').classList.contains('hidden')
-      || !$('#btn-gear').classList.contains('hidden');
-    $('#vault').classList.toggle('hidden', !any);
+    // Gear is always there, so the row always is. The shelf button is
+    // the one that comes and goes, and a row of one button is a row.
+    $('#vault').classList.remove('hidden');
   }
 
   /* ---------- the bag sheet ----------
@@ -711,87 +766,357 @@
     });
   }
 
-  /* ---------- the grinder sheet ----------
+  /* ---------- the gear sheet ----------
 
-     Two marks and a way out, which is the whole of what /shared/kit.js
-     holds that an instrument does not. Stepped or stepless is absent on
-     purpose: each app's own kit is the authority for that app, so editing
-     it here would move the prefill and leave the advice where it was. */
-  function openGrinder(g) {
-    var body = $('#grinder-body');
-    $('#grinder-title').textContent = g.name;
+     One sheet for four kinds. What it asks depends on what the thing
+     is: a grinder about its burrs and how it adjusts, a brewer about
+     its filter, a kettle whether it can hold a temperature and which
+     scale it reads in, a machine about its boiler and its portafilter.
 
-    /* An app that is set to this grinder writes the mark back on its next
-       boot, so a switch that took it off would flip itself on again, and
-       forgetting it would undo itself. Both are shown as the facts they
-       are instead. */
-    var set = [];
-    var using = {};
-    TOOLS.forEach(function (t) {
-      var k = toolKit(t.store);
-      using[t.key] = Boolean(k && k.grinder === g.name);
-      if (using[t.key]) set.push(t.there);
-    });
+     Everything /shared/gear-db.js knows about the model arrives filled
+     in, and saving is the person saying they have looked at it. What it
+     does not know is blank and asked for, which is the rule that file
+     is held to: a wrong attribute is worse than an absent one, because
+     an absent one costs a tap and a wrong one quietly changes advice. */
 
-    body.innerHTML = '<div class="bag-group">'
-      + TOOLS.map(function (t) {
-        return switchRow('grinder-' + t.key, t.title,
-          using[t.key] ? 'Set to it now' : '',
-          g.use[t.key] || using[t.key], using[t.key]);
-      }).join('')
-      + '</div>'
-      + (set.length
-        ? '<p class="sheet-note">Still set in ' + esc(set.join(' and '))
-          + ' — change it there to let this one go.</p>'
-        : '');
-
-    TOOLS.forEach(function (t) {
-      if (using[t.key]) return;
-      var input = body.querySelector('#grinder-' + t.key);
-      input.addEventListener('change', function () {
-        LentoKit.setUse(g.name, t.key, input.checked);
-        renderAll();
-        syncSoon();
-      });
-    });
-
-    var forget = $('#grinder-forget');
-    forget.classList.toggle('hidden', set.length > 0);
-    forget.onclick = function () {
-      var was = g;
-      LentoKit.forget(g.name);
-      closeModal('#grinder-modal');
-      renderAll();
-      syncSoon();
-      toast('Gone from your gear', {
-        after: was.name + ' is back',
-        restore: function () {
-          LentoKit.put(was);
-          renderAll();
-          syncSoon();
-        },
-      });
-    };
-
-    openModal('#grinder-modal');
+  function fieldBlock(label, inner, id) {
+    return '<div class="gear-field">'
+      + '<span class="field-label"' + (id ? ' id="' + id + '"' : '') + '>' + esc(label) + '</span>'
+      + inner + '</div>';
   }
 
-  /* ---------- a piece of gear, described ----------
+  function chipsFor(kind, field) {
+    var key = kind + '.' + field;
+    return fieldBlock(LABEL[key],
+      '<div class="chips" id="gf-' + field + '" role="group" aria-labelledby="gl-' + field + '"></div>',
+      'gl-' + field);
+  }
 
-     Tapping the dripper on your own shelf used to navigate to the brew
-     log, which answers a question nobody asked. What you are asking is
-     what the thing is and what you last made with it.
+  function numFor(kind, field, unit, value) {
+    var key = kind + '.' + field;
+    return '<div class="field">'
+      + '<label class="field-label" for="gf-' + field + '">' + esc(LABEL[key])
+      + (unit ? ' (' + esc(unit) + ')' : '') + '</label>'
+      + '<input class="field-input" id="gf-' + field + '" type="text" inputmode="decimal"'
+      + ' value="' + esc(value === null || typeof value === 'undefined' ? '' : value) + '">'
+      + '</div>';
+  }
 
-     Both answers are cheap and neither is invented. How the water leaves
-     a brewer is the one fact about it that does not go stale, and it is
-     already shipped in /shared/brewers.js because the brew log shapes
-     its whole sheet around it. What the machine can change is the
-     dial-in's own kit, in the dial-in's own terms. And the last brew or
-     shot is sitting in that app's store, where this page already reads
-     defensively for the counts.
+  function textFor(kind, field, value, placeholder) {
+    var key = kind + '.' + field;
+    return '<div class="field">'
+      + '<label class="field-label" for="gf-' + field + '">' + esc(LABEL[key]) + '</label>'
+      + '<input class="field-input" id="gf-' + field + '" type="text" value="' + esc(value || '') + '"'
+      + (placeholder ? ' placeholder="' + esc(placeholder) + '"' : '') + '>'
+      + '</div>';
+  }
 
-     Nothing here is editable. These records belong to the instruments,
-     and the way in is at the foot of the sheet. */
+  function yesNo(kind, field, on, sub) {
+    return switchRow('gf-' + field, LABEL[kind + '.' + field], sub || '', on === true, false);
+  }
+
+  // What a sheet asks, per kind. The order is the order somebody would
+  // describe the thing in.
+  function gearBody(kind, g) {
+    if (kind === 'grinder') {
+      return chipsFor(kind, 'drive')
+        + chipsFor(kind, 'burr')
+        + numFor(kind, 'burrSize', 'mm', g.burrSize)
+        + chipsFor(kind, 'adjust')
+        + '<div class="bag-group">' + yesNo(kind, 'retains', g.retains) + '</div>';
+    }
+    if (kind === 'brewer') {
+      return '<div id="gf-about"></div>'
+        + chipsFor(kind, 'flow')
+        + chipsFor(kind, 'filter')
+        + textFor(kind, 'filterSize', g.filterSize, (g.sizes || []).join(' / '))
+        + chipsFor(kind, 'body')
+        + '<div class="bag-group">'
+        + yesNo(kind, 'bypass', g.bypass, 'Off with a no-bypass brewer, where every drop goes through the bed')
+        + '</div>'
+        + '<div id="gf-last"></div>';
+    }
+    if (kind === 'kettle') {
+      return chipsFor(kind, 'power')
+        + chipsFor(kind, 'spout')
+        + chipsFor(kind, 'control')
+        + '<div class="bag-group" id="gf-hold-wrap">' + yesNo(kind, 'hold', g.hold) + '</div>'
+        + chipsFor(kind, 'units');
+    }
+    return chipsFor(kind, 'drive')
+      + chipsFor(kind, 'boiler')
+      + chipsFor(kind, 'temp')
+      + chipsFor(kind, 'pressure')
+      + '<div class="bag-group">' + yesNo(kind, 'paddle', g.paddle) + '</div>'
+      + '<div class="gear-row">' + numFor(kind, 'pf', 'mm', g.pf)
+      + numFor(kind, 'basketDose', 'g', g.basketDose) + '</div>'
+      + chipsFor(kind, 'portafilter')
+      + '<div id="gf-last"></div>';
+  }
+
+  var CHIP_FIELDS = {
+    grinder: ['drive', 'burr', 'adjust'],
+    brewer: ['flow', 'filter', 'body'],
+    kettle: ['power', 'spout', 'control', 'units'],
+    machine: ['drive', 'boiler', 'temp', 'pressure', 'portafilter'],
+  };
+  var NUM_FIELDS = { grinder: ['burrSize'], brewer: [], kettle: [], machine: ['pf', 'basketDose'] };
+  var TEXT_FIELDS = { grinder: [], brewer: ['filterSize'], kettle: [], machine: [] };
+  var YESNO_FIELDS = { grinder: ['retains'], brewer: ['bypass'], kettle: ['hold'], machine: ['paddle'] };
+
+  /* WHICH INSTRUMENTS ARE SET TO THIS ONE RIGHT NOW.
+
+     An app that names a piece of gear in its own kit writes the mark
+     back on its next boot, so a switch that took the mark off would
+     flip itself on again and a Remove would undo itself. Both would be
+     controls that lie, and the sheet says the fact instead.
+
+     Brewers are the exception and are not listed here: the brew log's
+     shelf is a mirror of this list rather than a second copy of it, so
+     removing one propagates properly — see reconcileGear over there. */
+  var SET_BY = {
+    grinder: [['espresso', 'lento-espresso-v1', 'grinder'], ['filter', 'lento-filter-v1', 'grinder']],
+    machine: [['espresso', 'lento-espresso-v1', 'machine']],
+    kettle: [['filter', 'lento-filter-v1', 'kettle']],
+    brewer: [],
+  };
+
+  function setBy(kind, name) {
+    var out = {};
+    if (!name) return out;
+    (SET_BY[kind] || []).forEach(function (row) {
+      var k = toolKit(row[1]);
+      if (k && k[row[2]] === name) out[row[0]] = true;
+    });
+    return out;
+  }
+
+  function toolWord(key) {
+    return key === 'espresso' ? 'the dial-in' : 'the brew log';
+  }
+
+  function openGear(g, adding) {
+    var kind = g.kind;
+    var body = $('#gear-item-body');
+    var picked = {};
+    LentoGear.FIELDS[kind].forEach(function (f) { picked[f] = g[f]; });
+    /* Whether the picker is on "Something else", tracked apart from the
+       name. Deriving it from the name cannot work: choosing Something
+       else clears the name, and a redraw then reads the empty name and
+       puts the picker back on "Choose…" — so the field you were about
+       to type in disappeared as it appeared. */
+    var custom = false;
+
+    $('#gear-item-title').textContent = adding ? ADD[kind] : g.name;
+
+    /* Adding starts with the model, because answering it answers most
+       of the rest. "Something else" is one option among them rather
+       than a fallback tucked away: a grinder that is not on a list is
+       not an unusual grinder. */
+    var pickerHTML = '';
+    if (adding) {
+      var cat = window.LentoGearDB ? LentoGearDB.catalogue(kind) : [];
+      pickerHTML = '<div class="field">'
+        + '<label class="field-label" for="gf-model">Which one</label>'
+        + '<select class="field-input" id="gf-model">'
+        + '<option value="">Choose…</option>'
+        + cat.map(function (e) {
+          return '<option value="' + esc(e.name) + '">' + esc(e.name) + '</option>';
+        }).join('')
+        + '<option value="__other">Something else</option>'
+        + '</select></div>'
+        + '<div class="field hidden" id="gf-name-wrap">'
+        + '<label class="field-label" for="gf-name">Name</label>'
+        + '<input class="field-input" id="gf-name" type="text" autocapitalize="words"></div>';
+    }
+
+    var using = setBy(kind, g.name);
+    var usedBy = Object.keys(using).map(toolWord);
+
+    var marksHTML = '';
+    if (BELONGS[kind].length > 1) {
+      marksHTML = '<div class="bag-group"><span class="field-label">Used with</span>'
+        + switchRow('gf-espresso', 'Espresso dial-in', using.espresso ? 'Set to it now' : '',
+          g.use.espresso || Boolean(using.espresso), Boolean(using.espresso))
+        + switchRow('gf-filter', 'Filter brew log', using.filter ? 'Set to it now' : '',
+          g.use.filter || Boolean(using.filter), Boolean(using.filter))
+        + '</div>';
+    }
+    if (usedBy.length) {
+      marksHTML += '<p class="sheet-note">Still set in ' + esc(usedBy.join(' and '))
+        + ' \u2014 change it there to let this one go.</p>';
+    }
+
+    function draw() {
+      body.innerHTML = pickerHTML + gearBody(kind, described()) + marksHTML;
+      wire();
+    }
+
+    // What the sheet shows: this person's answers over the catalogue's.
+    function described() {
+      var base = (window.LentoGearDB && g.name) ? LentoGearDB.entry(kind, g.name) : null;
+      var out = {};
+      LentoGear.FIELDS[kind].forEach(function (f) {
+        out[f] = picked[f] !== null && typeof picked[f] !== 'undefined' ? picked[f]
+          : (base && typeof base[f] !== 'undefined' ? base[f] : null);
+      });
+      out.sizes = base && base.sizes ? base.sizes : null;
+      out.note = base && base.note ? base.note : '';
+      return out;
+    }
+
+    function paintChips(field) {
+      var holder = body.querySelector('#gf-' + field);
+      if (!holder) return;
+      var key = kind + '.' + field;
+      var cur = described()[field];
+      holder.innerHTML = '';
+      (OPTS[key] || []).forEach(function (o) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip' + (cur === o[0] ? ' on' : '');
+        b.textContent = o[1];
+        b.setAttribute('aria-pressed', cur === o[0] ? 'true' : 'false');
+        // Tapping the one that is on clears it. "Nobody knows" is a real
+        // answer and a chip row with no way back is a trap.
+        b.addEventListener('click', function () {
+          picked[field] = cur === o[0] ? null : o[0];
+          draw();
+        });
+        holder.appendChild(b);
+      });
+    }
+
+    function wire() {
+      var d = described();
+
+      if (adding) {
+        var pick = body.querySelector('#gf-model');
+        pick.value = custom ? '__other' : (g.name || '');
+        body.querySelector('#gf-name').value = g.name || '';
+        body.querySelector('#gf-name-wrap').classList.toggle('hidden', !custom);
+        pick.addEventListener('change', function () {
+          custom = pick.value === '__other';
+          // A different model means a different set of facts, so the
+          // answers start again from what the catalogue knows.
+          g.name = custom ? '' : pick.value;
+          LentoGear.FIELDS[kind].forEach(function (f) { picked[f] = null; });
+          draw();
+          if (custom) body.querySelector('#gf-name').focus();
+        });
+        body.querySelector('#gf-name').addEventListener('input', function (e) {
+          g.name = e.target.value;
+        });
+      }
+
+      CHIP_FIELDS[kind].forEach(paintChips);
+
+      NUM_FIELDS[kind].concat(TEXT_FIELDS[kind]).forEach(function (f) {
+        var input = body.querySelector('#gf-' + f);
+        if (!input) return;
+        input.addEventListener('input', function () { picked[f] = input.value; });
+      });
+
+      YESNO_FIELDS[kind].forEach(function (f) {
+        var input = body.querySelector('#gf-' + f);
+        if (!input) return;
+        input.addEventListener('change', function () { picked[f] = input.checked; });
+      });
+
+      // A kettle that only boils has no temperature to hold.
+      var holdWrap = body.querySelector('#gf-hold-wrap');
+      if (holdWrap) holdWrap.classList.toggle('hidden', d.control !== 'variable');
+
+      var about = body.querySelector('#gf-about');
+      if (about && window.LentoBrewers) {
+        about.innerHTML = '<p class="gear-flow">' + esc(LentoBrewers.flowLine(d.flow)) + '</p>'
+          + (d.note ? '<p class="gear-note">' + esc(d.note) + '</p>' : '');
+      }
+
+      var last = body.querySelector('#gf-last');
+      if (last) {
+        var line = kind === 'brewer' ? brewLine(g.name) : shotLine();
+        last.innerHTML = line
+          ? '<span class="field-label">' + (kind === 'brewer' ? 'Your last brew' : 'Your last shot')
+            + '</span>' + line
+          : '';
+      }
+    }
+
+    draw();
+
+    var go = $('#gear-item-go');
+    var where = kind === 'machine' ? 'espresso' : 'filter';
+    go.classList.toggle('hidden', adding);
+    go.textContent = kind === 'machine' ? 'Open the dial-in' : 'Open the brew log';
+    go.href = '/' + where + '/';
+
+    var remove = $('#gear-item-remove');
+    remove.classList.toggle('hidden', Boolean(adding) || usedBy.length > 0);
+    remove.onclick = function () { removeGear(g); };
+
+    $('#gear-item-save').onclick = function () {
+      var next = {};
+      Object.keys(g).forEach(function (k) { next[k] = g[k]; });
+      var d = described();
+      LentoGear.FIELDS[kind].forEach(function (f) { next[f] = d[f]; });
+      next.use = { espresso: g.use.espresso, filter: g.use.filter };
+      if (BELONGS[kind].length > 1) {
+        next.use = {
+          espresso: body.querySelector('#gf-espresso').checked,
+          filter: body.querySelector('#gf-filter').checked,
+        };
+      }
+      // A tool that is set to it is used with it, whatever a disabled
+      // switch reads back as.
+      Object.keys(using).forEach(function (t) { next.use[t] = true; });
+      next.name = (g.name || '').trim();
+      if (!next.name) {
+        toast('Pick one, or give it a name.');
+        return;
+      }
+      var clash = LentoGear.named(kind, next.name);
+      if (clash && clash.id !== next.id) {
+        toast('That one is already on the list.');
+        return;
+      }
+      LentoGear.put(next);
+      tellTools(kind);
+      closeModal('#gear-item-modal');
+      renderAll();
+      syncSoon();
+      if (adding) toast('Added');
+    };
+
+    openModal('#gear-item-modal');
+  }
+
+  /* The instruments read their own kit, and reconcile against this list
+     on their next load — the same arrangement the coffee shelf has, and
+     for the same reason: writing into an app's store from here races
+     whatever it is holding in memory. Nothing to do but leave the mark;
+     this exists to say so where somebody would look for the write. */
+  function tellTools() { /* deliberately nothing — see above */ }
+
+  function removeGear(g) {
+    var was = LentoGear.get(g.id);
+    LentoGear.remove(g.id);
+    closeModal('#gear-item-modal');
+    renderAll();
+    syncSoon();
+    toast('Gone from your gear', {
+      after: g.name + ' is back',
+      restore: function () {
+        if (was) LentoGear.put(was);
+        renderAll();
+        syncSoon();
+      },
+    });
+  }
+
+  /* What you last made with it, read out of the instrument's own store
+     the way everything else from those stores is read here:
+     defensively, and absent rather than guessed at. */
 
   function num(v) {
     // Empty is not zero, and Number('') is. Every reader of a free-text
@@ -850,52 +1175,6 @@
     if (!said) return '';
     return '<p class="gear-last">' + esc(said)
       + '<span class="gear-ago">' + esc(ago(at)) + '</span></p>';
-  }
-
-  function lastBlock(label, html) {
-    if (!html) return '';
-    return '<div><span class="field-label">' + esc(label) + '</span>' + html + '</div>';
-  }
-
-  var CAN_TEMP = { set: 'You set it', fixed: 'One temperature' };
-  var CAN_PRESSURE = { profile: 'You can change it', gauge: 'You can see it', fixed: 'Fixed' };
-
-  function canRow(label, value) {
-    if (!value) return '';
-    return '<div class="gear-can-row"><span class="gear-can-label">' + esc(label)
-      + '</span><span class="gear-can-value">' + esc(value) + '</span></div>';
-  }
-
-  function openGearItem(item) {
-    var body = $('#gear-item-body');
-    var go = $('#gear-item-go');
-    $('#gear-item-title').textContent = item.name;
-
-    if (item.kind === 'machine') {
-      var k = item.kit || {};
-      var dose = num(k.basketDose);
-      body.innerHTML = '<div class="gear-can">'
-        + canRow('Temperature', CAN_TEMP[k.temp] || CAN_TEMP.fixed)
-        + canRow('Pressure', CAN_PRESSURE[k.pressure] || CAN_PRESSURE.fixed)
-        + canRow('Basket', [dose ? dose + ' g' : '', k.portafilter === 'bottomless' ? 'bottomless' : '']
-          .filter(Boolean).join(', '))
-        + '</div>'
-        + lastBlock('Your last shot', shotLine());
-      go.textContent = 'Open the dial-in';
-      go.href = '/espresso/';
-    } else {
-      var B = window.LentoBrewers;
-      var d = B ? B.describe({ name: item.name, flow: item.flow }) : null;
-      body.innerHTML = '<div>'
-        + '<p class="gear-flow">' + esc(B ? B.flowLine(d && d.flow) : '') + '</p>'
-        + (d && d.note ? '<p class="gear-note">' + esc(d.note) + '</p>' : '')
-        + '</div>'
-        + lastBlock('Your last brew', brewLine(item.name));
-      go.textContent = 'Open the brew log';
-      go.href = '/filter/';
-    }
-
-    openModal('#gear-item-modal');
   }
 
   function shotLine() {
@@ -992,7 +1271,7 @@
        configured, no network and nobody signed in. A page that hid what
        is on this device because a sign-in script did not arrive would be
        hiding it for the one reason that has nothing to do with it. */
-    ['shelf', 'gear', 'gear-item', 'bag', 'grinder'].forEach(function (id) {
+    ['shelf', 'gear', 'gear-item', 'bag'].forEach(function (id) {
       $('#' + id + '-close').addEventListener('click', function () {
         closeModal('#' + id + '-modal');
       });
@@ -1005,8 +1284,7 @@
     $('#gear-item-go').addEventListener('click', function () { closeModal('#gear-item-modal'); });
     renderShelf();
     renderGear();
-    $('#vault').classList.toggle('hidden',
-      $('#btn-shelf').classList.contains('hidden') && $('#btn-gear').classList.contains('hidden'));
+    $('#vault').classList.remove('hidden');
 
     if (!window.LentoAccountSheet || !window.LentoAccount) {
       /* No account layer at all. The row stays hidden, as it does on a
