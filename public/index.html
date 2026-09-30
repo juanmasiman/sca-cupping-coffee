@@ -322,6 +322,16 @@
        needs and nothing else: short answers two to a row, so a record
        with nine fields in it is not nine screens of scrolling. */
     .bag-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    /* A line that answers one of the pair but needs the width of both.
+       The gap above it is the pair's own, so it lifts to sit under the
+       field it belongs to rather than floating between the two rows. */
+    .bag-pair > .field-echo.across {
+      grid-column: 1 / -1;
+      /* Up by the pair's own gap, so it sits under the field it belongs
+         to rather than floating a row below both of them. An empty one
+         is `display: none` and never gets here. */
+      margin-top: calc(var(--space-4) * -1 + var(--space-2));
+    }
     .bag-group { display: flex; flex-direction: column; gap: var(--space-3); }
     /* WCAG exempts an inactive control from contrast, and a grinder an app
        is currently set to is exactly that: the switch is stating a fact
@@ -567,6 +577,7 @@
   <script src="/shared/gear.js"></script>
   <script src="/shared/kit.js"></script>
   <script src="/shared/coffees.js"></script>
+  <script src="/shared/temp.js"></script>
   <script src="/shared/brewers.js"></script>
   <script src="/home.js"></script>
 </body>

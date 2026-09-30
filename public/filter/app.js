@@ -610,6 +610,54 @@ const canSetTemp = () => kit().temp === 'set';
 const byWeight = () => kit().scale !== false;
 const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
 
+/* THE UNIT THE KETTLE READS IN.
+
+   Every temperature in this file's store is Celsius and stays Celsius —
+   see /shared/temp.js for why — and every one that is drawn or typed
+   goes through it. This is the only place that asks which unit, so a
+   kettle swapped on the front door changes the whole app on the next
+   load without any screen here knowing it happened.
+
+   `kit().kettle` and not a setting of this app's own: the unit is a
+   property of the thing on the counter, which is where the gear record
+   already asks about it. A kitchen with no kettle named, or one nobody
+   has answered for, reads Celsius, which is what this app has always
+   done. */
+const tempUnit = () => (root().LentoTemp ? LentoTemp.unitOf(kit().kettle) : 'c');
+const degrees = c => (root().LentoTemp ? LentoTemp.fmt(c, tempUnit()) : (c === null || c === '' ? '' : `${Math.round(Number(c))}°`));
+
+/* A stored temperature as a control should show it, and back.
+
+   Whole degrees on the way out, because that is what the control draws
+   anyway and passing it the unrounded 201.02 would let a blur rewrite
+   93.9 as 93.3 without anybody typing.
+
+   `''` is not a temperature. The old call site read `num(Number(t))`,
+   and `Number('')` is 0 — a brew with no temperature recorded showed a
+   zero in a field whose floor is 70. Empty is null here, all the way
+   through. */
+function shownTemp(stored) {
+  if (stored === '' || stored === null || typeof stored === 'undefined') return null;
+  if (!root().LentoTemp) return num(Number(stored));
+  const v = LentoTemp.show(stored, tempUnit());
+  return v === null ? null : Math.round(v);
+}
+
+// `null` for empty, which is what the control itself hands back and what
+// every reader of these two fields already tests for.
+function storedTemp(shown) {
+  if (shown === null || typeof shown === 'undefined' || shown === '') return null;
+  if (!root().LentoTemp) return shown;
+  return LentoTemp.store(shown, tempUnit());
+}
+
+// What the control's range and unit label should be, from the kettle.
+function tempField() {
+  const u = tempUnit();
+  const b = root().LentoTemp ? LentoTemp.bounds(u) : { min: 70, max: 100, step: 1, digits: 0 };
+  return Object.assign({ label: 'Temp', unit: root().LentoTemp ? LentoTemp.unitWord(u) : '°' }, b);
+}
+
 const FLOWS = {
   percolation: {
     label: 'It drains as you pour',
@@ -640,7 +688,7 @@ const flowEntry = b => FLOWS[waterFlow(b)] || FLOWS.percolation;
    fact about the kitchen. It is a sequence, and the sequence is the
    recipe. What somebody actually does:
 
-     14.5g to 200g at 93°, first 100g with it open, close at 0:58,
+     14.5g to 200g at 93°C, first 100g with it open, close at 0:58,
      pour the other 100g at 1:00, open again at 2:00.
 
    Three valve moments and two pours, interleaved, and until now the app
@@ -702,12 +750,21 @@ function defaultTarget() {
    Filter temperatures run hotter than espresso's because the contact is
    longer and the pressure is atmospheric. */
 const ROASTS = [
-  { key: 'light', label: 'Light', temp: 96, ratio: 16.7, tempRange: '95–97°', ratioRange: '1:16–1:17' },
-  { key: 'mlight', label: 'Medium-light', temp: 94, ratio: 16.0, tempRange: '93–95°', ratioRange: '1:15.5–1:16.5' },
-  { key: 'medium', label: 'Medium', temp: 93, ratio: 15.5, tempRange: '92–94°', ratioRange: '1:15–1:16' },
-  { key: 'mdark', label: 'Medium-dark', temp: 91, ratio: 15.0, tempRange: '90–92°', ratioRange: '1:14.5–1:15.5' },
-  { key: 'dark', label: 'Dark', temp: 89, ratio: 14.5, tempRange: '88–90°', ratioRange: '1:14–1:15' },
+  { key: 'light', label: 'Light', temp: 96, lo: 95, hi: 97, ratio: 16.7, ratioRange: '1:16–1:17' },
+  { key: 'mlight', label: 'Medium-light', temp: 94, lo: 93, hi: 95, ratio: 16.0, ratioRange: '1:15.5–1:16.5' },
+  { key: 'medium', label: 'Medium', temp: 93, lo: 92, hi: 94, ratio: 15.5, ratioRange: '1:15–1:16' },
+  { key: 'mdark', label: 'Medium-dark', temp: 91, lo: 90, hi: 92, ratio: 15.0, ratioRange: '1:14.5–1:15.5' },
+  { key: 'dark', label: 'Dark', temp: 89, lo: 88, hi: 90, ratio: 14.5, ratioRange: '1:14–1:15' },
 ];
+
+/* The band a roast sits in, in the unit the kettle reads. It was a
+   pre-written string — '95–97°' — which is a sentence with the numbers
+   already cooked into it and no way to ask it anything. The two ends
+   are numbers now and the string is built where it is printed. */
+const tempBand = e => (root().LentoTemp ? LentoTemp.band(e.lo, e.hi, tempUnit()) : `${e.lo}–${e.hi}°`);
+
+// The one definition lives in /shared/coffees.js, which owns the field.
+const dateSays = raw => (root().LentoCoffees ? LentoCoffees.dateSays(raw) : '');
 
 function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
@@ -1314,7 +1371,10 @@ function tasteNote(brew, target) {
   // in the window and still tasting of one of the walls
   return { sure: false, move: 'Grind has done its job.',
     why: canSetTemp()
-      ? `The brew is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Water temperature is the usual next variable — ${side === 'sour' ? 'up a degree or two' : 'down a degree or two'} — and after that the ratio.`
+      /* "A degree or two" is a physical move, and a Fahrenheit degree is
+         a little over half a Celsius one — so on a kettle reading °F the
+         same sentence is advice to go half as far as it means. */
+      ? `The brew is in the window and still tastes ${side}. Grind moves time; this is the part grind does not reach. Water temperature is the usual next variable — ${side === 'sour' ? 'up ' : 'down '}${root().LentoTemp ? LentoTemp.nudgeWords(tempUnit()) : 'a degree or two'} — and after that the ratio.`
       : `The brew is in the window and still tastes ${side}. Grind moves time, and this is the part grind does not reach — and your kettle holds one temperature, so the variables are ${
           side === 'sour' ? 'the pour and the ratio: pour higher and more agitatedly to wet the bed evenly, or give it more water' : 'the pour and the ratio: pour more gently to agitate the bed less, or give it less water'}.` };
 }
@@ -1867,7 +1927,7 @@ function renderKeeper(c) {
     </div>
     <div class="keeper-meta">${byWeight() ? `${fmtRatio(r)} · ` : ''}${
       keeper.grind !== '' && keeper.grind !== null ? `grind ${escapeHTML(String(keeper.grind))}` : 'no grind recorded'}${
-      canSetTemp() && keeper.temp ? ` · ${escapeHTML(String(keeper.temp))}°` : ''}${
+      canSetTemp() && keeper.temp ? ` · ${escapeHTML(degrees(keeper.temp))}` : ''}${
       ey !== null ? ` · ${fmt1(ey)}% extraction` : ''}</div>
     ${(keeper.pours || []).length ? `<div class="keeper-pours">${pourLine(keeper)}</div>` : ''}
     ${/* The recipe is not rewritten as the coffee ages. Beans degas, the
@@ -1913,7 +1973,7 @@ function renderTarget(c) {
   if (byWeight()) bits.push(`1:${t.ratio}`);
   bits.push(`${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}`);
   if (byWeight()) bits.push(`${fmt1(t.dose)}g`);
-  if (t.temp && canSetTemp()) bits.push(`${t.temp}°`);
+  if (t.temp && canSetTemp()) bits.push(degrees(t.temp));
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
@@ -2043,8 +2103,14 @@ function brewCard(brew, prev, c, n) {
     const dTime = d('time');
     if (dTime) diffs.push(`${fmtDelta(dTime, 's', 0)}`);
     if (canSetTemp()) {
+      /* A difference, not a reading: 1 °C of change is 1.8 °F of change,
+         not 33.8. `LentoTemp.delta` scales by the ratio with no offset,
+         which is the whole reason it is a second function. */
       const dTemp = d('temp');
-      if (dTemp) diffs.push(`${fmtDelta(dTemp, '°', 0)}`);
+      const shown = dTemp !== null && root().LentoTemp
+        ? LentoTemp.delta(dTemp, tempUnit()) : dTemp;
+      const unit = root().LentoTemp ? LentoTemp.unitWord(tempUnit()) : '°';
+      if (shown) diffs.push(`${fmtDelta(shown, unit, 0)}`);
     }
   }
 
@@ -2087,7 +2153,7 @@ function brewCard(brew, prev, c, n) {
      either. Three things plus a window verdict wrapped this line at 390px,
      and of the three it is the one that is nearly always the same figure
      down the whole board — a kettle gets set once. Where it does move, the
-     change line under the rule says "+2°", which is the moment it matters,
+     change line under the rule says "+2°C", which is the moment it matters,
      and the sheet has it whenever you open the brew. */
   if (dd !== null) set.push(`${fmtTime(dd)}<small> drawdown</small>`);
   if (ey !== null) set.push(`${fmt1(ey)}<small>% EY</small>`);
@@ -2359,10 +2425,11 @@ function buildBrewSheet(c) {
     startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
   }));
   if (canSetTemp()) {
-    row.appendChild(numField({
-      label: 'Temp', unit: '°', value: num(Number(editing.temp)), min: 70, max: 100, step: 1, digits: 0,
-      startAt: c.target.temp || 94, onChange: v => { editing.temp = v; refresh(); },
-    }));
+    row.appendChild(numField(Object.assign(tempField(), {
+      value: shownTemp(editing.temp),
+      startAt: shownTemp(c.target.temp || 94),
+      onChange: v => { editing.temp = storedTemp(v); refresh(); },
+    })));
   }
 
   buildPours(c);
@@ -3068,7 +3135,13 @@ function openCoffee(c, opts) {
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
-      <input class="field-input" id="e-roast" type="date"></label>
+      <input class="field-input" id="e-roast" type="date"
+             aria-describedby="e-roast-says"></label>
+    <!-- Outside the label on purpose. Inside it, the readback joins the
+         accessible name, so the field would be called "Roast date 11 Sep
+         2026 · 19 days off roast" and would rename itself as somebody
+         typed. It is a description, which is what describedby is for. -->
+    <span class="field-echo" id="e-roast-says" aria-live="polite"></span>
 
     <span class="field-label section">Roast level</span>
     <div class="chips" id="e-roastlevel" role="radiogroup" aria-label="Roast level"></div>
@@ -3102,7 +3175,11 @@ function openCoffee(c, opts) {
   `;
   body.querySelector('#e-name').value = c.name;
   body.querySelector('#e-roaster').value = c.roaster || '';
-  body.querySelector('#e-roast').value = c.roastDate || '';
+  const roastBox = body.querySelector('#e-roast');
+  const roastSays = body.querySelector('#e-roast-says');
+  roastBox.value = c.roastDate || '';
+  roastSays.textContent = dateSays(roastBox.value);
+  roastBox.addEventListener('input', () => { roastSays.textContent = dateSays(roastBox.value); });
   const BAG = { origin: 'e-origin', variety: 'e-variety', process: 'e-process',
                 altitude: 'e-altitude', bagNotes: 'e-bagnotes' };
   Object.keys(BAG).forEach(f => { body.querySelector('#' + BAG[f]).value = c[f] || ''; });
@@ -3137,12 +3214,12 @@ function openCoffee(c, opts) {
     baseWrap.innerHTML = e
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, water and palate finish the job.${
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, water and palate finish the job.${
              withTemp ? '' : ' Your kettle holds one temperature, so the ratio is the part of this you can take.'}${
              withRatio ? '' : ' You are not brewing by weight, so the temperature is the part you can take.'}</p>
            ${withTemp || withRatio
              ? `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${
-                 [withTemp ? `${e.temp}°` : '', withRatio ? `1:${e.ratio}` : ''].filter(Boolean).join(' and ')}</button>`
+                 [withTemp ? escapeHTML(degrees(e.temp)) : '', withRatio ? `1:${e.ratio}` : ''].filter(Boolean).join(' and ')}</button>`
              : ''}
          </div>`
       : '';
@@ -3178,8 +3255,10 @@ function openCoffee(c, opts) {
     grid.appendChild(numField({ label: 'To', unit: '', time: true, value: t.timeHi, min: 30, max: 1800, step: 15, digits: 0,
       onChange: v => { t.timeHi = v === null ? flowEntry().hi : v; } }));
     if (canSetTemp()) {
-      grid.appendChild(numField({ label: 'Temp', unit: '°', value: t.temp, min: 70, max: 100, step: 1, digits: 0,
-        onChange: v => { t.temp = v; } }));
+      grid.appendChild(numField(Object.assign(tempField(), {
+        value: shownTemp(t.temp),
+        onChange: v => { t.temp = storedTemp(v); },
+      })));
     }
   };
   buildTargetGrid();

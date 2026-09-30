@@ -877,6 +877,9 @@ function solubility(c) {
   return { shift: Math.round(shift * 100) / 100, why, flags };
 }
 
+// The one definition lives in /shared/coffees.js, which owns the field.
+const dateSays = raw => (root().LentoCoffees ? LentoCoffees.dateSays(raw) : '');
+
 function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
 }
@@ -4281,7 +4284,13 @@ function openEdit(c, opts) {
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
-      <input class="field-input" id="e-roast" type="date"></label>
+      <input class="field-input" id="e-roast" type="date"
+             aria-describedby="e-roast-says"></label>
+    <!-- Outside the label on purpose. Inside it, the readback joins the
+         accessible name, so the field would be called "Roast date 11 Sep
+         2026 · 19 days off roast" and would rename itself as somebody
+         typed. It is a description, which is what describedby is for. -->
+    <span class="field-echo" id="e-roast-says" aria-live="polite"></span>
 
     <span class="field-label section">Roast level</span>
     <div class="chips" id="e-roastlevel" role="radiogroup" aria-label="Roast level"></div>
@@ -4340,6 +4349,7 @@ function openEdit(c, opts) {
                 altitude: 'e-altitude-text', bagNotes: 'e-bagnotes' };
   Object.keys(BAG).forEach(f => { body.querySelector('#' + BAG[f]).value = c[f] || ''; });
   body.querySelector('#e-roast').value = c.roastDate || '';
+  body.querySelector('#e-roast-says').textContent = dateSays(c.roastDate || '');
 
   /* One variable, and it says so.
 
@@ -4387,12 +4397,22 @@ function openEdit(c, opts) {
      it. Same coffee, same data, two different texts, and the one a new
      bag is entered on was the wrong one. */
   const dateBox = body.querySelector('#e-roast');
-  if (dateBox) dateBox.addEventListener('change', () => {
-    c.roastDate = dateBox.value;
-    applyStart();
-    renderRoast();
-  buildUse(c, adding);
-  });
+  const dateSaid = body.querySelector('#e-roast-says');
+  if (dateBox) {
+    // `input` as well as `change`: the echo is a readback, and a readback
+    // that waits for the picker to commit is a readback you cannot use
+    // to check what you just typed.
+    dateBox.addEventListener('input', () => {
+      dateSaid.textContent = dateSays(dateBox.value);
+    });
+    dateBox.addEventListener('change', () => {
+      c.roastDate = dateBox.value;
+      dateSaid.textContent = dateSays(dateBox.value);
+      applyStart();
+      renderRoast();
+      buildUse(c, adding);
+    });
+  }
 
   const decafBox = body.querySelector('#e-decaf');
   decafBox.checked = Boolean(c.decaf);

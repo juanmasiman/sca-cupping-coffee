@@ -570,6 +570,85 @@ the only place on the site where a dripper can be added, so hiding it
 until you own one answers "where do I add my kettle" with "nowhere until
 you already have a kettle".
 
+## Two facts the record held and no screen would say
+
+`roastDate` has been on the shared coffee record since the shelf
+existed, and `units` — whether a kettle reads °C or °F — has been on the
+gear record since the catalogue arrived. Both were asked for, stored,
+synced, and read by nothing.
+
+**The shelf catalogued the bag instead of describing it.** A row said
+"Onyx · Ethiopia · washed": who roasted it, where it came from, what was
+done to it. That is how a library indexes a thing and not how anybody
+chooses one at seven in the morning, when the question is how old it is.
+Both instruments compute the age and build advice on it — "the bag is
+three days off roast and still full of gas, which runs shots fast and
+breaks pucks" — and the one screen listing every bag you own would not
+say it. It leads the line now, ahead of the roaster, because it is the
+only fact in the row that changes and because a column of ages down the
+left is something the eye can compare without reading.
+
+**A date that can be read two ways is not a date.** A native date input
+draws the browser's locale, so 09/11/2026 is the eleventh of September
+to some of the people this app is for and the ninth of November to the
+rest, with nothing on screen to say which one they are looking at. Every
+sheet that edits this field now reads it back with the month named —
+"11 Sep 2026 · 19 days off roast" — which answers the ambiguity and the
+question the date was for in one line. The three sheets share one
+implementation, in the file that owns the field, because three copies of
+a date format is three date formats within a year.
+
+**A date ahead of today is a typo, and it is shown rather than dropped.**
+The copies inside the two instruments return null for anything in the
+future, which is right for advice — there is nothing sensible to say
+about a bag roasted next week. The shelf says "dated ahead", because a
+year mistyped or a day and month swapped by a picker showing a format
+the person does not read is exactly the mistake this echo exists to
+catch, and silently ignoring it is how it survives.
+
+## One unit in the record, the other at the glass
+
+The brew log printed a bare `°`, refused anything outside 70 to 100, and
+told a light roast to sit at 96 — numbers that are correct in Celsius and
+meaningless to somebody standing in front of a kettle displaying 201.
+
+**Every temperature this project stores is Celsius and always will be.** A
+brew logged in 2024 has to mean the same thing in 2027, and it would not
+if the number's unit were a property of a kettle since replaced.
+Conversion happens at the two edges — what is drawn and what is typed —
+and nowhere in between, so nothing downstream has to know which unit
+anybody reads. `/shared/temp.js` is that edge, and the brew log asks it
+once, against `kit().kettle`: swap the kettle on the front door and the
+whole app changes on its next load without any screen in it knowing.
+
+**A difference is not a reading.** 94 °C is 201 °F, but a change of 1 °C
+is a change of 1.8 °F, not 33.8. The conversion and the scaling are two
+functions for the same reason `null` and `0` are two values, and the
+change line under a brew goes through the second one: 92 to 94 reads
+"+2°C" or "+4°F" and never the freezing point of water.
+
+**The store gains a decimal, and the sentence does not.** In Fahrenheit
+somebody types whole degrees, and a whole °F is not a whole °C: 201 °F is
+93.888…, stored to one decimal as 93.9 and drawn back as 201. Round it to
+94 instead and what they typed reads back as 201.2 — or, rounded, as a
+201 they can never nudge to 202, because 202 rounds to the same 94.
+Nothing is ever *printed* to a tenth of a degree: that is below what a
+kettle displays and below what anybody can hold, and printing one would
+be the app claiming a precision the kitchen does not have. A Celsius
+kitchen stores and sees whole numbers exactly as before.
+
+**And the advice moves with the unit.** "Up a degree or two" is a
+physical nudge, and a Fahrenheit degree is a little over half a Celsius
+one — so the same sentence read off a °F kettle is advice to go half as
+far as it means. It says "two or three degrees" there. The bands a roast
+sits in were pre-written strings — `'95–97°'` — which is a sentence with
+the numbers already cooked into it and no way to ask it anything; the two
+ends are numbers now and the string is built where it is printed.
+
+**The `°` gained a letter.** It was bare when there was only ever one
+unit, and a bare degree sign on a screen that can show either is the
+ambiguity moved rather than fixed.
+
 ## The reward for a good tap must not be a wall of chips
 
 The first gear sheet opened as seventeen controls. That is the honest

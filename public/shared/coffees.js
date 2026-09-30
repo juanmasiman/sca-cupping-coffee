@@ -109,6 +109,77 @@
     return BAG.some(function (f) { return (c[f] || '').trim(); }) || c.decaf;
   }
 
+  /* ---------- how old the bag is ----------
+
+     The record has held `roastDate` since the shelf existed and the
+     shelf never said a word about it: a row read "Onyx · Ethiopia ·
+     washed", which is a librarian's answer to the question somebody
+     standing in the kitchen at seven in the morning is actually asking.
+     Both instruments compute this and build advice on it. The one
+     screen listing every bag you own did not.
+
+     The date is stored as the `yyyy-mm-dd` an <input type="date">
+     yields, and parsed at local midnight rather than through
+     `Date.parse` on the bare string, which UTC-shifts it and can put a
+     bag a day off in either hemisphere.
+
+     Days can come back NEGATIVE, unlike the copies inside the two
+     instruments, which return null for anything ahead of today. A date
+     in the future is a typo — a year mistyped, or a month and a day
+     swapped by a date picker showing a format the person does not read
+     — and the shelf is where it should be visible rather than quietly
+     dropped. */
+  function age(c) {
+    if (!c || !c.roastDate) return null;
+    var d = new Date(c.roastDate + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today.getTime() - d.getTime()) / 86400000);
+  }
+
+  function ageWord(c) {
+    var days = age(c);
+    if (days === null) return '';
+    if (days < 0) return 'dated ahead';
+    if (days === 0) return 'roasted today';
+    if (days === 1) return '1 day off roast';
+    return days + ' days off roast';
+  }
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // The date back in words, with the month named. See `dateSays` below
+  // for why a named month is the whole point.
+
+  function dateWord(c) {
+    if (!c || !c.roastDate) return '';
+    var d = new Date(c.roastDate + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  /* The date read back in words, from the raw `yyyy-mm-dd` an input
+     holds rather than from a record, because all three sheets that edit
+     this field have to answer while somebody is still typing into it.
+
+     It exists because a native date input draws the browser's locale, so
+     the same bag reads 09/11/2026 to everybody and means the eleventh of
+     September to some of them and the ninth of November to the rest,
+     with nothing on screen to say which. A named month cannot be read
+     two ways, and the age comes with it because that is what anybody
+     wanted the date for. */
+  function dateSays(raw) {
+    var as = { roastDate: raw };
+    var when = dateWord(as);
+    if (!when) return '';
+    var days = age(as);
+    if (days === null) return when;
+    if (days < 0) return when + ' \u2014 that is ahead of today';
+    return when + ' \u00b7 ' + ageWord(as);
+  }
+
   /* Write a bag. Only a real change stamps it: this is called from every
      coffee sheet's commit, which runs on every way out of that sheet, and
      restamping an untouched record means pushing it to the cloud and
@@ -318,6 +389,10 @@
     setUse: setUse,
     adopt: adopt,
     said: said,
+    age: age,
+    ageWord: ageWord,
+    dateWord: dateWord,
+    dateSays: dateSays,
     read: read,
     sync: sync,
   };
