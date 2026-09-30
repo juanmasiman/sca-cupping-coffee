@@ -1203,6 +1203,18 @@
       }
       if (line) out += '<p class="gear-said">' + esc(line) + '</p>';
       if (kind === 'brewer' && d.note) out += '<p class="gear-note">' + esc(d.note) + '</p>';
+      /* The method this brewer has, named but not laid out. The steps
+         belong in the brew log, where somebody is standing over a
+         kettle; here the useful fact is that there IS one and where to
+         go for it, which is one line rather than nine. */
+      if (kind === 'brewer' && window.LentoRecipes) {
+        var m = LentoRecipes.forBrewer(g.name);
+        if (m) {
+          out += '<p class="gear-method">' + esc(m.title) + ' — 1:' + m.ratio
+            + ' · ' + esc(m.grind) + '<span class="gear-method-where">'
+            + ' · the brew log has the pours</span></p>';
+        }
+      }
       if (unsaid.length) {
         out += '<p class="gear-unsaid">Not answered: ' + esc(unsaid.join(', ')) + '</p>';
       }

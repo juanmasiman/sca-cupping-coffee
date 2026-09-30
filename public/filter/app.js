@@ -452,10 +452,34 @@ function migrate(s) {
     Object.keys(c.dead).forEach(k => { if ((c.dead[k] || 0) < stale) delete c.dead[k]; });
     if (!c.target) c.target = defaultTarget();
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
+    if (!Array.isArray(c.target.pours)) c.target.pours = [];
     if (typeof c.roast !== 'string') c.roast = '';
     ['origin', 'variety', 'process', 'altitude', 'bagNotes'].forEach(f => {
       if (typeof c[f] !== 'string') c[f] = '';
     });
+
+    /* PROCESS AND ALTITUDE BECAME ANSWERS.
+
+       They were free text on purpose while nothing consumed them — a
+       control that looks like it feeds something and does not is a
+       promise this app had not made. Something consumes them now, so
+       they are bands, and the years of "Washed", "Lavado" and
+       "1,900–2,100 masl" have to land somewhere.
+
+       The text is KEPT as well as read. A band is what the model eats;
+       what the bag actually printed is what the person wrote down, and
+       throwing that away to store a four-letter key would be the app
+       deciding its own convenience beats their record. Where the text
+       cannot be placed the key stays empty, which reads as "nobody
+       established it" everywhere downstream — the same as a blank — and
+       moves nothing. Guessing would be worse: it moves a number under
+       somebody who never answered the question. */
+    if (typeof c.processKey !== 'string') {
+      c.processKey = root().LentoBeans ? (LentoBeans.matchProcess(c.process) || '') : '';
+    }
+    if (typeof c.altKey !== 'string') {
+      c.altKey = root().LentoBeans ? (LentoBeans.matchAltitude(c.altitude) || '') : '';
+    }
     if (typeof c.grindNow !== 'string') c.grindNow = '';
     if (!Array.isArray(c.brews)) c.brews = [];
     c.brews.forEach(b => {
@@ -735,7 +759,12 @@ function uid() {
    has said what slow means. */
 function defaultTarget() {
   const f = flowEntry();
-  return { dose: 15, ratio: 16, timeLo: f.lo, timeHi: f.hi, temp: null };
+  /* `pours` is the schedule you mean to follow, and it is empty until
+     somebody takes a method or a brew of their own establishes one. A
+     fresh brew seeds from the LAST BREW first and from here only when
+     there is no last brew: what you did yesterday beats what you once
+     said you meant to do, which is this app's rule everywhere else. */
+  return { dose: 15, ratio: 16, timeLo: f.lo, timeHi: f.hi, temp: null, pours: [] };
 }
 
 /* A starting point from the bag.
@@ -770,6 +799,82 @@ function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
 }
 
+/* ---------- what the bag says, and which part of it is a number ----------
+
+   This app used to reason from roast level alone, and said so in
+   `newCoffee`: folding four weak signals in behind it "would make the
+   answer's confidence harder to read rather than the answer better".
+
+   The objection was right about the risk and wrong about the
+   conclusion. /shared/beans.js is the answer to it: every factor states
+   its own contribution, one clause each, and the sheet prints them — so
+   a reader can see WHAT moved the number rather than being handed a
+   number that moved for reasons nobody wrote down.
+
+   And the line that file draws holds here. Process, altitude, decaf and
+   age are a mechanism and move the numbers. Origin and variety are an
+   expectation and never do, because almost everything that makes a
+   Kenyan dense is already counted twice over by "washed" and "1800m+",
+   and counting it a third time is how a starting point drifts. */
+
+function beans() { return root().LentoBeans; }
+
+function solubilityOf(c) {
+  return beans() ? beans().solubility(c, daysSinceRoast(c)) : { shift: 0, why: [], flags: {} };
+}
+
+/* The roast band, moved by everything else the bag said.
+
+   The coefficients are smaller than the dial-in's, and deliberately:
+   nine bar through a 20g puck punishes half a point of solubility far
+   more than four minutes at atmospheric pressure does. A whole point of
+   shift is worth about a tenth of a ratio here and a degree of water,
+   where on the espresso side it is 0.15 of a ratio and can be two. */
+function startingPoint(c) {
+  const e = c ? roastEntry(c.roast) : null;
+  if (!e) return null;
+  const sol = solubilityOf(c);
+  const s = sol.shift;
+
+  let ratio = e.ratio - s * 0.1;
+  ratio = Math.max(12, Math.min(20, Math.round(ratio * 10) / 10));
+
+  let temp = e.temp;
+  if (s >= 1.4) temp -= 2;
+  else if (s >= 0.5) temp -= 1;
+  else if (s <= -0.9) temp += 1;
+  temp = Math.max(e.lo, Math.min(e.hi, temp));
+
+  /* The three that are not a number on a slider. Each is a warning
+     about WHICH WAY TO MOVE when the cup disappoints, which is the part
+     a shift cannot carry. */
+  const extra = [];
+  if (sol.flags.decaf) extra.push('Decaf drinks fast: the bean is opened up by the process, so it gives up flavour sooner and drains sooner. Expect a shorter brew than the grind suggests, and tighten the ratio before you chase it finer.');
+  if (sol.flags.processed) extra.push('With a lot this heavily processed, the flavour you paid for is the one the process put there, and pushing extraction burns it off. If it comes out sour, going coarser is as likely to fix it as going finer.');
+  if (sol.flags.aged) extra.push('This bag has lost the gas that gave the bed its resistance, so it will drain fast and taste thin. That is the bag, not the grinder.');
+
+  return { e, sol, ratio, temp, extra };
+}
+
+// What to expect in the cup and which way to go when it disappoints.
+// Never a number — see the note above.
+function expectations(c) {
+  return beans() && c ? beans().expect(c) : [];
+}
+
+/* ---------- the brewer's own method ---------- */
+
+function methodFor(brewerName) {
+  return root().LentoRecipes ? LentoRecipes.forBrewer(brewerName || kit().brewer) : null;
+}
+
+// Scaled to the dose actually in front of somebody: the target's if
+// there is one, the method's own if there is not.
+function methodAt(m, dose) {
+  if (!m || !root().LentoRecipes) return null;
+  return LentoRecipes.brew(m, dose);
+}
+
 // Days since the bag was roasted, or null when nobody said.
 function daysSinceRoast(c) {
   if (!c || !c.roastDate) return null;
@@ -786,26 +891,43 @@ function newCoffee(name) {
     roaster: '',
     roastDate: '',
     roast: '',
-    /* WHAT ELSE IS ON THE BAG.
+    /* WHAT ELSE IS ON THE BAG, AND WHICH PART OF IT IS A NUMBER.
 
-       Asked because a bag says it and somebody wants it written down
-       beside the brews — not because this app reasons from any of it. It
-       does not: the starting point comes from roast level alone, which is
-       the strongest thing a bag tells you about extraction and the only
-       one used, and folding four weak signals in behind it would make the
-       answer's confidence harder to read rather than the answer better.
-       That argument is in DESIGN.md and these fields do not touch it.
+       This comment used to say that none of these was reasoned from,
+       because folding four weak signals in behind roast level "would
+       make the answer's confidence harder to read rather than the
+       answer better". The risk was real. The conclusion was not: the
+       fix is to make every factor state its own contribution, which is
+       what /shared/beans.js does and what the starting point now
+       prints, one clause per factor.
 
-       Free text, all of them, including altitude. The dial-in asks for
-       altitude as bands because a band is what its solubility model
-       consumes; here nothing consumes it, so the honest field is the one
-       that takes what the bag actually printed — "1,900–2,100 masl" and
-       all. A control that looks like it feeds something, and does not,
-       is a promise this app has not made. */
+       Two of these are a MECHANISM and move the numbers:
+
+         process   a band, matched from what the bag printed
+         altitude  a band, matched from what the bag printed
+
+       and two are an EXPECTATION and never will:
+
+         origin    what to expect, and which way to go when it disappoints
+         variety   the same, where the variety says something the origin did not
+
+       The second pair is not modesty, it is arithmetic. Almost
+       everything that makes a Kenyan dense is ALREADY COUNTED by
+       "washed" and by "1800m+", both read off the same bag; giving
+       origin its own shift counts one physical fact three times and the
+       starting point drifts. What origin is genuinely good at is
+       telling you what the cup should taste like and which way to move
+       when it does not, and that cannot double-count anything because
+       it is not a number.
+
+       The free text stays alongside the band. A band is what the model
+       eats; what the bag printed is what the person wrote down. */
     origin: '',
     variety: '',
     process: '',
+    processKey: '',
     altitude: '',
+    altKey: '',
     // What the roaster says it tastes like, which is a different claim
     // from what you found — yours goes on each brew.
     bagNotes: '',
@@ -1538,6 +1660,113 @@ function nextMove(brew, target) {
   return clock ? [clock] : [];
 }
 
+/* ---------- what the brewer asked for, and what the log says you did ----------
+
+   The method is a starting point and not a rule, so none of this says
+   anybody was wrong. It says what the brewer is FOR, where the log
+   disagrees with it, and leaves the decision where it belongs.
+
+   Only where the log can actually see it. Agitation, pour style and
+   whether the stream was steady are all in the method and none of them
+   is recorded, so nothing here pretends to know about them. What is
+   recorded is the number of pours and whether a valve was touched. */
+function methodNote(brew) {
+  const m = methodFor(brew.brewer || kit().brewer);
+  if (!m || !root().LentoRecipes) return null;
+  const rows = brew.pours || [];
+  const poured = rows.filter(p => !isValve(p) && num(p.water) !== null).length;
+  const wanted = LentoRecipes.pours(LentoRecipes.brew(m, num(brew.dose) || m.dose))
+    .filter(p => typeof p.water === 'number').length;
+
+  /* A valve brewer with no valve in the log. This is not a style note:
+     drawdown on a Switch is measured from the last OPEN, and without
+     one the figure falls back to the last pour — which reports two
+     minutes for a bed that drained in forty seconds. */
+  if (waterFlow(brew) === 'switch' && rows.length && !rows.some(isValve)) {
+    return { move: 'Record when you opened it.',
+      why: `A ${m.brewer} brews closed and then drains, and this schedule has no open or close in it. Without one the drawdown is measured from your last pour, which counts the whole steep as drawdown — so the number above is longer than anything that actually happened in the bed.` };
+  }
+
+  if (!poured || !wanted) return null;
+
+  /* AFTER THE BLOOM, ON BOTH SIDES.
+
+     The first row of a schedule is the bloom — that is what `bloomOf`
+     reads and how every recipe here is written — so counting it as a
+     pour made a Mugen's "one continuous pour" method score two and the
+     comparison never fired. What is being compared is what happens
+     AFTER the bed is wet, which is the part the brewer's geometry has
+     an opinion about.
+
+     Two apart, not one. A pour either side of the method is how
+     everybody actually brews; two is a different method, and only a
+     difference worth a paragraph gets one. */
+  const got = poured - 1;
+  const want = wanted - 1;
+  /* The brewer's reasoning is NOT repeated here. It is three sentences,
+     it is already on the target sheet under the method, and printed
+     again under a two-line observation it was the longest thing on the
+     one card that exists to say what to do next. */
+  const times = n => (n === 1 ? 'once' : `${n} times`);
+  if (want >= 1 && got <= want - 2) {
+    return { move: `A ${m.brewer} wants more than that.`,
+      why: `Its method pours ${times(want)} after the bloom; this brew ${got <= 0 ? 'went in all at once' : `poured ${times(got)}`}. Not wrong — but it asks something different of the bed, so it is worth knowing which of the two the next brew is being compared with.` };
+  }
+  if (want >= 1 && got >= want + 2) {
+    return { move: `A ${m.brewer} asks for fewer.`,
+      why: `Its method pours ${times(want)} after the bloom and this went in ${got} goes. Each pause is time the bed spent draining rather than extracting, which is what makes a heavily pulsed brew hard to read off the clock.` };
+  }
+  return null;
+}
+
+/* The bag's age, where it changes what the next brew will do.
+
+   Both ends matter and they matter in opposite directions, which is why
+   this is a note and not a shift: a bag three days off roast is still
+   moving and will keep moving, and a bag seven weeks off has stopped
+   resisting altogether. */
+function ageNote(c) {
+  const age = daysSinceRoast(c);
+  if (age === null) return null;
+  if (age <= 3) {
+    return { move: age === 0 ? 'Roasted today.' : `${age === 1 ? 'One day' : `${age} days`} off roast.`,
+      why: 'Still full of gas, which lifts the bed, runs the water round it rather than through it, and makes the clock read short. Expect it to keep moving for a few days yet, and do not chase it far with the grinder — you would only have to walk it back.' };
+  }
+  if (age >= (root().LentoBeans ? LentoBeans.AGED_DAYS : 42)) {
+    return { move: `${age} days off roast.`,
+      why: 'Past six weeks the carbon dioxide that gave the bed its resistance has gone, so it drains fast and tastes flat however it is ground. That is the bag rather than the grinder, and going finer mostly buys bitterness on top of it.' };
+  }
+  return null;
+}
+
+/* Where this coffee usually goes wrong, from where it is from.
+
+   Only when the cup has actually gone wrong: an origin note over a brew
+   somebody called good is trivia, and trivia on the one card that is
+   supposed to say what to do next is how a card stops being read.
+
+   Never a number — see /shared/beans.js. This is the other half of what
+   origin knows, and it is the half that is worth having. */
+function beanNote(brew, c) {
+  /* WHICH WAY THE CUP WENT WRONG, AND ONLY THEN.
+
+     Taste leads because the chase advice is written about it; body
+     stands in only where taste was not answered, and "strong" is its
+     own fault rather than a synonym for bitter. Without this the app
+     printed "go finer before you reach for the kettle" under its own
+     instruction to grind coarser — two moves in opposite directions,
+     two inches apart, on the card that exists to say what to do next. */
+  const t = tasteSide(brew.taste);
+  const b = bodySide(brew.body);
+  const fault = (t && t !== 'neither') ? t
+    : (b === 'strong' ? 'strong' : (b === 'weak' ? 'sour' : null));
+  if (!fault) return null;
+  const rows = beans() && c ? beans().expect(c, fault) : [];
+  if (!rows.length) return null;
+  const r = rows[0];
+  return { move: `${r.head}, in particular.`, why: r.chase };
+}
+
 function tipHTML(tip, cls) {
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
@@ -1883,13 +2112,24 @@ function renderNext(c) {
       </div>`;
     return;
   }
-  /* The bloom note is about the schedule rather than the cup, so it rides
-     along under the move instead of competing with it. */
-  const bloom = bloomNote(newest);
+  /* THE MOVE, AND THEN WHAT ELSE IS TRUE.
+
+     Everything under the move is about the brew rather than the cup, so
+     it rides along instead of competing. The order is the order a
+     person can act on them in: what the bag is doing to you today,
+     where this coffee usually goes wrong, what the brewer was asking
+     for, and how the bloom went.
+
+     Capped at two. The card exists to say what to do next, and four
+     paragraphs under one instruction is a card nobody finishes — the
+     dial-in learned the same thing about its own notes. */
+  const notes = [ageNote(c), beanNote(newest, c), methodNote(newest), bloomNote(newest)]
+    .filter(Boolean)
+    .slice(0, 2);
   wrap.className = 'next-card';
   wrap.innerHTML = `<span class="next-label">Next</span>`
     + tips.map(t => tipHTML(t, 'tip')).join('')
-    + (bloom ? tipHTML({ sure: false, move: bloom.move, why: bloom.why }, 'tip') : '');
+    + notes.map(n => tipHTML({ sure: false, move: n.move, why: n.why }, 'tip')).join('');
 }
 
 /* The recipe you settled on, pinned.
@@ -2312,7 +2552,12 @@ function openBrew(brew) {
     intent: null,
     grind: grindStart(c),
     temp: last ? last.temp : '',
-    pours: last && Array.isArray(last.pours) ? last.pours.map(p => ({ ...p })) : [],
+    pours: last && Array.isArray(last.pours) && last.pours.length
+      ? last.pours.map(p => ({ ...p }))
+      // No previous brew: the schedule the target carries, which is
+      // where "start from this method" put one. Copied, never shared —
+      // editing a brew must not rewrite what you are aiming at.
+      : ((c.target && Array.isArray(c.target.pours)) ? c.target.pours.map(p => ({ ...p })) : []),
     notes: '',
     tds: null,
     beverage: null,
@@ -3149,23 +3394,39 @@ function openCoffee(c, opts) {
     <details class="more" id="e-more">
       <summary>What else the bag says</summary>
       <div class="more-body">
-        <p class="sheet-note">All optional, and none of it moves the advice — that comes from roast level alone. This is the bag, kept beside the brews.</p>
+        <p class="sheet-note">All optional. Process and how high it grew move the starting point; origin and variety say what to expect and which way to go when it disappoints. Everything stays as the bag printed it.</p>
         <label class="field"><span class="field-label">Origin</span>
           <input class="field-input" id="e-origin" type="text" maxlength="60" placeholder="e.g. Ethiopia, Guji"></label>
         <label class="field"><span class="field-label">Variety</span>
           <input class="field-input" id="e-variety" type="text" maxlength="60" placeholder="e.g. Heirloom, Gesha"></label>
+
+        <!-- The text is what the bag printed; the chips are what this app
+             read out of it. Typing keeps them in step until somebody
+             corrects one by hand, after which their answer stands — the
+             app reading "Lavado" as washed is a convenience, and a
+             convenience must not overrule a person. -->
         <label class="field"><span class="field-label">Process</span>
-          <input class="field-input" id="e-process" type="text" maxlength="40" placeholder="e.g. Washed"></label>
+          <input class="field-input" id="e-process" type="text" maxlength="40" placeholder="e.g. Washed"
+                 aria-describedby="e-process-chips"></label>
+        <div class="chips tight" id="e-process-chips" role="radiogroup" aria-label="How it was processed"></div>
+
         <label class="field"><span class="field-label">Grown at</span>
-          <input class="field-input" id="e-altitude" type="text" maxlength="40" placeholder="whatever the bag prints, or nothing"></label>
+          <input class="field-input" id="e-altitude" type="text" maxlength="40" placeholder="whatever the bag prints, or nothing"
+                 aria-describedby="e-alt-chips"></label>
+        <div class="chips tight" id="e-alt-chips" role="radiogroup" aria-label="How high it grew"></div>
+
         <label class="field"><span class="field-label">It says it tastes like</span>
           <input class="field-input" id="e-bagnotes" type="text" maxlength="120" placeholder="e.g. peach, jasmine, honey"></label>
       </div>
     </details>
 
+    <div id="e-expect"></div>
+
     <div id="e-use"></div>
 
     <div id="e-baseline"></div>
+
+    <div id="e-method"></div>
 
     <span class="field-label section">What you are aiming at</span>
     <p class="sheet-note">A brew is only quick or long against a window, so this app will not call one long until you have said what the window is. ${
@@ -3183,6 +3444,99 @@ function openCoffee(c, opts) {
   const BAG = { origin: 'e-origin', variety: 'e-variety', process: 'e-process',
                 altitude: 'e-altitude', bagNotes: 'e-bagnotes' };
   Object.keys(BAG).forEach(f => { body.querySelector('#' + BAG[f]).value = c[f] || ''; });
+
+  /* ---------- the bands, and the expectations ----------
+
+     Two bands the model eats, each derived from the text above it until
+     somebody corrects one by hand. `byHand` is the whole of the state:
+     once it is true for a field, typing stops rewriting that chip,
+     because the app's reading of "Lavado" is a convenience and a
+     convenience must not overrule a person.
+
+     A chip that is on clears on a second tap, so "nobody established
+     it" stays reachable — the same rule the gear sheet's yes/no chips
+     follow, and for the same reason. */
+  const byHand = { processKey: false, altKey: false };
+
+  /* WHICH BAND IS ON, WHICH IS NOT THE SAME AS WHICH IS STORED.
+
+     The stored key is set at migration, and migration runs before the
+     shelf reconcile — so a bag whose process arrived from the shared
+     record a moment later had text and no key, and the chips came up
+     empty under a field plainly reading "Washed". The model was never
+     wrong about it (`solubility` falls back to the text itself); only
+     the chips were, which is worse, because the chips are how somebody
+     checks what the model read.
+
+     So the chip shows the EFFECTIVE band: what was stored, or failing
+     that what the text says right now. Nothing is written by drawing. */
+  function bandOf(field) {
+    // A hand-set answer wins, and that INCLUDES an empty one: tapping a
+    // band off means "nobody established this", and re-deriving it from
+    // the text would put it straight back and make the control a liar.
+    if (byHand[field]) return c[field];
+    if (c[field]) return c[field];
+    if (!root().LentoBeans) return '';
+    return (field === 'processKey'
+      ? LentoBeans.matchProcess(c.process)
+      : LentoBeans.matchAltitude(c.altitude)) || '';
+  }
+
+  function paintBands() {
+    if (!root().LentoBeans) return;
+    [['processKey', 'e-process-chips', LentoBeans.PROCESSES],
+     ['altKey', 'e-alt-chips', LentoBeans.ALTITUDES]].forEach(([field, id, table]) => {
+      const wrap = body.querySelector('#' + id);
+      if (!wrap) return;
+      const shown = bandOf(field);
+      wrap.innerHTML = '';
+      table.forEach(row => {
+        const on = shown === row.key;
+        const b = el('button', 'chip' + (on ? ' on' : ''), escapeHTML(row.label));
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.addEventListener('click', () => {
+          /* Clearing an inferred band has to STICK, so `byHand` is set
+             either way: without it, tapping off a band the text implies
+             would redraw straight back on from the same text. */
+          c[field] = on ? '' : row.key;
+          byHand[field] = true;
+          haptic();
+          paintBands();
+          renderRoast();
+        });
+        wrap.appendChild(b);
+      });
+    });
+  }
+
+  function readBands() {
+    if (!root().LentoBeans) return;
+    if (!byHand.processKey) {
+      c.processKey = LentoBeans.matchProcess(body.querySelector('#e-process').value) || '';
+    }
+    if (!byHand.altKey) {
+      c.altKey = LentoBeans.matchAltitude(body.querySelector('#e-altitude').value) || '';
+    }
+    paintBands();
+    renderRoast();
+  }
+
+  /* What to expect in the cup, and which way to go when it does not
+     arrive. Never a number — see `newCoffee`. */
+  function paintExpect() {
+    const wrap = body.querySelector('#e-expect');
+    if (!wrap) return;
+    const rows = expectations(c);
+    wrap.innerHTML = rows.length
+      ? `<div class="baseline expect">
+           <span class="baseline-head">What to expect</span>
+           ${rows.map(r => `<p class="baseline-body"><strong>${escapeHTML(r.head)}</strong> — ${escapeHTML(r.expect)}.</p>${
+             r.chase ? `<p class="baseline-why">${escapeHTML(r.chase)}</p>` : ''}`).join('')}
+         </div>`
+      : '';
+  }
   /* Open if there is anything in it. A drawer that hides what somebody
      already typed teaches them it was not kept. */
   if (Object.keys(BAG).some(f => c[f])) body.querySelector('#e-more').open = true;
@@ -3208,25 +3562,34 @@ function openCoffee(c, opts) {
       b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
       roastWrap.appendChild(b);
     });
-    const e = roastEntry(c.roast);
+    const sp = startingPoint(c);
+    const e = sp ? sp.e : null;
     const withTemp = canSetTemp();
     const withRatio = byWeight();
+    /* The roast band still leads, because it is still the strongest
+       thing a bag says. What is new is the line under it: every other
+       factor that moved the number, in its own words, so the reader can
+       weigh the answer instead of taking it. */
+    const moved = sp && sp.sol.why.length
+      ? `<p class="baseline-why">Moved from there because ${sp.sol.why.join('; ')}.</p>` : '';
+    const warns = sp ? sp.extra.map(x => `<p class="baseline-why">${escapeHTML(x)}</p>`).join('') : '';
     baseWrap.innerHTML = e
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong> and <strong>${e.ratioRange}</strong>. That is the roast alone — the strongest thing a bag tells you about extraction, and the only one this uses. Your grinder, water and palate finish the job.${
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong> and <strong>${e.ratioRange}</strong>. Your grinder, water and palate finish the job.${
              withTemp ? '' : ' Your kettle holds one temperature, so the ratio is the part of this you can take.'}${
              withRatio ? '' : ' You are not brewing by weight, so the temperature is the part you can take.'}</p>
+           ${moved}${warns}
            ${withTemp || withRatio
              ? `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${
-                 [withTemp ? escapeHTML(degrees(e.temp)) : '', withRatio ? `1:${e.ratio}` : ''].filter(Boolean).join(' and ')}</button>`
+                 [withTemp ? escapeHTML(degrees(sp.temp)) : '', withRatio ? `1:${sp.ratio}` : ''].filter(Boolean).join(' and ')}</button>`
              : ''}
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');
     if (apply) apply.addEventListener('click', () => {
-      if (withRatio) t.ratio = e.ratio;
-      if (withTemp) t.temp = e.temp;
+      if (withRatio) t.ratio = sp.ratio;
+      if (withTemp) t.temp = sp.temp;
       commit();
       if (!adding) save();
       haptic();
@@ -3239,7 +3602,99 @@ function openCoffee(c, opts) {
     });
   };
   renderRoast();
+  paintBands();
+  paintExpect();
   buildUse(c, adding);
+
+  ['e-process', 'e-altitude'].forEach(id => {
+    const box = body.querySelector('#' + id);
+    if (box) box.addEventListener('input', readBands);
+  });
+  ['e-origin', 'e-variety'].forEach(id => {
+    const box = body.querySelector('#' + id);
+    if (box) box.addEventListener('input', () => {
+      c[id === 'e-origin' ? 'origin' : 'variety'] = box.value;
+      paintExpect();
+    });
+  });
+
+  /* ---------- the brewer's own method ----------
+
+     Two different questions sit in this sheet now and they must not be
+     confused. The block above is what THE BAG suggests: a roast band
+     moved by what else the bag says. This one is what THE BREWER
+     suggests: a pour schedule that follows from its geometry, the same
+     for every coffee you put through it.
+
+     They are both starting points and neither writes anything without a
+     button, which is the rule the roast baseline has always followed —
+     the app's whole argument is that your log beats any table, and a
+     table that overwrote what your log produced would be contradicting
+     it out loud. */
+  const methodWrap = body.querySelector('#e-method');
+  const renderMethod = () => {
+    const m = methodFor(kit().brewer);
+    if (!m) { methodWrap.innerHTML = ''; return; }
+    const scaled = methodAt(m, byWeight() ? t.dose : m.dose);
+    const rows = scaled.steps.map(st => {
+      const l = LentoRecipes.line(st, fmtTime);
+      return `<li class="step"><span class="step-at">${escapeHTML(l.when)}</span><span class="step-do">${escapeHTML(l.what)}</span></li>`;
+    }).join('');
+    /* WHICH OF THE TWO STARTING POINTS OWNS WHICH NUMBER.
+
+       This sheet now offers two, and for a while they contradicted each
+       other two inches apart: the bag's block said "start at 97°C and
+       1:16.8" and the method's said 1:16.7 and 96°C, with no way for a
+       reader to know which one the app meant.
+
+       They are not rivals, they know different things. The METHOD knows
+       the schedule — a V60 wants a continuous pour, a Kalita wants
+       pulses — and that follows from geometry and is the same for every
+       coffee. The BAG knows the ratio and the temperature, because
+       those follow from the roast and from what else the bag said, and
+       they are different for every coffee. So each writes the half it
+       is actually authoritative about, and the method's own ratio and
+       temperature are used only when there is no roast level to beat
+       them. Stated on the button, so nobody has to infer it. */
+    const sp = startingPoint(c);
+    const tempLine = m.temp === null ? '' : ` · ${escapeHTML(degrees(m.temp))}`;
+    const owns = sp
+      ? 'Take the schedule'
+      : 'Start from this method';
+    const hands = sp
+      ? `<p class="baseline-why">The ratio and the temperature stay as the roast set them above — this writes the pours, the grind to aim for and the window.</p>`
+      : '';
+    methodWrap.innerHTML = `
+      <div class="baseline method">
+        <span class="baseline-head">How a ${escapeHTML(m.brewer)} wants to be used</span>
+        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — 1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}</p>
+        <p class="baseline-why">${escapeHTML(m.why)}</p>
+        <ol class="steps">${rows}</ol>
+        ${hands}
+        <button class="btn btn-ghost" type="button" id="btn-apply-method">${owns}</button>
+      </div>`;
+    methodWrap.querySelector('#btn-apply-method').addEventListener('click', () => {
+      if (byWeight()) {
+        t.dose = scaled.dose;
+        if (!sp) t.ratio = m.ratio;
+      }
+      if (canSetTemp() && m.temp !== null && !sp) t.temp = m.temp;
+      const total = LentoRecipes.totalTime(m);
+      if (total !== null) {
+        // A window, not a point. The method's finish is the middle of it.
+        t.timeLo = Math.max(30, total - 30);
+        t.timeHi = total + 30;
+      }
+      t.pours = LentoRecipes.pours(scaled);
+      commit();
+      if (!adding) save();
+      haptic();
+      buildTargetGrid();
+      renderBoard();
+      toast(sp ? 'Schedule applied' : 'Method applied');
+    });
+  };
+  renderMethod();
 
   const grid = body.querySelector('#target-grid');
   const buildTargetGrid = () => {

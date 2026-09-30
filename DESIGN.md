@@ -311,7 +311,7 @@ Most of it is gone now, because the question has an answer the app can look up. 
 
 **And the shelf is plural, because the kitchen is.** A V60 on a Saturday and a press on a weekday is ordinary, and the app was asking which one of them you are, for ever. Each brew records the brewer that made it, so switching this evening does not rewrite this morning, and removing a brewer from the shelf leaves the brews it made intact and named. Switching on the brew sheet rebuilds it: an immersion brewer has no pour schedule, no drawdown, no "different pours" to intend, and the advice stops talking about the clock. One consequence worth naming — the grind-sensitivity estimate now learns only from brews that percolate, because a four-minute timer setting handed to seconds-per-step arithmetic comes out looking like evidence.
 
-**What else the bag says is a record, and says so.** Origin, variety, process, altitude and the roaster's own tasting notes are asked for and kept, and none of them moves a word of the advice — the starting point is roast level alone, for the reason two paragraphs up. They are free text, altitude included, where the dial-in uses bands: the dial-in's bands are what its solubility model consumes, nothing here consumes this, and a control shaped like an input to something is a promise. The one that earns a second appearance is the bag's tasting notes, printed under the two scales that test the claim.
+**What else the bag says, and which part of it is a number.** This paragraph used to say that none of origin, variety, process or altitude moved a word of the advice — that the starting point was roast level alone, because folding four weak signals in behind it would make the answer's confidence harder to read rather than the answer better. The risk was real and the conclusion was not. The fix is not to ignore the fields, it is to make every factor state its own contribution: the starting point now prints "moved from there because washed coffees are denser and give up less readily; high-grown beans are denser again", one clause per factor, so a reader can weigh the answer instead of taking it. See **The bag, and which half of it is arithmetic** below for where the line now falls. The roaster's own tasting notes still earn their second appearance, printed under the two scales that test the claim.
 
 **A schedule is a record, not a note.** An espresso is one event: you start it and you stop it. A pour-over is five or six, spread over three minutes, and which five is the thing a brewer changes between one morning and the next. "Bloom, then three pours" in a notes field loses the times, and the times *are* the recipe — so the pours are fields with their own arithmetic, they ride on the card and in the pinned recipe, and the app says so when the schedule and the water figure disagree rather than quietly preferring one of them.
 
@@ -515,8 +515,10 @@ setting read out of a model name is stale within a year and wrong about
 every modified machine. Hardware is not that kind of fact. A Comandante
 has conical burrs and counts clicks; a V60 takes a cone filter; a
 Bambino has a 54mm portafilter. Next year's will too. So
-`/shared/gear-db.js` ships eighty-seven models across four kinds and
-holds nothing but hardware — never a setting, a ratio or a recipe.
+`/shared/gear-db.js` ships a hundred and forty-one models across four
+kinds and holds nothing but hardware — never a setting, a ratio or a
+recipe. What a recipe lives in instead is **A method is not a setting**,
+below.
 
 **Null is an answer, and it is the honest one.** A field left blank in
 the catalogue means nobody established it, and the app asks. Where a
@@ -569,6 +571,112 @@ stays out of the way until it has something in it. Gear cannot: it is
 the only place on the site where a dripper can be added, so hiding it
 until you own one answers "where do I add my kettle" with "nowhere until
 you already have a kettle".
+
+## A method is not a setting
+
+`gear-db.js` ships hardware and never a recipe, and the rule is a good
+one. What it was defending against is a **setting read off a model
+name**: a grind number that is stale within a year, wrong about every
+modified machine, and specific to a grinder the table has never met.
+
+**A method is a different kind of fact.** That a V60 wants a continuous
+pour follows from a 60-degree cone with one large hole and ribs all the
+way down; that a Kalita wants pulses follows from a flat bed and three
+small ones; that a Tricolate wants a fine grind and no agitation at all
+follows from no water being able to get round the bed. Those are
+statements about geometry, they are what the makers publish, and they
+will be as true next year as they are now. So they get their own file,
+`/shared/recipes.js`, with its own stated rule — and `gear-db` keeps its
+guarantee, because two kinds of fact in one table blur into each other
+within a year.
+
+**There is not a grind number in it.** Only a grind *character* —
+medium-fine, coarse — because the number is precisely the part that
+cannot survive leaving the kitchen it was measured in. That is the
+original rule, honoured rather than waived.
+
+**Water is a fraction, not a number.** Every pour is a share of the
+total, so one method scales from a single cup to a carafe without a
+second table; the bloom is the exception and is a multiple of the dose,
+because that is what it is actually proportional to and how every brewer
+says it out loud. The rounding is applied to the running total rather
+than to each pour, so a schedule still adds up to the water exactly at
+any dose.
+
+**Written to be shared.** Every method is plain JSON with an `id`, a
+version and an `origin`, and a method somebody writes themselves is the
+same shape with `origin: 'mine'`. The day recipes travel between people
+there is no second format to invent and no migration to run. `valid()`
+is what an incoming one is checked with, and it is strict on purpose: a
+method with a step this project cannot draw would render as a blank line
+at somebody's brewer.
+
+**Two starting points, and they must not both claim the same number.**
+The sheet offers the bag's and the brewer's, and for a while they
+contradicted each other two inches apart — "start at 97°C and 1:16.8"
+above "1:16.7 · 96°C", with nothing to say which the app meant. They are
+not rivals, they know different things. The **method** knows the
+schedule, which follows from geometry and is the same for every coffee.
+The **bag** knows the ratio and the temperature, which follow from the
+roast and are different for every coffee. Each writes the half it is
+authoritative about, the method's own ratio is used only when there is
+no roast level to beat it, and the button says which.
+
+**Nothing is written without a button.** The app's whole argument is
+that your log beats any table; a table that silently overwrote what your
+log produced would be contradicting it out loud.
+
+## The bag, and which half of it is arithmetic
+
+Some of what a bag says is a **mechanism** and some is an
+**expectation**, and only the first kind is allowed to move a number.
+
+| | |
+|---|---|
+| mechanism | process, altitude, roast level, days off roast, decaf |
+| expectation | origin, variety |
+
+**Origin is the tempting one, and it double-counts.** A Kenyan is dense,
+so shift it — except that almost everything which makes it dense is
+already counted: it is washed, and it is grown above 1800m, and those
+are two bands the model reads off the same bag. Add an origin shift on
+top and the same physical fact is counted three times, the starting
+point drifts, and the confidence that the original objection existed to
+protect is exactly what you lose.
+
+**So origin does the thing it is genuinely good at**, which is saying
+what to expect in the cup and which way to go when it disappoints.
+"Kenyan acidity sharpens when it is under-extracted, so if it screeches
+rather than sweetens, go finer before you reach for the kettle" is worth
+more than a tenth of a ratio, and it cannot double-count anything,
+because it is not arithmetic.
+
+**Advice needs a direction or it contradicts the app's own move.** Each
+origin's advice carries the fault it is *about*, and the first version
+did not: a Kenyan's chase line is for a cup that came out sharp, and it
+was being printed under an instruction to grind **coarser** for a cup
+that came out bitter. Two moves pointing opposite ways, two inches
+apart, on the one card that exists to say what to do next. A card with a
+fault in hand now asks for advice about that fault, and gets none when
+there is none.
+
+**One shift, two consumers.** Solubility is a property of the bean, so
+there is one number, in one file both instruments read. How far it moves
+a recipe is a property of the method, so each scales it: nine bar
+through a 20g puck punishes half a point far more than four minutes at
+atmospheric pressure does. The espresso side moves the ratio by 0.15 per
+point; the filter side by 0.1, and says so where it does it.
+
+**The free text stays beside the band.** The brew log asked for process
+and altitude as free text for as long as nothing consumed them, which
+was right — a control that looks like it feeds something and does not is
+a promise. Now something does, so there is a band as well, matched from
+what the bag printed and correctable by hand. The text is kept: a band
+is what the model eats, and what the bag printed is what the person
+wrote down. Matching is deliberately shy, because a string placed wrongly
+moves a number under somebody who never answered the question — and a
+band tapped off stays off, since "nobody established this" has to survive
+the next keystroke.
 
 ## Two facts the record held and no screen would say
 
