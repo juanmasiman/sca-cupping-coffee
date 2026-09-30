@@ -1115,6 +1115,40 @@ html.sheet-open, html.sheet-open body {
 .baseline-body { font-size: 13px; color: var(--text-dim); }
 .baseline-body strong { color: var(--text); font-weight: 700; }
 
+/* The reasoning under the number: which factors moved it, and which way
+   to go when the cup disagrees. A step quieter than the body it follows,
+   because it is the working rather than the answer. */
+.baseline-why { font-size: 13px; line-height: 1.5; color: var(--text-faint); }
+
+/* A METHOD, IN THE ORDER YOU DO IT.
+
+   The clock is Mono and fixed-width so the times form a column the eye
+   can run down without reading — at a brewer with a kettle in one hand,
+   finding the next row is the whole job. No list markers: the time IS
+   the marker, and a number beside a bullet is two of them. */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.step { display: flex; gap: var(--space-3); align-items: baseline; }
+.step-at {
+  flex: none;
+  width: 42px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.step-do { font-size: 13px; line-height: 1.45; color: var(--text); }
+
+/* A chip row that belongs to the field above it rather than standing on
+   its own, so it sits closer than a chip row usually would. */
+.chips.tight { margin-top: calc(var(--space-2) * -1); gap: var(--space-2); }
+
 /* ---------- where the grinder is today ---------- */
 
 /* A row, not a card inside a card.

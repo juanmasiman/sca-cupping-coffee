@@ -742,18 +742,21 @@ function doseStart(c) {
    because what they change is which advice is allowed rather than how
    far a number moves. See solubility(). */
 
-const PROCESSES = [
-  { key: 'washed',    label: 'Washed',         shift: -0.5 },
-  { key: 'honey',     label: 'Honey',          shift: 0 },
-  { key: 'natural',   label: 'Natural',        shift: 0.5 },
-  { key: 'fermented', label: 'Anaerobic / co-ferment', shift: 1 },
-];
+/* THESE TWO TABLES MOVED.
 
-const ALTITUDES = [
-  { key: 'high', label: 'High, 1800m+',   shift: -0.5 },
-  { key: 'mid',  label: 'Mid',            shift: 0 },
-  { key: 'low',  label: 'Low, under 1200m', shift: 0.5 },
-];
+   They live in /shared/beans.js now, because the brew log reasons from
+   the same two bands and two copies of a solubility model is two
+   solubility models within a year. The keys, the labels and the shifts
+   are the ones this file has always used, so nothing it says changes.
+
+   Taken at load, which is safe here and only here: every /shared script
+   is in the document before this one, the same guarantee /shared/kit.js
+   and /shared/coffees.js already run on. If beans.js were ever missing
+   these are empty, no band ever matches, the shift is zero and the app
+   falls back to reasoning from roast level alone — which is what it did
+   before the model existed. A missing file degrades; it does not throw. */
+const PROCESSES = root().LentoBeans ? LentoBeans.PROCESSES : [];
+const ALTITUDES = root().LentoBeans ? LentoBeans.ALTITUDES : [];
 
 const processEntry = k => PROCESSES.find(x => x.key === k) || null;
 const altitudeEntry = k => ALTITUDES.find(x => x.key === k) || null;
@@ -821,60 +824,18 @@ function startingPoint(c) {
                  puck much of its resistance has gone, so shots run fast
                  and will not build pressure. Chasing that with a finer
                  grind is how a stale bag gets blamed on the grinder. */
+/* The model moved to /shared/beans.js, where the brew log reads it too.
+
+   What is left here is the call and the one thing that is genuinely
+   this app's: how far a point of solubility moves an espresso recipe.
+   Nine bar through a 20g puck punishes half a point far more than four
+   minutes at atmospheric pressure does, so the coefficients below are
+   larger than the filter side's and stay here rather than in the shared
+   file. The shift is a property of the bean; what it costs you is a
+   property of the method. */
 function solubility(c) {
-  if (!c) return { shift: 0, why: [], flags: {} };
-  let shift = 0;
-  const why = [];
-  const flags = {};
-
-  const pr = processEntry(c.processKey);
-  if (pr) {
-    shift += pr.shift;
-    if (pr.key === 'fermented') {
-      flags.processed = true;
-      why.push('a heavily processed lot gives up its flavour early and does not want pushing');
-    } else if (pr.key === 'washed') {
-      why.push('washed coffees are denser and give up less readily');
-    } else if (pr.key === 'natural') {
-      why.push('naturals are less dense and come out more easily');
-    }
-  }
-
-  const al = altitudeEntry(c.altKey);
-  if (al) {
-    shift += al.shift;
-    if (al.key === 'high') why.push('high-grown beans are denser again');
-    if (al.key === 'low') why.push('lower-grown beans are softer');
-  }
-
-  if (c.decaf) {
-    shift += 1.5;
-    flags.decaf = true;
-    why.push('decaffeination opens the bean up, so it extracts much more readily and flows faster with it');
-  }
-
-  const age = daysSinceRoast(c);
-  if (age !== null && age >= 42) {
-    /* The age moved the prose and not the numbers.
-
-       startingPoint says an aged bag "starts shorter, and cooler, than the
-       roast alone would" — and it was setting the plain roast midpoint,
-       because the flag was raised without a shift behind it. A tester with
-       a seven-week-old dark blend was told the app had adjusted for the
-       bag, got 1:1.8 and 87° (dead centre of the dark band, unmoved), and
-       spent six shots walking down to the 1:1.6 the sentence had promised.
-
-       A degassed bag has lost the resistance that kept the water honest
-       and oxidation has already done part of the extracting, so it gives
-       up what is left too easily. That is the same direction as a dark
-       roast, which is what "shorter and cooler" means here. See DIALIN.md
-       step 0.5 and "which way the numbers are allowed to move". */
-    shift += 1;
-    flags.aged = true;
-    why.push('past six weeks the carbon dioxide that gave the puck its resistance has gone, so it will run fast whatever the grinder says');
-  }
-
-  return { shift: Math.round(shift * 100) / 100, why, flags };
+  if (!c || !root().LentoBeans) return { shift: 0, why: [], flags: {} };
+  return LentoBeans.solubility(c, daysSinceRoast(c));
 }
 
 // The one definition lives in /shared/coffees.js, which owns the field.
@@ -2443,10 +2404,37 @@ function roastNote(c, shot, target) {
   return ` And a word about the coffee: a ${e.label.toLowerCase()} roast lands on the acidic end even when it is dialled in well. Some of what you are tasting is the bean rather than the extraction, so if the next change gets it clean and sweet but still bright, that is the shot — not a step on the way to somewhere else.`;
 }
 
+/* Where this coffee usually goes wrong, from where it is from.
+
+   The other half of what a bag says. /shared/beans.js draws the line:
+   process and altitude are a mechanism and move the numbers; origin and
+   variety are an expectation and never do, because almost everything
+   that makes a Kenyan dense is already counted twice over by "washed"
+   and "1800m+" and counting it a third time is how a starting point
+   drifts. What origin knows is which way this coffee tends to fail, and
+   that is worth more than a tenth of a ratio.
+
+   Only in the direction the advice is about. The brew log printed
+   "go finer before you reach for the kettle" under its own instruction
+   to grind coarser before `when` existed; this reads the same field so
+   the same contradiction cannot happen here. */
+function beanNote(c, shot) {
+  if (!c || !shot || !root().LentoBeans) return '';
+  // 'neither' is truthy and is not a fault. Explicit, because letting it
+  // through would ask the table for advice about a cup nobody complained
+  // about, and the table would be right to have none.
+  const fault = tasteFault(shot);
+  if (!fault || fault === 'neither') return '';
+  const rows = LentoBeans.expect(c, fault);
+  if (!rows.length || !rows[0].chase) return '';
+  return ` ${rows[0].head}, in particular: ${rows[0].chase}`;
+}
+
 // The qualifiers that ride on the end of whatever the move turned out to
-// be. Neither changes what to do; both change how much to read into it.
+// be. None changes what to do; all change how much to read into it.
 function withAge(tip, c, shot, target) {
-  let note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '');
+  let note = (c ? ageNote(c) : '') + (shot && target ? roastNote(c, shot, target) : '')
+    + beanNote(c, shot);
   /* Not twice in one card. The age tail is thirty words and it was landing
      on every advice state a tester saw — eleven of them, verbatim — which
      is how a reader learns to skip the last third of every card, including

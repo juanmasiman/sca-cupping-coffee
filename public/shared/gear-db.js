@@ -77,6 +77,18 @@
     { name: 'Fellow Ode Gen 2', drive: 'electric', burr: 'flat', burrSize: 64, adjust: 'stepped', retains: false },
     { name: 'Fellow Ode (Gen 1)', drive: 'electric', burr: 'flat', burrSize: 64, adjust: 'stepped', retains: false },
     { name: 'Niche Duo', drive: 'electric', burr: 'flat', burrSize: 83, adjust: 'stepless', retains: false },
+    { name: 'Mahlkönig X54', drive: 'electric', burr: 'flat', burrSize: 54, adjust: 'stepped', retains: true },
+    { name: 'Baratza Vario+ / Vario W', drive: 'electric', burr: 'flat', burrSize: 54, adjust: 'stepped', retains: true },
+    { name: 'Ditting 807 / KR804', drive: 'electric', burr: 'flat', burrSize: 80, adjust: 'stepless', retains: true },
+    { name: 'Timemore Sculptor 064', drive: 'electric', burr: 'flat', burrSize: 64, adjust: 'stepless', retains: false },
+    { name: 'Timemore Sculptor 078', drive: 'electric', burr: 'flat', burrSize: 78, adjust: 'stepless', retains: false },
+    // The Uniform's ring is continuous but printed with a scale, and
+    // owners describe it both ways. Null, so the sheet asks rather than
+    // picking a side — see the note on `null` at the top of this file.
+    { name: 'Wilfa Uniform / Svart Uniform', drive: 'electric', burr: 'flat', burrSize: 58, adjust: null, retains: false },
+    // Interchangeable burr sets, so neither the geometry nor the size
+    // is a property of the name.
+    { name: 'Varia VS3 / VS6', drive: 'electric', burr: null, burrSize: null, adjust: 'stepless', retains: false },
 
     // --- electric, conical ---
     { name: 'Niche Zero', drive: 'electric', burr: 'conical', burrSize: 63, adjust: 'stepless', retains: false },
@@ -86,10 +98,26 @@
     { name: 'Fellow Opus', drive: 'electric', burr: 'conical', burrSize: 40, adjust: 'stepped', retains: null },
     { name: 'Breville/Sage Smart Grinder Pro', drive: 'electric', burr: 'conical', burrSize: null, adjust: 'stepped', retains: true },
     { name: 'Breville/Sage built-in grinder', drive: 'electric', burr: 'conical', burrSize: null, adjust: 'stepped', retains: true },
+    { name: 'Baratza Sette 30', drive: 'electric', burr: 'conical', burrSize: 40, adjust: 'stepped', retains: false },
+    { name: 'OXO Brew Conical Burr', drive: 'electric', burr: 'conical', burrSize: 40, adjust: 'stepped', retains: true },
+    { name: 'Timemore Chestnut 078 / 078S', drive: 'electric', burr: 'conical', burrSize: null, adjust: 'stepless', retains: false },
 
     // --- hand grinders ---
     { name: 'Comandante C40', drive: 'manual', burr: 'conical', burrSize: 39, adjust: 'clicks', retains: false },
-    { name: '1Zpresso (J, JX, K, ZP6)', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
+    { name: '1Zpresso J-Max / JX-Pro', drive: 'manual', burr: 'conical', burrSize: 48, adjust: 'clicks', retains: false },
+    { name: '1Zpresso K-Max / K-Ultra', drive: 'manual', burr: 'conical', burrSize: 48, adjust: 'clicks', retains: false },
+    { name: '1Zpresso ZP6', drive: 'manual', burr: 'conical', burrSize: 48, adjust: 'clicks', retains: false },
+    { name: '1Zpresso X-Pro / X-Ultra', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
+    { name: 'Normcore V2', drive: 'manual', burr: 'conical', burrSize: 38, adjust: 'clicks', retains: false },
+    { name: 'Hario Skerton Pro', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'stepped', retains: true },
+    { name: 'Porlex Mini / Tall', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
+    { name: 'Orphan Espresso Lido 3', drive: 'manual', burr: 'conical', burrSize: 48, adjust: 'stepless', retains: false },
+
+    /* Split for the same reason as the Timemore row below: four
+       different grinders under one name, and the ZP6's filter burr
+       behaves nothing like a J-Max's. Anybody whose kit names the
+       family keeps it. */
+    { name: '1Zpresso (J, JX, K, ZP6)', legacy: true, drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
     { name: '1Zpresso Q2 / Q Air', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
     { name: 'Kingrinder (K4, K6)', drive: 'manual', burr: 'conical', burrSize: null, adjust: 'clicks', retains: false },
     { name: 'Kinu M47', drive: 'manual', burr: 'conical', burrSize: 47, adjust: 'stepless', retains: false },
@@ -157,6 +185,27 @@
       name: 'Timemore Crystal Eye', flow: 'percolation', filter: 'cone', sizes: ['01', '02'],
       body: null, bypass: true,
       note: 'A cone you can see the bed through, which makes the drawdown easy to read.',
+    },
+
+    {
+      name: 'Kono Meimon', flow: 'percolation', filter: 'cone', sizes: ['2 cup', '4 cup'],
+      body: null, bypass: true,
+      note: 'Ribs only at the bottom of the cone, so the paper seals to the wall higher up and the water leaves through the bed rather than round it.',
+    },
+    {
+      name: 'December Dripper', flow: 'percolation', filter: 'cone', sizes: ['V60 02'],
+      body: 'metal', bypass: true,
+      note: 'The base twists to change the size of the hole, so the flow is a setting rather than a consequence of the grind.',
+    },
+    {
+      name: 'Graycano', flow: 'percolation', filter: 'cone', sizes: ['V60 02', 'V60 03'],
+      body: 'metal', bypass: true,
+      note: 'A large aluminium cone that holds heat through a long brew, drawn for bigger doses than a V60 02.',
+    },
+    {
+      name: 'Gabi Master A', flow: 'percolation', filter: 'cone', sizes: ['V60 02'],
+      body: null, bypass: true,
+      note: 'A perforated lid spreads the pour for you, so the schedule matters less and the stream never digs a hole in the bed.',
     },
 
     // --- flat beds ---
@@ -238,6 +287,43 @@
       body: null, bypass: false,
       note: 'The protocol steep: grounds, water, crust, break. No filter at all.',
     },
+    {
+      name: 'Delter Coffee Press', flow: 'immersion', filter: 'proprietary', sizes: ['Delter'],
+      body: 'plastic', bypass: false,
+      note: 'A valve keeps the plunger from pulling water back through the bed, so the contact time is exactly what you pushed and nothing more.',
+    },
+    {
+      name: 'Cold brew steeper', flow: 'immersion', filter: 'mesh', sizes: null,
+      body: null, bypass: false,
+      note: 'Hours rather than minutes, and cold water takes almost no acid with it. The clock is the whole recipe.',
+    },
+
+    // --- the ones that are not drippers ---
+    {
+      name: 'Moka pot', flow: 'percolation', filter: 'basket', sizes: ['1 cup', '3 cup', '6 cup', '9 cup'],
+      body: 'metal', bypass: false,
+      note: 'Steam pressure pushes water up through a sealed basket, so nothing gets round the bed and the heat source is the only control you have.',
+    },
+    {
+      name: 'Moccamaster', flow: 'percolation', filter: 'cone', sizes: ['#4'],
+      body: null, bypass: true,
+      note: 'A batch brewer that holds its temperature, so there is no pour schedule to get wrong — the grind and the ratio are the whole of it.',
+    },
+    {
+      name: 'Wilfa Svart / Performance', flow: 'percolation', filter: 'cone', sizes: ['#4'],
+      body: null, bypass: true,
+      note: 'A batch brewer with a bloom setting, so the one part of a pour schedule that matters is still yours.',
+    },
+    {
+      name: 'Phin', flow: 'percolation', filter: 'mesh', sizes: null,
+      body: 'metal', bypass: false,
+      note: 'A metal chamber that drips under its own weight. The gravity press sets the flow, so the grind is read off the clock rather than the other way round.',
+    },
+    {
+      name: 'Cezve / ibrik', flow: 'immersion', filter: 'none', sizes: null,
+      body: 'metal', bypass: false,
+      note: 'Ground to a powder and brought up three times without boiling. The grounds stay in the cup, which is the point.',
+    },
   ];
 
   /* ---------- kettles ----------
@@ -263,6 +349,13 @@
     { name: 'Timemore Fish', power: 'stovetop', spout: 'gooseneck', control: 'boil', hold: false },
     { name: 'Kalita Wave Pot', power: 'stovetop', spout: 'gooseneck', control: 'boil', hold: false },
     { name: 'Cafec Tsubame', power: 'stovetop', spout: 'gooseneck', control: 'boil', hold: false },
+    { name: 'Hario V60 Power Kettle', power: 'electric', spout: 'gooseneck', control: 'variable', hold: false },
+    { name: 'Cosori Gooseneck', power: 'electric', spout: 'gooseneck', control: 'variable', hold: true },
+    { name: 'COSORI / Miroco variable', power: 'electric', spout: 'gooseneck', control: 'variable', hold: true },
+    { name: 'Brewista Artisan Gen 2', power: 'electric', spout: 'gooseneck', control: 'variable', hold: true },
+    { name: 'Fellow Corvo EKG', power: 'electric', spout: 'wide', control: 'variable', hold: true },
+    { name: 'Stovetop kettle (no gooseneck)', power: 'stovetop', spout: 'wide', control: 'boil', hold: false },
+    { name: 'Electric kettle (no gooseneck)', power: 'electric', spout: 'wide', control: 'boil', hold: false },
   ];
 
   /* ---------- espresso machines ----------
@@ -310,6 +403,28 @@
     { name: 'Flair (Classic, Pro, NEO)', drive: 'press', boiler: null, temp: 'set', pressure: 'profile', pf: null, paddle: false },
     { name: 'Cafelat Robot', drive: 'press', boiler: null, temp: 'set', pressure: 'profile', pf: 58, paddle: false },
     { name: 'La Pavoni (lever)', drive: 'lever', boiler: 'single', temp: 'set', pressure: 'profile', pf: 51, paddle: false },
+    { name: 'Olympia Cremina', drive: 'lever', boiler: 'single', temp: 'set', pressure: 'profile', pf: 49, paddle: false },
+    { name: 'Londinium (spring lever)', drive: 'lever', boiler: 'hx', temp: 'fixed', pressure: 'profile', pf: 58, paddle: false },
+    { name: 'Breville/Sage Oracle Jet', drive: 'pump', boiler: 'thermoblock', temp: 'set', pressure: 'gauge', pf: 54, paddle: false },
+    { name: 'Breville/Sage Barista Touch Impress', drive: 'pump', boiler: 'thermoblock', temp: 'set', pressure: 'gauge', pf: 54, paddle: false },
+    { name: 'De\u2019Longhi Dedica', drive: 'pump', boiler: 'thermoblock', temp: 'fixed', pressure: 'fixed', pf: 51, paddle: false },
+    { name: 'De\u2019Longhi La Specialista', drive: 'pump', boiler: 'thermoblock', temp: 'set', pressure: 'gauge', pf: 51, paddle: false },
+    { name: 'Ascaso Dream / Steel Duo', drive: 'pump', boiler: 'thermoblock', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'Lelit Anna', drive: 'pump', boiler: 'single', temp: 'set', pressure: 'fixed', pf: 57, paddle: false },
+    { name: 'Lelit MaraX', drive: 'pump', boiler: 'hx', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'Rocket Mozzafiato / R58', drive: 'pump', boiler: 'dual', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'Profitec Go', drive: 'pump', boiler: 'single', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'ECM Classika / Puristika', drive: 'pump', boiler: 'single', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'La Marzocco Linea Micra', drive: 'pump', boiler: 'dual', temp: 'set', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'Nuova Simonelli Oscar II / Musica', drive: 'pump', boiler: 'hx', temp: 'fixed', pressure: 'gauge', pf: 58, paddle: false },
+    { name: 'Sanremo YOU / Cube', drive: 'pump', boiler: 'dual', temp: 'set', pressure: 'profile', pf: 58, paddle: true },
+    { name: 'Wacaco Picopresso', drive: 'press', boiler: null, temp: 'set', pressure: 'profile', pf: null, paddle: false },
+    { name: 'Wacaco Nanopresso / Minipresso', drive: 'press', boiler: null, temp: 'set', pressure: 'profile', pf: null, paddle: false },
+
+    /* A PID and a pressure mod make a different machine from the one on
+       the box, which is why the stock rows above say so. This is the
+       modded one, as its own answer rather than a footnote. */
+    { name: 'Gaggia Classic (PID / Gaggiuino)', drive: 'pump', boiler: 'single', temp: 'set', pressure: 'profile', pf: 58, paddle: false },
   ];
 
   var TABLES = {
