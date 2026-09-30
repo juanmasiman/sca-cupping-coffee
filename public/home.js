@@ -380,11 +380,27 @@
 
   function nameOf(c) { return (c.name || '').trim() || 'Unnamed'; }
 
+  /* How old the bag is, first. The row used to read "Onyx · Ethiopia ·
+     washed" — who roasted it and where it came from, which is how a
+     library catalogues a thing and not how anybody chooses one at seven
+     in the morning. The record has held the roast date all along and
+     both instruments build advice on it; this was the one screen
+     listing every bag you own that would not say it.
+
+     It leads rather than trails because it is the only fact in the line
+     that changes, and because a column of them down the left of the
+     list is something the eye can compare without reading. */
   function bagSub(c) {
-    return [c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
+    var age = window.LentoCoffees ? LentoCoffees.ageWord(c) : '';
+    return [age, c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
       .map(function (x) { return (x || '').trim(); })
       .filter(Boolean)
       .join(' · ');
+  }
+
+  // The one definition lives in /shared/coffees.js, which owns the field.
+  function dateSays(raw) {
+    return window.LentoCoffees ? LentoCoffees.dateSays(raw) : '';
   }
 
   function marksHTML(use) {
@@ -728,8 +744,23 @@
       + textField('bag-roaster', 'Roaster', c.roaster, '')
       + '<div class="field">'
       + '<label class="field-label" for="bag-date">Roast date</label>'
-      + '<input class="field-input" id="bag-date" type="date" value="' + esc(c.roastDate) + '">'
-      + '</div></div>'
+      + '<input class="field-input" id="bag-date" type="date"'
+      + ' aria-describedby="bag-date-says" value="' + esc(c.roastDate) + '">'
+      + '</div>'
+      /* A native date input draws the browser's locale, and 09/11/2026 is
+         the ninth of November to some of the people this app is for and
+         the eleventh of September to the rest — with nothing on screen to
+         say which one they are looking at. The echo names the month and
+         gives the age in the same breath, so the field is both readable
+         and worth reading.
+
+         It spans the pair rather than sitting in the date's half of it:
+         at 390px "11 Sep 2026 · 19 days off roast" wraps in a column
+         172px wide, and a two-line answer under a one-line question
+         reads as an overflow rather than an answer. */
+      + '<span class="field-echo across" id="bag-date-says" aria-live="polite">'
+      + esc(dateSays(c.roastDate)) + '</span>'
+      + '</div>'
       + '<div class="field">'
       + '<span class="field-label" id="bag-roast-label">Roast</span>'
       + '<div class="chips" id="bag-roast" role="group" aria-labelledby="bag-roast-label"></div>'
@@ -763,6 +794,12 @@
       + (adding ? '' : '<div class="sheet-destroy sheet-destroy-inline">'
         + '<button id="bag-remove" class="btn-quiet-danger" type="button">'
         + 'Take off the shelf</button></div>');
+
+    var dateBox = body.querySelector('#bag-date');
+    var dateSaid = body.querySelector('#bag-date-says');
+    dateBox.addEventListener('input', function () {
+      dateSaid.textContent = dateSays(dateBox.value);
+    });
 
     var chips = body.querySelector('#bag-roast');
     function paintRoast() {
@@ -1476,15 +1513,27 @@
     ], sh.at);
   }
 
+  /* The brew log stores every temperature in Celsius whatever the kettle
+     reads — see /shared/temp.js — so this line has to convert too, and
+     against the same kettle the brew log is converting against: the one
+     named in its kit. A bare "93°" beside a Stagg EKG showing 201 is the
+     same defect the brew log had, printed on the front door. */
+  function brewTemp(br) {
+    var t = num(br.temp);
+    if (t === null) return null;
+    if (!window.LentoTemp) return t + '°';
+    var k = toolKit('lento-filter-v1');
+    return LentoTemp.fmt(t, LentoTemp.unitOf(k && k.kettle));
+  }
+
   function brewLine(name) {
     var br = latest('lento-filter-v1', 'brews', function (r) { return r.brewer === name; });
     if (!br) return '';
     var dose = grams(br.dose);
     var water = grams(br.water);
-    var t = num(br.temp);
     return lastLine([
       dose && water ? dose + ' → ' + water : (dose || water),
-      t === null ? null : t + '°',
+      brewTemp(br),
       secs(br.time),
     ], br.at);
   }

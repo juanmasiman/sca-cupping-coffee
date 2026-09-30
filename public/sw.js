@@ -31,8 +31,10 @@
    v7 — the gear catalogue and store arrived as two new shared scripts,
         and the brewer table moved into the catalogue.
    v8 — the gear sheet became a record that expands, which is markup and
-        wiring the old home.js has no idea about. */
-const VERSION = 'v8';
+        wiring the old home.js has no idea about.
+   v9 — the shelf says how old a bag is, which is a new export on
+        /shared/coffees.js and a style the old sheet has no rule for. */
+const VERSION = 'v9';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
@@ -48,6 +50,7 @@ const SHELL = [
   '/shared/gear.js',
   '/shared/kit.js',
   '/shared/coffees.js',
+  '/shared/temp.js',
   '/shared/brewers.js',
   '/shared/fonts/plex-sans-var.woff2',
 ];

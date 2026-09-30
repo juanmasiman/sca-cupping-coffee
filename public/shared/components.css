@@ -987,6 +987,24 @@ html.sheet-open, html.sheet-open body {
 }
 .field-label.section { margin-top: var(--space-5); display: block; }
 
+/* What a control just read back, under the control. It is answering a
+   question the field itself raised — a native date input draws the
+   browser's locale and gives the reader no way to tell 9 October from
+   10 September — so it is the same 13px the other secondary text on a
+   sheet is set in, not a footnote.
+
+   It takes no room at all until there is something to say — `display:
+   none` rather than a zero height, because inside a grid an empty box
+   still claims a row and the gap above it. */
+.field-echo {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.field-echo:empty { display: none; }
+
 /* Two walls, two questions, and enough air between them that they read as
    two rather than as one control with four ends. */
 #body-label { margin-top: var(--space-4); }
