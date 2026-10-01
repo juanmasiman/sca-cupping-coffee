@@ -678,7 +678,9 @@ function storedTemp(shown) {
 // What the control's range and unit label should be, from the kettle.
 function tempField() {
   const u = tempUnit();
-  const b = root().LentoTemp ? LentoTemp.bounds(u) : { min: 70, max: 100, step: 1, digits: 0 };
+  // Named, not defaulted: the kettle's floor is lower than a group
+  // head's and this app should say which one it is asking for.
+  const b = root().LentoTemp ? LentoTemp.bounds(u, 'kettle') : { min: 70, max: 100, step: 1, digits: 0 };
   return Object.assign({ label: 'Temp', unit: root().LentoTemp ? LentoTemp.unitWord(u) : '°' }, b);
 }
 
@@ -3671,8 +3673,14 @@ function openCoffee(c, opts) {
     const owns = sp
       ? 'Take the schedule'
       : 'Start from this method';
+    /* What the button will actually do, and not a word more. Some
+       methods cannot name a finish — a moka pot is done when the stream
+       turns pale, a Moccamaster when it stops — so for those there is no
+       window to write and the sentence must not promise one. */
+    const saysWhen = LentoRecipes.totalTime(m) !== null;
     const hands = sp
-      ? `<p class="baseline-why">The ratio and the temperature stay as the roast set them above — this writes the pours, the grind to aim for and the window.</p>`
+      ? `<p class="baseline-why">The ratio and the temperature stay as the roast set them above — this writes the pours${
+          saysWhen ? ' and the window' : ''}.</p>`
       : '';
     methodWrap.innerHTML = `
       <div class="baseline method">

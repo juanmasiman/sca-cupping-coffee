@@ -564,6 +564,7 @@
     'kettle.spout': [['gooseneck', 'Gooseneck'], ['wide', 'Wide']],
     'kettle.control': [['variable', 'You set it'], ['boil', 'It boils']],
     'kettle.units': [['c', '°C'], ['f', '°F']],
+    'machine.units': [['c', '°C'], ['f', '°F']],
     'machine.drive': [['pump', 'Pump'], ['lever', 'Lever'], ['press', 'Hand press']],
     'machine.boiler': [['thermoblock', 'Thermoblock'], ['single', 'Single'],
       ['hx', 'Heat exchanger'], ['dual', 'Dual']],
@@ -607,6 +608,7 @@
     'kettle.control': 'Temperature',
     'kettle.hold': 'Holds the temperature',
     'kettle.units': 'Reads in',
+    'machine.units': 'Reads in',
     'machine.drive': 'Driven by',
     'machine.boiler': 'Boiler',
     'machine.temp': 'Brew temperature',
@@ -1011,6 +1013,11 @@
     return chipsFor(kind, 'drive')
       + chipsFor(kind, 'boiler')
       + chipsFor(kind, 'temp')
+      /* Only worth asking of a machine you can set a temperature on. A
+         Bambino holds one and never shows you a number, so "does it
+         read °C or °F" has no answer there — the same shape as the
+         kettle's hold question two blocks up. */
+      + '<div id="gf-units-wrap">' + chipsFor(kind, 'units') + '</div>'
       + chipsFor(kind, 'pressure')
       + chipsFor(kind, 'paddle')
       + '<div class="gear-row">' + numFor(kind, 'pf', 'mm', g.pf)
@@ -1022,7 +1029,7 @@
     grinder: ['drive', 'burr', 'adjust', 'retains'],
     brewer: ['flow', 'filter', 'body', 'bypass'],
     kettle: ['power', 'spout', 'control', 'hold', 'units'],
-    machine: ['drive', 'boiler', 'temp', 'pressure', 'paddle', 'portafilter'],
+    machine: ['drive', 'boiler', 'temp', 'units', 'pressure', 'paddle', 'portafilter'],
   };
   var NUM_FIELDS = { grinder: ['burrSize'], brewer: [], kettle: [], machine: ['pf', 'basketDose'] };
   var TEXT_FIELDS = { grinder: [], brewer: ['filterSize'], kettle: [], machine: [] };
@@ -1092,6 +1099,7 @@
     'kettle.control': { variable: 'you set the temperature', boil: 'it boils' },
     'kettle.hold': { yes: 'holds it' },
     'kettle.units': { c: 'reads in °C', f: 'reads in °F' },
+    'machine.units': { c: 'reads in °C', f: 'reads in °F' },
     'machine.drive': { pump: 'Pump', lever: 'Lever', press: 'Hand press' },
     'machine.boiler': { thermoblock: 'thermoblock', single: 'single boiler',
       hx: 'heat exchanger', dual: 'dual boiler' },
@@ -1113,6 +1121,7 @@
     'kettle.power': 'electric or stovetop', 'kettle.spout': 'the spout',
     'kettle.control': 'temperature', 'kettle.hold': 'whether it holds',
     'kettle.units': '°C or °F',
+    'machine.units': '°C or °F',
     'machine.drive': 'what drives it', 'machine.boiler': 'the boiler',
     'machine.temp': 'brew temperature', 'machine.pressure': 'pressure',
     'machine.paddle': 'flow control', 'machine.pf': 'portafilter size',
@@ -1323,6 +1332,8 @@
       CHIP_FIELDS[kind].forEach(paintChips);
       var holdWrap = body.querySelector('#gf-hold-wrap');
       if (holdWrap) holdWrap.classList.toggle('hidden', d.control !== 'variable');
+      var unitsWrap = body.querySelector('#gf-units-wrap');
+      if (unitsWrap) unitsWrap.classList.toggle('hidden', d.temp !== 'set');
       var about = body.querySelector('#gf-about');
       if (about && window.LentoBrewers) {
         about.innerHTML = '<p class="gear-flow">' + esc(LentoBrewers.flowLine(d.flow)) + '</p>'
