@@ -49,6 +49,28 @@
 
   var $ = function (sel) { return document.querySelector(sel); };
 
+  /* ---------- asking a shared module for a function, not for a name ----------
+
+     This page loads eight files out of /shared and calls into all of
+     them, and every one of those calls used to be guarded by `if
+     (window.LentoCoffees)` — which tests that the module ARRIVED, not
+     that it is the version this file was written against.
+
+     Those are different questions, and the difference took the front
+     door down. Four service workers precache /shared/*.js, each on its
+     own version clock, and a cache lookup that was not scoped to one of
+     them could hand this page a `coffees.js` frozen whenever the
+     ESPRESSO app last bumped. `window.LentoCoffees` was perfectly true;
+     `LentoCoffees.ageWord` was undefined; the shelf threw on boot and
+     the page reported that sign-in could not start. The cache bug is
+     fixed in sw.js, and this is the belt to its braces: a module that is
+     present but older than this file degrades to the feature being
+     absent, which is a thing every one of these call sites already knows
+     how to draw. */
+  function can(mod, fn) {
+    return Boolean(mod && typeof mod[fn] === 'function');
+  }
+
   /* ---------- the minimum a sheet needs ----------
 
      The three apps each have a modal layer with their own rules — the
@@ -246,12 +268,12 @@
     if (k && Array.isArray(k.brewers)) {
       k.brewers.forEach(function (b) { if (b && b.name) mine[b.name] = b.flow; });
     }
-    var FLOWS = window.LentoBrewers ? LentoBrewers.FLOWS : [];
+    var FLOWS = (window.LentoBrewers && LentoBrewers.FLOWS) || [];
     v.coffees.forEach(function (c) {
       (Array.isArray(c.brews) ? c.brews : []).forEach(function (br) {
         var name = br && br.brewer;
         var flow = name && FLOWS.indexOf(mine[name]) >= 0 ? mine[name] : null;
-        if (!flow && name && window.LentoBrewers) flow = LentoBrewers.flowOf(name);
+        if (!flow && name && can(window.LentoBrewers, 'flowOf')) flow = LentoBrewers.flowOf(name);
         // No brewer named, or one nothing knows: the app's own default,
         // which is also the commonest answer by a distance.
         if (flow === 'immersion') out.steep++;
@@ -391,7 +413,7 @@
      that changes, and because a column of them down the left of the
      list is something the eye can compare without reading. */
   function bagSub(c) {
-    var age = window.LentoCoffees ? LentoCoffees.ageWord(c) : '';
+    var age = can(window.LentoCoffees, 'ageWord') ? LentoCoffees.ageWord(c) : '';
     return [age, c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
       .map(function (x) { return (x || '').trim(); })
       .filter(Boolean)
@@ -400,7 +422,7 @@
 
   // The one definition lives in /shared/coffees.js, which owns the field.
   function dateSays(raw) {
-    return window.LentoCoffees ? LentoCoffees.dateSays(raw) : '';
+    return can(window.LentoCoffees, 'dateSays') ? LentoCoffees.dateSays(raw) : '';
   }
 
   function marksHTML(use) {
@@ -468,7 +490,7 @@
   function renderShelf() {
     var btn = $('#btn-shelf');
     var list = $('#shelf-list');
-    var bags = window.LentoCoffees ? LentoCoffees.all().slice().sort(byName) : [];
+    var bags = can(window.LentoCoffees, 'all') ? LentoCoffees.all().slice().sort(byName) : [];
     if (!bags.length) { btn.classList.add('hidden'); return; }
     btn.classList.remove('hidden');
     $('#shelf-count').textContent = say(bags.length, 'bag', 'bags');
@@ -605,14 +627,14 @@
      piece of gear from another of the same kind, lower-cased so it
      reads as description rather than as a row of labels. */
   function gearSub(g) {
-    var d = (window.LentoGear && LentoGear.describe(g.kind, g.name)) || g;
+    var d = (can(window.LentoGear, 'describe') && LentoGear.describe(g.kind, g.name)) || g;
     var bits;
     if (g.kind === 'grinder') {
       bits = [word('grinder.drive', d.drive), word('grinder.burr', d.burr) &&
         (word('grinder.burr', d.burr) + ' burrs'), d.burrSize ? d.burrSize + ' mm' : '',
         word('grinder.adjust', d.adjust)];
     } else if (g.kind === 'brewer') {
-      bits = [window.LentoBrewers ? LentoBrewers.flowWord(d.flow) : '',
+      bits = [can(window.LentoBrewers, 'flowWord') ? LentoBrewers.flowWord(d.flow) : '',
         [word('brewer.filter', d.filter), d.filterSize].filter(Boolean).join(' ')];
     } else if (g.kind === 'kettle') {
       bits = [word('kettle.power', d.power), word('kettle.spout', d.spout),
@@ -625,7 +647,7 @@
   }
 
   function ownedGear() {
-    return window.LentoGear ? LentoGear.all() : [];
+    return can(window.LentoGear, 'all') ? LentoGear.all() : [];
   }
 
   function renderGear() {
@@ -678,10 +700,25 @@
     return g;
   }
 
+  /* FOUR SECTIONS, FOUR FATES.
+
+     These ran as one statement each and the first throw took the rest of
+     the page with it — which is how a shelf row that could not name a
+     bag's age ended up reporting that SIGN-IN could not start. The shelf
+     has nothing to do with the account layer and should never have been
+     able to speak for it.
+
+     So each draws inside its own guard, and a section that fails leaves
+     its own panel empty and lets the other three stand. `fail` still
+     tells the truth about which one it was, which is the part that was
+     missing: the banner used to name the last thing `start` was doing
+     rather than the thing that actually broke. */
   function renderAll() {
-    renderAccount();
-    renderShelf();
-    renderGear();
+    [['the account row', renderAccount],
+     ['your coffees', renderShelf],
+     ['your gear', renderGear]].forEach(function (job) {
+      try { job[1](); } catch (e) { fail('Could not draw ' + job[0], e); }
+    });
     // Gear is always there, so the row always is. The shelf button is
     // the one that comes and goes, and a row of one button is a row.
     $('#vault').classList.remove('hidden');
@@ -1198,7 +1235,7 @@
       var line = gearSummary(kind, d);
       var unsaid = gearUnsaid(kind, d);
       var out = '<div>';
-      if (kind === 'brewer' && window.LentoBrewers) {
+      if (kind === 'brewer' && can(window.LentoBrewers, 'flowLine')) {
         out += '<p class="gear-flow">' + esc(LentoBrewers.flowLine(d.flow)) + '</p>';
       }
       if (line) out += '<p class="gear-said">' + esc(line) + '</p>';
@@ -1207,7 +1244,7 @@
          belong in the brew log, where somebody is standing over a
          kettle; here the useful fact is that there IS one and where to
          go for it, which is one line rather than nine. */
-      if (kind === 'brewer' && window.LentoRecipes) {
+      if (kind === 'brewer' && can(window.LentoRecipes, 'forBrewer')) {
         var m = LentoRecipes.forBrewer(g.name);
         if (m) {
           out += '<p class="gear-method">' + esc(m.title) + ' — 1:' + m.ratio
@@ -1533,7 +1570,7 @@
   function brewTemp(br) {
     var t = num(br.temp);
     if (t === null) return null;
-    if (!window.LentoTemp) return t + '°';
+    if (!can(window.LentoTemp, 'fmt') || !can(window.LentoTemp, 'unitOf')) return t + '°';
     var k = toolKit('lento-filter-v1');
     return LentoTemp.fmt(t, LentoTemp.unitOf(k && k.kettle));
   }
@@ -1576,7 +1613,7 @@
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
     var jobs = [];
     if (window.LentoKit) jobs.push(LentoKit.sync());
-    if (window.LentoCoffees) jobs.push(LentoCoffees.sync());
+    if (can(window.LentoCoffees, 'sync')) jobs.push(LentoCoffees.sync());
     return Promise.all(jobs.map(function (job) {
       return Promise.resolve(job).then(function () { return true; }, function () { return false; });
     })).then(function (results) {

@@ -839,7 +839,17 @@ function solubility(c) {
 }
 
 // The one definition lives in /shared/coffees.js, which owns the field.
-const dateSays = raw => (root().LentoCoffees ? LentoCoffees.dateSays(raw) : '');
+/* Guarded on the FUNCTION, not on the module.
+
+   `root().LentoCoffees` tests that the file arrived, not that it is the
+   version this one was written against — and those are different
+   questions. The front door shipped a caller for `ageWord` while a
+   service worker was still handing out a `coffees.js` from before it
+   existed, and the page died on boot. Same module, same hazard here.
+   See the note on `can` in /home.js and the scoping fix in sw.js. */
+const dateSays = raw => (
+  root().LentoCoffees && typeof LentoCoffees.dateSays === 'function'
+    ? LentoCoffees.dateSays(raw) : '');
 
 function roastEntry(key) {
   return ROASTS.find(r => r.key === key) || null;
