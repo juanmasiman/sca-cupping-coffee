@@ -55,7 +55,13 @@
     grinder: ['drive', 'burr', 'burrSize', 'adjust', 'retains'],
     brewer: ['flow', 'filter', 'filterSize', 'body', 'bypass'],
     kettle: ['power', 'spout', 'control', 'hold', 'units'],
-    machine: ['drive', 'boiler', 'temp', 'pressure', 'pf', 'paddle', 'portafilter', 'basketDose'],
+    /* `units` on a machine for the same reason it is on a kettle: the
+       record stores Celsius whatever the thing on the counter reads,
+       and this is what tells the dial-in which to draw. Only worth
+       asking of a machine you can set the temperature on — a Bambino
+       has one temperature and never shows you a number — which is why
+       the sheet makes it conditional rather than always asking. */
+    machine: ['drive', 'boiler', 'temp', 'units', 'pressure', 'pf', 'paddle', 'portafilter', 'basketDose'],
   };
 
   /* The type of each field, and it is keyed by KIND and field rather

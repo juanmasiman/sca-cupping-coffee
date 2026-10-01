@@ -588,6 +588,46 @@ const kit = () => (state && state.kit) || defaultKit();
 // The machine holds one temperature, so there is no temperature to record
 // and none to suggest moving.
 const canSetTemp = () => kit().temp === 'set';
+
+/* THE UNIT THE MACHINE READS IN.
+
+   The same arrangement the brew log has for its kettle, against the
+   thing this app actually has on the counter. Every temperature in this
+   file's store is Celsius and stays Celsius — see /shared/temp.js — and
+   every one that is drawn or typed goes through here.
+
+   A machine nobody has answered for reads Celsius, which is what this
+   app did for everybody before the field existed, and a machine with
+   one fixed temperature is never asked: there is no number on it to
+   read in either unit. */
+const tempUnit = () => (root().LentoTemp ? LentoTemp.unitOf(kit().machine, 'machine') : 'c');
+const degrees = c => (root().LentoTemp ? LentoTemp.fmt(c, tempUnit()) : (c === null || c === '' ? '' : `${Math.round(Number(c))}°`));
+
+/* A stored temperature as a control should show it, and back. Whole
+   degrees out, because passing the control an unrounded 201.02 would
+   let a blur rewrite 93.9 as 93.3 with nobody typing. */
+function shownTemp(stored) {
+  if (stored === '' || stored === null || typeof stored === 'undefined') return null;
+  if (!root().LentoTemp) return num(Number(stored));
+  const v = LentoTemp.show(stored, tempUnit());
+  return v === null ? null : Math.round(v);
+}
+
+function storedTemp(shown) {
+  if (shown === null || typeof shown === 'undefined' || shown === '') return null;
+  if (!root().LentoTemp) return shown;
+  return LentoTemp.store(shown, tempUnit());
+}
+
+// The control's range and unit label, from the machine.
+function tempField() {
+  const u = tempUnit();
+  const b = root().LentoTemp ? LentoTemp.bounds(u, 'machine') : { min: 80, max: 100, step: 1, digits: 0 };
+  return Object.assign({ label: 'Temp', unit: root().LentoTemp ? LentoTemp.unitWord(u) : '°' }, b);
+}
+
+// The band a roast sits in, in the unit the machine reads.
+const tempBand = e => (root().LentoTemp ? LentoTemp.band(e.lo, e.hi, tempUnit()) : `${e.lo}–${e.hi}°`);
 const canSetPressure = () => kit().pressure === 'profile';
 const seesPressure = () => kit().pressure !== 'fixed';
 // A stepped grinder counts clicks; a stepless one reads a number off a
@@ -687,11 +727,14 @@ function defaultTarget() {
    as a fault. The window is a field on the coffee and the person can
    move it wherever they like; this only decides where it starts. */
 const ROASTS = [
-  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, tempRange: '90–95°', ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, tempRange: '90–94°', ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, tempRange: '88–92°', ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, tempRange: '87–91°', ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, tempRange: '85–90°', ratioRange: '1:1.7–1:1.9' },
+  // `lo` and `hi` are the band; the string that used to sit beside them
+  // is built where it is printed now, in whichever unit the machine
+  // reads. A sentence with the numbers cooked into it cannot be asked.
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5' },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3' },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1' },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0' },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9' },
 ];
 
 /* Where to start the dose, given the roast and the basket.
@@ -2169,8 +2212,8 @@ function tempFault(shot, c) {
   const aim = hot ? e.hi : e.lo;
   const gap = Math.abs(t - aim);
   return { sure: true,
-    move: `Bring the temperature ${hot ? 'down' : 'up'} to about ${Math.round(aim)}°.`,
-    why: `You are brewing at ${Math.round(t)}° and a ${e.label.toLowerCase()} roast sits in ${e.tempRange}. That is ${gap < 1.5 ? 'just outside' : `${Math.round(gap)}° outside`} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because ${hot
+    move: `Bring the temperature ${hot ? 'down' : 'up'} to about ${degrees(aim)}.`,
+    why: `You are brewing at ${degrees(t)} and a ${e.label.toLowerCase()} roast sits in ${tempBand(e)}. That is ${gap < 1.5 ? 'just outside' : `${Math.round(root().LentoTemp ? LentoTemp.delta(gap, tempUnit()) : gap)}${root().LentoTemp ? LentoTemp.unitWord(tempUnit()) : '°'} outside`} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because ${hot
       ? 'too hot extracts more than the roast wants and puts a rough, aggressive bitterness up front'
       : 'too cool cannot reach what is in the bean, and no grind setting makes up for it'}. Move the whole way, not a degree: a small temperature tweak rarely answers anything, and a correction this size can change the shot completely.` };
 }
@@ -2294,7 +2337,7 @@ function nextExperiment(c, keeper) {
     }
   }
   if (canSetTemp() && kt !== null && !rows.some(sh => num(Number(sh.temp)) !== null && num(Number(sh.temp)) <= kt - 0.5)) {
-    return { move: `A degree cooler — ${Math.round(kt - 1)}°.`,
+    return { move: `A degree cooler — ${degrees(kt - 1)}.`,
       why: `Everything else stays. Cooler extracts a little less and takes the hard edge off the finish — the one temperature move everybody agrees on, and on a good recipe a polish rather than a correction. A whole degree; half of one tells you nothing.` };
   }
   return null;
@@ -3059,7 +3102,7 @@ function renderKeeper(c) {
       <span class="keeper-big">${keeper.time === null ? '—' : Math.round(keeper.time)}<small>s</small></span>
     </div>
     <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · grind ${escapeHTML(String(keeper.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}` : ''}${
-      keeper.temp ? ` · ${escapeHTML(String(keeper.temp))}°` : ''}${
+      keeper.temp ? ` · ${escapeHTML(degrees(keeper.temp))}` : ''}${
       ey !== null ? ` · ${fmt1(ey)}% extraction` : ''}</div>
     ${/* The recipe is not rewritten as the coffee ages. Beans degas, the
           same setting starts running faster, and the answer is a small
@@ -3116,7 +3159,7 @@ function renderTarget(c) {
   wrap.innerHTML = `
     <button class="target-btn" id="btn-target">
       <span class="target-label">Aiming at</span>
-      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp && canSetTemp() ? ` · ${t.temp}°` : ''}</span>
+      <span class="target-value">1:${t.ratio} · ${t.timeLo}–${t.timeHi}s · ${fmt1(t.dose)}g${t.temp && canSetTemp() ? ` · ${escapeHTML(degrees(t.temp))}` : ''}</span>
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     ${drift ? `<button class="target-adopt" id="btn-adopt" type="button">Aim at the recipe instead — ${fmtDose(drift.dose)}g, 1:${drift.ratio}${
@@ -3282,7 +3325,13 @@ function shotCard(shot, prev, c, n) {
     const dTime = d('time');
     if (dTime) diffs.push(`${fmtDelta(dTime, 's', 0)}`);
     const dTemp = d('temp');
-    if (dTemp) diffs.push(`${fmtDelta(dTemp, '°', 0)}`);
+    /* A difference, not a reading: 1 °C of change is 1.8 °F of change,
+       not 33.8. `LentoTemp.delta` scales by the ratio with no offset,
+       which is the whole reason it is a second function. */
+    const shownT = dTemp !== null && root().LentoTemp
+      ? LentoTemp.delta(dTemp, tempUnit()) : dTemp;
+    const tUnit = root().LentoTemp ? LentoTemp.unitWord(tempUnit()) : '°';
+    if (shownT) diffs.push(`${fmtDelta(shownT, tUnit, 0)}`);
   }
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
@@ -4463,7 +4512,7 @@ function openEdit(c, opts) {
                 a hundred and five words of unbroken prose with the one
                 actionable line at the bottom, which is the shape a reader
                 skips. */ ''}
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${e.tempRange}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
            <details class="tip-more"><summary>Why these</summary>
              <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
                e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
@@ -4476,9 +4525,9 @@ function openEdit(c, opts) {
                 18 offering "Start at 16.5g" after six shots and a keeper —
                 one tap from throwing the dial-in away, with no warning. */
              ? `<p class="baseline-body"><strong>${spDose === null ? '' : `${fmtDose(spDose)}g, `}1:${sp.ratio}${
-                  withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</strong> is where this bag starts from cold.${
+                  withTemp ? `, ${escapeHTML(degrees(sp.temp))}` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</strong> is where this bag starts from cold.${
                   c.shots.length ? ` You are ${c.shots.length} shot${c.shots.length === 1 ? '' : 's'} past that — the target below is what the board is judging against, and it is yours to edit.` : ' That is what the target below is set to. Change any of it and it stays changed.'}</p>`
-             : `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}${withTemp ? `${sp.temp}° and ` : ''}1:${sp.ratio}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</button>`}
+             : `<button class="btn btn-ghost" type="button" id="btn-apply-baseline">Start at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}${withTemp ? `${escapeHTML(degrees(sp.temp))} and ` : ''}1:${sp.ratio}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s</button>`}
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');
@@ -4495,7 +4544,7 @@ function openEdit(c, opts) {
       // bigger act than the button admits to and left people unsure
       // whether the name they had just typed had gone in with it.
       toast(`Aiming at ${spDose === null ? '' : `${fmtDose(spDose)}g, `}1:${sp.ratio}${
-        withTemp ? `, ${sp.temp}°` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s`);
+        withTemp ? `, ${degrees(sp.temp)}` : ''}, ${Math.round(sp.timeLo)}–${Math.round(sp.timeHi)}s`);
       buildTargetGrid();
       renderBoard();
     });
@@ -4561,8 +4610,12 @@ function openEdit(c, opts) {
     grid.appendChild(numField({ label: 'To', unit: 's', value: t.timeHi, min: 5, max: 120, step: 1, digits: 0,
       onChange: v => { own.time = true; t.timeHi = v === null ? 30 : v; } }));
     if (canSetTemp()) {
-      grid.appendChild(numField({ label: 'Temp', unit: '°', value: t.temp, min: 80, max: 100, step: 1, digits: 0,
-        onChange: v => { own.temp = true; t.temp = v; } }));
+      // Range, unit and rounding all come from the machine now; only the
+      // value and the write are this sheet's.
+      grid.appendChild(numField(Object.assign(tempField(), {
+        value: shownTemp(t.temp),
+        onChange: v => { own.temp = true; t.temp = storedTemp(v); },
+      })));
     }
   };
   buildTargetGrid();

@@ -626,6 +626,26 @@ no roast level to beat it, and the button says which.
 that your log beats any table; a table that silently overwrote what your
 log produced would be contradicting it out loud.
 
+## A method that cannot say when it is done
+
+Most methods finish on the clock: a V60 at 3:15, a Tricolate at 7:00.
+Some genuinely cannot. A moka pot is done when the stream turns pale, a
+Moccamaster when it stops, a cezve after the third rise — those are real
+finishing conditions and none of them is a time.
+
+`totalTime` read **the last step carrying a number** and found, on those
+four, the `at: 0` of their single pour — every step after it being
+deliberately untimed. It reported the brew as finishing at zero seconds,
+and the brew log turned that into a **thirty-second window on a brewer
+that takes four minutes**. It reads the `serve` step specifically now
+and returns null when that step has no time, callers handle the null,
+and the button stops promising a window it cannot write.
+
+Null is the honest answer and the awkward one, which is the usual sign
+it is the right one. `valid()` gained a matching rule: every method has
+a serve step, because a schedule with no last line has nothing for this
+to read.
+
 ## The bag, and which half of it is arithmetic
 
 Some of what a bag says is a **mechanism** and some is an
@@ -633,23 +653,39 @@ Some of what a bag says is a **mechanism** and some is an
 
 | | |
 |---|---|
-| mechanism | process, altitude, roast level, days off roast, decaf |
-| expectation | origin, variety |
+| mechanism | process, altitude, **variety**, roast level, days off roast, decaf |
+| expectation | origin |
 
-**Origin is the tempting one, and it double-counts.** A Kenyan is dense,
-so shift it — except that almost everything which makes it dense is
-already counted: it is washed, and it is grown above 1800m, and those
-are two bands the model reads off the same bag. Add an origin shift on
-top and the same physical fact is counted three times, the starting
-point drifts, and the confidence that the original objection existed to
-protect is exactly what you lose.
+**Origin is the redundant one, and variety is not.** This table first
+put both on the expectation side, on the argument that a Kenyan's
+density is already counted by "washed" and "1800m+". That argument is
+right about origin and wrong about variety, and the difference is worth
+stating precisely: **origin is very nearly a function of the other
+three.** Say "Kenya" and you have very likely said washed, and above
+1700m, and SL28 — all read off the same bag, all already counted. An
+origin shift counts one physical fact a fourth time.
+
+Variety has no such problem, because it is **independent** of the others
+rather than implied by them. SL28 grown at 1500m and Castillo grown at
+1900m are different coffees, and no altitude band can tell you which is
+which. Hardness is a property of the seed as well as of where it grew,
+and variety is the only field that carries it. The app demonstrates the
+point on itself: those two land within a tenth of a point of each other,
+because the seed offsets four hundred metres.
+
+**The variety shifts are a third of a point** where process and altitude
+get a half — the evidence is thinner, and a signal this correlated with
+its neighbours should nudge rather than lurch. Bourbon, Typica and
+Caturra are **zero**, because they *are* the baseline the others are
+hard or soft relative to, and giving them a token nudge would be
+inventing a difference to avoid writing a nought. Robusta is the one
+exception and is not a nudge at all: it is a different species.
 
 **So origin does the thing it is genuinely good at**, which is saying
 what to expect in the cup and which way to go when it disappoints.
-"Kenyan acidity sharpens when it is under-extracted, so if it screeches
-rather than sweetens, go finer before you reach for the kettle" is worth
-more than a tenth of a ratio, and it cannot double-count anything,
-because it is not arithmetic.
+"Sharp is more often too little here than too much" is worth more than a
+tenth of a ratio, and it cannot double-count anything, because it is not
+arithmetic.
 
 **Advice needs a direction or it contradicts the app's own move.** Each
 origin's advice carries the fault it is *about*, and the first version
@@ -744,6 +780,21 @@ Nothing is ever *printed* to a tenth of a degree: that is below what a
 kettle displays and below what anybody can hold, and printing one would
 be the app claiming a precision the kitchen does not have. A Celsius
 kitchen stores and sees whole numbers exactly as before.
+
+**Both instruments ask their own device.** The brew log asks its
+kettle; the dial-in asks its espresso machine, which for a while had no
+`units` field at all and so told everybody to brew at 90–95 and meant
+Celsius. One function, `unitOf(name, kind)`, because neither device is
+more real than the other. A machine with one fixed temperature is never
+asked — there is no number on it to read in either unit — which is the
+same shape as not asking a kettle that only boils whether it holds a
+temperature.
+
+**The floors differ, and the difference is real.** A brew can be made at
+70°C and an espresso cannot: a group head that cold produces something
+nobody would call coffee. So `bounds` takes the kind too, and the
+Fahrenheit pairs are the same two temperatures rounded outward so
+neither end of the real range becomes unreachable by rounding.
 
 **And the advice moves with the unit.** "Up a degree or two" is a
 physical nudge, and a Fahrenheit degree is a little over half a Celsius

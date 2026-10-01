@@ -45,13 +45,18 @@
   // What the record holds, always, whatever anybody reads.
   var STORED = 'c';
 
-  /* The unit a kettle reads in. `null` on the record means nobody has
-     been asked, and Celsius is the answer this project has always given
-     — so an unanswered kettle behaves exactly as every kettle did
-     before this file existed. */
-  function unitOf(kettleName) {
-    if (!kettleName || !root.LentoGear) return STORED;
-    var d = root.LentoGear.describe('kettle', kettleName);
+  /* The unit a piece of gear reads in. `null` on the record means nobody
+     has been asked, and Celsius is the answer this project has always
+     given — so an unanswered kettle or machine behaves exactly as every
+     one of them did before this file existed.
+
+     `kind` because two instruments ask it of two different things: the
+     brew log of its kettle, the dial-in of its espresso machine. The
+     default is 'kettle' only because that is the caller that existed
+     first; neither is more real than the other. */
+  function unitOf(name, kind) {
+    if (!name || !root.LentoGear) return STORED;
+    var d = root.LentoGear.describe(kind || 'kettle', name);
     var u = d && d.units;
     return UNITS.indexOf(u) >= 0 ? u : STORED;
   }
@@ -103,14 +108,22 @@
     return Math.round(lo) + '–' + Math.round(hi) + '°' + (isF(unit) ? 'F' : 'C');
   }
 
-  /* What the input should allow. The Celsius floor and ceiling have
-     always been 70 and 100 — below boiling and above anything worth
-     brewing with — and the Fahrenheit pair is the same two temperatures,
-     rounded outward so neither end of the real range is unreachable. */
-  function bounds(unit) {
-    return isF(unit)
-      ? { min: 158, max: 212, step: 1, digits: 0 }
-      : { min: 70, max: 100, step: 1, digits: 0 };
+  /* What the input should allow, in the unit it is drawn in.
+
+     The two instruments have always had different Celsius floors and
+     the difference is real: a brew can be made at 70 and an espresso
+     cannot, because a group head that cold produces something nobody
+     would call coffee. The Fahrenheit pairs are the same two
+     temperatures, rounded outward so neither end of the real range
+     becomes unreachable by rounding. */
+  var FLOORS = {
+    kettle: { c: [70, 100], f: [158, 212] },
+    machine: { c: [80, 100], f: [176, 212] },
+  };
+
+  function bounds(unit, kind) {
+    var pair = (FLOORS[kind] || FLOORS.kettle)[isF(unit) ? 'f' : 'c'];
+    return { min: pair[0], max: pair[1], step: 1, digits: 0 };
   }
 
   /* How far "a degree or two" is in the unit in hand. A Fahrenheit

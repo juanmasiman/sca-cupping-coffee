@@ -317,7 +317,7 @@
     },
     {
       id: 'bluebottle-one', v: 1, origin: 'built-in', brewer: 'Blue Bottle Dripper',
-      title: 'One hole, two pours', dose: 20, ratio: 16, temp: 94, grind: 'medium',
+      title: 'One hole, two pours', dose: 20, ratio: 16, temp: 94, grind: 'medium-coarse',
       why: 'A single small hole under a flat bed makes this one of the slowest drippers here, and the restriction is the dripper rather than the coffee. Grind coarser than instinct says.',
       steps: [
         { at: 0, do: 'bloom', x: 2, style: 'centre' },
@@ -654,10 +654,25 @@
       });
   }
 
-  // What the clock should read when it is finished, or null.
+  /* What the clock should read when it is finished, or null when the
+     method does not say.
+
+     THE SERVE STEP, not "the last step that carries a time".
+
+     Some methods genuinely cannot name a finish. A moka pot is done
+     when the stream turns pale, a Moccamaster when it stops, a cezve
+     after the third rise — all of those are `serve` steps with `at:
+     null` on purpose, and every step after their one timed pour is null
+     too. Scanning backwards for the last number found that pour's `at:
+     0` and reported the brew as finishing at zero seconds, which the
+     brew log then turned into a thirty-second window on a brewer that
+     takes four minutes.
+
+     Null is the honest answer there, and callers have to handle it —
+     which is why this returns one rather than a plausible guess. */
   function totalTime(method) {
     for (var i = method.steps.length - 1; i >= 0; i--) {
-      if (method.steps[i].at !== null) return method.steps[i].at;
+      if (method.steps[i].do === 'serve') return method.steps[i].at;
     }
     return null;
   }
@@ -680,6 +695,9 @@
     if (m.temp !== null && !(m.temp > 0)) return 'bad temperature';
     if (m.grind && GRINDS.indexOf(m.grind) < 0) return 'unknown grind: ' + m.grind;
     if (!Array.isArray(m.steps) || !m.steps.length) return 'no steps';
+    // Every method ends. A schedule with no serve has no last line, and
+    // `totalTime` would have nothing to read.
+    if (!m.steps.some(function (x) { return x && x.do === 'serve'; })) return 'no serve step';
     var last = -1;
     for (var i = 0; i < m.steps.length; i++) {
       var s = m.steps[i];

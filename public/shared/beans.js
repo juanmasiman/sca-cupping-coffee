@@ -22,23 +22,37 @@
    Some of what a bag says is a MECHANISM and some of it is an
    EXPECTATION, and only the first kind is allowed to move a number.
 
-     mechanism    process, altitude, roast level, days off roast, decaf
-     expectation  origin, variety
+     mechanism    process, altitude, variety, roast level, days off
+                  roast, decaf
+     expectation  origin
 
-   The temptation is to let origin move the numbers too — a Kenyan is
-   dense, so shift it. The trouble is that almost everything which makes
-   a Kenyan dense is ALREADY COUNTED: it is washed, and it is grown
-   above 1700m, and those are two bands this model already reads off the
-   same bag. Add an origin shift on top and the same physical fact is
-   counted three times; the starting point drifts, and the confidence
-   the original objection was protecting is exactly what you lose.
+   ORIGIN IS THE REDUNDANT ONE, AND VARIETY IS NOT
 
-   So origin and variety do the thing they are genuinely good at, which
-   is telling you WHAT TO EXPECT IN THE CUP and WHICH WAY TO GO WHEN IT
-   DISAPPOINTS. "Kenyan acidity sharpens when it is under-extracted, so
-   if it screeches rather than sweetens, go finer before you go hotter"
-   is worth more than a tenth of a ratio, and it cannot double-count
-   anything because it is not arithmetic.
+   The temptation is to let origin move the numbers — a Kenyan is dense,
+   so shift it. The trouble is that origin is very nearly a FUNCTION of
+   the other three: say "Kenya" and you have very likely said washed,
+   and above 1700m, and SL28. All three are read off the same bag and
+   all three are already counted. Add an origin shift on top and one
+   physical fact is counted four times; the starting point drifts, and
+   the confidence this model exists to protect is what you lose.
+
+   Variety does not have that problem, because it is INDEPENDENT of the
+   other two rather than implied by them. SL28 grown at 1500m and
+   Castillo grown at 1900m are different coffees, and the altitude band
+   cannot tell you which is which. Hardness is a property of the seed as
+   well as of where it grew, and this is the only field that carries it.
+
+   The variety shifts are deliberately small — a third of a point where
+   process and altitude get a half — because the evidence for them is
+   thinner and because a signal this correlated with the others should
+   nudge rather than lurch. Robusta is the exception and is not a nudge:
+   it is a different species and far more soluble than any arabica.
+
+   So origin does the thing IT is good at, which is telling you WHAT TO
+   EXPECT IN THE CUP and WHICH WAY TO GO WHEN IT DISAPPOINTS. "Kenyan
+   acidity sharpens when it is under-extracted" is worth more than a
+   tenth of a ratio, and it cannot double-count anything, because it is
+   not arithmetic.
 
    ONE SHIFT, TWO CONSUMERS
 
@@ -256,50 +270,72 @@
       chase: 'Reads like a gentler Kenya: dense, takes a full extraction, and sharpens when the brew comes up short.' },
   ];
 
-  /* Varieties, for the same job. Present where the variety changes what
-     you should expect or how it behaves in a grinder — not a botanical
-     index. A variety this table does not know is simply written down. */
+  /* Varieties: a shift AND an expectation, unlike origin above.
+
+     `shift` is how readily the seed gives its flavour up, on the same
+     scale as process and altitude but at a third of the size — see the
+     header for why it is allowed a number at all and why the number is
+     small. Zero is the honest answer for most of them: Bourbon, Typica
+     and Caturra ARE the baseline that the others are hard or soft
+     relative to, and giving them a token nudge would be inventing a
+     difference to avoid writing a nought.
+
+     Present where the variety changes what you should expect or how it
+     behaves in a grinder — not a botanical index. A variety this table
+     does not know is simply written down, and moves nothing. */
   var VARIETIES = [
     { key: 'sl', label: 'SL28 / SL34', match: /\bsl[- ]?28\b|\bsl[- ]?34\b/i,
+      shift: -0.3,
       when: 'sour',
       expect: 'the blackcurrant acidity Kenya is bought for',
       chase: 'Hard, dense beans that take more extraction than almost anything else before turning bitter.' },
     { key: 'gesha', label: 'Gesha / Geisha', match: /gesha|geisha/i,
+      shift: 0,
       when: 'bitter',
       expect: 'jasmine, bergamot and a tea-like body',
       chase: 'The aromatics are the whole product and heat is what removes them, so this is one to brew below the roast level rather than above it.' },
     { key: 'bourbon', label: 'Bourbon', match: /bourbon|borbon|borbón/i,
+      shift: 0,
       when: 'any',
       expect: 'rounded sweetness and a soft acidity', chase: '' },
     { key: 'typica', label: 'Typica', match: /typica|típica/i,
+      shift: 0,
       when: 'any',
       expect: 'clean and classic, light in body', chase: '' },
     { key: 'caturra', label: 'Caturra / Catuaí', match: /caturra|catua|catuaí/i,
+      shift: 0,
       when: 'any',
       expect: 'balanced and sweet, the workhorse of Latin America', chase: '' },
     { key: 'castillo', label: 'Castillo / Colombia', match: /castillo|\bcolombia variety\b|variedad colombia/i,
+      shift: 0.3,
       when: 'bitter',
       expect: 'sturdy and sweet, softer in the cup than Caturra',
       chase: 'A softer bean than its neighbours, so it over-extracts sooner than the numbers suggest.' },
     { key: 'pacamara', label: 'Pacamara / Maragogype', match: /pacamara|maragog|maragojipe|elephant bean/i,
+      shift: 0.3,
       when: 'any',
       expect: 'a huge bean, herbal and syrupy',
       chase: 'Most grinders produce a wide distribution on a bean this large, which tastes like sour and bitter at once. Judge the grinder before the recipe.' },
     { key: 'heirloom', label: 'Ethiopian landrace', match: /heirloom|landrace|74110|74112|74158|kurume|dega|wolisho/i,
+      shift: -0.3,
       when: 'bitter',
       expect: 'small dense beans with delicate floral aromatics',
       chase: 'Fine to grind and easy to scorch — the top end goes to heat first.' },
     { key: 'pink', label: 'Pink Bourbon', match: /pink bourbon/i,
+      shift: 0,
       when: 'any',
       expect: 'tropical fruit and a dense sweetness', chase: '' },
     { key: 'laurina', label: 'Laurina / Bourbon Pointu', match: /laurina|bourbon pointu/i,
+      shift: 0.3,
       when: 'any',
       expect: 'low caffeine, delicate and sweet',
       chase: 'Naturally low in caffeine and correspondingly low in bitterness, so the usual over-extraction warnings arrive late. The clock is more reliable than the taste here.' },
     { key: 'sudan', label: 'Sudan Rume', match: /sudan rume/i,
+      shift: -0.3,
       when: 'any',
       expect: 'dense, complex and slow to give anything up', chase: '' },
     { key: 'robusta', label: 'Robusta / Canephora', match: /robusta|canephora|conilon/i,
+      shift: 0.6,
       when: 'bitter',
       expect: 'heavy body, low acidity and a rubbery bitterness at the edges',
       chase: 'Far more soluble than arabica and far quicker to turn harsh. Everything about this wants to be shorter.' },
@@ -372,6 +408,21 @@
     if (al) {
       shift += al.shift;
       if (al.why) out.why.push(al.why);
+    }
+
+    /* The seed itself, where the bag named it and this table knows it.
+       Independent of the two above — see the header — and smaller than
+       either. A zero-shift variety is recognised and says nothing,
+       because "Bourbon is the baseline" is not a reason the starting
+       point moved. */
+    var v = varietyOf(c);
+    if (v && v.shift) {
+      shift += v.shift;
+      out.why.push(v.shift < 0
+        ? v.label + ' is a hard, dense seed'
+        : (v.key === 'robusta'
+          ? 'robusta is a different species and far more soluble than arabica'
+          : v.label + ' is a softer seed than most'));
     }
 
     if (c.decaf) {
