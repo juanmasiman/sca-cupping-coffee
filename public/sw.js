@@ -33,8 +33,13 @@
    v8 — the gear sheet became a record that expands, which is markup and
         wiring the old home.js has no idea about.
    v9 — the shelf says how old a bag is, which is a new export on
-        /shared/coffees.js and a style the old sheet has no rule for. */
-const VERSION = 'v10';
+        /shared/coffees.js and a style the old sheet has no rule for.
+   v10 — the brewer's method arrived, which is another shared script.
+   v11 — not a content change: the fetch handler was answering out of
+        whichever cache in the origin happened to hold the file, which
+        on a site with four workers meant another app's copy. Bumped so
+        the fix reaches a device that already has a worker. */
+const VERSION = 'v11';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [
@@ -98,15 +103,34 @@ self.addEventListener('fetch', event => {
           caches.open(SHELL_CACHE).then(cache => cache.put('./index.html', copy));
           return response;
         })
-        .catch(() => caches.match('./index.html', { ignoreSearch: true })
-          .then(hit => hit || caches.match('./')))
+        // Scoped for the same reason as below: another app's index.html
+        // is not this one's, and offline is exactly when that would show.
+        .catch(() => caches.match('./index.html', { ignoreSearch: true, cacheName: SHELL_CACHE })
+          .then(hit => hit || caches.match('./', { cacheName: SHELL_CACHE })))
     );
     return;
   }
 
   // Everything else: from cache at once, refreshed behind it.
   event.respondWith(
-    caches.match(request).then(hit => {
+  /* FROM THIS WORKER'S OWN CACHE, AND NO OTHER.
+
+     `caches.match(request)` with no cacheName searches EVERY cache in
+     the origin. There are four workers here and all of them precache
+     /shared/*.js, so a file could be answered out of a sibling app's
+     cache — a copy frozen whenever THAT app's version was last bumped,
+     which has nothing to do with this one.
+
+     It is not theoretical. The front door shipped a `home.js` that calls
+     `LentoCoffees.ageWord`, and the espresso app's cache still held a
+     `/shared/coffees.js` from before that function existed. New caller,
+     old callee, and the page died on boot with "ageWord is not a
+     function" — reported from a phone, not from a test.
+
+     Scoped, every file a page gets comes from one cache with one version
+     behind it, which is the whole point of naming the cache after the
+     version. */
+    caches.match(request, { cacheName: SHELL_CACHE }).then(hit => {
       const network = fetch(request)
         .then(response => {
           if (response && response.status === 200 && response.type === 'basic') {
