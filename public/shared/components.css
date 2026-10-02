@@ -1428,8 +1428,28 @@ select.field-input {
 
 /* A verdict the shot is not yet eligible for. Legible, not greyed into
    invisibility — it has something to tell you, and it says it in its own
-   sub-line rather than waiting to be tapped. */
-.verdict-btn.is-blocked { opacity: 0.5; }
+   sub-line rather than waiting to be tapped.
+
+   WHICH IS WHAT `opacity: 0.5` WAS PREVENTING. It took the sub-line — the
+   only text that says WHY the verdict is blocked, and the whole of the
+   paragraph above — to 2.01:1 in light and 2.22:1 in dark, and the label to
+   3.39:1. Measured, both under 4.5. There is no WCAG 1.4.3 exemption to
+   lean on either: the button sets `aria-disabled`, not `disabled`, so it
+   stays focusable and clickable and answers a tap with a toast. It is a
+   live control whose own explanation was the least readable thing on the
+   sheet.
+
+   So the state is carried where it costs nothing to read: a dashed border,
+   which is already this project's mark for a thing not yet established —
+   the empty scale knob, the adopt-a-target row, a sealed card — and the
+   rail ink it borrows clears 3:1 against both grounds. The inks underneath
+   are untouched and at full strength: 6.8:1 for the label, 5.1:1 for the
+   sub-line. */
+.verdict-btn.is-blocked {
+  border-style: dashed;
+  border-color: var(--rail);
+  background: none;
+}
 .verdict-btn.is-blocked .verdict-sub { font-style: italic; }
 
 /* The action a tip carries. Outlined rather than filled: the card's
@@ -1549,6 +1569,27 @@ select.field-input {
   flex-direction: column;
   gap: var(--space-4);
 }
+
+/* A SCROLLING COLUMN'S CHILDREN DO NOT SHRINK.
+
+   All five of those are `flex-direction: column` with `overflow-y: auto`,
+   and a flex item's default is `flex-shrink: 1`. So when the content was
+   taller than the sheet the children gave up height instead of the sheet
+   scrolling, and `scrollHeight` came back equal to `clientHeight` — the
+   overflow never existed to be scrolled.
+
+   What that looked like on the dial-in's Settings sheet: the refractometer
+   row lost 36px, which is both lines of the explanation under its title;
+   the Auto/Light/Dark control was cut from 44px to 24.5px, sliced through
+   the middle of its own labels; and the three help cards below were
+   crushed together. It only showed up there because that sheet is the one
+   whose content currently exceeds the window — the same five classes were
+   one added row away from doing it everywhere.
+
+   A sheet that is too tall is what the scrollbar is for. */
+.edit-body > *, .settings-body > *, .help-body > *, .kit-body > *, .dose-body > * {
+  flex-shrink: 0;
+}
 .help-body p { font-size: 15px; color: var(--text-dim); }
 .help-body strong { color: var(--text); font-weight: 700; }
 
@@ -1589,8 +1630,17 @@ select.field-input {
   .switch-track, .switch-knob { transition: none; }
 }
 
+/* `overflow: hidden` is what keeps the segments' corners inside the
+   border, and it also resolves this box's automatic minimum size to zero —
+   so as a flex item it is free to collapse to nothing, and because the
+   same property clips hit-testing, its three 44px buttons collapse with
+   it. Found at a 118×23px touch target on a control whose buttons each
+   declare `min-height: 44px`. The floor is stated here rather than left to
+   the children, because the children's height is exactly what gets
+   clipped. 46px is their 44 plus this border. */
 .seg {
   display: flex;
+  min-height: 46px;
   border: 1px solid var(--rail);
   border-radius: var(--radius);
   overflow: hidden;
@@ -1747,3 +1797,18 @@ select.field-input {
 }
 /* Why the marks matter, under the marks. */
 .use-note { margin: 0; }
+
+/* WHAT A SECTION SAYS WHEN IT CANNOT BE DRAWN.
+
+   Not an error dialog and not a toast: a line in the place the content
+   would have been, so the gap is named rather than silent. It is set in
+   the dim ink rather than a warning red because nothing is wrong with the
+   brewing — something is wrong with one record, and the sentence says
+   which sheet to open. See drawSection() in each board's app.js for why an
+   emptied section matters more than a pretty one. */
+.section-broke {
+  margin: 0;
+  padding: var(--space-4) 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}

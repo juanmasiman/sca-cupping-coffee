@@ -450,7 +450,20 @@ function migrate(s) {
   (s.coffees || []).forEach(c => {
     if (!c.dead || typeof c.dead !== 'object') c.dead = {};
     Object.keys(c.dead).forEach(k => { if ((c.dead[k] || 0) < stale) delete c.dead[k]; });
+    /* A TARGET IS NOT COMPLETE BECAUSE IT EXISTS.
+
+       `!c.target` catches a record with no target at all, and then two of
+       its six fields were patched by name. The other four were not, so
+       `target: {}` — truthy, and reachable from a sync of a differently
+       shaped record, a half-written save, or any migration that gets this
+       far — passed every guard here and arrived at `t.ratio.toFixed(1)`
+       further down as `undefined`. Four fields, named the same way the two
+       below them already were. */
     if (!c.target) c.target = defaultTarget();
+    const dflt = defaultTarget();
+    ['dose', 'ratio', 'timeLo', 'timeHi'].forEach(f => {
+      if (num(c.target[f]) === null) c.target[f] = dflt[f];
+    });
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (!Array.isArray(c.target.pours)) c.target.pours = [];
     if (typeof c.roast !== 'string') c.roast = '';
@@ -882,9 +895,13 @@ function methodFor(brewerName) {
 
 // Scaled to the dose actually in front of somebody: the target's if
 // there is one, the method's own if there is not.
-function methodAt(m, dose) {
+/* `ratio` is optional and means "the bag has already decided this". Left
+   out, the method's own ratio stands — which is the right answer for a
+   brewer with nothing on the bag, and the wrong one the moment there is a
+   roast level. See the note over brew() in /shared/recipes.js. */
+function methodAt(m, dose, ratio) {
   if (!m || !root().LentoRecipes) return null;
-  return LentoRecipes.brew(m, dose);
+  return LentoRecipes.brew(m, dose, ratio);
 }
 
 // Days since the bag was roasted, or null when nobody said.
@@ -2061,6 +2078,41 @@ function wordScale(opts) {
    THE BOARD
    ============================================================ */
 
+/* ONE SECTION'S FAILURE IS NOT ANOTHER SECTION'S CONTENT.
+
+   The header went up first and the four sections below it followed, all in
+   one run. So a throw anywhere in the four left the new name standing over
+   the previous coffee's body: its advice, its window, its brew cards with
+   their grind deltas and taste notes, under a different coffee's name,
+   with nothing on screen saying anything had gone wrong. In an app whose
+   whole claim is that it will not print a number it cannot account for,
+   that is the worst available failure — not a missing number but a
+   confident, wrong one.
+
+   Each section is drawn on its own now, and a section that cannot be drawn
+   is EMPTIED and says so. Stale content is the thing being prevented, so
+   clearing the node is the first thing the catch does, before anything
+   that could itself fail. The other three still draw. */
+function drawSection(what, sel, fn) {
+  const node = $(sel);
+  try {
+    fn();
+  } catch (e) {
+    try {
+      node.innerHTML = '';
+      node.classList.remove('hidden');
+      const why = (e && (e.message || e.name)) || 'no reason given';
+      /* What a brewer needs from this sentence is which part is missing
+         and that their log is not. The cause is in the console, where
+         somebody who can act on it will look; guessing at it here would
+         send the reader to the wrong sheet. */
+      node.innerHTML = `<p class="section-broke">${escapeHTML(what)} could not be drawn.`
+        + ` Nothing is lost — reload, or open this coffee’s sheet to check it.</p>`;
+      console.error('[lento] ' + what + ': ' + why, e);
+    } catch (ignored) { /* nothing left to try; at least it is not stale */ }
+  }
+}
+
 function renderBoard() {
   const c = activeCoffee();
   $('#coffee-name').textContent = coffeeLabel(c);
@@ -2074,10 +2126,10 @@ function renderBoard() {
   logBtn.textContent = c ? 'Log a brew' : 'Add a coffee';
   logBtn.disabled = false;
 
-  renderKeeper(c);
-  renderNext(c);
-  renderTarget(c);
-  renderBrews(c);
+  drawSection('The keeper', '#keeper', () => renderKeeper(c));
+  drawSection('The next move', '#next-card', () => renderNext(c));
+  drawSection('What you are aiming at', '#target-card', () => renderTarget(c));
+  drawSection('The log', '#brews', () => renderBrews(c));
 }
 
 /* The answer, where an answer belongs.
@@ -3647,7 +3699,12 @@ function openCoffee(c, opts) {
   const renderMethod = () => {
     const m = methodFor(kit().brewer);
     if (!m) { methodWrap.innerHTML = ''; return; }
-    const scaled = methodAt(m, byWeight() ? t.dose : m.dose);
+    /* The starting point is read FIRST, because everything below it turns
+       on whether the bag has one. With a roast level the bag owns the ratio
+       and the temperature and the method owns the schedule; without one the
+       method owns all three. */
+    const sp = startingPoint(c);
+    const scaled = methodAt(m, byWeight() ? t.dose : m.dose, sp && byWeight() ? t.ratio : null);
     const rows = scaled.steps.map(st => {
       const l = LentoRecipes.line(st, fmtTime);
       return `<li class="step"><span class="step-at">${escapeHTML(l.when)}</span><span class="step-do">${escapeHTML(l.what)}</span></li>`;
@@ -3667,9 +3724,26 @@ function openCoffee(c, opts) {
        they are different for every coffee. So each writes the half it
        is actually authoritative about, and the method's own ratio and
        temperature are used only when there is no roast level to beat
-       them. Stated on the button, so nobody has to infer it. */
-    const sp = startingPoint(c);
-    const tempLine = m.temp === null ? '' : ` · ${escapeHTML(degrees(m.temp))}`;
+       them. Stated on the button, so nobody has to infer it.
+
+       AND THEN THIS LINE WENT ON PRINTING BOTH ANYWAY. The paragraph above
+       was true of what the button WROTE and false of what the block SAID:
+       the subtitle carried "1:16.7 · 205°F" whatever the bag had decided,
+       two inches under a button reading "Start at 205°F and 1:16.8". The
+       contradiction was not resolved, only moved into a footnote at the
+       bottom of the block, which is the reader's problem rather than the
+       app's.
+
+       A number the app has already decided to ignore does not get printed.
+       When the bag owns the ratio and the temperature, the subtitle keeps
+       the one thing the method is authoritative about — the grind
+       character — and says nothing about the other two. With no roast level
+       the method owns all three and prints all three. */
+    const facts = [
+      sp ? '' : `1:${m.ratio}`,
+      sp || m.temp === null ? '' : degrees(m.temp),
+      m.grind,
+    ].filter(Boolean).join(' · ');
     const owns = sp
       ? 'Take the schedule'
       : 'Start from this method';
@@ -3678,14 +3752,17 @@ function openCoffee(c, opts) {
        turns pale, a Moccamaster when it stops — so for those there is no
        window to write and the sentence must not promise one. */
     const saysWhen = LentoRecipes.totalTime(m) !== null;
+    /* Shorter than it was, because it is no longer resolving a
+       contradiction — the subtitle has stopped printing the two numbers
+       this sentence used to have to argue away. What is left is the one
+       thing a reader still cannot see: what the button will touch. */
     const hands = sp
-      ? `<p class="baseline-why">The ratio and the temperature stay as the roast set them above — this writes the pours${
-          saysWhen ? ' and the window' : ''}.</p>`
+      ? `<p class="baseline-why">Writes the pours${saysWhen ? ' and the window' : ''} — your ratio and temperature stay.</p>`
       : '';
     methodWrap.innerHTML = `
       <div class="baseline method">
         <span class="baseline-head">How a ${escapeHTML(m.brewer)} wants to be used</span>
-        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — 1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}</p>
+        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — ${escapeHTML(facts)}</p>
         <p class="baseline-why">${escapeHTML(m.why)}</p>
         <ol class="steps">${rows}</ol>
         ${hands}

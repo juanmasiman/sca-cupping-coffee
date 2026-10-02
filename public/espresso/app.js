@@ -405,7 +405,19 @@ function migrate(s) {
   (s.coffees || []).forEach(c => {
     if (!c.dead || typeof c.dead !== 'object') c.dead = {};
     Object.keys(c.dead).forEach(k => { if ((c.dead[k] || 0) < stale) delete c.dead[k]; });
+    /* A TARGET IS NOT COMPLETE BECAUSE IT EXISTS.
+
+       `!c.target` catches a record with no target at all, and `temp` was
+       then patched by name. The other four fields were not, so
+       `target: {}` — truthy, and reachable from a sync of a differently
+       shaped record or a half-written save — passed every guard here and
+       reached the board's arithmetic as `undefined`. The brew log had the
+       same gap and the same four fields. */
     if (!c.target) c.target = defaultTarget();
+    const dflt = defaultTarget();
+    ['dose', 'ratio', 'timeLo', 'timeHi'].forEach(f => {
+      if (num(c.target[f]) === null) c.target[f] = dflt[f];
+    });
     if (typeof c.target.temp === 'undefined') c.target.temp = null;
     if (typeof c.roast !== 'string') c.roast = '';
     /* A TRANSCRIPTION AND A CLASSIFICATION ARE TWO THINGS.
@@ -2962,10 +2974,42 @@ function renderBoard() {
   logBtn.textContent = c ? 'Log a shot' : 'Add a coffee';
   logBtn.disabled = false;
 
-  renderKeeper(c);
-  renderNext(c);
-  renderTarget(c);
-  renderShots(c);
+  drawSection('The keeper', '#keeper', () => renderKeeper(c));
+  drawSection('The next move', '#next-card', () => renderNext(c));
+  drawSection('What you are aiming at', '#target-card', () => renderTarget(c));
+  drawSection('The log', '#shots', () => renderShots(c));
+}
+
+/* ONE SECTION'S FAILURE IS NOT ANOTHER SECTION'S CONTENT.
+
+   The heading and the name go up first and the four sections follow, all in
+   one run — so a throw anywhere in the four left the new name standing over
+   the previous coffee's body: its advice, its window, its shot cards with
+   their grind deltas and taste notes, under a different coffee's name, and
+   nothing on screen saying so. In an app whose claim is that it will not
+   print a number it cannot account for, that is the worst available
+   failure: not a missing number but a confident wrong one.
+
+   Each section draws on its own now, and one that cannot be drawn is
+   EMPTIED and says so. Clearing the node is the first thing the catch does,
+   before anything that could itself fail, because stale content is the
+   thing being prevented. The other three still draw. */
+function drawSection(what, sel, fn) {
+  const node = $(sel);
+  try {
+    fn();
+  } catch (e) {
+    try {
+      node.innerHTML = '';
+      node.classList.remove('hidden');
+      /* Which part is missing, and that the log is not. The cause goes to
+         the console, where somebody who can act on it will look; guessing
+         at it here would send the reader to the wrong sheet. */
+      node.innerHTML = `<p class="section-broke">${escapeHTML(what)} could not be drawn.`
+        + ` Nothing is lost — reload, or open this coffee’s sheet to check it.</p>`;
+      console.error('[lento] ' + what + ': ' + ((e && (e.message || e.name)) || 'no reason given'), e);
+    } catch (ignored) { /* nothing left to try; at least it is not stale */ }
+  }
 }
 
 /* The answer, where an answer belongs.

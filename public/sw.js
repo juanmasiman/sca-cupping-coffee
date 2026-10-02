@@ -39,7 +39,7 @@
         whichever cache in the origin happened to hold the file, which
         on a site with four workers meant another app's copy. Bumped so
         the fix reaches a device that already has a worker. */
-const VERSION = 'v11';
+const VERSION = 'v12';
 const SHELL_CACHE = `lento-home-shell-${VERSION}`;
 
 const SHELL = [

@@ -559,20 +559,43 @@
 
   /* ---------- scaling one ----------
 
-     The dose is the only input. Water comes from the ratio, each pour
-     from its fraction of that, and the bloom from its multiple of the
-     dose — so the same method works at 12g and at 60g without a second
-     table and without anybody doing arithmetic at the counter.
+     The dose and the ratio are the inputs. Water comes from the two of
+     them, each pour from its fraction of that water, and the bloom from
+     its multiple of the dose — so the same method works at 12g and at 60g
+     without a second table and without anybody doing arithmetic at the
+     counter.
+
+     WHY THE RATIO IS AN ARGUMENT AND NOT JUST A FIELD.
+
+     This file's rule is that a method owns the SHAPE of a brew and never
+     its settings: a V60 wants a continuous pour and a Kalita wants pulses,
+     and that follows from geometry. The ratio is not geometry. It follows
+     from the roast and from what else the bag says, which this file knows
+     nothing about — so when a caller has an authoritative ratio, that is
+     the one the schedule has to be built at.
+
+     It was not, and the arithmetic said so out loud: a V60's own 1:16.7
+     against a board aiming at 1:16.5 put "Pour to 251 g" at the end of a
+     schedule under a 248g target, two numbers for one brew's water. Taking
+     that schedule then wrote the losing total into the record, where the
+     brew card's own mismatch warning — which fires over 1g — reported a
+     fault the app had just created.
+
+     `method.ratio` stays the fallback, because a brewer with nothing on the
+     bag still gets a schedule, and that is the case this argument is
+     absent for.
 
      Pours are rounded to whole grams, because that is what a brew scale
      shows and a running total ending in .4 is a number nobody can hit.
      The rounding is applied to the RUNNING TOTAL rather than to each
      pour, so the totals still add up to the water exactly. */
-  function brew(method, dose) {
+  function brew(method, dose, ratio) {
     if (!method) return null;
     var d = Number(dose);
     if (!isFinite(d) || d <= 0) d = method.dose;
-    var water = d * method.ratio;
+    var r = Number(ratio);
+    if (!isFinite(r) || r <= 0) r = method.ratio;
+    var water = d * r;
     var out = [];
     var at = 0;
 
@@ -591,7 +614,10 @@
       out.push(step);
     });
 
-    return { method: method, dose: Math.round(d * 10) / 10, water: Math.round(water), steps: out };
+    /* `ratio` is reported back because the caller that passed one needs to
+       know it was used, and the caller that passed nothing needs to know
+       which one it got. */
+    return { method: method, dose: Math.round(d * 10) / 10, ratio: r, water: Math.round(water), steps: out };
   }
 
   /* One line per step, in the words somebody would use out loud. The

@@ -969,6 +969,10 @@ function openEmailCodeSheet(email) {
   };
 }
 
+/* The three headings below all carry id="account-title", which is what
+   #account-sheet's aria-labelledby points at. Only one of the three is in
+   the document at a time — the sheet replaces its whole body on each open —
+   so this is one name for one dialog, not three elements sharing an id. */
 function openAccountSheet() {
   const modal = $('#account-modal');
   const sheet = $('#account-sheet');
@@ -979,7 +983,7 @@ function openAccountSheet() {
   if (auth && auth.user) {
     const initial = (auth.user.name || auth.user.email || '?').trim()[0].toUpperCase();
     sheet.innerHTML = `
-      <h3>Your profile</h3>
+      <h3 id="account-title">Your profile</h3>
       <div class="account-user">
         <div class="account-avatar">${auth.user.avatar ? `<img src="${escapeHTML(auth.user.avatar)}" alt="">` : escapeHTML(initial)}</div>
         <div class="account-user-info">
@@ -1003,7 +1007,7 @@ function openAccountSheet() {
     };
   } else if (cloudEnabled()) {
     sheet.innerHTML = `
-      <h3>Keep your history everywhere</h3>
+      <h3 id="account-title">Keep your history everywhere</h3>
       <p class="modal-hint">We’ll email you a 6-digit code — no password. Your cuppings then back up and follow you across devices. Joining a cupping and scoring never requires an account.</p>
       <div class="auth-buttons">
         <label class="detail-label" for="auth-email">Your email</label>
@@ -1036,7 +1040,7 @@ function openAccountSheet() {
     sheet.querySelector('#btn-auth-cancel').onclick = close;
   } else {
     sheet.innerHTML = `
-      <h3>Your cupping history</h3>
+      <h3 id="account-title">Your cupping history</h3>
       <p class="modal-hint">History is saved on this device (${archive.length} cupping${archive.length === 1 ? '' : 's'} so far). Cloud sign-in isn’t configured on this deployment yet — once it is, you’ll be able to back up and sync across devices with Apple or Google.</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btn-auth-cancel">Close</button>
