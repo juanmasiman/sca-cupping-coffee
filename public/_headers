@@ -1,0 +1,11 @@
+# Security headers for every static file. Cloudflare serves files in
+# public/ without running the Worker, so the Worker's own headers
+# (worker/index.js, SECURITY_HEADERS) only reach the API. Keep the two
+# lists the same.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
