@@ -717,8 +717,12 @@ html.sheet-open, html.sheet-open body {
 /* No gap on a sheet with nothing to remove — the button carries .hidden on
    a shot that has not been saved yet. */
 .sheet-destroy:not(:has(button:not(.hidden))) { display: none; }
+/* 44px, not the 40 this shipped at. DESIGN.md's floor is 44 and grants
+   exactly one exemption, to the CATA chips, with its reasoning written
+   down; a quiet button is not that exemption. The visual weight does not
+   change — only the reach. */
 .btn-quiet-danger {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--space-3);
   font: inherit;
   font-size: 13px;
