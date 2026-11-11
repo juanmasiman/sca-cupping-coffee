@@ -1953,6 +1953,8 @@ function toast(msg, undo) {
     });
     t.appendChild(b);
   }
+  // Over an open sheet, clear of that sheet's own action bar.
+  t.classList.toggle('over-sheet', Boolean(document.querySelector('.modal:not(.hidden)')));
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
@@ -2260,6 +2262,25 @@ function renderNext(c) {
     return;
   }
 
+  /* THE RECIPE IS SETTLED.
+
+     Mark a brew "the one" and the card above the board went on coaching
+     it as though it were any other morning — "grind finer" over the cup
+     somebody had just called the recipe. When the newest brew IS the
+     recipe, the card says so and says what is left to do. A later brew
+     that drifts off it is coached again as usual; that is when coaching
+     is wanted. */
+  if (newest.verdict === 'keeper') {
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Next</span>
+      <div class="tip sure">
+        <span class="tip-move">That is the recipe. Brew it the same way.</span>
+        ${whyHTML('It is pinned above the board with its grind. When the bag ages and the same setting starts running quick, set where the grinder is today on the recipe card rather than rewriting the recipe.')}
+      </div>`;
+    return;
+  }
+
   const tips = nextMove(newest, c.target);
   if (!tips.length) {
     wrap.className = 'next-card';
@@ -2423,8 +2444,15 @@ function renderBrews(c) {
   numberBrews(c);
   const rows = brewsNewestFirst(c);
   rows.forEach((brew, i) => {
-    // the brew before this one in time, which is what "changed" means
-    const prev = rows[i + 1] || null;
+    /* The brew before this one in time, which is what "changed" means —
+       on the SAME brewer. A Switch brew compared with the V60 brew before
+       it read "−30s" as though the grinder had moved, when what changed
+       was the cone. Across brewers there is no "changed", there is a
+       different recipe. */
+    const older = rows.slice(i + 1);
+    const prev = brew.brewer
+      ? (older.find(b => !b.brewer || b.brewer === brew.brewer) || null)
+      : (older[0] || null);
     // The advice is not on these cards at all — it is one card, at the top
     // of the board, about the next brew. See renderNext.
     list.appendChild(brewCard(brew, prev, c, brewNumber(c, brew)));
@@ -2795,7 +2823,11 @@ function openBrew(brew, resume) {
        one reached for last anywhere is the fallback. It is recorded on
        the brew rather than read from the kit at display time, so the log
        stays true when the shelf changes. */
-    brewer: (last && last.brewer) || kit().brewer || '',
+    /* Once there is a recipe, its brewer: a Switch brew on a V60 recipe
+       is an experiment, and the default should be the thing being
+       repeated rather than the last detour. */
+    brewer: ((c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0] || {}).brewer)
+      || (last && last.brewer) || kit().brewer || '',
     /* What you tasted, in words. Not carried over from the last brew:
        the whole question is whether THIS one came out the way the bag
        said, and prefilling it would answer that with last week's cup. */
@@ -3097,7 +3129,8 @@ function buildNumbers(c) {
     row.appendChild(waterField);
   }
   row.appendChild(numField({
-    label: 'Time', unit: '', time: true, value: num(editing.time), min: 0, max: 1800, step: 5, digits: 0,
+    // "—" like every other empty field; "0:00" read as a time of nothing.
+    label: 'Time', unit: '', time: true, placeholder: '—', value: num(editing.time), min: 0, max: 1800, step: 5, digits: 0,
     startAt: c.target.timeLo, onChange: v => { editing.time = v; refresh(); },
   }));
   // Grind is one of the numbers, not one of the details: it is the thing
@@ -3665,25 +3698,25 @@ function renderReadout(c) {
   const cells = [];
   if (byWeight()) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${fmtRatio(r)}</span>
+      <span class="readout-value${r === null ? ' empty' : ''}">${fmtRatio(r)}</span>
       <span class="readout-label">ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
     </div>`);
   }
   if (percolates(editing)) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${fmtTime(dd)}</span>
+      <span class="readout-value${dd === null ? ' empty' : ''}">${fmtTime(dd)}</span>
       <span class="readout-label">drawdown</span>
     </div>`);
   }
   if (byWeight() && percolates(editing)) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${bloom === null ? '—' : `${bloom.toFixed(1)}×`}</span>
+      <span class="readout-value${bloom === null ? ' empty' : ''}">${bloom === null ? '—' : `${bloom.toFixed(1)}×`}</span>
       <span class="readout-label">bloom</span>
     </div>`);
   }
   if (prefs.tds) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${ey === null ? '—' : fmt1(ey) + '%'}</span>
+      <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
       <span class="readout-label">${ey === null ? 'extraction · needs TDS and the cup weighed' : 'extraction yield'}</span>
     </div>`);
   }
@@ -3820,7 +3853,11 @@ function openCoffees() {
     const keeper = c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0];
     const bag = bagLine(c);
     const roast = roastEntry(c.roast);
+    // Age leads the line, as DESIGN.md says it does: it is the one fact
+    // on this row that changes every day and changes what to expect.
+    const age = daysSinceRoast(c);
     const counts = [
+      age === null ? '' : age === 0 ? 'roasted today' : `${age} day${age === 1 ? '' : 's'} off roast`,
       `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}`,
       keeper && ratioOf(keeper) !== null ? `dialled at ${fmtRatio(ratioOf(keeper))}` : '',
       roast ? roast.label.toLowerCase() : '',
@@ -3887,7 +3924,7 @@ function openCoffee(c, opts) {
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
-      <input class="field-input" id="e-name" type="text" maxlength="48" placeholder="e.g. Ethiopia Guji"></label>
+      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji"></label>
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
@@ -4611,12 +4648,19 @@ function openKit() {
     }
   });
 
+  /* The kettle question starts unanswered on a first setup. "Off the
+     boil" used to arrive already selected, so somebody with a variable
+     kettle who scrolled past it was opted out of the temperature field
+     without ever being asked — a default dressed as an answer. It still
+     falls back to off the boil if left alone, because most kettles are;
+     it just no longer claims you said so. */
+  let tempAnswered = Boolean(k.asked);
   const redraw = () => {
     const put = (sel, row) => { const n = body.querySelector(sel); n.innerHTML = ''; n.appendChild(row); };
     put('#k-temp', segRow('Kettle temperature',
       'Most kettles have one setting. Say so and the temperature field leaves the brew sheet, and nothing here tells you to raise it.',
-      [['fixed', 'Off the boil'], ['set', 'I set it']], k.temp,
-      key => { k.temp = key; redraw(); }));
+      [['fixed', 'Off the boil'], ['set', 'I set it']], tempAnswered ? k.temp : null,
+      key => { k.temp = key; tempAnswered = true; redraw(); }));
 
     put('#k-steps', segRow('The grind dial',
       'Only so the app uses your words for it. It never suggests a setting, only a direction — your numbers mean nothing on anyone else’s grinder.',

@@ -2720,6 +2720,8 @@ function toast(msg, undo) {
     });
     t.appendChild(b);
   }
+  // Over an open sheet, clear of that sheet's own action bar.
+  t.classList.toggle('over-sheet', Boolean(document.querySelector('.modal:not(.hidden)')));
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
