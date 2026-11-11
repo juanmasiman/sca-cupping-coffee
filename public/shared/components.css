@@ -628,6 +628,7 @@ input { font: inherit; color: inherit; }
   padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--line);
 }
+.sheet-head h2,
 .sheet-head h3 { flex: 1; font-size: 17px; font-weight: 800; }
 
 .sheet-actions {

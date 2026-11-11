@@ -2360,7 +2360,8 @@ function backToRecipe(shot, target, c) {
   const keeper = c && c.shots.filter(s => s.verdict === 'keeper').slice(-1)[0];
   if (!keeper || keeper === shot || !keeper.grind) return null;
   const was = num(Number(keeper.grind));
-  const now = num(Number(shot && shot.grind));
+  // '' is a shot with no grind recorded, and Number('') would read it as 0.
+  const now = shot && shot.grind !== '' && shot.grind != null ? num(Number(shot.grind)) : null;
   if (was === null || now === null || was === now) return null;
   // Something has to be wrong with this shot, or there is nothing to fix.
   const place = placeOf(shot, target);
@@ -3740,12 +3741,17 @@ function buildShotSheet(c) {
    which is where somebody said they had moved it to, and the last shot's
    grind. A new sheet prefilled from the second and ignored the first, so
    a barista who had just told the app the grinder was at 5.0 was offered
-   4.2. The one somebody stated most recently wins. */
+   4.2. The one somebody stated most recently wins.
+
+   A shot logged without a grind stores '', and Number('') is 0 — so the
+   next sheet arrived prefilled at 0, was saved at 0, and the board printed
+   "grind 0" on a shot nobody had given a setting. An empty grind is no
+   grind, not the bottom of the dial. */
 function grindStart(c) {
   const now = num(Number(c.grindNow));
   if (c.grindNow !== '' && now !== null) return now;
   const last = shotsNewestFirst(c)[0];
-  const prev = last ? num(Number(last.grind)) : null;
+  const prev = last && last.grind !== '' && last.grind != null ? num(Number(last.grind)) : null;
   return prev === null ? undefined : prev;
 }
 
