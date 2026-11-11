@@ -59,6 +59,12 @@
     </button>
   </header>
 
+  <!-- First in the source, last on screen (CSS order). It came after the
+       whole log in the tab order, so reaching the one action the board
+       exists for meant tabbing through every card first. -->
+  <div class="board-action">
+    <button id="btn-log" class="btn btn-primary">Log a brew</button>
+  </div>
   <main class="board-scroll" id="board-scroll">
     <!-- The coffee's name is the page's heading, as on the dial-in. The
          board had no heading and no main landmark, so a screen reader had
@@ -87,9 +93,6 @@
     <div class="board-footpad"></div>
   </main>
 
-  <div class="board-action">
-    <button id="btn-log" class="btn btn-primary">Log a brew</button>
-  </div>
 </section>
 
 <!-- ============ THE BREW SHEET ============ -->
@@ -340,6 +343,7 @@
 <script src="/shared/brewers.js"></script>
 <script src="/shared/grind.js"></script>
 <script src="/shared/wheel.js"></script>
+<script src="/shared/scale.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
