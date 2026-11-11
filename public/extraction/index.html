@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
+<title>Extraction — lento</title>
+<meta name="description" content="Extraction yield from dose, cup weight and a refractometer reading, plotted on a brew control chart for espresso and filter.">
+<link rel="stylesheet" href="/shared/tokens.css">
+<style>
+/* Layout: one column, calculator → chart → log. Rules, not cards;
+   the plotted reading is the only coloured thing on the page. */
+:root {
+  --ok: #12806a;
+  --warn: #9a3412;
+  --zone: rgba(18, 128, 106, 0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ok: #7fe0c8; --warn: #f0a077; --zone: rgba(127, 224, 200, 0.10); color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ok: #7fe0c8; --warn: #f0a077; --zone: rgba(127, 224, 200, 0.10); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--space-6) var(--space-8);
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-7); }
+header { display: flex; align-items: center; gap: var(--space-2); }
+.home-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-left: -12px; color: var(--text); border-radius: var(--radius); }
+.home-btn:hover { background: var(--chrome-soft); }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
+::selection { background: var(--data-soft); color: var(--text); }
+input { caret-color: var(--data); }
+summary { cursor: pointer; }
+h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin: 0; }
+p { margin: 0; }
+.lede { color: var(--text-dim); max-width: 60ch; }
+section { display: flex; flex-direction: column; gap: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-5); }
+
+.seg { display: inline-flex; border: 1px solid var(--rail); border-radius: var(--radius); overflow: hidden; align-self: flex-start; min-width: 240px; }
+.seg button { flex: 1; font: inherit; font-size: 13px; font-weight: 700; min-height: 44px; padding: 0 var(--space-5); background: transparent; color: var(--text-dim); border: 0; border-right: 1px solid var(--line); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--chrome); color: var(--on-chrome); }
+
+.inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.extra { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+@media (max-width: 420px) { .extra { grid-template-columns: 1fr 1fr; } .extra .note-f { grid-column: 1 / -1; } }
+label.f { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+label.f span { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+label.f input {
+  font: inherit; font-family: var(--mono); font-size: 18px; font-variant-numeric: tabular-nums;
+  width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--rail); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text);
+}
+.extra label.f input { font-size: 15px; }
+.hint { font-size: 12px; color: var(--text-faint); }
+
+.readout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); padding: var(--space-5) 0; border-block: 1px solid var(--line); }
+.ro-v { font-family: var(--mono); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ro-v.ey { color: var(--data); }
+.ro-l { font-size: 12px; color: var(--text-dim); }
+
+.verdict, .check { display: flex; flex-direction: column; gap: var(--space-1); }
+.status { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.status.ok { color: var(--ok); }
+.status.off { color: var(--data); }
+.status.bad { color: var(--warn); }
+.verdict .move, .check .move { font-size: 17px; font-weight: 600; text-wrap: balance; }
+.verdict .why, .check .why { color: var(--text-dim); font-size: 14px; max-width: 62ch; }
+
+.actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.btn { font: inherit; font-size: 15px; font-weight: 600; min-height: 48px; padding: 0 var(--space-6); border-radius: var(--radius); cursor: pointer; border: 1px solid var(--chrome); }
+.btn-primary:active { transform: scale(0.99); }
+.btn-ghost:hover { background: var(--chrome-soft); }
+.btn-primary { background: var(--chrome); color: var(--on-chrome); }
+.btn-ghost { background: transparent; color: var(--text); border-color: var(--rail); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+.chart-box { overflow-x: auto; }
+svg.bcc { width: 100%; max-width: 540px; height: auto; display: block; font-family: var(--mono); }
+svg.bcc .grid { stroke: var(--line); stroke-width: 1; }
+svg.bcc .axis { fill: var(--text-faint); font-size: 10px; }
+svg.bcc .axis-t { fill: var(--text-dim); font-size: 10.5px; font-family: var(--sans); }
+svg.bcc .zone { fill: var(--zone); stroke: var(--ok); stroke-width: 1; stroke-dasharray: 3 3; }
+svg.bcc .zone-l { fill: var(--ok); font-size: 9px; font-family: var(--sans); font-weight: 600; letter-spacing: 0.06em; }
+svg.bcc .ratio { stroke: var(--rail); stroke-width: 1; stroke-dasharray: 2 4; fill: none; }
+svg.bcc .ratio-l { fill: var(--text-faint); font-size: 9.5px; }
+svg.bcc .ratio-now { stroke: var(--data); stroke-width: 1.25; stroke-dasharray: 5 4; fill: none; opacity: 0.7; }
+svg.bcc .pt { fill: var(--bg-card); stroke: var(--text-dim); stroke-width: 1.25; }
+svg.bcc .pt-n { fill: var(--text); font-size: 8.5px; font-weight: 600; }
+svg.bcc .pt-g.sel .pt { fill: var(--data); stroke: var(--bg); stroke-width: 2; }
+svg.bcc .pt-g.sel .pt-n { fill: var(--bg); }
+svg.bcc .pt-g.sus .pt { stroke: var(--warn); stroke-dasharray: 2 2; }
+svg.bcc .pt-l { fill: var(--text-dim); font-size: 10px; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+svg.bcc .now-l { fill: var(--data); font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+svg.bcc .now { fill: var(--data); stroke: var(--bg); stroke-width: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-5); font-size: 12px; color: var(--text-dim); }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 1.5px dashed var(--data); vertical-align: middle; margin-right: var(--space-2); }
+.legend i.z { height: 10px; border: 1px dashed var(--ok); background: var(--zone); }
+
+.entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.entry { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--space-3); border-bottom: 1px solid var(--line); padding: var(--space-3) 0; }
+.entry.sel { background: var(--data-soft); box-shadow: -8px 0 0 var(--data-soft), 8px 0 0 var(--data-soft); }
+.entry-load { grid-column: 1 / -1; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.e-n { font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+.e-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.e-recipe { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.e-meta { font-size: 12px; color: var(--text-dim); }
+.e-tag { font-weight: 600; color: var(--text); }
+.e-tag.ok { color: var(--ok); }
+.e-tag.bad { color: var(--warn); }
+.e-ey { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--data); font-variant-numeric: tabular-nums; }
+.e-ey small { font-size: 12px; margin-left: 2px; }
+.e-fix { grid-column: 1; margin: var(--space-2) 0 0 calc(24px + var(--space-3)); font-size: 13px; }
+.e-fix span { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ok); }
+.e-del { grid-column: 2; align-self: end; font: inherit; font-size: 12px; color: var(--text-faint); background: none; border: 0; cursor: pointer; min-height: 44px; min-width: 44px; padding: 0 var(--space-2); }
+.e-del:hover { color: var(--red); }
+.zones summary { font-size: 13px; color: var(--text-dim); cursor: pointer; padding-block: var(--space-2); }
+.empty { color: var(--text-dim); font-size: 14px; }
+.foot { font-size: 12px; color: var(--text-faint); max-width: 60ch; }
+svg.bcc .reg { fill: var(--text-dim); font-size: 9px; font-family: var(--sans); font-weight: 600; letter-spacing: 0.06em; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+svg.bcc .taste-pt { fill: none; stroke: var(--warn); stroke-width: 2; }
+svg.bcc .taste-link { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
+svg.bcc .taste-l { fill: var(--warn); font-size: 10px; font-family: var(--sans); font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+.legend i.t { width: 10px; height: 10px; border: 2px solid var(--warn); border-radius: 50%; }
+
+.taste { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.taste-q { font-size: 13px; color: var(--text-dim); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip { font: inherit; font-size: 13px; min-height: 44px; padding: 0 var(--space-4); border: 1px solid var(--rail); border-radius: var(--radius); background: var(--bg-card); color: var(--text); cursor: pointer; }
+.chip:hover { border-color: var(--chrome); }
+.chip[aria-pressed="true"] { background: var(--chrome); color: var(--on-chrome); border-color: var(--chrome); }
+.chip small { color: inherit; opacity: 0.65; font-size: 11px; margin-left: var(--space-1); }
+.map { width: 100%; border-collapse: collapse; font-size: 13px; }
+.map td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); vertical-align: top; }
+.map td:first-child { font-weight: 600; white-space: nowrap; }
+.map td:nth-child(2) { color: var(--text-dim); white-space: nowrap; }
+@media (max-width: 420px) { .ro-v { font-size: 22px; } .map td:nth-child(2) { white-space: normal; } }
+@media (prefers-reduced-motion: no-preference) { svg.bcc .now { transition: cx .25s var(--settle), cy .25s var(--settle); } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <a class="home-btn" href="/" aria-label="All lento tools"><svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <h1>Extraction</h1>
+  </header>
+
+  <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+    <p class="lede">Weigh the dose, weigh the cup, read the TDS. This works out how much of the coffee ended up in the drink and where the brew sits on the brew control chart.</p>
+    <div class="seg" role="group" aria-label="Brew method">
+      <button id="m-esp" type="button" aria-pressed="true">Espresso</button>
+      <button id="m-fil" type="button" aria-pressed="false">Filter</button>
+    </div>
+  </div>
+
+  <section aria-labelledby="h-calc">
+    <h2 id="h-calc">The reading</h2>
+    <div class="inputs">
+      <label class="f"><span>Dose, g</span><input id="in-dose" inputmode="decimal" autocomplete="off"></label>
+      <label class="f"><span id="bev-label">Out, g</span><input id="in-bev" inputmode="decimal" autocomplete="off"></label>
+      <label class="f"><span>TDS %</span><input id="in-tds" inputmode="decimal" autocomplete="off"></label>
+    </div>
+    <p class="hint" id="bev-hint">The weight of the shot in the cup.</p>
+    <div class="readout" aria-live="polite">
+      <div><div class="ro-v ey" id="ro-ey">—</div><div class="ro-l">extraction yield</div></div>
+      <div><div class="ro-v" id="ro-ratio">—</div><div class="ro-l" id="ro-ratio-l">ratio, dose : out</div></div>
+      <div><div class="ro-v" id="ro-need">—</div><div class="ro-l" id="ro-need-l">TDS for the target</div></div>
+    </div>
+    <div class="verdict" id="verdict"><p class="why">Put in all three numbers.</p></div>
+    <div class="taste">
+      <span class="taste-q" id="taste-q">How does it taste? Pick everything you notice.</span>
+      <div class="chips" id="tastes" role="group" aria-labelledby="taste-q"></div>
+      <div class="check" id="check" hidden></div>
+    </div>
+    <details>
+      <summary class="hint" style="cursor:pointer">Grind, time and a note, for the log</summary>
+      <div class="extra" style="margin-top:var(--space-3)">
+        <label class="f"><span>Grind</span><input id="in-grind" autocomplete="off"></label>
+        <label class="f"><span>Time, s</span><input id="in-time" inputmode="decimal" autocomplete="off"></label>
+        <label class="f note-f"><span>Note</span><input id="in-note" autocomplete="off"></label>
+      </div>
+    </details>
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-add" type="button" disabled>Add to log</button>
+      <button class="btn btn-ghost" id="btn-clear" type="button">Clear</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-chart">
+    <h2 id="h-chart">Brew control chart</h2>
+    <div class="chart-box"><svg class="bcc" id="chart" viewBox="0 0 360 310" role="img" aria-label="Brew control chart"></svg></div>
+    <div class="legend">
+      <span><i class="z"></i><span id="lg-zone">target 18–22 %, TDS 8–12 %</span></span>
+      <span><i></i><span id="lg-ratio">your ratio</span>: grind moves you along this line</span>
+      <span><i class="t"></i>where the taste puts it</span>
+    </div>
+    <p class="hint" id="chart-hint">Grinding finer at the same ratio moves a brew up and right along its ratio line. Changing the ratio moves it to a different line.</p>
+    <details class="zones"><summary>What each zone tastes like</summary><div style="overflow-x:auto"><table class="map" id="map"></table></div></details>
+  </section>
+
+  <section aria-labelledby="h-log">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-4);flex-wrap:wrap">
+      <h2 id="h-log">Log</h2>
+      <button class="btn btn-ghost" id="btn-wipe" type="button" style="font-size:12px;padding:var(--space-2) var(--space-4)">Clear log</button>
+    </div>
+    <div style="overflow-x:auto" id="log-box"></div>
+    <p class="hint" id="wipe-confirm" hidden>Tap Clear log again to delete every <span id="wipe-mode">espresso</span> reading.</p>
+  </section>
+
+  <p class="foot">Extraction yield = beverage weight × TDS ÷ dose. It is a reading, not an estimate: without a refractometer there is nothing to compute. For filter, weigh the brewed coffee, not the water you poured. The bed holds back about twice the dose. Stir the cup, filter the sample, and let it reach room temperature before reading.</p>
+</div>
+
+<script>
+(() => {
+  const SEED = { espresso: [], filter: [] };
+  const KEY = 'lento.extraction.v1';
+
+  const METHODS = {
+    espresso: {
+      ey: [19, 24], tds: [8, 12], x: [12, 28], y: [5, 14],
+      fmt: r => '1:' + r.toFixed(r < 10 ? 2 : 1),
+      bevLabel: 'Out, g', bevHint: 'The weight of the shot in the cup.',
+      ph: { dose: '18', bev: '36', tds: '9.5' },
+      sane: (ey, tds) => ey >= 12 && ey <= 25 && tds >= 4 && tds <= 16,
+    },
+    filter: {
+      ey: [19, 24], tds: [1.15, 1.45], x: [14, 28], y: [0.9, 1.8],
+      fmt: r => '1:' + r.toFixed(1),
+      bevLabel: 'Brewed coffee, g', bevHint: 'Weigh the brewed coffee, not the water you poured.',
+      ph: { dose: '15', bev: '220', tds: '1.35' },
+      sane: (ey, tds) => ey >= 12 && ey <= 26 && tds >= 0.6 && tds <= 2.6,
+    },
+  };
+
+  // cx: -1 under, 0 in, 1 over (extraction). cy: -1 weak, 0 in, 1 strong.
+  const ZONES = [
+    { cx: -1, cy: 1, name: 'STRONG\nUNDER', tastes: 'Sour, sharp, intense', fix: { espresso: { short: 'finer + more out', long: 'Grind finer and pull more out.' }, filter: { short: 'finer + more water', long: 'Grind finer and use more water.' } } },
+    { cx: 0, cy: 1, name: 'STRONG', tastes: 'Heavy, muddy, too intense', fix: { espresso: { short: 'more out', long: 'Pull more out. Keep the grind.' }, filter: { short: 'more water', long: 'Use more water. Keep the grind.' } } },
+    { cx: 1, cy: 1, name: 'STRONG\nBITTER', tastes: 'Harsh, ashy, bitter', fix: { espresso: { short: 'coarser, less dose', long: 'Grind coarser. Drop the dose if it stays harsh.' }, filter: { short: 'coarser', long: 'Grind coarser, or use less coffee.' } } },
+    { cx: -1, cy: 0, name: 'UNDER', tastes: 'Sour, salty, sharp, short finish', fix: { espresso: { short: 'finer', long: 'Grind finer. Keep the ratio.' }, filter: { short: 'finer', long: 'Grind finer. Keep the ratio.' } } },
+    { cx: 0, cy: 0, name: 'TARGET', tastes: 'Sweet, balanced, long finish', fix: { espresso: { short: 'keep', long: 'Keep it.' }, filter: { short: 'keep', long: 'Keep it.' } } },
+    { cx: 1, cy: 0, name: 'BITTER', tastes: 'Bitter, dry, astringent', fix: { espresso: { short: 'coarser', long: 'Grind coarser. Keep the ratio.' }, filter: { short: 'coarser', long: 'Grind coarser. Keep the ratio.' } } },
+    { cx: -1, cy: -1, name: 'WEAK\nUNDER', tastes: 'Salty, thin, sour', fix: { espresso: { short: 'finer + less out', long: 'Grind finer and pull less out.' }, filter: { short: 'finer + less water', long: 'Grind finer and use less water.' } } },
+    { cx: 0, cy: -1, name: 'WEAK', tastes: 'Thin, watery, faint', fix: { espresso: { short: 'less out', long: 'Pull less out. Go a touch finer.' }, filter: { short: 'less water', long: 'Use less water, or more coffee.' } } },
+    { cx: 1, cy: -1, name: 'WEAK\nBITTER', tastes: 'Hollow, thin and bitter, drying', fix: { espresso: { short: 'coarser + less out', long: 'Grind coarser and pull less out.' }, filter: { short: 'coarser + less water', long: 'Grind coarser and use less water.' } } },
+  ];
+  const zoneAt = (cx, cy) => ZONES.find(z => z.cx === cx && z.cy === cy);
+  const ZNAME = z => z.cx === 0 && z.cy === 0 ? 'the target' : z.name.toLowerCase().replace('\n', ', ').replace('under', 'under-extracted').replace(/^bitter$/, 'over-extracted').replace(', bitter', ', over-extracted');
+
+  // Each taste pulls the brew one way on the chart. x: under −, over +.
+  // y: weak −, strong +. Sweet and balanced pull nowhere.
+  const TASTES = [
+    { k: 'sour', l: 'Sour', x: -1, y: 0 },
+    { k: 'salty', l: 'Salty', x: -1, y: -0.3 },
+    { k: 'sharp', l: 'Sharp, grassy', x: -0.8, y: 0 },
+    { k: 'thin', l: 'Thin, watery', x: 0, y: -1 },
+    { k: 'sweet', l: 'Sweet', x: 0, y: 0, good: true },
+    { k: 'balanced', l: 'Balanced', x: 0, y: 0, good: true },
+    { k: 'hollow', l: 'Hollow', x: 0.7, y: -0.7 },
+    { k: 'bitter', l: 'Bitter', x: 1, y: 0 },
+    { k: 'dry', l: 'Dry, astringent', x: 1, y: 0 },
+    { k: 'heavy', l: 'Too heavy, muddy', x: 0, y: 1 },
+    { k: 'harsh', l: 'Harsh, ashy', x: 0.8, y: 0.8 },
+  ];
+  let tastes = new Set();
+
+  function regionOf(ey, tds) {
+    const m = M();
+    return { cx: ey < m.ey[0] ? -1 : ey > m.ey[1] ? 1 : 0, cy: tds < m.tds[0] ? -1 : tds > m.tds[1] ? 1 : 0 };
+  }
+
+  // Where the tongue puts the brew. Returns null with nothing picked.
+  function tasteRegion(sel) {
+    const picked = TASTES.filter(t => sel.has(t.k));
+    if (!picked.length) return null;
+    const bad = picked.filter(t => !t.good);
+    const underish = bad.some(t => t.x < 0), overish = bad.some(t => t.x > 0);
+    if (underish && overish) return { split: true };
+    if (!bad.length) return { cx: 0, cy: 0 };
+    const ax = bad.reduce((a, t) => a + t.x, 0) / bad.length, ay = bad.reduce((a, t) => a + t.y, 0) / bad.length;
+    return { cx: ax <= -0.4 ? -1 : ax >= 0.4 ? 1 : 0, cy: ay <= -0.4 ? -1 : ay >= 0.4 ? 1 : 0 };
+  }
+
+  function tasteCheck(meas, tr, ey, sane) {
+    const esp = state.mode === 'espresso';
+    if (tr.split) return { cls: 'disagree', head: 'Sour and bitter in the same cup.', why: esp
+      ? 'Part of the puck under-extracted and part over-extracted, so the reading is an average of two shots. Fix the puck before the grind: break up clumps, level the bed, tamp flat, and watch for spurting. Then read again.'
+      : 'The bed extracted unevenly: some coffee over, some under. Check for channels or a dry pocket, swirl to flatten the bed, and look at grinder fines. Then read again.' };
+    if (!sane) return { cls: 'disagree', head: `Taste says ${ZNAME(zoneAt(tr.cx, tr.cy))}.`, why: 'Go by the taste for this one. The reading itself is not believable.' };
+    if (tr.cx === meas.cx && tr.cy === meas.cy) return { cls: 'agree', head: 'Taste and reading agree.', why: meas.cx || meas.cy ? `Both say ${ZNAME(zoneAt(meas.cx, meas.cy))}. Make the move with confidence.` : 'Both say it is in the target. Write this recipe down.' };
+    const out = [];
+    if (tr.cx !== meas.cx) {
+      if (tr.cx < 0 && meas.cx >= 0) out.push(`It tastes under-extracted but reads ${f1(ey)} %. Light roasts often stay sour until 21–23 %, so aim for the right side of the box. Channelling can also hide a sour fraction inside a normal average.`);
+      else if (tr.cx > 0 && meas.cx <= 0) out.push(`It tastes over-extracted but reads ${f1(ey)} %. Bitterness at a normal or low reading usually comes from a dark roast, water that is too hot, or channelling. For a dark roast, aim for the left side of the box.`);
+      else if (tr.cx === 0 && meas.cx < 0) out.push(`It tastes fine but reads under at ${f1(ey)} %. Some coffees are sweet at the low edge. Check the sample was stirred and cooled before you change anything.`);
+      else if (tr.cx === 0 && meas.cx > 0) out.push(`It tastes fine but reads over at ${f1(ey)} %. Check the cup weight and the sample. If both are right, this coffee likes a high extraction.`);
+    }
+    if (tr.cy !== meas.cy) {
+      if (tr.cy < 0 && meas.cy >= 0) out.push('It tastes thin but reads strong enough. Body depends on temperature and texture too. Check the cup weight, and taste it a little cooler.');
+      else if (tr.cy > 0 && meas.cy <= 0) out.push('It tastes heavy but reads weak enough. Check the TDS sample was filtered and the cup was stirred.');
+      else if (tr.cy === 0) out.push(`Strength tastes right though it reads ${meas.cy > 0 ? 'strong' : 'weak'}. The target box is a guide. Your preference wins on strength.`);
+    }
+    return { cls: 'disagree', head: `Taste says ${ZNAME(zoneAt(tr.cx, tr.cy))}, the reading says ${ZNAME(zoneAt(meas.cx, meas.cy))}.`, why: out.join(' ') || 'Read again before you change anything.' };
+  }
+
+  function renderChips() {
+    $('tastes').innerHTML = TASTES.map(t => `<button type="button" class="chip" data-t="${t.k}" aria-pressed="${tastes.has(t.k)}">${t.l}</button>`).join('');
+  }
+
+  function renderMap() {
+    const order = [ZONES[3], ZONES[6], ZONES[0], ZONES[1], ZONES[7], ZONES[5], ZONES[8], ZONES[2], ZONES[4]];
+    $('map').innerHTML = '<tbody>' + order.map(z => `<tr><td>${z.cx || z.cy ? ZNAME(z)[0].toUpperCase() + ZNAME(z).slice(1) : 'Target'}</td><td>${z.tastes}</td></tr>`).join('') + '</tbody>';
+  }
+
+  let state = { mode: 'espresso', log: { espresso: [], filter: [] }, sel: null };
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.log) state.log = { espresso: s.log.espresso || [], filter: s.log.filter || [] }; if (s.mode) state.mode = s.mode; }
+    else state.log = JSON.parse(JSON.stringify(SEED));
+  } catch (e) { state.log = JSON.parse(JSON.stringify(SEED)); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ mode: state.mode, log: state.log })); } catch (e) {} };
+
+  const $ = id => document.getElementById(id);
+  const num = v => { if (v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+  const f1 = n => n.toFixed(1), f2 = n => n.toFixed(2);
+  const M = () => METHODS[state.mode];
+
+  function compute(dose, bev, tds) {
+    if (!dose || dose <= 0 || !bev || bev <= 0 || !tds || tds <= 0) return null;
+    const ey = bev * tds / dose;
+    return { ey, ratio: bev / dose, dissolved: bev * tds / 100 };
+  }
+
+  // Where the brew sits, and the one move that gets it home.
+  function diagnose(r, tds) {
+    const m = M(), esp = state.mode === 'espresso';
+    if (!m.sane(r.ey, tds)) {
+      if (esp && tds < 3) return { cls: 'bad', head: 'That TDS looks like a filter reading.', move: 'Switch to Filter, or re-read the sample.', why: 'Espresso usually reads 7 to 13 %.' };
+      if (!esp && tds > 3) return { cls: 'bad', head: 'That TDS looks like an espresso reading.', move: 'Switch to Espresso, or re-read the sample.', why: 'Filter usually reads 1.1 to 1.6 %.' };
+      return { cls: 'bad', head: 'This reading is not believable.', move: 'Read it again before you change anything.', why: `${f1(r.ey)} % is outside what a ${esp ? 'shot' : 'brew'} extracts. The usual causes are a hot or unfiltered sample, a cup that was not stirred, or the wrong weight typed in.` };
+    }
+    const lo = r.ey < m.ey[0], hi = r.ey > m.ey[1];
+    const weak = tds < m.tds[0], strong = tds > m.tds[1];
+    const out = esp ? 'yield' : 'water';
+    if (!lo && !hi && !weak && !strong) return { cls: 'ok', head: 'In the target.', move: 'Keep this recipe and change one thing only if the taste asks for it.', why: r.ey < m.ey[0] + 1 ? 'You are on the low edge. A slightly finer grind usually adds sweetness here.' : r.ey > m.ey[1] - 1 ? 'You are on the high edge. If it tastes drying, go a touch coarser.' : 'Sweetness, acidity and body should all be present.' };
+    if (lo && !strong && !weak) return { cls: 'off', head: 'Under-extracted.', move: 'Grind finer, keep the ratio.', why: 'Strength is fine but too little came out of the coffee. Expect sour, salty or thin. A finer grind moves you up the ratio line into the box.' };
+    if (lo && weak) return { cls: 'off', head: 'Under-extracted and weak.', move: `Grind finer, and ${esp ? 'pull a little less out' : 'use a little less water'}.`, why: 'Both numbers are low. Finer raises extraction, a shorter ratio raises strength.' };
+    if (lo && strong) return { cls: 'off', head: 'Strong but under-extracted.', move: `Grind finer and ${esp ? 'pull more out' : 'use more water'}.`, why: 'Concentrated but sour. A longer ratio lowers strength and lifts extraction; finer does the rest.' };
+    if (!lo && !hi && strong) return { cls: 'off', head: 'Extraction is right, the cup is too strong.', move: esp ? 'Pull more out, about 2 to 4 g, and keep the grind.' : 'Use more water, about 1 part per 1 part of ratio.', why: 'Change the ratio, not the grind. The grind is doing its job.' };
+    if (!lo && !hi && weak) return { cls: 'off', head: 'Extraction is right, the cup is too weak.', move: esp ? 'Pull less out, about 2 to 4 g, and go a touch finer.' : 'Use less water, or more coffee.', why: 'A shorter ratio raises strength. It also trims extraction slightly, so a little finer keeps you in the box.' };
+    if (hi && !weak && !strong) return { cls: 'off', head: 'Over-extracted.', move: 'Grind coarser, keep the ratio.', why: 'Expect bitter, drying or hollow. Coarser moves you down the ratio line.' };
+    if (hi && weak) return { cls: 'off', head: 'Over-extracted and weak.', move: `Grind coarser and ${esp ? 'pull less out' : 'use less water'}.`, why: 'Too much of the coffee came out, into too much water. Expect thin and bitter.' };
+    return { cls: 'off', head: 'Strong and over-extracted.', move: 'Grind coarser, and consider a lower dose.', why: 'Expect harsh and heavy. Coarser drops extraction; the ratio can stay.' };
+  }
+
+  function readInputs() {
+    return { dose: num($('in-dose').value), bev: num($('in-bev').value), tds: num($('in-tds').value),
+      grind: $('in-grind').value.trim(), time: num($('in-time').value), note: $('in-note').value.trim() };
+  }
+
+  function renderCalc() {
+    const m = M(), v = readInputs(), r = compute(v.dose, v.bev, v.tds);
+    $('bev-label').textContent = m.bevLabel; $('bev-hint').textContent = m.bevHint;
+    $('in-dose').placeholder = 'e.g. ' + m.ph.dose; $('in-bev').placeholder = 'e.g. ' + m.ph.bev; $('in-tds').placeholder = 'e.g. ' + m.ph.tds;
+    $('ro-ratio-l').textContent = state.mode === 'espresso' ? 'ratio, dose : out' : 'ratio, dose : brewed';
+    const ratio = v.dose && v.bev ? v.bev / v.dose : null;
+    $('ro-ratio').textContent = ratio ? m.fmt(ratio) : '—';
+    $('ro-ey').textContent = r ? f1(r.ey) + ' %' : '—';
+    const tgt = (m.ey[0] + m.ey[1]) / 2;
+    $('ro-need').textContent = ratio ? (tgt / ratio).toFixed(state.mode === 'espresso' ? 1 : 2) + ' %' : '—';
+    $('ro-need-l').textContent = `TDS for ${tgt} % at this ratio`;
+    const vd = $('verdict');
+    if (!r) {
+      vd.className = 'verdict';
+      vd.innerHTML = `<p class="why">${ratio ? 'Add the TDS reading to see where this brew sits.' : 'Put in the dose, the cup weight and the TDS reading.'}</p>`;
+    } else {
+      const d = diagnose(r, v.tds);
+      vd.className = 'verdict';
+      vd.innerHTML = `<p class="status ${d.cls}">${d.head.replace(/\.$/, '')}</p><p class="move">${d.move}</p><p class="why">${d.why}</p>`;
+    }
+    $('btn-add').disabled = !r;
+    const tr = tasteRegion(tastes), ck = $('check');
+    if (r && tr) {
+      const c = tasteCheck(regionOf(r.ey, v.tds), tr, r.ey, m.sane(r.ey, v.tds));
+      ck.hidden = false;
+      ck.innerHTML = `<p class="status ${c.cls === 'agree' ? 'ok' : 'bad'}">Taste check</p><p class="move">${c.head}</p><p class="why">${c.why}</p>`;
+    } else if (tr && !tr.split) {
+      const z = zoneAt(tr.cx, tr.cy);
+      ck.hidden = false;
+      ck.innerHTML = `<p class="status">Taste alone</p><p class="move">Tastes ${ZNAME(z)}.</p><p class="why">${z.fix[state.mode].long} Add a TDS reading to check it.</p>`;
+    } else if (tr && tr.split) {
+      const c = tasteCheck({ cx: 0, cy: 0 }, tr, 0, true);
+      ck.hidden = false; ck.innerHTML = `<p class="status bad">Taste check</p><p class="move">${c.head}</p><p class="why">${c.why}</p>`;
+    } else ck.hidden = true;
+    renderChart(r ? { ey: r.ey, tds: v.tds, ratio: r.ratio, taste: tr && !tr.split ? tr : null } : null);
+  }
+
+  function renderChart(cur) {
+    const m = M(), svg = $('chart');
+    const W = 360, H = 310, L = 44, R = 14, T = 14, B = 40;
+    const sx = x => L + (x - m.x[0]) / (m.x[1] - m.x[0]) * (W - L - R);
+    const sy = y => T + (m.y[1] - y) / (m.y[1] - m.y[0]) * (H - T - B);
+    const clampX = x => Math.min(m.x[1], Math.max(m.x[0], x)), clampY = y => Math.min(m.y[1], Math.max(m.y[0], y));
+    const esp = state.mode === 'espresso';
+    let s = '';
+    for (let x = m.x[0]; x <= m.x[1]; x += 2) s += `<line class="grid" x1="${sx(x)}" y1="${T}" x2="${sx(x)}" y2="${H - B}"/><text class="axis" x="${sx(x)}" y="${H - B + 14}" text-anchor="middle">${x}</text>`;
+    const yStep = esp ? 1 : 0.1;
+    for (let i = 0, y = m.y[0]; y <= m.y[1] + 1e-9; i++, y = m.y[0] + i * yStep) s += `<line class="grid" x1="${L}" y1="${sy(y)}" x2="${W - R}" y2="${sy(y)}"/><text class="axis" x="${L - 6}" y="${sy(y) + 3}" text-anchor="end">${esp ? y.toFixed(0) : y.toFixed(1)}</text>`;
+    s += `<text class="axis-t" x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle">extraction yield, %</text>`;
+    s += `<text class="axis-t" x="12" y="${(T + H - B) / 2}" text-anchor="middle" transform="rotate(-90 12 ${(T + H - B) / 2})">TDS, %</text>`;
+    s += `<rect class="zone" x="${sx(m.ey[0])}" y="${sy(m.tds[1])}" width="${sx(m.ey[1]) - sx(m.ey[0])}" height="${sy(m.tds[0]) - sy(m.tds[1])}"/>`;
+    s += `<text class="zone-l" x="${sx(m.ey[0]) + 5}" y="${sy(m.tds[1]) + 13}" text-anchor="start">TARGET</text>`;
+    // Ratio lines: TDS = EY / ratio. Straight through the origin, so a fixed
+    // ratio is a fixed line, and grind slides a brew along it.
+    const line = (r, cls, label) => {
+      const pts = [];
+      for (let x = m.x[0]; x <= m.x[1] + 1e-9; x += 0.25) { const y = x / r; if (y >= m.y[0] && y <= m.y[1]) pts.push([sx(x), sy(y)]); }
+      if (pts.length < 2) return '';
+      let o = `<polyline class="${cls}" points="${pts.map(p => p.join(',')).join(' ')}"/>`;
+      if (label) { const p = pts[pts.length - 1]; o += `<text class="ratio-l now-l" x="${Math.min(p[0], W - R) - 6}" y="${p[1] + 14}" text-anchor="end">${label}</text>`; }
+      return o;
+    };
+    // The eight zones around the target. The fixes live in the log, not here.
+    const bx0 = sx(m.ey[0]), bx1 = sx(m.ey[1]), by0 = sy(m.tds[1]), by1 = sy(m.tds[0]);
+    const colC = [(sx(m.x[0]) + bx0) / 2, (bx0 + bx1) / 2, (bx1 + sx(m.x[1])) / 2];
+    const rowC = [(sy(m.y[1]) + by0) / 2, (by0 + by1) / 2, (by1 + sy(m.y[0])) / 2];
+    ZONES.forEach(z => {
+      if (!z.cx && !z.cy) return;
+      const X = colC[z.cx + 1], Y = rowC[1 - z.cy] + 4;
+      const lines = z.name.split('\n');
+      lines.forEach((t, k) => s += `<text class="reg" x="${X}" y="${Y - 8 + k * 11 - (lines.length - 1) * 5}" text-anchor="middle">${t}</text>`);
+    });
+    // Where the taste says the brew is, joined to where the meter says it is.
+    if (cur && cur.taste) {
+      const X = colC[cur.taste.cx + 1], Y = rowC[1 - cur.taste.cy] + (cur.taste.cx || cur.taste.cy ? 22 : 18);
+      s += `<line class="taste-link" x1="${sx(clampX(cur.ey))}" y1="${sy(clampY(cur.tds))}" x2="${X}" y2="${Y}"/>`;
+      s += `<circle class="taste-pt" cx="${X}" cy="${Y}" r="7"/><text class="taste-l" x="${X + 11}" y="${Y + 4}">taste</text>`;
+    }
+    // Only the brew's own ratio. Grind slides a brew along it; other
+    // ratios are recipes you did not pull.
+    if (cur) s += line(cur.ratio, 'ratio-now', '');
+    // Logged readings, oldest first, joined in order.
+    const log = state.log[state.mode];
+    const pts = log.map((e, i) => { const r = compute(e.dose, e.bev, e.tds); return r ? { i, x: r.ey, y: e.tds, sus: !m.sane(r.ey, e.tds) } : null; }).filter(Boolean);
+    pts.forEach(p => {
+      const off = p.x > m.x[1] || p.x < m.x[0] || p.y > m.y[1] || p.y < m.y[0];
+      const cx = Math.min(W - R - 8, Math.max(L + 8, sx(clampX(p.x)))), cy = Math.min(H - B - 8, Math.max(T + 8, sy(clampY(p.y))));
+      // The number sits inside its own dot, so close shots never swap labels.
+      const sel = state.sel === p.i && cur && Math.abs(cur.ey - p.x) < 1e-6;
+      s += `<g class="pt-g${sel ? ' sel' : ''}${p.sus ? ' sus' : ''}"><circle class="pt" cx="${cx}" cy="${cy}" r="7.5"/><text class="pt-n" x="${cx}" y="${cy + 3.2}" text-anchor="middle">${p.i + 1}</text>${off ? `<text class="pt-l" x="${cx - 11}" y="${cy + 3.5}" text-anchor="end">off chart</text>` : ''}</g>`;
+    });
+    const loaded = state.sel != null && pts.some(p => p.i === state.sel && cur && Math.abs(cur.ey - p.x) < 1e-6);
+    if (cur && !loaded) s += `<circle class="now" cx="${sx(clampX(cur.ey))}" cy="${sy(clampY(cur.tds))}" r="7.5"/>`;
+    svg.innerHTML = s;
+    svg.setAttribute('aria-label', cur ? `Brew control chart. This brew: ${f1(cur.ey)} % extraction, TDS ${cur.tds} %, in ${ZNAME(zoneAt(regionOf(cur.ey, cur.tds).cx, regionOf(cur.ey, cur.tds).cy))}. ${state.log[state.mode].length} logged readings.` : `Brew control chart with ${state.log[state.mode].length} logged readings.`);
+    $('lg-ratio').textContent = cur ? 'your ratio, ' + m.fmt(cur.ratio) : 'your ratio';
+    $('lg-zone').textContent = `target ${m.ey[0]}–${m.ey[1]} %, TDS ${esp ? m.tds[0] + '–' + m.tds[1] : m.tds[0].toFixed(2) + '–' + m.tds[1].toFixed(2)} %`;
+  }
+
+  function renderLog() {
+    const m = M(), log = state.log[state.mode], box = $('log-box');
+    $('wipe-mode').textContent = state.mode;
+    if (!log.length) { box.innerHTML = '<p class="empty">No readings yet. Each one you add is numbered here and on the chart.</p>'; return; }
+    const esp = state.mode === 'espresso';
+    const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    let h = '<ol class="entries" reversed>';
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i], r = compute(e.dose, e.bev, e.tds);
+      let tag = '—', cls = '', fix = '';
+      if (r) {
+        if (!m.sane(r.ey, e.tds)) { tag = 'check reading'; cls = 'bad'; fix = 'Read the sample again before changing anything.'; }
+        else {
+          const lo = r.ey < m.ey[0], hi = r.ey > m.ey[1], w = e.tds < m.tds[0], st = e.tds > m.tds[1];
+          tag = !lo && !hi && !w && !st ? 'in target' : [lo ? 'under' : hi ? 'over' : '', w ? 'weak' : st ? 'strong' : ''].filter(Boolean).join(', ');
+          cls = tag === 'in target' ? 'ok' : '';
+          const rg = regionOf(r.ey, e.tds), tr = tasteRegion(new Set(e.tastes || []));
+          fix = tr && tr.split ? 'Fix the puck first: it tasted sour and bitter, so extraction was uneven.'
+            : !rg.cx && !rg.cy && tr && (tr.cx || tr.cy) ? `Reads in range but tasted ${ZNAME(zoneAt(tr.cx, tr.cy))}. Small step: ${zoneAt(tr.cx, tr.cy).fix[state.mode].long.toLowerCase()}`
+            : zoneAt(rg.cx, rg.cy).fix[state.mode].long;
+        }
+      }
+      const tl = (e.tastes || []).map(k => (TASTES.find(t => t.k === k) || {}).l).filter(Boolean).join(', ').toLowerCase();
+      const recipe = [`${f1(e.dose)} → ${f1(e.bev)} g`, r ? m.fmt(r.ratio) : '', e.time != null ? e.time + ' s' : '', e.grind ? 'grind ' + esc(e.grind) : ''].filter(Boolean).join(' · ');
+      const meta = [`TDS ${esp ? f2(e.tds) : e.tds.toFixed(2)}`, tl ? 'tasted ' + tl : '', e.note ? esc(e.note) : ''].filter(Boolean).join(' · ');
+      h += `<li class="entry${state.sel === i ? ' sel' : ''}" data-i="${i}">
+        <button type="button" class="entry-load" data-load="${i}" aria-label="Load reading ${i + 1} into the calculator">
+          <span class="e-n">${i + 1}</span>
+          <span class="e-body"><span class="e-recipe">${recipe}</span><span class="e-meta"><span class="e-tag ${cls}">${tag}</span> · ${meta}</span></span>
+          <span class="e-ey">${r ? f1(r.ey) + '<small>%</small>' : '—'}</span>
+        </button>
+        ${fix ? `<p class="e-fix"><span>How to fix</span>${fix}</p>` : ''}
+        <button type="button" class="e-del" data-del="${i}" aria-label="Delete reading ${i + 1}">Delete</button>
+      </li>`;
+    }
+    box.innerHTML = h + '</ol><p class="hint">Tap a reading to load it into the calculator and the chart.</p>';
+  }
+
+  function render() {
+    $('m-esp').setAttribute('aria-pressed', state.mode === 'espresso');
+    $('m-fil').setAttribute('aria-pressed', state.mode === 'filter');
+    $('chart-hint').textContent = state.mode === 'espresso'
+      ? 'The dashed line is every shot at your ratio. Grinding finer moves you up and right along it, coarser down and left. If it crosses the target box, grind alone gets you there. If it misses, change the ratio. The target is 19 to 24 % extraction; the upper half is a fuller, sweeter style, not a fault.'
+      : 'The dashed line is every brew at your ratio, from the weighed cup. Grinding finer moves you up and right along it. If it crosses the target box, grind alone gets you there. If it misses, change the ratio. The target is 19 to 24 % extraction.';
+    renderChips(); renderMap(); renderCalc(); renderLog();
+  }
+
+  ['in-dose', 'in-bev', 'in-tds'].forEach(id => $(id).addEventListener('input', renderCalc));
+  $('m-esp').onclick = () => { state.mode = 'espresso'; state.sel = null; tastes = new Set(); save(); render(); };
+  $('m-fil').onclick = () => { state.mode = 'filter'; state.sel = null; tastes = new Set(); save(); render(); };
+  $('btn-add').onclick = () => {
+    const v = readInputs(); if (!compute(v.dose, v.bev, v.tds)) return;
+    state.log[state.mode].push({ dose: v.dose, bev: v.bev, tds: v.tds, grind: v.grind, time: v.time, note: v.note, tastes: [...tastes], at: Date.now() });
+    $('in-note').value = ''; tastes = new Set(); save(); renderChips(); renderLog(); renderCalc();
+  };
+  $('btn-clear').onclick = () => { ['in-dose', 'in-bev', 'in-tds', 'in-grind', 'in-time', 'in-note'].forEach(id => $(id).value = ''); tastes = new Set(); state.sel = null; renderChips(); renderCalc(); renderLog(); };
+  $('tastes').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-t]'); if (!b) return;
+    const k = b.dataset.t; tastes.has(k) ? tastes.delete(k) : tastes.add(k);
+    b.setAttribute('aria-pressed', tastes.has(k)); renderCalc();
+  });
+  let wipeArmed = false;
+  $('btn-wipe').onclick = () => {
+    if (!wipeArmed) { wipeArmed = true; $('wipe-confirm').hidden = false; setTimeout(() => { wipeArmed = false; $('wipe-confirm').hidden = true; }, 4000); return; }
+    state.log[state.mode] = []; state.sel = null; wipeArmed = false; $('wipe-confirm').hidden = true; save(); render();
+  };
+  $('log-box').addEventListener('click', ev => {
+    const del = ev.target.closest('[data-del]');
+    if (del) { state.log[state.mode].splice(+del.dataset.del, 1); state.sel = null; save(); render(); return; }
+    const row = ev.target.closest('[data-load]'); if (!row) return;
+    const e = state.log[state.mode][+row.dataset.load]; state.sel = +row.dataset.load;
+    $('in-dose').value = e.dose; $('in-bev').value = e.bev; $('in-tds').value = e.tds;
+    $('in-grind').value = e.grind || ''; $('in-time').value = e.time ?? ''; $('in-note').value = e.note || '';
+    tastes = new Set(e.tastes || []);
+    render();
+  });
+
+  // Open on the newest reading, so the page shows a plotted brew at rest.
+  const last = state.log[state.mode][state.log[state.mode].length - 1];
+  if (last) { $('in-dose').value = last.dose; $('in-bev').value = last.bev; $('in-tds').value = last.tds; $('in-grind').value = last.grind || ''; $('in-time').value = last.time ?? ''; tastes = new Set(last.tastes || []); state.sel = state.log[state.mode].length - 1; }
+  render();
+})();
+</script>
+
+</body>
+</html>
