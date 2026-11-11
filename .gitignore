@@ -3,3 +3,4 @@ node_modules/
 package-lock.json
 .impeccable/config.local.json
 .claude/skills/impeccable/scripts/bin/
+.impeccable/live/
