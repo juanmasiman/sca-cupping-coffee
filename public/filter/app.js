@@ -2244,10 +2244,12 @@ function renderNext(c) {
         ? `Bloom with ${fmt0(p.water)}g`
         : `pour to ${fmt0(p.water)}g${num(p.at) !== null ? ` at ${fmtTime(p.at)}` : ''}`).join(', ') + '.';
     } else if (scaled && scaled.steps.length) {
-      schedule = scaled.steps.slice(0, 4).map(st => {
+      // The whole schedule: it used to stop after four steps with "and
+      // on.", which is the one part of a method nobody can guess.
+      schedule = scaled.steps.map(st => {
         const l = LentoRecipes.line(st, fmtTime);
         return (l.when ? `${l.when} ` : '') + l.what.charAt(0).toLowerCase() + l.what.slice(1);
-      }).join(', ') + (scaled.steps.length > 4 ? ', and on.' : '.');
+      }).join(', ') + '.';
       schedule = `${m.brewer}: ${schedule}`;
     } else if (percolates()) {
       schedule = byWeight()
@@ -2853,6 +2855,21 @@ function brewNumber(c, brew) {
   return c.brews.indexOf(brew) + 1;
 }
 
+/* THE PLAN REACHES THE SHEET.
+
+   "Where to start" says a bloom and two pours to 240 g, and the first
+   sheet used to open with no pours at all — then the board scolded the
+   brew for using four, a schedule the sheet had never proposed. With no
+   brew behind it and no schedule on the target, the first sheet is
+   seeded from the brewer's method scaled to the target, the same
+   schedule the board prints. It arrives as a plan: stamping a row moves
+   its weight to a placeholder, and nothing in it counts as measured. */
+function firstSchedule(c) {
+  if (!percolates() || !root().LentoRecipes) return [];
+  const { scaled } = startPlan(c);
+  return scaled ? LentoRecipes.pours(scaled).map(p => ({ ...p })) : [];
+}
+
 /* Where the grinder is, as far as this app knows.
 
    Two sources of truth could answer it: the board's "grinder today",
@@ -2934,7 +2951,9 @@ function openBrew(brew, resume) {
       // No previous brew: the schedule the target carries, which is
       // where "start from this method" put one. Copied, never shared —
       // editing a brew must not rewrite what you are aiming at.
-      : ((c.target && Array.isArray(c.target.pours)) ? c.target.pours.map(p => ({ ...p })) : []),
+      : ((c.target && Array.isArray(c.target.pours) && c.target.pours.length)
+        ? c.target.pours.map(p => ({ ...p }))
+        : firstSchedule(c)),
     notes: '',
     tds: null,
     beverage: null,
@@ -4519,6 +4538,21 @@ function openCoffee(c, opts) {
       toast('Give the coffee a name first');
       if (field) field.focus();
       return;
+    }
+    /* ONE RATIO FROM THE START.
+
+       A new coffee with a roast level was saved at the log's default
+       1:16, and then the board printed 1:16 beside a button offering the
+       bag's 1:16.7 — two numbers for one aim on the first screen anybody
+       reads. When a coffee is first added and its target is still the
+       untouched default, it starts at what the bag points to. That is the
+       number the coffee sheet showed while it was being filled in; it is
+       not written over anything somebody chose. */
+    if (adding) {
+      const sp = startingPoint(c);
+      const d = defaultTarget();
+      if (sp && byWeight() && c.target.ratio === d.ratio) c.target.ratio = sp.ratio;
+      if (sp && canSetTemp() && (c.target.temp === null || c.target.temp === d.temp)) c.target.temp = sp.temp;
     }
     if (adding && !state.coffees.some(x => x.id === c.id)) {
       state.coffees.push(c);
