@@ -522,13 +522,14 @@
      reconcile on their next load, which is the same arrangement the
      coffee shelf has. */
 
-  var KINDS = ['grinder', 'machine', 'brewer', 'kettle'];
+  var KINDS = ['grinder', 'machine', 'brewer', 'kettle', 'refractometer'];
 
   var GROUP = {
     grinder: 'Grinders',
     machine: 'Espresso machines',
     brewer: 'Brewers',
     kettle: 'Kettles',
+    refractometer: 'Refractometer',
   };
 
   var ADD = {
@@ -536,6 +537,7 @@
     machine: 'Add a machine',
     brewer: 'Add a brewer',
     kettle: 'Add a kettle',
+    refractometer: 'Add a refractometer',
   };
 
   // Which instruments a kind can belong to. A machine is espresso and a
@@ -546,6 +548,9 @@
     machine: ['espresso'],
     brewer: ['filter'],
     kettle: ['filter'],
+    // Both, always, and not asked: a refractometer reads an espresso and a
+    // filter cup alike, and owning one is what turns TDS on in both.
+    refractometer: ['espresso', 'filter'],
   };
 
   /* The words for every answer, and they are the words somebody would
@@ -641,6 +646,10 @@
     } else if (g.kind === 'kettle') {
       bits = [word('kettle.power', d.power), word('kettle.spout', d.spout),
         d.control === 'variable' ? 'set the temperature' : (d.control === 'boil' ? 'boils' : '')];
+    } else if (g.kind === 'refractometer') {
+      // Returned as written: the line below lower-cases, and "tds" is not
+      // a word anybody reads.
+      return 'TDS and extraction in both tools';
     } else {
       bits = [word('machine.boiler', d.boiler) && (word('machine.boiler', d.boiler) + ' boiler'),
         d.pf ? d.pf + ' mm' : '', d.portafilter === 'bottomless' ? 'bottomless' : ''];
@@ -699,6 +708,7 @@
        starts unmarked, which `forTool` already reads as "offered
        everywhere until you say", and the two switches are right there. */
     if (BELONGS[kind].length === 1) g.use[BELONGS[kind][0]] = true;
+    if (kind === 'refractometer') g.use = { espresso: true, filter: true };
     return g;
   }
 
@@ -988,6 +998,9 @@
   // What a sheet asks, per kind. The order is the order somebody would
   // describe the thing in.
   function gearBody(kind, g) {
+    if (kind === 'refractometer') {
+      return '<p class="gear-note">Owning one turns on the TDS field and extraction yield in the espresso dial-in and the filter brew log, on every device you sign in on. Each asks for the reading in its own range — around 8–12 % for espresso, 1.2–1.5 % for filter. Remove it here, or switch it off in either tool, and both stop asking.</p>';
+    }
     if (kind === 'grinder') {
       return chipsFor(kind, 'drive')
         + chipsFor(kind, 'burr')
@@ -1030,9 +1043,10 @@
     brewer: ['flow', 'filter', 'body', 'bypass'],
     kettle: ['power', 'spout', 'control', 'hold', 'units'],
     machine: ['drive', 'boiler', 'temp', 'units', 'pressure', 'paddle', 'portafilter'],
+    refractometer: [],
   };
-  var NUM_FIELDS = { grinder: ['burrSize'], brewer: [], kettle: [], machine: ['pf', 'basketDose'] };
-  var TEXT_FIELDS = { grinder: [], brewer: ['filterSize'], kettle: [], machine: [] };
+  var NUM_FIELDS = { grinder: ['burrSize'], brewer: [], kettle: [], machine: ['pf', 'basketDose'], refractometer: [] };
+  var TEXT_FIELDS = { grinder: [], brewer: ['filterSize'], kettle: [], machine: [], refractometer: [] };
 
   /* WHICH INSTRUMENTS ARE SET TO THIS ONE RIGHT NOW.
 
@@ -1049,6 +1063,7 @@
     machine: [['espresso', 'lento-espresso-v1', 'machine']],
     kettle: [['filter', 'lento-filter-v1', 'kettle']],
     brewer: [],
+    refractometer: [],
   };
 
   function setBy(kind, name) {
@@ -1150,6 +1165,8 @@
       bits = ['filter', 'filterSize', 'body', 'bypass'];
     } else if (kind === 'kettle') {
       bits = ['power', 'spout', 'control', 'hold', 'units'];
+    } else if (kind === 'refractometer') {
+      bits = [];
     } else {
       bits = ['drive', 'boiler', 'temp', 'pressure', 'paddle', 'pf', 'portafilter', 'basketDose'];
     }
@@ -1224,7 +1241,8 @@
 
     function marksHTML() {
       var out = '';
-      if (BELONGS[kind].length > 1) {
+      // A refractometer is not marked per tool: owning it is the fact.
+      if (BELONGS[kind].length > 1 && kind !== 'refractometer') {
         out = '<div class="bag-group"><span class="field-label">Used with</span>'
           + switchRow('gf-espresso', 'Espresso dial-in', using.espresso ? 'Set to it now' : '',
             marks.espresso || Boolean(using.espresso), Boolean(using.espresso))
@@ -1249,6 +1267,8 @@
       }
       if (line) out += '<p class="gear-said">' + esc(line) + '</p>';
       if (kind === 'brewer' && d.note) out += '<p class="gear-note">' + esc(d.note) + '</p>';
+      // A record with no fields would otherwise open on an empty sheet.
+      if (kind === 'refractometer') out += gearBody(kind, d);
       /* The method this brewer has, named but not laid out. The steps
          belong in the brew log, where somebody is standing over a
          kettle; here the useful fact is that there IS one and where to
@@ -1405,7 +1425,7 @@
          only exit from the only dead end in the product, pointing at the
          wrong app. */
       var where = Object.keys(using)[0]
-        || (kind === 'machine' ? 'espresso' : (kind === 'grinder' ? null : 'filter'));
+        || (kind === 'machine' ? 'espresso' : (kind === 'grinder' || kind === 'refractometer' ? null : 'filter'));
       go.classList.toggle('hidden', adding || correcting || !where);
       if (where) {
         go.textContent = where === 'espresso' ? 'Open the dial-in' : 'Open the brew log';

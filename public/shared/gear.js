@@ -62,6 +62,12 @@
        has one temperature and never shows you a number — which is why
        the sheet makes it conditional rather than always asking. */
     machine: ['drive', 'boiler', 'temp', 'units', 'pressure', 'pf', 'paddle', 'portafilter', 'basketDose'],
+    /* Nothing beyond its name. It is one fact — you can measure TDS — and
+       it is the same fact in both instruments: a refractometer bought for
+       espresso reads a filter cup too. Each tool asks for the reading in
+       its own range (espresso around 8–12 %, filter around 1.2–1.5 %);
+       that is the tool's business, not the record's. */
+    refractometer: [],
   };
 
   /* The type of each field, and it is keyed by KIND and field rather
@@ -78,7 +84,7 @@
   var NUMBERS = { 'grinder.burrSize': 1, 'machine.pf': 1, 'machine.basketDose': 1 };
   var YESNO = { 'grinder.retains': 1, 'brewer.bypass': 1, 'kettle.hold': 1, 'machine.paddle': 1 };
 
-  function kinds() { return DB() ? DB().KINDS : ['grinder', 'brewer', 'kettle', 'machine']; }
+  function kinds() { return DB() ? DB().KINDS : ['grinder', 'brewer', 'kettle', 'machine', 'refractometer']; }
 
   /* `dead` is by id, for sync. `buried` is by kind and name, for the
      apps' own mirrors.
@@ -614,8 +620,33 @@
     return changed;
   }
 
+  /* ONE REFRACTOMETER, BOTH INSTRUMENTS.
+
+     Each tool used to keep its own "refractometer" switch in its own
+     preferences, on the device only: turn it on in the dial-in and the
+     brew log still had no TDS field, sign in on a second phone and
+     neither had. Owning one is a fact about your kit, so it is a record
+     on this shelf, synced with the rest of it, and both switches read
+     and write the same thing. */
+  function ownsRefractometer() {
+    return ofKind('refractometer').length > 0;
+  }
+  function setRefractometer(on) {
+    var have = ofKind('refractometer');
+    if (on && !have.length) {
+      var g = bare('refractometer', 'Refractometer');
+      g.use = { espresso: true, filter: true };
+      put(g);
+    } else if (!on) {
+      have.forEach(function (g) { remove(g.id); });
+    }
+    return ownsRefractometer();
+  }
+
   root.LentoGear = {
     STORE: STORE,
+    ownsRefractometer: ownsRefractometer,
+    setRefractometer: setRefractometer,
     FIELDS: FIELDS,
     kinds: kinds,
     all: all,
