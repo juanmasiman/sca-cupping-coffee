@@ -887,6 +887,42 @@ function methodAt(m, dose) {
   return LentoRecipes.brew(m, dose);
 }
 
+/* ONE STARTING POINT, READ THE SAME WAY EVERYWHERE.
+
+   Three surfaces answered "where do I start" and gave three answers for
+   one bag on one brewer: the coffee sheet's roast block said 1:16.8, the
+   brewer's method two inches below it said 1:16.7 with a 45 g bloom, and
+   the board — the only one a first-timer reads before brewing — said
+   1:16 with a 30 g bloom, because it read the bare target and made the
+   bloom up as twice the dose.
+
+   The division of labour was already decided on the coffee sheet and is
+   kept: the BAG owns the ratio and the temperature, the BREWER owns the
+   schedule. What was missing was one function that applies it, so every
+   surface states the same numbers. The schedule is always scaled to the
+   ratio actually being aimed at — a method's pours written at its own
+   1:16.7 and printed under a 1:16.8 target add up to neither. */
+function methodScaled(m, t) {
+  if (!m) return null;
+  const at = byWeight() && t && num(t.ratio) !== null ? Object.assign({}, m, { ratio: t.ratio }) : m;
+  return methodAt(at, byWeight() && t ? t.dose : m.dose);
+}
+function startPlan(c) {
+  const t = c.target;
+  const sp = startingPoint(c);
+  const m = methodFor(kit().brewer);
+  /* What the bag would change, if it has not been taken yet. Offered,
+     never applied behind the reader's back: the target is what the log
+     compares against, and it moves only when somebody says so. */
+  let suggest = null;
+  if (sp) {
+    const ratio = byWeight() && sp.ratio !== t.ratio ? sp.ratio : null;
+    const temp = canSetTemp() && sp.temp !== null && sp.temp !== t.temp ? sp.temp : null;
+    if (ratio !== null || temp !== null) suggest = { ratio, temp, label: sp.e.label };
+  }
+  return { t, sp, m, suggest, scaled: methodScaled(m, t) };
+}
+
 // Days since the bag was roasted, or null when nobody said.
 function daysSinceRoast(c) {
   if (!c || !c.roastDate) return null;
@@ -2122,20 +2158,68 @@ function renderNext(c) {
      schedule, which is the part a beginner has no way to guess and the
      part every recipe on the internet states differently. */
   if (!newest) {
-    const t = c.target;
+    const { t, m, suggest, scaled } = startPlan(c);
     const water = Math.round(t.dose * t.ratio);
-    const bloom = Math.round(t.dose * 2);
+    const temp = canSetTemp() && t.temp ? ` at ${escapeHTML(degrees(t.temp))}` : '';
+    /* The schedule, from the one place that knows it: the pours on the
+       target once a method has been applied, the brewer's method scaled
+       to this target before then, and only with neither a general rule
+       stated as one ("about") rather than as a number. */
+    let schedule;
+    const tp = Array.isArray(t.pours) ? t.pours.filter(p => num(p.water) !== null) : [];
+    if (byWeight() && tp.length) {
+      schedule = tp.map((p, i) => i === 0
+        ? `Bloom with ${fmt0(p.water)}g`
+        : `pour to ${fmt0(p.water)}g${num(p.at) !== null ? ` at ${fmtTime(p.at)}` : ''}`).join(', ') + '.';
+    } else if (scaled && scaled.steps.length) {
+      schedule = scaled.steps.slice(0, 4).map(st => {
+        const l = LentoRecipes.line(st, fmtTime);
+        return (l.when ? `${l.when} ` : '') + l.what.charAt(0).toLowerCase() + l.what.slice(1);
+      }).join(', ') + (scaled.steps.length > 4 ? ', and on.' : '.');
+      schedule = `${m.brewer}: ${schedule}`;
+    } else if (percolates()) {
+      schedule = byWeight()
+        ? `Bloom with about ${fmt0(t.dose * 2)}g and give it thirty to forty-five seconds, then pour the rest in two or three goes.`
+        : 'Wet all the grounds first and give them thirty to forty-five seconds, then pour the rest in two or three goes.';
+    } else {
+      schedule = 'Stir once when the water is in, leave it, and press or decant at the time you set.';
+    }
+    const grindWay = percolates()
+      ? 'Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser.'
+      : 'Grind is what changes the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.';
+    const offer = suggest
+      ? `<div class="start-offer">
+           <p class="tip-why">This is the log's default. For a ${escapeHTML(suggest.label.toLowerCase())} roast the bag points to ${
+             [suggest.ratio !== null ? `<strong>1:${suggest.ratio}</strong>` : '', suggest.temp !== null ? `<strong>${escapeHTML(degrees(suggest.temp))}</strong>` : ''].filter(Boolean).join(' and ')}.</p>
+           <button class="tip-act" type="button" id="btn-start-bag">Start at ${
+             [suggest.ratio !== null ? `1:${suggest.ratio}` : '', suggest.temp !== null ? escapeHTML(degrees(suggest.temp)) : ''].filter(Boolean).join(' and ')}</button>
+         </div>`
+      : '';
     wrap.className = 'next-card';
     wrap.innerHTML = `
       <span class="next-label">Where to start</span>
       <div class="tip open">
         <span class="tip-move">${byWeight()
-          ? `${fmt1(t.dose)}g coffee, ${water}g water, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
-          : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip.`}</span>
-        <span class="tip-why">${percolates()
-          ? `${byWeight() ? `Bloom with about ${bloom}g — twice the dose — and give it thirty to forty-five seconds, then pour the rest in two or three goes. ` : 'Wet all the grounds first and give them thirty to forty-five seconds, then pour the rest in two or three goes. '}Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser. Nobody can tell you the number — it is different on every grinder — but the window tells you which way.`
-          : `Stir once when the water is in, leave it, and press or decant at the time you set. Grind is what changes the strength of the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.`}</span>
+          ? `${fmt1(t.dose)}g coffee to ${water}g water (1:${t.ratio})${temp}, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
+          : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip${temp}.`}</span>
+        <span class="tip-why">${escapeHTML(schedule)} ${grindWay}</span>
+        ${offer}
       </div>`;
+    const take = wrap.querySelector('#btn-start-bag');
+    if (take) take.addEventListener('click', () => {
+      if (suggest.ratio !== null) t.ratio = suggest.ratio;
+      if (suggest.temp !== null) t.temp = suggest.temp;
+      // Pours written for the old ratio would no longer add up to the
+      // water; the method rescales them, so they are rewritten with it.
+      if (Array.isArray(t.pours) && t.pours.length && m && root().LentoRecipes) {
+        const s = methodScaled(m, t);
+        if (s) t.pours = LentoRecipes.pours(s);
+      }
+      save();
+      haptic();
+      renderBoard();
+      toast('Starting point applied');
+    });
     return;
   }
 
@@ -2993,6 +3077,7 @@ function openWheel(c) {
     toggle: $('#wheel-zoom-toggle'),
     level: $('#wheel-zoom-level'),
     haptic: haptic,
+    word: 'flavour',
     categoryHint: 'a whole family, if that is as far as it got',
     wordHint: 'writes the word down',
   });
@@ -3756,7 +3841,9 @@ function openCoffee(c, opts) {
       b.type = 'button';
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', on ? 'true' : 'false');
-      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
+      // The method block reads the roast too — it drops its own ratio
+      // once the bag has one — so it redraws with it.
+      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); renderMethod(); });
       roastWrap.appendChild(b);
     });
     const sp = startingPoint(c);
@@ -3832,7 +3919,12 @@ function openCoffee(c, opts) {
   const renderMethod = () => {
     const m = methodFor(kit().brewer);
     if (!m) { methodWrap.innerHTML = ''; return; }
-    const scaled = methodAt(m, byWeight() ? t.dose : m.dose);
+    const sp0 = startingPoint(c);
+    // With a roast level, the bag owns the ratio, so the schedule is
+    // scaled to the target's ratio rather than the method's — otherwise
+    // the pours it writes would add up to a different water than the
+    // target two lines above them.
+    const scaled = sp0 ? methodScaled(m, t) : methodAt(m, byWeight() ? t.dose : m.dose);
     const rows = scaled.steps.map(st => {
       const l = LentoRecipes.line(st, fmtTime);
       return `<li class="step"><span class="step-at">${escapeHTML(l.when)}</span><span class="step-do">${escapeHTML(l.what)}</span></li>`;
@@ -3870,7 +3962,12 @@ function openCoffee(c, opts) {
     methodWrap.innerHTML = `
       <div class="baseline method">
         <span class="baseline-head">How a ${escapeHTML(m.brewer)} wants to be used</span>
-        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — 1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}</p>
+        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — ${sp
+          // The method's own ratio and temperature are not printed beside
+          // the bag's: two numbers for one thing, inches apart, is the
+          // contradiction this block was rewritten to stop.
+          ? escapeHTML(m.grind)
+          : `1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}`}</p>
         <p class="baseline-why">${escapeHTML(m.why)}</p>
         <ol class="steps">${rows}</ol>
         ${hands}

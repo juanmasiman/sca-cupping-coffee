@@ -112,7 +112,12 @@
         + ' A' + r0 + ',' + r0 + ' 0 ' + large + ' 0 ' + s0[0].toFixed(1) + ',' + s0[1].toFixed(1) + ' Z';
     };
 
-    var svg = '<svg viewBox="0 0 ' + SIZE + ' ' + SIZE + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coffee flavor wheel">';
+    /* The cupping sheet is written in the SCA's American spelling and the
+       brew log in British; the wheel is shared and does not get to pick.
+       The host passes its own word, so the hub agrees with the screen
+       around it. */
+    var word = (opts && opts.word) || 'flavor';
+    var svg = '<svg viewBox="0 0 ' + SIZE + ' ' + SIZE + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coffee ' + word + ' wheel">';
     var angle = -Math.PI / 2;
     var outerAngle = -Math.PI / 2;
 
@@ -164,7 +169,7 @@
     });
 
     svg += '<circle cx="' + C + '" cy="' + C + '" r="' + (R_IN - 2) + '" class="wheel-hub"/>';
-    svg += '<text x="' + C + '" y="' + (C - 5) + '" text-anchor="middle" class="wheel-hub-label">flavor</text>';
+    svg += '<text x="' + C + '" y="' + (C - 5) + '" text-anchor="middle" class="wheel-hub-label">' + word + '</text>';
     svg += '<text x="' + C + '" y="' + (C + 11) + '" text-anchor="middle" class="wheel-hub-label">wheel</text>';
     svg += '</svg>';
     return svg;
