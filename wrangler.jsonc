@@ -12,6 +12,12 @@
     "enabled": true
   },
 
+  // Once a day, a query against Supabase so the free project is never
+  // paused for inactivity (worker/index.js, keepSupabaseAwake). 07:23 UTC.
+  "triggers": {
+    "crons": ["23 7 * * *"]
+  },
+
   // Stores the short-lived 4-digit join codes for live cuppings.
   // The binding name is what worker/index.js reads as env.CUPPINGS.
   // Per-address limits on minting, looking up and joining live codes
