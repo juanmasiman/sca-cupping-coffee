@@ -373,11 +373,11 @@ input { font: inherit; color: inherit; }
   font-size: 11px;
   color: var(--text-faint);
 }
-.log-dot { padding: 0 6px; opacity: 0.6; }
+.log-dot { padding: 0 6px; }
 .log-flag {
   flex: none;
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -397,7 +397,7 @@ input { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .log-inout {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--data);
   white-space: nowrap;
@@ -410,7 +410,7 @@ input { font: inherit; color: inherit; }
    figures it joins. */
 .log-arrow {
   padding: 0 var(--space-3);
-  font-size: 19px;
+  font-size: 20px;
   color: var(--text-dim);
 }
 .log-inout small,
@@ -421,7 +421,7 @@ input { font: inherit; color: inherit; }
   padding-left: 2px;
 }
 .log-secs {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -551,7 +551,14 @@ input { font: inherit; color: inherit; }
 
 /* ---------- empty ---------- */
 
-.empty {
+/* The board's empty state is one element, #empty, and it is selected by
+   its id. It used to be the bare class `.empty` — which is also the state
+   class both apps toggle on a number field and a readout that has no
+   value yet. Every unset field inherited this block's centring and its
+   32px of padding, so a column of labels staggered (Coffee flush left,
+   Water, Time and Grind centred under it) and an empty readout grew a
+   box around its dash. Two meanings, one name. */
+#empty {
   padding: var(--space-8) var(--space-5);
   text-align: center;
 }
@@ -757,7 +764,7 @@ html.sheet-open, html.sheet-open body {
   align-items: center;
   gap: var(--space-3);
   margin: var(--space-4) 0;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -939,7 +946,9 @@ html.sheet-open, html.sheet-open body {
   padding-left: var(--space-4);
   border-left: 2px solid var(--rail);
 }
-.tip.sure { border-left-color: var(--data); }
+/* Confidence is not a value, so it does not get the data ink: the rule
+   goes from the rail's grey to the full ink, and the words say the rest. */
+.tip.sure { border-left-color: var(--text); }
 .tip-move { display: block; font-size: 15px; font-weight: 700; }
 .tip-why { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--text-dim); }
 
@@ -955,7 +964,7 @@ html.sheet-open, html.sheet-open body {
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1353,7 +1362,7 @@ select.field-input {
 .dose-list {
   margin: 0;
   padding-left: var(--space-6);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-dim);
 }
@@ -1400,7 +1409,7 @@ select.field-input {
   padding: 2px 0 2px var(--space-4);
   border-left: 2px solid var(--line);
 }
-.dose-read-label { font-size: 14px; font-weight: 700; }
+.dose-read-label { font-size: 15px; font-weight: 700; }
 .dose-read-sub { font-size: 13px; color: var(--text-dim); }
 
 /* A scale whose question has been answered another way. Dimmed rather than
@@ -1444,7 +1453,7 @@ select.field-input {
   margin-top: var(--space-3);
   padding: 0 var(--space-4);
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   background: none;
@@ -1511,7 +1520,7 @@ select.field-input {
    under it is counts and figures, and the two reading differently is what
    lets an eye run down the column looking for one or the other. */
 .coffee-row-bag {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1631,7 +1640,7 @@ select.field-input {
   gap: var(--space-3);
   margin-top: var(--space-3);
   padding: var(--space-3);
-  border-left: 2px solid var(--data);
+  border-left: 2px solid var(--rail);
   background: var(--chrome-soft);
   border-radius: 0 var(--radius) var(--radius) 0;
 }
@@ -1671,8 +1680,8 @@ select.field-input {
   font-size: 13px;
   color: var(--text-faint);
 }
-.empty .btn { margin-top: var(--space-5); width: 100%; }
-.empty .btn + .btn { margin-top: var(--space-3); }
+#empty .btn { margin-top: var(--space-5); width: 100%; }
+#empty .btn + .btn { margin-top: var(--space-3); }
 
 /* ---------- toast ---------- */
 
