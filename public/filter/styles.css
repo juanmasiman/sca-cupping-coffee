@@ -347,7 +347,6 @@
 
 /* The cup, as its own step. It reuses the disclosure the notes already
    use, so it reads as part of the same sheet rather than a new pattern. */
-.taste-step { margin-top: var(--space-5); }
 
 /* A field's own error, under it. Alert red, like a number field that
    refused what was typed; empty, it takes no room. */

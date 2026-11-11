@@ -439,7 +439,17 @@ function helpBtn(id) {
 
 function addHelp(container, id) {
   const btn = helpBtn(id);
-  if (btn) container.appendChild(btn);
+  if (!btn) return;
+  container.appendChild(btn);
+  // A button inside a heading lends its name to the heading: a screen
+  // reader announced "Team scores About the panel, heading". The heading
+  // is named by its own words; the button keeps its name as the next stop.
+  const heading = container.closest('h1, h2, h3, h4, h5, h6');
+  if (heading) {
+    const words = heading.cloneNode(true);
+    words.querySelectorAll('.help-btn').forEach(b => b.remove());
+    heading.setAttribute('aria-label', words.textContent.trim());
+  }
 }
 
 /* ============================================================
@@ -4037,19 +4047,14 @@ function buildAnchoredScale(opts) {
     Object.keys(nums).forEach(k => nums[k].classList.toggle('under', Number(k) === i));
   };
 
-  /* Under the track the readout leads with the number, because the words
-     sit between two numeric anchors and need placing. Moved up beside the
-     value — which guided-off does — the number is already there in the data
-     ink, and the knob has it too, so three of them would land in one row.
-     There it says only what the position means. */
-  const say = i => {
-    const word = wordAt(i);
-    // An intensity has no word, only a number — and beside the value that
-    // is the same number twice. Nothing, then; "not rated yet" still shows,
-    // because that one says something the value cannot.
-    if (!word) return wrap.classList.contains('scale-compact') ? '' : format(valueAt(i));
-    return wrap.classList.contains('scale-compact') ? word : `${format(valueAt(i))} · ${word}`;
-  };
+  /* The readout says only what the position means. It used to lead with
+     the number too, which put the same figure in a row three times: in
+     the card's head in the data ink, on the knob, and again here before
+     the word. The knob sits directly above this line carrying it, so the
+     word is placed without repeating it. An intensity has no word, only a
+     number, so it says nothing; "not rated yet" still shows, because that
+     one says something the value cannot. */
+  const say = i => wordAt(i) || '';
   const sayAria = i => {
     const word = wordAt(i);
     return format(valueAt(i)) + (word ? `, ${word}` : '');
@@ -4198,6 +4203,7 @@ function buildAnchoredScale(opts) {
 
 function buildCvaCard(coffee, section) {
   const card = el('div', 'attr-card');
+  card.dataset.scoreKey = section.key;
   card.innerHTML = `
     <div class="attr-head">
       <div class="attr-head-left">
@@ -4366,6 +4372,7 @@ function compactScale(card, scaleEl) {
 
 function buildScaleCard(coffee, attr) {
   const card = el('div', 'attr-card');
+  card.dataset.scoreKey = attr.key;
   card.innerHTML = `
     <div class="attr-head">
       <div class="attr-head-left">
@@ -4559,6 +4566,27 @@ function buildDefectsCard(coffee) {
 
 /* ---------- score bar ---------- */
 
+/* "3 of 8 rated" said how much was left and not where. On a sheet of
+   eight cards, the one skipped while the cup was cooling is somewhere in
+   2,000px of scales that look alike. Tapping the count goes to it: the
+   first section of this coffee with no rating, scrolled to and focused,
+   so the arrow keys or a thumb can rate it at once. */
+function jumpToNextUnrated() {
+  const c = state && state.coffees[state.activeIndex];
+  if (!c) return;
+  const sections = usingCVA() ? CVA_SECTIONS : SCALE_ATTRS;
+  const next = sections.find(a => !(c.touched && c.touched[a.key]));
+  if (!next) return;
+  const panel = $('#panels').children[state.activeIndex];
+  const card = panel && panel.querySelector(`.attr-card[data-score-key="${next.key}"]`);
+  if (!card) return;
+  haptic();
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  const track = card.querySelector('.scale-track');
+  if (track) track.focus({ preventScroll: true });
+}
+
 function updateScorebar() {
   if (!state) return;
   const c = state.coffees[state.activeIndex];
@@ -4569,9 +4597,12 @@ function updateScorebar() {
   // that looks authoritative but is mostly untouched defaults. The header
   // has room for a short grade only; the qualified one ("Very Good ·
   // Specialty") is what Results and the printed sheet carry.
-  $('#scorebar-grade').textContent = progress.complete
+  const grade = $('#scorebar-grade');
+  grade.textContent = progress.complete
     ? shortGrade(score)
     : `${progress.done} of ${progress.total} rated`;
+  // the count is also the way to what is left; finished, it is just a word
+  grade.disabled = progress.complete;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
   /* The number waits for the sheet.
 
@@ -4630,7 +4661,7 @@ function addResultsHelp() {
   const pairs = [
     ['#summary .summary-head', 'score'],
     ['#ranking-head', 'grade'],
-    ['#team-card h3', 'panel'],
+    ['#team-card h2', 'panel'],
     ['#live-table .calib .detail-label', 'calibration'],
   ];
   pairs.forEach(([sel, id]) => {
@@ -6550,6 +6581,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // setup → lineup → cupping, so backing out of the sheet lands where the
   // coffees are named rather than dumping you at the start
+  $('#scorebar-grade').addEventListener('click', jumpToNextUnrated);
+
   $('#btn-back-setup').addEventListener('click', () => {
     refreshResumeButton();
     if (state && state.coffees.length) openLineup();

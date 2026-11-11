@@ -2884,113 +2884,9 @@ function numField(opts) {
    Untouched is not a value. The knob sits at centre until somebody moves
    it, drawn hollow, and the block reads "not tasted" rather than
    "neither" — a default and a judgement are the same pixel otherwise. */
+// The scale itself is shared with the other brew sheet: shared/scale.js.
 function tasteScale(opts) {
-  const { value, onChange, words, low, high, labelledBy, empty } = opts;
-  // The middle anchor carries a value of its own — see TASTE_WORDS.
-  const wrap = el('div', 'scale');
-  wrap.innerHTML = `
-    <div class="scale-track" tabindex="0" role="slider"
-         aria-valuemin="${TASTE_MIN}" aria-valuemax="${TASTE_MAX}"
-         aria-labelledby="${labelledBy}">
-      <div class="scale-rail"></div>
-      <div class="scale-mid"></div>
-      <div class="scale-knob"></div>
-    </div>
-    <div class="scale-anchors">
-      <span>${low}</span><span class="scale-anchor-mid">${opts.mid || 'neither'}</span><span>${high}</span>
-    </div>
-    <div class="scale-readout"></div>
-  `;
-  const track = wrap.querySelector('.scale-track');
-  const knob = wrap.querySelector('.scale-knob');
-  const readout = wrap.querySelector('.scale-readout');
-  let v = typeof value === 'number' ? value : null;
-
-  const render = () => {
-    const shown = v === null ? 0 : v;
-    const pct = ((shown - TASTE_MIN) / (TASTE_MAX - TASTE_MIN)) * 100;
-    knob.style.left = `${pct}%`;
-    knob.classList.toggle('untouched', v === null);
-    track.setAttribute('aria-valuenow', shown);
-    track.setAttribute('aria-valuetext', v === null ? empty : words(v));
-    readout.textContent = v === null ? empty : words(v);
-    readout.classList.toggle('untouched', v === null);
-  };
-
-  const setFromX = clientX => {
-    const r = track.getBoundingClientRect();
-    let frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    /* A detent at the middle.
-
-       "Neither" is not one value among several — it is the answer that
-       means the wall is quiet and the app should stop moving the grinder
-       for it, and it is the one a dial-in ends on. Getting back to it took
-       a tester three attempts, landing on "a little heavy" each time. A
-       few per cent of the track either side snaps to it, which is what the
-       tick above the rail has been promising all along. */
-    if (Math.abs(frac - 0.5) < 0.045) frac = 0.5;
-    const next = Math.round(TASTE_MIN + frac * (TASTE_MAX - TASTE_MIN));
-    if (next !== v) { v = next; haptic(); render(); onChange(v); }
-    else if (v === null) { v = next; render(); onChange(v); }
-  };
-
-  /* A TOUCH DECIDES WHAT IT IS BEFORE IT WRITES ANYTHING.
-
-     The track is full-width and sits in the sheet's scroll path, and it
-     used to take every touch: `touch-action: none` and a value written on
-     pointerdown, so a thumb scrolling down the sheet that happened to
-     start on a track recorded a taste nobody gave. The track now lets the
-     page have vertical gestures (`pan-y`), and a touch writes only once
-     it has shown itself to be horizontal, or when it lifts as a tap.
-     A mouse has no scroll to steal from and still sets on press. */
-  const SLOP = 8;
-  let dragging = false;
-  let start = null;
-  track.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'mouse') {
-      dragging = true;
-      track.setPointerCapture(e.pointerId);
-      setFromX(e.clientX);
-      return;
-    }
-    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
-  });
-  track.addEventListener('pointermove', e => {
-    if (dragging) { setFromX(e.clientX); return; }
-    if (!start || e.pointerId !== start.id) return;
-    const dx = Math.abs(e.clientX - start.x), dy = Math.abs(e.clientY - start.y);
-    if (dx > SLOP && dx > dy) {
-      dragging = true;
-      try { track.setPointerCapture(e.pointerId); } catch (err) { /* already released */ }
-      setFromX(e.clientX);
-    } else if (dy > SLOP) {
-      start = null; // a scroll; the browser has it
-    }
-  });
-  track.addEventListener('pointerup', e => {
-    if (!dragging && start && e.pointerId === start.id) setFromX(start.x); // a tap
-    dragging = false;
-    start = null;
-  });
-  track.addEventListener('pointercancel', () => { dragging = false; start = null; });
-  track.addEventListener('lostpointercapture', () => { dragging = false; });
-
-  track.addEventListener('keydown', e => {
-    let next = null;
-    const from = v === null ? 0 : v;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = from - 1;
-    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = from + 1;
-    else if (e.key === 'Home') next = TASTE_MIN;
-    else if (e.key === 'End') next = TASTE_MAX;
-    else return;
-    e.preventDefault();
-    v = Math.max(TASTE_MIN, Math.min(TASTE_MAX, next));
-    render();
-    onChange(v);
-  });
-
-  render();
-  return wrap;
+  return anchoredScale(Object.assign({ min: TASTE_MIN, max: TASTE_MAX }, opts));
 }
 
 /* ============================================================
@@ -3709,6 +3605,8 @@ function stopClock(c, quiet) {
   renderReadout(c);
   sayClock(`Stopped at ${secs} seconds`);
   if (!quiet) toast(`${secs}s recorded`);
+  // the shot is in the cup: the next question is how it tastes
+  syncTasteStep();
 }
 function buildClock(c) {
   const wrap = $('#brew-clock');
@@ -3946,7 +3844,7 @@ function buildNumbers(c) {
   }));
   row.appendChild(numField({
     label: 'Time', unit: 's', value: editing.time, min: 0, max: 180, step: 1, digits: 0,
-    startAt: c.target.timeLo, onChange: v => { editing.time = v; refresh(); },
+    startAt: c.target.timeLo, onChange: v => { editing.time = v; refresh(); syncTasteStep(); },
   }));
   /* Grind belongs here, not behind a disclosure.
 
@@ -4009,7 +3907,19 @@ function buildNumbers(c) {
   }
 }
 
+// Open once there is a cup to taste or anything already said about it:
+// an edit, a shot with a time on it, or any taste answer at all.
+function syncTasteStep() {
+  const step = $('#taste-step');
+  if (!step || !editing) return;
+  const said = ['taste', 'body'].some(k => editing[k] !== null && editing[k] !== undefined)
+    || Boolean(editing.harsh) || Boolean(editing.bright);
+  if (!editingIsNew || said || num(editing.time) !== null) step.open = true;
+  else if (!editing.clock) step.open = false;
+}
+
 function buildRest(c) {
+  syncTasteStep();
   // Two walls, two questions. Asked separately because they are answered
   // separately: grind for one, ratio and dose for the other.
   buildTaste(c);

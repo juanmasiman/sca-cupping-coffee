@@ -393,9 +393,16 @@ input, textarea, select { font: inherit; }
 .cupping-title-name {
   font-size: 17px;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.2;
+  /* Two lines before it gives up. On one, a 360px phone cut "Ethiopia Guji
+     Hambela" to "Ethiopia Guj…", and the name is how a cupper knows which
+     cup is in front of them. The header grows by a line for a long name
+     and stays as it was for a short one. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .cupping-title-sub {
   font-size: 11px;
@@ -1457,6 +1464,26 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   letter-spacing: 0.01em;
 }
 .scorebar-score.pulse { animation: bump 0.3s var(--settle); }
+/* The count is a button while there is something left to rate. It keeps
+   the line's own type and colour; a dotted underline is the only sign, so
+   the header does not grow a control's chrome. The target reaches 44px
+   tall without the row moving. */
+.scorebar-jump {
+  position: relative;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.scorebar-jump::after { content: ''; position: absolute; inset: -16px -6px; }
+.scorebar-jump:disabled { cursor: default; text-decoration: none; }
+.scorebar-jump:disabled::after { display: none; }
+.scorebar-jump:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 /* ============================================================
    RESULTS

@@ -60,6 +60,12 @@
     </button>
   </header>
 
+  <!-- First in the source, last on screen (CSS order). It came after the
+       whole log in the tab order, so reaching the one action the board
+       exists for meant tabbing through every card first. -->
+  <div class="board-action">
+    <button id="btn-log" class="btn btn-primary">Log a shot</button>
+  </div>
   <main class="board-scroll" id="board-scroll">
     <!-- The coffee's name is the page's heading. It was carried only by the
          header button, so the board had no heading at all and nothing to
@@ -92,9 +98,6 @@
     <div class="board-footpad"></div>
   </main>
 
-  <div class="board-action">
-    <button id="btn-log" class="btn btn-primary">Log a shot</button>
-  </div>
 </section>
 
 <!-- ============ THE SHOT SHEET ============ -->
@@ -148,6 +151,13 @@
       </div>
 
 
+      <!-- The cup, as its own step, the way filter has it. It is closed
+           while you are weighing and pulling, opens itself when the clock
+           stops, and is open whenever there is anything in it. See
+           buildRest. -->
+      <details class="more taste-step" id="taste-step">
+        <summary>How it tasted</summary>
+        <div class="more-body">
       <!-- Two walls, asked separately. Grind answers the first; ratio and
            dose answer the second. Asking them as one "how was it" is what
            makes espresso advice feel like guesswork. -->
@@ -183,6 +193,8 @@
         <span class="field-label" id="body-label">How does it feel?</span>
         <div id="body-scale"></div>
       </div>
+        </div>
+      </details>
 
       <!-- The live advice, after every observation it reads rather than
            above them.
@@ -411,6 +423,7 @@
 <script src="/shared/temp.js"></script>
 <script src="/shared/beans.js"></script>
 <script src="/shared/grind.js"></script>
+<script src="/shared/scale.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

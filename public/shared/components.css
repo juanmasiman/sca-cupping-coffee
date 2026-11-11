@@ -577,6 +577,8 @@ input { font: inherit; color: inherit; }
    thumb-comfortable band on a phone and the action this app exists for
    belongs in it. */
 .board-action {
+  /* sits before the log in the source, for the tab order; drawn after it */
+  order: 1;
   padding: var(--space-4) var(--space-5) calc(var(--sab) + var(--space-4));
   background: var(--bg-raise);
   border-top: 1px solid var(--line);
@@ -954,16 +956,18 @@ html.sheet-open, html.sheet-open body {
 
 /* What to try next. Two shapes, because the app gives two kinds of
    answer: an instruction when grind is the variable, and a list when it is
-   not. The difference is carried by the words and by the rule down the
-   side, never by colour alone. */
+   not. The difference is carried by the words and by the rule above it,
+   never by colour alone. The rule used to run down the left side, a
+   stripe DESIGN.md bans; a hairline across the top separates the advice
+   from what it reads without dressing it as a callout. */
 .tip {
   margin-top: var(--space-4);
-  padding-left: var(--space-4);
-  border-left: 2px solid var(--rail);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 /* Confidence is not a value, so it does not get the data ink: the rule
-   goes from the rail's grey to the full ink, and the words say the rest. */
-.tip.sure { border-left-color: var(--text); }
+   goes from the line's grey to the full ink, and the words say the rest. */
+.tip.sure { border-top-color: var(--text); }
 .tip-move { display: block; font-size: 15px; font-weight: 700; }
 .tip-why { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--text-dim); }
 
@@ -1002,6 +1006,8 @@ html.sheet-open, html.sheet-open body {
 /* ---------- the scale ---------- */
 
 .taste-block, .verdict-block { display: flex; flex-direction: column; gap: var(--space-3); }
+/* the cup, as its own step on both brew sheets */
+.taste-step { margin-top: var(--space-5); }
 
 .field-label {
   font-size: 11px;
@@ -1243,16 +1249,15 @@ html.sheet-open, html.sheet-open body {
 .log-run { font-size: 13px; color: var(--text); }
 /* A disagreement between what you meant and what moved is the one thing on
    this card worth interrupting for, and it earns that with a rule rather
-   than a colour — the same two shapes the suggestion uses. */
+   than a colour — the same hairline the suggestion uses. */
 .log-mismatch {
-  padding-left: var(--space-4);
-  border-left: 2px solid var(--rail);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
 }
-/* Never a stripe inside a stripe — but only where there genuinely is one.
-   Measured: in the shot sheet and on the board this note is a SIBLING of
-   the advice card, not a child of it, so it keeps its own rule there and
-   reads as the separate observation it is. Scoped to real nesting. */
-.tip .log-mismatch { border-left: 0; padding-left: 0; }
+/* Never a rule inside a rule — only where there genuinely is one. In the
+   shot sheet and on the board this note is a SIBLING of the advice card,
+   not a child of it, so it keeps its own rule there. */
+.tip .log-mismatch { border-top: 0; padding-top: 0; }
 
 /* ---------- verdict ---------- */
 
@@ -1417,14 +1422,14 @@ select.field-input {
    dose to move, and got nothing at all: no highlight, no toast, no change.
    Nothing was broken; the row had simply promised to be a button.
 
-   No box, no cursor, a rule down the left instead. It reads as a list of
-   observations, which is what it is. */
+   No box, no cursor, and no stripe down the side either: set as plain
+   lines of text it reads as a list of observations, which is what it
+   is. */
 .dose-read {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 0 2px var(--space-4);
-  border-left: 2px solid var(--line);
+  padding: 2px 0;
 }
 .dose-read-label { font-size: 15px; font-weight: 700; }
 .dose-read-sub { font-size: 13px; color: var(--text-dim); }
