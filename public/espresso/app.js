@@ -925,6 +925,11 @@ function daysSinceRoast(c) {
 function newCoffee(name) {
   return {
     id: uid(),
+    /* Tombstones for removed records. migrate() adds it on load, so a
+       coffee only ever lacked it between being added and the next reload
+       — and removing a record in that window threw, leaving it on the
+       board. */
+    dead: {},
     name: (name || '').trim(),
     roaster: '',
     roastDate: '',
@@ -3008,7 +3013,7 @@ function renderBoard() {
      only by WCAG's exemption for inactive components. A button that does
      the next thing needs no exemption. */
   const logBtn = $('#btn-log');
-  logBtn.textContent = c ? 'Log a shot' : 'Add a coffee';
+  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the shot' : 'Log a shot';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -3234,6 +3239,20 @@ function renderTarget(c) {
   });
 }
 
+/* Shot numbers that stay put, as the brew log's do. A card was numbered
+   by its place in the list, so removing shot 2 made shot 3 into shot 2
+   and "shot 3 was the one" stopped being true. Each shot keeps the number
+   it was given; older shots get one in the order they were pulled. */
+function numberShots(c) {
+  let top = 0;
+  (c.shots || []).forEach(sh => { if (num(sh.n) !== null && sh.n > top) top = sh.n; });
+  (c.shots || []).forEach(sh => { if (num(sh.n) === null) sh.n = ++top; });
+  return top;
+}
+function shotNumber(c, shot) {
+  return num(shot.n) !== null ? shot.n : c.shots.indexOf(shot) + 1;
+}
+
 function renderShots(c) {
   const list = $('#shots');
   list.innerHTML = '';
@@ -3278,13 +3297,14 @@ function renderShots(c) {
     return;
   }
 
+  numberShots(c);
   const rows = shotsNewestFirst(c);
   rows.forEach((shot, i) => {
     // the shot before this one in time, which is what "changed" means
     const prev = rows[i + 1] || null;
     // The advice is not on these cards at all — it is one card, at the top
     // of the board, about the next shot. See renderNext.
-    list.appendChild(shotCard(shot, prev, c, rows.length - i));
+    list.appendChild(shotCard(shot, prev, c, shotNumber(c, shot)));
   });
 }
 
@@ -3538,13 +3558,226 @@ let editingIsNew = false;
 let carriedSeed = '';
 let editingSeed = '';
 
+/* CLOSING NEVER THROWS A SHOT AWAY.
+
+   The brew log learned this first, and the dial-in is the same scene with
+   a hotter machine: one wet hand, a thumb that misses and lands on the
+   backdrop, a phone that kills the tab while the next shot pulls. Closing
+   used to stop on a native confirm(), and a reload dropped the sheet
+   without a word. Now a sheet with work on it is kept as a draft — one
+   per coffee for a new shot, one per shot for an edit — in its own key,
+   never synced. "Log a shot" becomes "Continue the shot" and picks it up;
+   opening an edited shot brings its changes back; the sheet that was open
+   when the page died reopens on boot. The sheet says when it is a draft
+   and offers the one way to let it go. Three days of nobody coming back
+   lets it go too. */
+const DRAFTS_KEY = 'lento-espresso-drafts-v1';
+const DRAFT_LIFE = 3 * 24 * 3600 * 1000;
+let draftAt = '';
+
+function readDrafts() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}');
+    return d && typeof d === 'object' ? d : {};
+  } catch (e) { return {}; }
+}
+function writeDrafts(d) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(d)); } catch (e) { /* storage full or blocked */ }
+}
+const draftKeyFor = (c, shot) => `${c.id}:${shot ? shot.id : 'new'}`;
+function findDraft(key) {
+  const d = readDrafts()[key];
+  if (!d) return null;
+  if (!d.at || Date.now() - d.at > DRAFT_LIFE) { dropDraft(key); return null; }
+  return d;
+}
+function dropDraft(key) {
+  if (!key) return;
+  const d = readDrafts();
+  if (key in d) { delete d[key]; writeDrafts(d); }
+}
+function sheetHasWork() {
+  if (!editing) return false;
+  if (editingIsNew) return shotHasContent() || Boolean(editing.clock);
+  return Boolean(editingSeed) && JSON.stringify(editing) !== editingSeed;
+}
+function writeDraft(open) {
+  const c = activeCoffee();
+  if (!editing || !c || !draftAt) return;
+  if (open === undefined && $('#shot-modal').classList.contains('hidden')) return;
+  const d = readDrafts();
+  if (sheetHasWork()) {
+    d[draftAt] = {
+      coffee: c.id, isNew: editingIsNew, shotId: editingIsNew ? null : editing.id,
+      shot: editing, seed: editingSeed, carriedSeed, at: Date.now(),
+      open: open === undefined ? true : open,
+    };
+  } else {
+    delete d[draftAt];
+  }
+  writeDrafts(d);
+}
+const hasNewDraft = c => Boolean(c && findDraft(draftKeyFor(c, null)));
+function restoreDraft() {
+  const all = readDrafts();
+  const open = Object.keys(all).filter(k => all[k] && all[k].open)
+    .sort((a, b) => (all[b].at || 0) - (all[a].at || 0))[0];
+  if (!open) return;
+  const d = findDraft(open);
+  if (!d) return;
+  const c = shelfCoffees().find(x => x.id === d.coffee);
+  if (!c) { dropDraft(open); return; }
+  state.activeId = c.id;
+  renderBoard();
+  if (d.isNew) openShot(null);
+  else {
+    const shot = c.shots.find(x => x.id === d.shotId);
+    if (!shot) { dropDraft(open); return; }
+    openShot(shot);
+  }
+  toast('Back where you left this shot');
+}
+function revertTo(target, seed) {
+  try {
+    const back = JSON.parse(seed);
+    Object.keys(target).forEach(k => { if (!(k in back)) delete target[k]; });
+    Object.assign(target, back);
+  } catch (e) { /* keep what is there */ }
+}
+// The line at the top of a sheet that came back from a draft, and the one
+// way to let it go.
+function showDraftNote(shot, fromDraft) {
+  const note = $('#draft-note');
+  if (!note) return;
+  note.classList.toggle('hidden', !fromDraft);
+  if (!fromDraft) { note.innerHTML = ''; return; }
+  note.innerHTML = `<span>${shot ? 'Changes you had not saved, back where you left them.' : 'The shot you had not saved, back where you left it.'}</span>`;
+  const b = el('button', 'draft-drop', shot ? 'Discard the changes' : 'Start a fresh shot');
+  b.type = 'button';
+  b.addEventListener('click', () => {
+    haptic();
+    dropDraft(draftAt);
+    if (shot && editingSeed) revertTo(shot, editingSeed);
+    holdScreen(false);
+    openShot(shot || null);
+  });
+  note.appendChild(b);
+}
+
+/* THE SHOT CLOCK.
+
+   The time is the number every piece of advice on this board reasons
+   from, and it was read off the machine's display or a phone timer and
+   typed in afterwards. Start it as the pump starts; Stop writes the time.
+   A Stop pressed by mistake can be taken back — Resume restores the same
+   clock, counting from the same start, because the shot did not pause.
+   It lives on the shot as `clock` while it runs, so a reload keeps it
+   running, and it never reaches the log. It stays pinned to the top of
+   the sheet while it runs, and keeps the screen awake. */
+let clockTick = null;
+let wakeLock = null;
+function clockMs() {
+  return editing && editing.clock ? Math.max(0, Date.now() - editing.clock.start) : 0;
+}
+function holdScreen(on) {
+  try {
+    if (on && navigator.wakeLock && !wakeLock) {
+      navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(() => {});
+    } else if (!on && wakeLock) {
+      wakeLock.release().catch(() => {}); wakeLock = null;
+    }
+  } catch (e) { /* not everywhere, and never essential */ }
+}
+// Tenths while it runs, because a shot is decided in seconds and the
+// eye wants to see the clock move; whole seconds once it is recorded,
+// because that is the precision the time field and the advice use.
+const clockText = ms => `${(ms / 1000).toFixed(1)}`;
+function sayClock(msg) {
+  const live = $('#clock-said');
+  if (live) live.textContent = msg;
+}
+function stopClock(c, quiet) {
+  if (!editing || !editing.clock) return;
+  const secs = Math.round(clockMs() / 1000);
+  editing.clockWas = editing.clock;
+  delete editing.clock;
+  holdScreen(false);
+  editing.time = secs;
+  buildClock(c);
+  buildNumbers(c);
+  buildVerdict(c);
+  renderReadout(c);
+  sayClock(`Stopped at ${secs} seconds`);
+  if (!quiet) toast(`${secs}s recorded`);
+}
+function buildClock(c) {
+  const wrap = $('#brew-clock');
+  if (!wrap) return;
+  clearInterval(clockTick);
+  const running = Boolean(editing.clock);
+  wrap.classList.toggle('running', running);
+  wrap.classList.toggle('timed', !running && num(editing.time) !== null);
+  wrap.classList.toggle('idle', !running && num(editing.time) === null);
+  const shown = running ? clockText(clockMs()) : (num(editing.time) === null ? '0' : String(num(editing.time)));
+  wrap.innerHTML = `
+    <div class="clock-row">
+      <span class="clock-face" role="timer" aria-label="Shot time">${shown}<small>s</small></span>
+      <span class="clock-actions"></span>
+    </div>`;
+  const face = wrap.querySelector('.clock-face');
+  const actions = wrap.querySelector('.clock-actions');
+  const button = (cls, text, fn) => {
+    const b = el('button', 'btn ' + cls, escapeHTML(text));
+    b.type = 'button';
+    b.addEventListener('click', () => { haptic(); fn(); });
+    actions.appendChild(b);
+  };
+  if (running) {
+    // One button, the full width: there is nothing to stamp during a
+    // shot, so Stop is the only thing to press and it should be easy.
+    button('btn-primary clock-stop-wide', 'Stop', () => stopClock(c));
+    holdScreen(true);
+    clockTick = setInterval(() => {
+      if (!editing || !editing.clock || $('#shot-modal').classList.contains('hidden')) {
+        clearInterval(clockTick);
+        return;
+      }
+      face.firstChild.textContent = clockText(clockMs());
+    }, 100);
+  } else {
+    if (editing.clockWas) {
+      button('btn-ghost clock-resume', 'Resume', () => {
+        editing.clock = editing.clockWas;
+        delete editing.clockWas;
+        sayClock('Resumed');
+        buildClock(c);
+        writeDraft();
+      });
+    }
+    button('btn-ghost clock-start', num(editing.time) !== null ? 'Time it again' : 'Start the clock', () => {
+      delete editing.clockWas;
+      editing.clock = { start: Date.now() };
+      sayClock('Started');
+      buildClock(c);
+      writeDraft();
+    });
+  }
+}
+
 function openShot(shot) {
   const c = activeCoffee();
   if (!c) return;
   const last = c.shots[c.shots.length - 1] || null;
+  draftAt = draftKeyFor(c, shot);
+  const d = findDraft(draftAt);
 
   editingIsNew = !shot;
-  editing = shot || {
+  if (shot && d) {
+    // The seed is the record as saved; the draft goes on top of it.
+    editingSeed = d.seed || JSON.stringify(shot);
+    revertTo(shot, JSON.stringify(d.shot));
+  }
+  editing = shot || (d && d.shot) || {
     id: uid(),
     at: Date.now(),
     // A dial-in holds the dose still and moves the grind, so the dose
@@ -3575,16 +3808,17 @@ function openShot(shot) {
     tds: null,
   };
   if (editing.grind === undefined) editing.grind = '';
-  carriedSeed = carriedOf(editing);
+  carriedSeed = d && d.carriedSeed ? d.carriedSeed : carriedOf(editing);
   /* What the shot looked like when the sheet opened, so closing an edit
      can tell whether anything was changed. A tester opened a saved shot,
      changed its time, closed with the X, and the change was gone without a
      word — the guard only covered new sheets. The fields on an existing
      shot are edited in place, so by the time the X is tapped the object is
      already different from the log; the snapshot is the only way back. */
-  editingSeed = JSON.stringify(editing);
+  if (!(shot && d)) editingSeed = JSON.stringify(editing);
+  showDraftNote(shot, Boolean(d));
 
-  $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${c.shots.indexOf(shot) + 1}`;
+  $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${shotNumber(c, shot)}`;
   /* Remove this shot.
 
      There was no way to. A mis-logged shot is not a small problem in a
@@ -3597,16 +3831,24 @@ function openShot(shot) {
   del.onclick = () => {
     const i = c.shots.indexOf(shot);
     if (i < 0) return;
-    if (!confirm(`Remove shot ${i + 1}? It goes out of the log and out of the comparison with the shots either side of it.`)) return;
+    // Removed at once, with the Undo below, rather than behind a confirm():
+    // the toast already makes it reversible, and the dialog was the one
+    // native prompt left on the sheet. Unsaved changes are put back first,
+    // so Undo restores the shot that was logged.
+    if (editingSeed) revertTo(shot, editingSeed);
     const gone = c.shots[i];
+    const gn = shotNumber(c, gone);
     c.shots.splice(i, 1);
     // Written down, so a sync does not hand it back. See migrate().
     if (gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
+    dropDraft(draftAt);
+    draftAt = '';
+    holdScreen(false);
     closeModal('#shot-modal');
     renderBoard();
-    toast('Shot removed', {
-      after: 'Shot back in the log',
+    toast(`Shot ${gn} removed`, {
+      after: `Shot ${gn} is back`,
       restore: () => {
         c.shots.splice(Math.min(i, c.shots.length), 0, gone);
         if (gone.id) delete c.dead[gone.id];
@@ -3616,6 +3858,7 @@ function openShot(shot) {
   };
   buildShotSheet(c);
   openModal('#shot-modal');
+  writeDraft();
 }
 
 /* Has anything been put on this sheet?
@@ -3654,48 +3897,39 @@ function shotHasContent() {
   return typed || carriedOf(editing) !== carriedSeed;
 }
 
+/* Closing never asks and never discards — see CLOSING NEVER THROWS A
+   SHOT AWAY. An edit is taken back off the record, so the log holds only
+   what was saved, and comes back when the shot is opened again. */
 function closeShotSheet() {
-  const dirty = editingIsNew
-    ? shotHasContent()
-    : (editing && JSON.stringify(editing) !== editingSeed);
-  if (dirty && !confirm(editingIsNew
-    ? 'Close without saving? What you have put on this sheet goes with it.'
-    : 'Close without saving? The changes you have made to this shot go with it.')) return;
-  /* An abandoned edit must not leave its changes in the log.
-
-     `editing` IS the stored object on an existing shot, so the fields were
-     being written straight into the record and only the save was optional.
-     Closing therefore had to put it back, which it never did — it worked
-     only because renderBoard read from `state`, which had not been saved;
-     any later save of anything else would have written the abandoned edit
-     to disk with it. */
-  if (!editingIsNew && editing && editingSeed) {
-    try {
-      const back = JSON.parse(editingSeed);
-      // Keys added during the edit have to go too, not just keys changed:
-      // JSON.stringify drops undefined, so the snapshot cannot clear them.
-      const undone = JSON.stringify(editing);
-      const target = editing;
-      Object.keys(editing).forEach(k => { if (!(k in back)) delete editing[k]; });
-      Object.assign(editing, back);
-      if (dirty) {
-        toast('Changes discarded', {
-          after: 'Changes back',
-          restore: () => {
-            const redo = JSON.parse(undone);
-            Object.keys(target).forEach(k => { if (!(k in redo)) delete target[k]; });
-            Object.assign(target, redo);
-            save();
-          },
-        });
-      }
-    } catch (e) { /* keep what is there */ }
+  const c = activeCoffee();
+  holdScreen(false);
+  // A focused field commits on blur, and Escape closes before that blur
+  // arrives — so blur first, or the value lands on a record already put back.
+  const focused = document.activeElement;
+  if (focused && $('#shot-modal').contains(focused) && focused.blur) focused.blur();
+  if (sheetHasWork()) {
+    writeDraft(false);
+    draftAt = '';
+    const n = !editingIsNew && c ? shotNumber(c, editing) : null;
+    if (!editingIsNew && editingSeed) revertTo(editing, editingSeed);
+    closeModal('#shot-modal');
+    renderBoard();
+    toast(n === null ? 'Kept as a draft — Log a shot picks it up' : `Shot ${n}: changes kept — open it to finish`);
+    return;
   }
+  dropDraft(draftAt);
+  draftAt = '';
   closeModal('#shot-modal');
   renderBoard();
 }
 
 function buildShotSheet(c) {
+  buildClock(c);
+  buildNumbers(c);
+  buildRest(c);
+}
+
+function buildNumbers(c) {
   const row = $('#num-row');
   row.innerHTML = '';
   /* The numbers feed the verdict row as well as the readout: the keeper
@@ -3758,7 +3992,24 @@ function buildShotSheet(c) {
     min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
     startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
   }));
+  /* THE READING, WITH THE OTHER MEASUREMENTS.
 
+     The TDS field sat in the collapsed drawer beside the basket name,
+     so somebody who owns a refractometer — the one person for whom
+     extraction is the number — had to open a disclosure on every shot to
+     give it. It is a measurement taken at the bar, like the yield, so it
+     sits with the numbers when a refractometer is on the shelf. The
+     range is espresso's: a shot reads around 8–12 %, two decimals on a
+     refractometer's display. */
+  if (hasTds()) {
+    row.appendChild(numField({
+      label: 'TDS', unit: '%', value: num(editing.tds), min: 0, max: 25, step: 0.05, digits: 2,
+      startAt: 9.5, onChange: v => { editing.tds = v; refresh(); },
+    }));
+  }
+}
+
+function buildRest(c) {
   // Two walls, two questions. Asked separately because they are answered
   // separately: grind for one, ratio and dose for the other.
   buildTaste(c);
@@ -4011,8 +4262,7 @@ function buildMore(c) {
     // Notes left this drawer for the sheet itself, so the summary stops
     // advertising them.
     bits.push('basket');
-    summary.textContent = `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())}${
-      hasTds() ? ' and the reading' : ''}`;
+    summary.textContent = bits.join(', ').replace(/^./, ch => ch.toUpperCase());
   }
   body.innerHTML = `
     <div class="more-grid">
@@ -4027,8 +4277,6 @@ function buildMore(c) {
             either ask or do not. */ ''}
       ${seesPressure() ? `<label class="field"><span class="field-label">${canSetPressure() ? 'Pressure / flow' : 'What the gauge read'}</span>
         <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="${canSetPressure() ? 'e.g. 6 bar, 2ml/s' : 'e.g. 9 bar, steady'}"></label>` : ''}
-      ${hasTds() ? `<label class="field"><span class="field-label">TDS %</span>
-        <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
     <!-- Out of the two-column grid, because it holds a name rather than a
          number. On a machine with one temperature and no pressure gauge it
@@ -4056,12 +4304,11 @@ function buildMore(c) {
   bind('#f-temp', 'temp', false);
   bind('#f-press', 'press', false);
   bind('#f-basket', 'basket', false);
-  bind('#f-tds', 'tds', true);
 
   // Open it and it stays open — whatever is in here, somebody who filled it
   // in on the last shot is filling it in on this one.
   const more = $('#more');
-  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.tds);
+  more.open = Boolean(editing.temp || editing.press || editing.basket);
 }
 
 /* The question the notes field is asking, which is not always the same one.
@@ -4174,19 +4421,33 @@ function badFields(sel) {
 function saveShot() {
   const c = activeCoffee();
   if (!c) return;
+  // A running clock is the time not yet written down; saving stops it.
+  if (editing && editing.clock) stopClock(c, true);
   const bad = badFields('#shot-modal');
   if (bad.length) {
     haptic();
     toast(`${listWords(bad)} ${bad.length === 1 ? 'has' : 'have'} something in ${bad.length === 1 ? 'it' : 'them'} the app cannot read — fix or clear ${bad.length === 1 ? 'it' : 'them'} first`);
     return;
   }
-  if (!isComplete(editing) && editingIsNew) {
-    const missing = missingFields(editing);
-    // Saving a half-recorded shot is allowed — a bar is a bar, and a shot
-    // you only timed is still evidence. It is marked, not refused.
-    toast(`Saved without ${missing.join(' or ')}`);
+  /* A sheet with nothing on it is not a shot. The carried-over dose and
+     grind arrive by themselves and say nothing about whether a shot was
+     pulled. A half-recorded shot is still allowed; a blank one is turned
+     back with what would make it a record. */
+  if (editingIsNew && !shotHasContent()) {
+    haptic();
+    toast('Nothing recorded yet — add the yield, the time or how it tasted');
+    return;
   }
   const wasNew = editingIsNew;
+  if (wasNew) editing.n = numberShots(c) + 1;
+  const n = shotNumber(c, editing);
+  // Saving a half-recorded shot is allowed — a bar is a bar, and a shot
+  // you only timed is still evidence. It is marked, not refused; and
+  // either way the save is said, because the toast is the live region.
+  const saidSaved = isComplete(editing)
+    ? `Shot ${n} saved`
+    : `Shot ${n} saved without ${missingFields(editing).join(' or ')}`;
+  delete editing.clockWas; // working state of the sheet, never the record
   if (wasNew) c.shots.push(editing);
   /* One recipe to a coffee.
 
@@ -4213,6 +4474,9 @@ function saveShot() {
     });
   }
   save();
+  dropDraft(draftAt);
+  draftAt = '';
+  holdScreen(false);
   closeModal('#shot-modal');
   renderBoard();
   if (replaced) {
@@ -4230,8 +4494,9 @@ function saveShot() {
   if (wasNew) {
     const first = $('#shots') && $('#shots').firstElementChild;
     if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    toast(saidSaved);
   } else {
-    toast('Shot updated');
+    toast(`Shot ${n} updated`);
   }
 }
 
@@ -5684,6 +5949,14 @@ function wire() {
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
   $('#shot-close').addEventListener('click', closeShotSheet);
+  // Every change on the sheet is written to its draft on the next tick,
+  // after the field's own handler has updated `editing`. The listeners are
+  // wrapped so an event is never read as writeDraft's `open` flag.
+  const shotModal = $('#shot-modal');
+  ['input', 'change', 'click', 'keyup', 'pointerup'].forEach(t =>
+    shotModal.addEventListener(t, () => setTimeout(() => writeDraft(), 0)));
+  window.addEventListener('pagehide', () => writeDraft());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) writeDraft(); });
   /* The taste guide, opened from the taste question rather than from
      Settings. The shot sheet stays open underneath: this is a reference
      consulted mid-answer, not a detour. */
@@ -5774,6 +6047,7 @@ function boot() {
   }
   wire();
   renderBoard();
+  restoreDraft();
   /* An OAuth return lands as a fragment on this URL, so it is consumed
      before anything else can rewrite the address bar. Then a sync, which
      is a no-op signed out. */

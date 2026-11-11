@@ -108,6 +108,14 @@
     </div>
 
     <div class="sheet-scroll">
+      <!-- Shown only on a sheet that came back from a draft. See showDraftNote. -->
+      <div class="draft-note hidden" id="draft-note"></div>
+
+      <!-- THE SHOT CLOCK. Start it with the pump; Stop writes the time.
+           Built by buildClock. -->
+      <div class="brew-clock" id="brew-clock"></div>
+      <span class="sr-only" id="clock-said" aria-live="polite"></span>
+
       <!-- The three numbers. Everything computed on this screen comes from
            these and nothing else. -->
       <div class="num-row" id="num-row"></div>
