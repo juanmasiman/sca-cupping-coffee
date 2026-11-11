@@ -32,6 +32,7 @@
 <body>
 
   <!-- ============ SETUP SCREEN ============ -->
+  <main id="app">
   <section id="screen-setup" class="screen active">
     <div class="setup-inner">
       <!-- Up to the other tools. Top-left, opposite the profile, and only
@@ -156,7 +157,7 @@
       <button id="btn-lineup-back" class="icon-btn" aria-label="Back to setup">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>The lineup</h2>
+      <h1>The lineup</h1>
       <button id="btn-lineup-paste" class="icon-btn" aria-label="Paste a list of coffees">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M18 10v8M14 14h8" stroke-width="2.2"/></svg>
       </button>
@@ -178,7 +179,7 @@
   <!-- ============ CUPPING SCREEN ============ -->
   <section id="screen-cupping" class="screen">
     <header class="cupping-header">
-      <button id="btn-back-setup" class="icon-btn" aria-label="Back to setup">
+      <button id="btn-back-setup" class="icon-btn" aria-label="Back to the lineup">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="cupping-title">
@@ -250,7 +251,7 @@
       <button id="btn-back-cupping" class="icon-btn" aria-label="Back to cupping">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>Results</h2>
+      <h1>Results</h1>
       <button id="btn-share" class="icon-btn" aria-label="Share results">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3v13M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -272,7 +273,7 @@
              leader reading down the screen took it for the panel's shape —
              it is this device's sheet, like the summary and the ranking
              either side of it, and only the title can say so. -->
-        <h3 id="radar-head">Sensory profile</h3>
+        <h2 id="radar-head">Sensory profile</h2>
         <div id="radar-wrap"></div>
         <div class="radar-legend" id="radar-legend"></div>
         <!-- Why there are seven spokes, and which sheets are not on the
@@ -281,7 +282,7 @@
       </div>
       <!-- Named, because the card above it is the table's and this one is
            yours, and nothing used to say which was which. -->
-      <h3 class="ranking-head" id="ranking-head">Coffee by coffee</h3>
+      <h2 class="ranking-head" id="ranking-head">Coffee by coffee</h2>
       <div class="ranking" id="ranking"></div>
       <!-- One stack, one measure. These two used to be loose siblings: the
            first carried .export-btn (its own margins and width) and the
@@ -304,7 +305,7 @@
       <button id="btn-present-back" class="icon-btn" aria-label="Back to results">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>Present</h2>
+      <h1>Present</h1>
       <button id="btn-present-all" class="finish-btn">Reveal all</button>
     </header>
 
@@ -322,7 +323,7 @@
       <button id="btn-back-history" class="icon-btn" aria-label="Back to setup">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>History</h2>
+      <h1>History</h1>
       <span class="icon-btn" aria-hidden="true"></span>
     </header>
 
@@ -335,18 +336,18 @@
         <div class="stats-row" id="stats-row"></div>
 
         <div class="hist-search-wrap">
-          <input id="history-search" class="detail-field" type="search" placeholder="Search flavors, farms, notes…" autocomplete="off">
+          <input id="history-search" class="detail-field" type="search" placeholder="Search flavors, farms, notes…" autocomplete="off" aria-label="Search history">
           <span class="hist-hits" id="history-hits"></span>
         </div>
 
         <div class="hist-section">
-          <h3 class="hist-title">Average score by</h3>
+          <h2 class="hist-title">Average score by</h2>
           <div class="seg" id="dim-seg"></div>
           <div class="group-list" id="group-list"></div>
         </div>
 
         <div class="hist-section">
-          <h3 class="hist-title">Recent coffees</h3>
+          <h2 class="hist-title">Recent coffees</h2>
           <div class="hist-list" id="hist-list"></div>
         </div>
 
@@ -358,6 +359,7 @@
       <div class="results-footpad"></div>
     </div>
   </section>
+  </main>
 
   <datalist id="process-list">
     <option value="Washed"></option>
@@ -382,7 +384,7 @@
 
   <div id="wheel-modal" class="modal hidden">
     <div class="modal-sheet wheel-sheet">
-      <h3>Flavor wheel</h3>
+      <h2>Flavor wheel</h2>
       <p class="modal-hint" id="wheel-hint">Inner ring ticks a descriptor on the Describe form — up to 5, as the standard allows. Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.</p>
       <!-- The wheel opens whole, the way a paper one is read: take it all
            in, then lean closer. Zoom scrolls rather than reflows, so the
@@ -404,7 +406,7 @@
 
   <div id="help-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3 id="help-title"></h3>
+      <h2 id="help-title"></h2>
       <p class="help-body" id="help-body"></p>
       <!-- The guided-mode switch used to exist only on the setup screen —
            which a cupper who joined by scanning a QR code never passes
@@ -430,7 +432,7 @@
 
   <div id="join-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3>Join a cupping</h3>
+      <h2>Join a cupping</h2>
       <p class="modal-hint">Enter the 4-digit code from the cupping leader.</p>
       <div class="pin-boxes" id="pin-boxes" role="group" aria-label="Cupping code"></div>
       <p class="pin-error" id="pin-error"></p>
@@ -444,7 +446,7 @@
 
   <div id="name-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3>What’s your name?</h3>
+      <h2>What’s your name?</h2>
       <!-- What you are about to join, before you commit to it. Joining
            replaces whatever is on this device, and the sheet used to ask
            for a name without once saying what was on the other end. -->
@@ -460,7 +462,7 @@
 
   <div id="otp-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3>Check your email</h3>
+      <h2>Check your email</h2>
       <p class="modal-hint">Sent to <strong id="otp-where"></strong>. Enter the 6-digit code below, or just tap the sign-in link in the email — either works. Check junk if it hasn’t arrived.</p>
       <div class="pin-boxes" id="otp-boxes" role="group" aria-label="Sign-in code"></div>
       <p class="pin-error" id="otp-error"></p>
@@ -478,7 +480,7 @@
 
   <div id="share-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3 id="share-title">Invite cuppers</h3>
+      <h2 id="share-title">Invite cuppers</h2>
       <!-- Asked here because this is the moment the leader becomes a name on
            everyone else's screen. It used to live only on Results, which is
            after the cupping: the roster read "Host" for the whole session
@@ -531,7 +533,7 @@
        product exists for. -->
   <div id="confirm-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3 id="confirm-title"></h3>
+      <h2 id="confirm-title"></h2>
       <p class="modal-hint" id="confirm-body"></p>
       <ul class="confirm-effects" id="confirm-effects"></ul>
       <div class="modal-actions">
@@ -543,7 +545,7 @@
 
   <div id="modal" class="modal hidden">
     <div class="modal-sheet">
-      <h3 id="modal-title">Paste code</h3>
+      <h2 id="modal-title">Paste code</h2>
       <p id="modal-hint" class="modal-hint"></p>
       <textarea id="modal-input" class="modal-input" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
       <div class="modal-actions">

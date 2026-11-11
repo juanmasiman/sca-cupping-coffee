@@ -979,7 +979,7 @@ function openAccountSheet() {
   if (auth && auth.user) {
     const initial = (auth.user.name || auth.user.email || '?').trim()[0].toUpperCase();
     sheet.innerHTML = `
-      <h3>Your profile</h3>
+      <h2>Your profile</h2>
       <div class="account-user">
         <div class="account-avatar">${auth.user.avatar ? `<img src="${escapeHTML(auth.user.avatar)}" alt="">` : escapeHTML(initial)}</div>
         <div class="account-user-info">
@@ -1003,7 +1003,7 @@ function openAccountSheet() {
     };
   } else if (cloudEnabled()) {
     sheet.innerHTML = `
-      <h3>Keep your history everywhere</h3>
+      <h2>Keep your history everywhere</h2>
       <p class="modal-hint">We’ll email you a 6-digit code — no password. Your cuppings then back up and follow you across devices. Joining a cupping and scoring never requires an account.</p>
       <div class="auth-buttons">
         <label class="detail-label" for="auth-email">Your email</label>
@@ -1036,7 +1036,7 @@ function openAccountSheet() {
     sheet.querySelector('#btn-auth-cancel').onclick = close;
   } else {
     sheet.innerHTML = `
-      <h3>Your cupping history</h3>
+      <h2>Your cupping history</h2>
       <p class="modal-hint">History is saved on this device (${archive.length} cupping${archive.length === 1 ? '' : 's'} so far). Cloud sign-in isn’t configured on this deployment yet — once it is, you’ll be able to back up and sync across devices with Apple or Google.</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btn-auth-cancel">Close</button>
@@ -1321,13 +1321,31 @@ const TOAST_MS = 1800;
 // wants that corner can wait for it
 let toastClearAt = 0;
 
-function toast(msg) {
+// toast(msg, undo): with an undo ({ restore, label? }) the toast carries a
+// button and stays for eight seconds instead of under two, long enough to
+// read the sentence and reach the button with the phone in the other hand
+let undoSlot = null;
+function toast(msg, undo) {
   const t = $('#toast');
   t.textContent = msg;
+  undoSlot = undo || null;
+  t.classList.toggle('has-undo', Boolean(undo));
+  if (undo) {
+    const b = el('button', 'toast-undo', undo.label || 'Undo');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const act = undoSlot;
+      undoSlot = null;
+      t.classList.remove('show');
+      if (act) { haptic(); act.restore(); }
+    });
+    t.appendChild(b);
+  }
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastClearAt = Date.now() + TOAST_MS;
-  toastTimer = setTimeout(() => t.classList.remove('show'), TOAST_MS);
+  const ms = undo ? 8000 : TOAST_MS;
+  toastClearAt = Date.now() + ms;
+  toastTimer = setTimeout(() => { t.classList.remove('show'); undoSlot = null; }, ms);
 }
 
 function showScreen(id) {
@@ -1542,6 +1560,15 @@ async function relayUpdateSession(code, token, payload) {
 async function relayFetchSession(code) {
   const data = await relayRequest(`/sessions/${encodeURIComponent(code)}`, { method: 'GET' });
   return data && data.payload ? data.payload : null;
+}
+
+// The keypad has to tell "that code is not a cupping" from "the server was
+// never reached" — returning null for both told a cupper with no signal
+// that the code the leader read out was wrong.
+async function relayLookupSession(code) {
+  const res = await relayFetch(`/sessions/${encodeURIComponent(code)}`, { method: 'GET' });
+  if (res.ok && res.data && res.data.payload) return { payload: res.data.payload };
+  return { payload: null, offline: res.status === 0 || res.status >= 500 };
 }
 
 async function relayJoinSession(code, name) {
@@ -1958,6 +1985,7 @@ function openModal({ title, hint, cta, onSubmit }) {
   $('#modal-title').textContent = title;
   $('#modal-hint').textContent = hint;
   $('#modal-submit').textContent = cta;
+  input.readOnly = false; // showForCopying borrows this sheet read-only
   input.value = '';
   openSheet(modal, () => close());
   setTimeout(() => input.focus(), 60);
@@ -1988,8 +2016,13 @@ function mountKeypad({ boxes, keypad, errorEl, length, maxLength = length, onCom
   let busy = false;
   let shown = length;
 
+  // set while the last attempt never reached the server: the code typed may
+  // be perfectly good, so no extra box invites a longer one
+  let held = false;
+
   const render = () => {
-    const want = Math.max(length, Math.min(maxLength, digits.length + (digits.length >= length ? 1 : 0)));
+    const grow = digits.length >= length && !held ? 1 : 0;
+    const want = Math.max(length, Math.min(maxLength, digits.length + grow));
     if (want !== shown) {
       shown = want;
       boxes.innerHTML = '';
@@ -2002,7 +2035,22 @@ function mountKeypad({ boxes, keypad, errorEl, length, maxLength = length, onCom
     });
   };
 
-  const fail = message => {
+  const fail = problem => {
+    // { message, retry } is a failure that says nothing about the code —
+    // no connection — so it keeps the digits, does not shake, and offers
+    // the same attempt again instead of inviting a longer code
+    if (problem && typeof problem === 'object') {
+      held = true;
+      errorEl.textContent = problem.message + ' ';
+      const again = el('button', 'pin-retry', 'Try again');
+      again.type = 'button';
+      again.addEventListener('click', () => { if (!busy) submit(); });
+      errorEl.appendChild(again);
+      render();
+      return;
+    }
+    const message = problem;
+    held = false;
     errorEl.textContent = message;
     boxes.classList.remove('shake');
     void boxes.offsetWidth;
@@ -2023,6 +2071,7 @@ function mountKeypad({ boxes, keypad, errorEl, length, maxLength = length, onCom
   const press = key => {
     if (busy) return;
     haptic();
+    held = false;
     if (key === 'del') {
       digits = digits.slice(0, -1);
       errorEl.textContent = '';
@@ -2077,7 +2126,13 @@ function openJoinSheet() {
     length: 4,
     maxLength: 6, // the relay falls back to 6 digits if 4-digit codes collide
     onComplete: async code => {
-      const payload = await relayFetchSession(code);
+      const { payload, offline } = await relayLookupSession(code);
+      if (offline) return {
+        message: navigator.onLine === false
+          ? 'You’re offline, so the code can’t be checked yet.'
+          : 'Couldn’t reach the cupping server.',
+        retry: true,
+      };
       if (!payload) return code.length < 6
         ? 'No cupping yet — keep typing if your code is longer.'
         : 'No cupping found for that code.';
@@ -2569,8 +2624,26 @@ async function shareText(text, copiedMsg) {
     await navigator.clipboard.writeText(text);
     toast(copiedMsg);
   } catch (e) {
-    toast('Could not share');
+    showForCopying(text);
   }
+}
+
+/* The last way out. A phone with no share sheet and a clipboard the page
+   may not touch (an http preview, a webview, a refused permission) used to
+   get "Could not share" and nothing else, with the text it had made
+   nowhere to be found. It is put in front of them, selected, to copy by
+   hand. */
+function showForCopying(text) {
+  openModal({
+    title: 'Copy this by hand',
+    hint: 'This phone wouldn’t share or copy it for us. The text is selected — press and hold to copy it.',
+    cta: 'Done',
+    onSubmit: async () => true,
+  });
+  const input = $('#modal-input');
+  input.value = text;
+  input.readOnly = true;
+  setTimeout(() => { input.focus(); input.select(); }, 80);
 }
 
 /* ============================================================
@@ -2614,6 +2687,8 @@ function buildLineup() {
   $('#btn-lineup-start').textContent = scored > 0 ? 'Back to cupping' : 'Start cupping';
 }
 
+let fieldSeq = 0;
+
 function buildLineupRow(coffee, index, locked) {
   const row = el('div', 'lineup-row');
   row.innerHTML = `
@@ -2640,6 +2715,7 @@ function buildLineupRow(coffee, index, locked) {
 
   const nameInput = row.querySelector('.lineup-name');
   nameInput.placeholder = `Coffee ${index + 1} — name…`;
+  nameInput.setAttribute('aria-label', `Name of coffee ${index + 1}`);
   nameInput.value = coffee.name;
   nameInput.readOnly = locked;
 
@@ -2679,14 +2755,21 @@ function buildLineupRow(coffee, index, locked) {
       syncRow();
       save();
     });
-    cell.appendChild(el('span', 'detail-label', f.label));
+    // a real label, so the field keeps its name once its placeholder is
+    // typed over
+    input.id = `meta-${++fieldSeq}`;
+    const label = el('label', 'detail-label', f.label);
+    label.htmlFor = input.id;
+    cell.appendChild(label);
     cell.appendChild(input);
     grid.appendChild(cell);
   });
 
-  row.querySelector('.lineup-icon.chev').addEventListener('click', () => {
+  const chev = row.querySelector('.lineup-icon.chev');
+  chev.setAttribute('aria-expanded', 'false');
+  chev.addEventListener('click', () => {
     haptic();
-    row.classList.toggle('open');
+    chev.setAttribute('aria-expanded', String(row.classList.toggle('open')));
   });
 
   const removeBtn = row.querySelector('.lineup-icon.remove');
@@ -2804,7 +2887,8 @@ function initFormPicker() {
   markScrollEnds(seg);
   const hint = $('#form-hint');
   const hints = {
-    cva: 'SCA Coffee Value Assessment · 8 sections rated 1–9',
+    // no-break spaces, so "9" cannot wrap onto a line of its own
+    cva: 'SCA Coffee Value Assessment · 8 sections rated\u00a01\u00a0to\u00a09',
     legacy: 'Retired 2004 form · 7 attributes from 6.00 to 10.00',
   };
   FORMS.forEach(f => {
@@ -3085,10 +3169,22 @@ function buildWelcome() {
      that is the same fact stated two ways depending on who is in the
      room. */
   const table = Boolean(tableCode());
+  /* And true of the form. The Legacy sheet read this card's CVA sentence —
+     eight sections, 1 to 9, 5 in the middle — above seven attributes that
+     run from 6.00 to 10.00, so the first thing a 2004 cupper was told about
+     the scale was wrong. Alone, the second paragraph was about a table and
+     a leader who are not there; what it says to one person is that the
+     sheet is theirs. */
+  const scale = usingCVA()
+    ? 'Taste each coffee and rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, which is where an ordinary cup sits.'
+    : 'Taste each coffee and rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cups that fall short on uniformity, clean cup or sweetness.';
+  const others = table
+    ? '<p>Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. That is the point: the standard asks every cupper to judge without being influenced by anyone else.</p>'
+    : '<p>Everything stays on this phone and goes to History when you open Results. Cupping with others? Invite them from the button at the top and each scores on their own device.</p>';
   card.innerHTML = `
     <h2>${table ? 'Everyone scores on their own' : 'You are scoring on your own'}</h2>
-    <p>Taste each coffee and rate the eight sections from 1 to 9 — 5 is “neither high nor low”, which is where an ordinary cup sits. Drag anywhere on a line; the words under your thumb say what each position means.</p>
-    <p>Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. That is the point: the standard asks every cupper to judge without being influenced by anyone else.</p>
+    <p>${scale} Drag anywhere on a line; the words under your thumb say what each position means.</p>
+    ${others}
     <div class="welcome-actions">
       <button class="btn btn-ghost" type="button" data-act="method">How a cupping works</button>
       <button class="btn btn-primary" type="button" data-act="go">Start scoring</button>
@@ -3117,6 +3213,7 @@ function buildPanel(coffee, index) {
   name.placeholder = `Coffee ${index + 1} — name…`;
   name.value = coffee.name;
   name.maxLength = 40;
+  name.setAttribute('aria-label', `Name of coffee ${index + 1}`);
   // The comment above described this and the fix never landed: `locked` was
   // computed and then not read by anything, so the panel kept accepting a
   // guest's rename that adoptRevealedLineup threw away at the reveal.
@@ -3134,19 +3231,21 @@ function buildPanel(coffee, index) {
   });
   panel.appendChild(name);
 
-  // origin details
-  panel.appendChild(buildDetailsCard(coffee));
-
+  /* Score first. The sheet used to open with the coffee's details and the
+     whole Describe block above the first scale — on a phone, about 2,900px
+     of optional fields between a cupper and the one thing every cupper
+     does. Both are collapsed cards now, after the score, one tap for
+     anyone who wants them and no scroll for anyone who does not. */
   if (usingCVA()) {
-    // the two halves are different SCA forms asking different questions, and
-    // on one scrolling sheet they read as the same thing
-    panel.appendChild(panelHead('Describe', 'what you taste · no judgement', 'describeVsScore'));
-    panel.appendChild(buildDescriptiveCard(coffee));
     // Describe's mark explains the split; Score's explains the scale itself,
     // which is the question actually being asked below it.
     panel.appendChild(panelHead('Score', 'how good it is · 1–9 each', 'cvaScale'));
     CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
     panel.appendChild(buildCvaDefectsCard(coffee));
+    // the two halves are different SCA forms asking different questions, and
+    // on one scrolling sheet they read as the same thing
+    panel.appendChild(panelHead('Describe', 'what you taste · no judgement', 'describeVsScore'));
+    panel.appendChild(buildDescriptiveCard(coffee));
   } else {
     SCALE_ATTRS.forEach(attr => panel.appendChild(buildScaleCard(coffee, attr)));
     CUP_ATTRS.forEach(attr => panel.appendChild(buildCupCard(coffee, attr)));
@@ -3157,9 +3256,13 @@ function buildPanel(coffee, index) {
   const notes = document.createElement('textarea');
   notes.className = 'notes-field';
   notes.placeholder = 'Tasting notes — jasmine, stone fruit, cocoa…';
+  notes.setAttribute('aria-label', `Tasting notes for coffee ${index + 1}`);
   notes.value = coffee.notes;
   notes.addEventListener('input', () => { coffee.notes = notes.value; save(); });
   panel.appendChild(notes);
+
+  // origin details
+  panel.appendChild(buildDetailsCard(coffee));
 
   panel.appendChild(buildSubmitRow());
 
@@ -3242,6 +3345,17 @@ function panelHead(title, sub, helpId) {
 
 /* ---------- details card (variety, process, altitude, …) ---------- */
 
+// a collapsing card's button says whether it is open, not only its chevron
+function wireCardToggle(card) {
+  const btn = card.querySelector('.details-toggle');
+  btn.type = 'button';
+  btn.setAttribute('aria-expanded', 'false');
+  btn.addEventListener('click', () => {
+    haptic();
+    btn.setAttribute('aria-expanded', String(card.classList.toggle('open')));
+  });
+}
+
 function buildDetailsCard(coffee) {
   const card = el('div', 'details-card');
   card.innerHTML = `
@@ -3278,15 +3392,17 @@ function buildDetailsCard(coffee) {
       refreshSummary();
       save();
     });
-    cell.appendChild(el('span', 'detail-label', f.label));
+    // a real label, so the field keeps its name once its placeholder is
+    // typed over
+    input.id = `meta-${++fieldSeq}`;
+    const label = el('label', 'detail-label', f.label);
+    label.htmlFor = input.id;
+    cell.appendChild(label);
     cell.appendChild(input);
     grid.appendChild(cell);
   });
 
-  card.querySelector('.details-toggle').addEventListener('click', () => {
-    haptic();
-    card.classList.toggle('open');
-  });
+  wireCardToggle(card);
 
   refreshSummary();
   return card;
@@ -3621,7 +3737,7 @@ function buildDescriptiveCard(coffee) {
   // the middle of the row, swallowing the tap that should open the card
 
   body.appendChild(el('p', 'desc-intro',
-    'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections below the card do that.'));
+    'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.'));
 
   // roast level, recorded before tasting begins
   const roast = el('div', 'desc-field');
@@ -3679,11 +3795,15 @@ function buildDescriptiveCard(coffee) {
 
     row.querySelector('.cva-clear').addEventListener('click', () => {
       if (!d.touched || !d.touched[attr.key]) return;
+      const was = d.intensity[attr.key];
       delete d.touched[attr.key];
       d.intensity[attr.key] = 5;
       haptic();
       refresh();
       save();
+      toast(`${attr.label} intensity cleared`, {
+        restore: () => { d.touched[attr.key] = true; d.intensity[attr.key] = was; refresh(); save(); },
+      });
     });
 
     refresh();
@@ -3834,10 +3954,7 @@ function buildDescriptiveCard(coffee) {
   // let the flavor wheel tick these boxes
   card.syncCata = () => { aromaTree.syncAll(); flavorTree.syncAll(); refreshSummary(); };
 
-  card.querySelector('.details-toggle').addEventListener('click', () => {
-    haptic();
-    card.classList.toggle('open');
-  });
+  wireCardToggle(card);
 
   refreshSummary();
   return card;
@@ -4005,30 +4122,64 @@ function buildAnchoredScale(opts) {
     }
   };
 
-  track.addEventListener('pointerdown', e => {
+  /* A touch used to write on pointerdown, so a thumb scrolling down the
+     sheet that happened to start on a track scored an attribute nobody
+     tasted. The track now lets the page keep vertical gestures (`pan-y`),
+     and a touch writes only once it has shown itself to be horizontal, or
+     when it lifts in place as a tap. A mouse has no scroll to steal and
+     still sets on press. A second finger is ignored, not followed. */
+  const SLOP = 8;
+  let start = null;
+  const begin = e => {
     dragging = true;
     lastI = null;
-    track.setPointerCapture(e.pointerId);
+    try { track.setPointerCapture(e.pointerId); } catch (err) { /* released */ }
     move(e);
-    e.preventDefault();
+  };
+  track.addEventListener('pointerdown', e => {
+    if (dragging || start) return;
+    if (e.pointerType === 'mouse') {
+      if (e.button !== 0) return;
+      start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      begin(e);
+      e.preventDefault();
+      return;
+    }
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
   });
-  track.addEventListener('pointermove', e => { if (dragging) move(e); });
-  const end = () => {
-    if (!dragging) return;
+  track.addEventListener('pointermove', e => {
+    if (!start || e.pointerId !== start.id) return;
+    if (dragging) { move(e); return; }
+    const dx = Math.abs(e.clientX - start.x), dy = Math.abs(e.clientY - start.y);
+    if (dx > SLOP && dx > dy) begin(e);
+    else if (dy > SLOP) start = null;       // a scroll; the browser has it
+  });
+  const end = e => {
+    if (!start || (e && e.pointerId !== undefined && e.pointerId !== start.id)) return;
+    const tap = !dragging && e && e.type === 'pointerup';
+    start = null;
+    if (tap) { lastI = null; move(e); }
+    else if (!dragging) return;
     dragging = false;
     refresh(true);                          // snap onto the detent
     if (opts.onCommit) opts.onCommit();
   };
   track.addEventListener('pointerup', end);
   track.addEventListener('pointercancel', end);
+  track.addEventListener('lostpointercapture', end);
 
   track.addEventListener('keydown', e => {
-    const cur = opts.isSet() ? positionOf(opts.read()) : Math.ceil(steps / 2);
+    // an unrated scale's first arrow lands on the dashed knob's own place,
+    // the midpoint, rather than one step past it
+    const unset = !opts.isSet();
+    const cur = unset ? Math.ceil(steps / 2) : positionOf(opts.read());
     // one detent per arrow press however many there are, and a page jump
     // that is a tenth of the line rather than a fixed four
     const page = Math.max(2, Math.round(steps / 10));
     let i = null;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') i = Math.min(steps, cur + 1);
+    const arrow = /^Arrow/.test(e.key);
+    if (unset && arrow) i = cur;
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') i = Math.min(steps, cur + 1);
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') i = Math.max(1, cur - 1);
     else if (e.key === 'PageUp') i = Math.min(steps, cur + page);
     else if (e.key === 'PageDown') i = Math.max(1, cur - page);
@@ -4099,15 +4250,19 @@ function buildCvaCard(coffee, section) {
 
   // A rating tapped by accident had no way back: the section stayed rated
   // forever and quietly weighted the score.
+  // The clear is 22px beside the value it wipes, so a slip onto it is as
+  // likely as the slip it exists to fix — it offers the rating back.
+  const sync = () => { refresh(false); refreshTabs(); updateScorebar(); save(); };
   card.querySelector('.cva-clear').addEventListener('click', () => {
     if (!coffee.touched[section.key]) return;
+    const was = coffee.cva[section.key];
     delete coffee.touched[section.key];
     coffee.cva[section.key] = 5;
     haptic();
-    refresh(false);
-    refreshTabs();
-    updateScorebar();
-    save();
+    sync();
+    toast(`${section.label} cleared`, {
+      restore: () => { coffee.touched[section.key] = true; coffee.cva[section.key] = was; sync(); },
+    });
   });
 
   refresh(false);
@@ -4665,12 +4820,12 @@ function renderTeamCard() {
   const canPresent = leader || (!tableCode() && scored > 0);
 
   card.innerHTML = `
-    <h3>${live ? 'The table' : 'Team scores'}</h3>
+    <h2>${live ? 'The table' : 'Team scores'}</h2>
     <p class="team-sub">${live
       ? 'Everyone here scores on their own device. Nobody sees anyone else’s numbers until the leader opens the table — that independence is what the standard asks for.'
       : 'Cupping with others? Share your scores as a code, and paste theirs to see how the table scored.'}</p>
     <div class="team-name-row">
-      <span class="detail-label">Your name</span>
+      <label class="detail-label" for="cupper-name">Your name</label>
       <input class="detail-field" id="cupper-name" type="text" maxlength="24" placeholder="e.g. Juan">
     </div>
     <!-- Not hidden while the first roster is in flight. It used to be, so
@@ -5364,7 +5519,7 @@ function buildPresentFinal(panel) {
   const nHigh = counts.length ? Math.max(...counts) : 0;
 
   wrap.innerHTML = `
-    <h3>The table’s ranking</h3>
+    <h2>The table’s ranking</h2>
     <p class="team-sub">${panel
       ? (nLow === nHigh
           ? `Panel scores — each the average of ${nHigh} finished sheet${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
@@ -5465,6 +5620,16 @@ function radarAttrs() {
   // sweetness is a real 1–9 section on the CVA form, but a pass/fail cup
   // count on the 2004 one — keep it only where it is scored
   return all.filter(a => !RADAR_SKIP.includes(a.key) || (usingCVA() && a.key === 'sweetness'));
+}
+
+// The caption counts what is drawn. It said "Seven spokes" on the 2004
+// form too, under a chart with five.
+function radarSpokesNote() {
+  const n = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][radarAttrs().length];
+  const N = n.charAt(0).toUpperCase() + n.slice(1);
+  return usingCVA()
+    ? `${N} spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`
+    : `${N} spokes: Balance and Overall are judgements about the whole cup, and uniformity, clean cup and sweetness are counted cup by cup, so none of them is drawn.`;
 }
 
 // radar floors: enough headroom that differences read, without clipping
@@ -5604,7 +5769,7 @@ function buildRadar(ranked) {
   const note = $('#radar-note');
   if (note) {
     const bits = [`Rings run ${MIN} at the centre to ${MAX} at the edge, in steps of ${
-      ringValue(1) - MIN}. Seven spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`];
+      ringValue(1) - MIN}. ${radarSpokesNote()}`];
     if (undrawn.length) {
       bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
         undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${
@@ -5725,7 +5890,7 @@ async function shareResults() {
     await navigator.clipboard.writeText(text);
     toast('Results copied to clipboard');
   } catch (e) {
-    toast('Could not share results');
+    showForCopying(text);
   }
 }
 
@@ -6410,6 +6575,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#wheel-coach').addEventListener('click', () => { markWheelSeen(); openFlavorWheel(); });
   // scoring means they are busy — the coach mark has said its piece
   $('#panels').addEventListener('pointerdown', hideWheelCoach, { passive: true });
+  // it sits over the bottom of the sheet, which is where the notes field is
+  // when the keyboard comes up; typing is not the moment for vocabulary hints
+  $('#panels').addEventListener('focusin', e => {
+    if (e.target.matches('input, textarea')) hideWheelCoach();
+  });
 
   // account: OAuth return, profile button, quiet background sync
   $('#btn-account').addEventListener('click', openAccountSheet);
@@ -6457,12 +6627,25 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-export-csv').addEventListener('click', exportHistoryCSV);
 
   $('#btn-new-session').addEventListener('click', () => {
-    // No confirm: reaching Results archives the cupping, so this loses
-    // nothing. A dialog asking permission for an action with no consequence
-    // teaches people to dismiss the ones that have consequences.
+    // Reaching Results archives the cupping, but the archive keeps a score
+    // per coffee, not the sheet behind it: every attribute, every note on a
+    // descriptor, the live table's seat. "Nothing is lost" was true of the
+    // history list and false of the work. Still no confirm — a question
+    // before every new cupping would be dismissed by reflex — but the whole
+    // session comes back with one tap for eight seconds.
+    const kept = state ? JSON.parse(JSON.stringify(state)) : null;
     clearSession();
     refreshResumeButton();
     showScreen('#screen-setup');
+    if (kept) toast('New session started', {
+      restore: () => {
+        state = kept;
+        save();
+        refreshResumeButton();
+        buildResults();
+        showScreen('#screen-results');
+      },
+    });
   });
 
   $('#btn-history').addEventListener('click', () => {

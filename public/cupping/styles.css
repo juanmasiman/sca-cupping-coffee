@@ -1110,13 +1110,16 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
      knob carries "10.00" rather than a single digit. The press target keeps
      its full 48px height across the inset width. */
   margin: 0 var(--space-5);
-  touch-action: none;          /* the page must not scroll out from under a drag */
+  /* The page keeps vertical gestures: a thumb scrolling down the sheet
+     that starts on a track is a scroll, not a score. The script claims a
+     touch only once it has moved sideways, and captures it from there. */
+  touch-action: pan-y;
   cursor: grab;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 .scale-track:active { cursor: grabbing; }
-.scale-track:focus-visible { outline: 2px solid var(--chrome); outline-offset: 3px; border-radius: var(--radius-sm); }
+.scale-track:focus-visible { outline: 2px solid var(--data); outline-offset: 3px; border-radius: var(--radius-sm); }
 
 .scale-rail { position: absolute; left: 2px; right: 2px; top: 23px; height: 2px; background: var(--rail); }
 /* Full strength, not 0.5. Half-opacity data ink composited to 2.44:1 on
@@ -1466,7 +1469,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   padding: calc(var(--sat) + var(--space-4)) var(--space-4) var(--space-4);
   border-bottom: 1px solid var(--line);
 }
-.results-header h2 { font-size: 17px; font-weight: 800; }
+.results-header h1, .results-header h2 { font-size: 17px; font-weight: 800; }
 
 .results-scroll {
   flex: 1;
@@ -1579,7 +1582,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   padding: var(--space-5);
   margin-bottom: var(--space-5);
 }
-.radar-card h3 { font-size: 15px; font-weight: 800; margin-bottom: var(--space-3); }
+.radar-card h2, .radar-card h3 { font-size: 15px; font-weight: 800; margin-bottom: var(--space-3); }
 #radar-wrap svg { width: 100%; height: auto; display: block; }
 
 .radar-note { margin-top: var(--space-4); }
@@ -1596,7 +1599,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
 .radar-ring-label {
   font-family: var(--mono);
-  font-size: 9px;
+  /* 11, the floor: these numbers are values to read off the chart, not
+     ticks on a scale, so the 9px tick exemption does not cover them */
+  font-size: 11px;
   font-weight: 600;
   fill: var(--text-faint);
   paint-order: stroke;
@@ -1914,7 +1919,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   padding: var(--space-5);
   margin-bottom: var(--space-5);
 }
-.team-card h3 { font-size: 15px; font-weight: 800; }
+.team-card h2, .team-card h3 { font-size: 15px; font-weight: 800; }
 .team-sub { font-size: 13px; color: var(--text-faint); margin-top: var(--space-2); margin-bottom: var(--space-4); }
 
 .team-name-row { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
@@ -2049,7 +2054,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 }
 @keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } }
 
-.modal-sheet h3 { font-size: 17px; font-weight: 800; }
+.modal-sheet h2, .modal-sheet h3 { font-size: 17px; font-weight: 800; }
 /* The one line on the name sheet that is about the table rather than
    about you, so it leads and takes the ink to match. */
 /* Yours, on a roster of names that are otherwise all the same kind of
@@ -2270,6 +2275,19 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   color: var(--red);
   min-height: 18px;
   margin-top: var(--space-3);
+}
+/* "Try again" after a failed connection: a real button, 44px tall, in the
+   text's own colour so it reads as part of the sentence it finishes */
+.pin-retry {
+  font: inherit;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+  border: 0;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  cursor: pointer;
 }
 
 .keypad {
@@ -2523,7 +2541,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
    Same field as the one on Results; both write through pushCupperName so
    the roster follows the typing rather than waiting for a submit. */
 .share-name-row { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-5); }
-.share-name-hint { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+.share-name-hint { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
 
 .share-qr-wrap { display: flex; justify-content: center; margin: var(--space-4) 0 var(--space-2); }
 .share-qr {
@@ -2695,6 +2713,25 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   z-index: 50;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* With an undo the toast holds a button, so it takes pointer events and
+   lays its sentence and button out on one line */
+.toast.has-undo { display: flex; align-items: center; gap: var(--space-4); padding-right: var(--space-4); white-space: nowrap; }
+.toast.has-undo.show { pointer-events: auto; }
+.toast-undo {
+  position: relative;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: 13px;
+  color: var(--on-chrome);
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+/* 32px drawn, 44px to the thumb */
+.toast-undo::after { content: ''; position: absolute; inset: -6px -4px; }
+.toast-undo:focus-visible { outline: 2px solid var(--on-chrome); outline-offset: 2px; }
 
 /* ============================================================
    PANEL SECTION HEADS
@@ -2983,7 +3020,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   border-radius: var(--radius);
   padding: var(--space-5);
 }
-.present-final h3 { font-size: 15px; margin-bottom: var(--space-2); }
+.present-final h2, .present-final h3 { font-size: 15px; margin-bottom: var(--space-2); }
 .present-final .team-sub { margin-bottom: var(--space-4); }
 /* Position, name, score — and the count on a second line under the name.
 
