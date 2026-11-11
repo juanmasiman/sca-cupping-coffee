@@ -373,6 +373,21 @@ function savePrefs() {
   try { localStorage.setItem(PREF, JSON.stringify(prefs)); } catch (e) { /* as above */ }
 }
 
+/* A refractometer is gear you own, not a setting of this app: one record
+   on the shared shelf, synced with your account, and the same answer in
+   the dial-in and the brew log. See ownsRefractometer in
+   /shared/gear.js. The old per-device switch is read only as a fallback
+   for a page that loaded without the shelf, and is carried over once. */
+function hasTds() {
+  return root().LentoGear ? LentoGear.ownsRefractometer() : Boolean(prefs.tds);
+}
+function adoptTdsPref() {
+  if (!prefs.tds || !root().LentoGear) return;
+  LentoGear.setRefractometer(true);
+  delete prefs.tds;
+  savePrefs();
+}
+
 // Older shapes get repaired rather than discarded: somebody's shot log is
 // the only copy of an afternoon's work.
 const TOMB_DAYS = 180;
@@ -3997,7 +4012,7 @@ function buildMore(c) {
     // advertising them.
     bits.push('basket');
     summary.textContent = `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())}${
-      prefs.tds ? ' and the reading' : ''}`;
+      hasTds() ? ' and the reading' : ''}`;
   }
   body.innerHTML = `
     <div class="more-grid">
@@ -4012,7 +4027,7 @@ function buildMore(c) {
             either ask or do not. */ ''}
       ${seesPressure() ? `<label class="field"><span class="field-label">${canSetPressure() ? 'Pressure / flow' : 'What the gauge read'}</span>
         <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="${canSetPressure() ? 'e.g. 6 bar, 2ml/s' : 'e.g. 9 bar, steady'}"></label>` : ''}
-      ${prefs.tds ? `<label class="field"><span class="field-label">TDS %</span>
+      ${hasTds() ? `<label class="field"><span class="field-label">TDS %</span>
         <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
     <!-- Out of the two-column grid, because it holds a name rather than a
@@ -4119,7 +4134,7 @@ function renderReadout(c) {
         <span class="readout-value${flow === null ? ' empty' : ''}">${fmt2(flow)}</span>
         <span class="readout-label">g per second</span>
       </div>
-      ${prefs.tds ? `<div class="readout-cell">
+      ${hasTds() ? `<div class="readout-cell">
         <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
         <span class="readout-label">${ey === null ? 'extraction · needs a TDS reading' : 'extraction yield'}</span>
       </div>` : ''}
@@ -5277,7 +5292,7 @@ function openSettings() {
     <label class="switch-row" for="t-tds">
       <span class="switch-text">
         <span class="switch-title">Refractometer</span>
-        <span class="switch-sub">Adds a TDS field and shows extraction yield. Off, the app works on dose, yield and time — which is what most bars have.</span>
+        <span class="switch-sub">Adds a TDS field and shows extraction yield, here and in the brew log, on every device you sign in on. Off, the app works on dose, yield and time — which is what most bars have.</span>
       </span>
       <span class="switch"><input type="checkbox" id="t-tds"><span class="switch-track"><span class="switch-knob"></span></span></span>
     </label>
@@ -5318,8 +5333,16 @@ function openSettings() {
     openDoseCheck();
   });
   const tds = body.querySelector('#t-tds');
-  tds.checked = prefs.tds;
-  tds.addEventListener('change', () => { prefs.tds = tds.checked; savePrefs(); });
+  tds.checked = hasTds();
+  // Writes the shared shelf, so the other instrument and your other
+  // devices have it too; then pushes, if signed in.
+  tds.addEventListener('change', () => {
+    if (root().LentoGear) LentoGear.setRefractometer(tds.checked);
+    else { prefs.tds = tds.checked; savePrefs(); }
+    queueSync();
+    renderBoard();
+    toast(tds.checked ? 'Refractometer on — in both the dial-in and the brew log' : 'Refractometer off — in both instruments');
+  });
 
   const seg = body.querySelector('#theme-seg');
   [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].forEach(([key, label]) => {
@@ -5726,6 +5749,7 @@ function wire() {
 
 function boot() {
   load();
+  adoptTdsPref();
   applyTheme();
   /* Before wire(), because the sheet injects its own markup and wire()
      walks `.modal` once to bind the backdrop click. */

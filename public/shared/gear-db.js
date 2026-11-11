@@ -427,14 +427,19 @@
     { name: 'Gaggia Classic (PID / Gaggiuino)', drive: 'pump', boiler: 'single', temp: 'set', pressure: 'profile', pf: 58, units: null, paddle: false },
   ];
 
+  /* A refractometer has no catalogue. What matters about one to this
+     site is that you own it — it is what lets either instrument print an
+     extraction — and the model is whatever you call it. No list of
+     makes is shipped rather than a list nobody here has checked. */
   var TABLES = {
     grinder: GRINDERS,
     brewer: BREWERS,
     kettle: KETTLES,
     machine: MACHINES,
+    refractometer: [],
   };
 
-  var KINDS = ['grinder', 'brewer', 'kettle', 'machine'];
+  var KINDS = ['grinder', 'brewer', 'kettle', 'machine', 'refractometer'];
 
   // One noun per kind, since four sheets and a picker all need it.
   var NOUNS = {
@@ -442,6 +447,7 @@
     brewer: { one: 'brewer', many: 'brewers', add: 'Add a brewer' },
     kettle: { one: 'kettle', many: 'kettles', add: 'Add a kettle' },
     machine: { one: 'espresso machine', many: 'espresso machines', add: 'Add a machine' },
+    refractometer: { one: 'refractometer', many: 'refractometers', add: 'Add a refractometer' },
   };
 
   function entry(kind, name) {

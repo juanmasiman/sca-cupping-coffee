@@ -398,6 +398,21 @@ function savePrefs() {
   try { localStorage.setItem(PREF, JSON.stringify(prefs)); } catch (e) { /* as above */ }
 }
 
+/* A refractometer is gear you own, not a setting of this app: one record
+   on the shared shelf, synced with your account, and the same answer in
+   the dial-in and the brew log. See ownsRefractometer in
+   /shared/gear.js. The old per-device switch is read only as a fallback
+   for a page that loaded without the shelf, and is carried over once. */
+function hasTds() {
+  return root().LentoGear ? LentoGear.ownsRefractometer() : Boolean(prefs.tds);
+}
+function adoptTdsPref() {
+  if (!prefs.tds || !root().LentoGear) return;
+  LentoGear.setRefractometer(true);
+  delete prefs.tds;
+  savePrefs();
+}
+
 // Older shapes get repaired rather than discarded: somebody's brew log is
 // the only copy of a month of mornings.
 // Set when migrate() actually changed something, so load() knows to persist.
@@ -1133,7 +1148,7 @@ function pourAdded(brew, i) {
    the result as a reading. This one asks for the cup on the scale, or
    returns nothing. */
 function extractionOf(brew) {
-  if (!prefs.tds || !byWeight()) return null;
+  if (!hasTds() || !byWeight()) return null;
   const tds = num(brew.tds), bev = num(brew.beverage), dose = num(brew.dose);
   if (tds === null || bev === null || dose === null || dose <= 0) return null;
   return (bev * tds) / dose;
@@ -3863,9 +3878,9 @@ function buildVerdict(c) {
 function buildMore(c) {
   const body = $('#more-body');
   const summary = $('#more > summary');
-  if (summary) summary.textContent = prefs.tds ? 'Refractometer, notes and the rest' : 'Notes and the rest';
+  if (summary) summary.textContent = hasTds() ? 'Refractometer, notes and the rest' : 'Notes and the rest';
   body.innerHTML = `
-    ${prefs.tds ? `<div class="more-grid">
+    ${hasTds() ? `<div class="more-grid">
       <label class="field"><span class="field-label">TDS %</span>
         <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 1.38"></label>
       <label class="field"><span class="field-label">In the cup</span>
@@ -3943,7 +3958,7 @@ function renderReadout(c) {
       <span class="readout-label">bloom</span>
     </div>`);
   }
-  if (prefs.tds) {
+  if (hasTds()) {
     cells.push(`<div class="readout-cell">
       <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
       <span class="readout-label">${ey === null ? 'extraction · needs TDS and the cup weighed' : 'extraction yield'}</span>
@@ -5042,7 +5057,7 @@ function openSettings() {
     <label class="switch-row" for="t-tds">
       <span class="switch-text">
         <span class="switch-title">Refractometer</span>
-        <span class="switch-sub">Adds a TDS field and a place for the weight of the cup, and shows extraction yield. Off, the app works on coffee, water and time — which is what most kitchens have.</span>
+        <span class="switch-sub">Adds a TDS field and a place for the weight of the cup, and shows extraction yield, here and in the dial-in, on every device you sign in on. Off, the app works on coffee, water and time — which is what most kitchens have.</span>
       </span>
       <span class="switch"><input type="checkbox" id="t-tds"><span class="switch-track"><span class="switch-knob"></span></span></span>
     </label>
@@ -5053,8 +5068,16 @@ function openSettings() {
     <button class="btn btn-ghost" id="btn-help">What the numbers mean</button>
   `;
   const tds = body.querySelector('#t-tds');
-  tds.checked = prefs.tds;
-  tds.addEventListener('change', () => { prefs.tds = tds.checked; savePrefs(); });
+  tds.checked = hasTds();
+  // Writes the shared shelf, so the other instrument and your other
+  // devices have it too; then pushes, if signed in.
+  tds.addEventListener('change', () => {
+    if (root().LentoGear) LentoGear.setRefractometer(tds.checked);
+    else { prefs.tds = tds.checked; savePrefs(); }
+    queueSync();
+    renderBoard();
+    toast(tds.checked ? 'Refractometer on — in both the dial-in and the brew log' : 'Refractometer off — in both instruments');
+  });
 
   const seg = body.querySelector('#theme-seg');
   [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].forEach(([key, label]) => {
@@ -5362,6 +5385,7 @@ function wire() {
 
 function boot() {
   load();
+  adoptTdsPref();
   applyTheme();
   /* Before wire(), because the sheet injects its own markup and wire()
      walks `.modal` once to bind the backdrop click. */
