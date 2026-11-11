@@ -534,8 +534,11 @@ input { font: inherit; color: inherit; }
   font-size: 11px;
   font-weight: 600;
 }
-.log-place.in { color: var(--text-dim); }
-.log-place.out { color: var(--text-faint); }
+/* Outside the window is the finding; inside it is the confirmation. The
+   faint ink was on the wrong one — "18s long" was the least visible text
+   on the card whose job is to say what went wrong. */
+.log-place.in { color: var(--text-faint); }
+.log-place.out { color: var(--text); }
 
 /* A part-recorded entry drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
@@ -889,6 +892,12 @@ html.sheet-open, html.sheet-open body {
 /* Nothing entered is not zero. The slot shows its placeholder in tertiary
    ink and the data ink stays for values somebody actually set. */
 .num-field.empty .num-value { color: var(--text-faint); }
+/* The "—" an empty number field shows is a placeholder, and the rule above
+   colours the input's text, not its placeholder. With no rule of its own
+   the dash fell back to the browser's grey, rgb(117,117,117) in both
+   themes, which is 3.79:1 on the dark card. Tertiary ink clears 4.5:1 on
+   all four grounds; opacity is reset because Firefox dims placeholders. */
+.num-value::placeholder { color: var(--text-faint); opacity: 1; }
 
 /* What is wrong with what was typed.
 
@@ -905,6 +914,9 @@ html.sheet-open, html.sheet-open body {
   color: var(--red);
 }
 .num-note:empty { display: none; }
+/* The same slot, saying where a value came from rather than what is wrong
+   with it — "from the last pour". Information, so secondary ink. */
+.num-note.is-info { color: var(--text-dim); }
 .num-field.bad { border-color: var(--red); }
 .num-field.bad .num-value { color: var(--red); }
 
@@ -1028,7 +1040,9 @@ html.sheet-open, html.sheet-open body {
   height: 44px;
   display: flex;
   align-items: center;
-  touch-action: none;
+  /* The page keeps vertical gestures; the track takes a touch only once it
+     moves sideways or lifts as a tap. See wordScale. */
+  touch-action: pan-y;
 }
 /* A band rather than a hairline.
 
@@ -1726,7 +1740,10 @@ select.field-input {
    inherits the toast's own lifetime and cannot outlive the thing it undoes. */
 /* Clear of the action bar while a sheet is open. 88px is measured for a
    board with a bottom bar behind it; a sheet puts its own bar there. */
-.toast.over-sheet { bottom: calc(var(--sab) + 148px); }
+/* Over an open sheet the toast goes to the top, onto the dimmed band
+   above the sheet. At the bottom it sat over the last fields of the form
+   — "Keep it?", the pours — exactly where the next tap was going. */
+.toast.over-sheet { bottom: auto; top: calc(var(--sat) + var(--space-3)); }
 
 .toast-undo {
   pointer-events: auto;

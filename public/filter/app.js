@@ -1539,7 +1539,12 @@ function tasteNote(brew, target) {
       why: 'Add the brew time and the app can say whether that is the grind or something else — sour and quick is a different problem from sour and slow, and they have opposite answers.' };
   }
   // in the window and still tasting of one of the walls
-  return { sure: false, move: 'Grind has done its job.',
+  // The move names the next thing to change. "Grind has done its job."
+  // was true and left the reader with nothing to do until they opened
+  // the reasoning underneath it.
+  return { sure: false, move: canSetTemp()
+      ? `Leave the grind. Try ${side === 'sour' ? 'hotter' : 'cooler'} water next.`
+      : `Leave the grind. ${side === 'sour' ? 'Pour more vigorously, or add water,' : 'Pour more gently, or use less water,'} next.`,
     why: canSetTemp()
       /* "A degree or two" is a physical move, and a Fahrenheit degree is
          a little over half a Celsius one — so on a kettle reading °F the
@@ -2129,15 +2134,46 @@ function wordScale(opts) {
     else if (v === null) { v = next; render(); onChange(v); }
   };
 
+  /* A TOUCH DECIDES WHAT IT IS BEFORE IT WRITES ANYTHING.
+
+     The track is full-width and sits in the sheet's scroll path, and it
+     used to take every touch: `touch-action: none` and a value written on
+     pointerdown, so a thumb scrolling down the sheet that happened to
+     start on a track recorded a taste nobody gave. The track now lets the
+     page have vertical gestures (`pan-y`), and a touch writes only once
+     it has shown itself to be horizontal, or when it lifts as a tap.
+     A mouse has no scroll to steal from and still sets on press. */
+  const SLOP = 8;
   let dragging = false;
+  let start = null;
   track.addEventListener('pointerdown', e => {
-    dragging = true;
-    track.setPointerCapture(e.pointerId);
-    setFromX(e.clientX);
+    if (e.pointerType === 'mouse') {
+      dragging = true;
+      track.setPointerCapture(e.pointerId);
+      setFromX(e.clientX);
+      return;
+    }
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
   });
-  track.addEventListener('pointermove', e => { if (dragging) setFromX(e.clientX); });
-  track.addEventListener('pointerup', () => { dragging = false; });
-  track.addEventListener('pointercancel', () => { dragging = false; });
+  track.addEventListener('pointermove', e => {
+    if (dragging) { setFromX(e.clientX); return; }
+    if (!start || e.pointerId !== start.id) return;
+    const dx = Math.abs(e.clientX - start.x), dy = Math.abs(e.clientY - start.y);
+    if (dx > SLOP && dx > dy) {
+      dragging = true;
+      try { track.setPointerCapture(e.pointerId); } catch (err) { /* already released */ }
+      setFromX(e.clientX);
+    } else if (dy > SLOP) {
+      start = null; // a scroll; the browser has it
+    }
+  });
+  track.addEventListener('pointerup', e => {
+    if (!dragging && start && e.pointerId === start.id) setFromX(start.x); // a tap
+    dragging = false;
+    start = null;
+  });
+  track.addEventListener('pointercancel', () => { dragging = false; start = null; });
+  track.addEventListener('lostpointercapture', () => { dragging = false; });
 
   track.addEventListener('keydown', e => {
     let next = null;
@@ -2164,6 +2200,9 @@ function wordScale(opts) {
 function renderBoard() {
   const c = activeCoffee();
   $('#coffee-name').textContent = coffeeLabel(c);
+  // The page heading follows the bag on the board (see index.html).
+  const heading = $('#board-heading');
+  if (heading) heading.textContent = c ? coffeeLabel(c) : 'No coffee yet';
   $('#coffee-sub').textContent = c
     ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
     : 'tap to add one';
@@ -2171,7 +2210,7 @@ function renderBoard() {
   // No dead control on the front door: the button does the next thing
   // rather than greying out the one thing a first visit has to do.
   const logBtn = $('#btn-log');
-  logBtn.textContent = c ? 'Log a brew' : 'Add a coffee';
+  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -2210,10 +2249,12 @@ function renderNext(c) {
         ? `Bloom with ${fmt0(p.water)}g`
         : `pour to ${fmt0(p.water)}g${num(p.at) !== null ? ` at ${fmtTime(p.at)}` : ''}`).join(', ') + '.';
     } else if (scaled && scaled.steps.length) {
-      schedule = scaled.steps.slice(0, 4).map(st => {
+      // The whole schedule: it used to stop after four steps with "and
+      // on.", which is the one part of a method nobody can guess.
+      schedule = scaled.steps.map(st => {
         const l = LentoRecipes.line(st, fmtTime);
         return (l.when ? `${l.when} ` : '') + l.what.charAt(0).toLowerCase() + l.what.slice(1);
-      }).join(', ') + (scaled.steps.length > 4 ? ', and on.' : '.');
+      }).join(', ') + '.';
       schedule = `${m.brewer}: ${schedule}`;
     } else if (percolates()) {
       schedule = byWeight()
@@ -2713,45 +2754,90 @@ let pourSeed = '[]';
    this first; the snapshot is how it is undone. */
 let editingSeed = '';
 
-/* THE SHEET SURVIVES A RELOAD.
+/* CLOSING NEVER THROWS A BREW AWAY.
 
-   A brew is typed with one hand while the other holds a kettle, and the
-   phone is free to kill a backgrounded tab whenever it likes. Reloading
-   mid-entry used to drop everything on the sheet without a word. The open
-   sheet is written to its own key on every change and put back on boot;
-   saving, closing or removing clears it. It is a separate key rather than
-   a field in the log because it is not a record — it never syncs, and a
-   stale one is simply ignored. */
-const DRAFT_KEY = 'lento-filter-draft-v1';
+   A brew is typed with one hand while the other holds a kettle, and a
+   sheet gets closed by a thumb that missed: a tap on the backdrop, an
+   Escape, a phone that kills the tab. The first version of this app asked
+   a native confirm(); the second closed and offered an Undo for eight
+   seconds, after which the work was gone. Now nothing on a sheet is
+   discarded by closing it.
 
-function writeDraft() {
-  const c = activeCoffee();
-  if (!editing || !c || $('#brew-modal').classList.contains('hidden')) return;
+   Every sheet with work on it is kept as a draft, one per coffee for a
+   new brew and one per brew for an edit, in its own key: it is not a
+   record, it never syncs. A sheet open when the page died reopens on
+   boot. A closed one waits: "Log a brew" becomes "Continue the brew" and
+   picks it up, and opening an edited brew brings its changes back. The
+   sheet says when it is a draft and offers the one way to let it go.
+   Saving or removing clears it; three days of nobody coming back does
+   too, because a three-day-old morning is not a brew any more. */
+const DRAFTS_KEY = 'lento-filter-drafts-v2';
+const DRAFT_LIFE = 3 * 24 * 3600 * 1000;
+let draftAt = '';       // the key of the sheet that is open
+let carrySeed = '';     // the carried-over settings as the sheet opened
+
+function readDrafts() {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({
-      coffee: c.id, isNew: editingIsNew, brew: editing, seed: editingSeed, pourSeed, at: Date.now(),
-    }));
-  } catch (e) { /* storage full or blocked: the sheet still works, it just will not survive */ }
+    const d = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}');
+    return d && typeof d === 'object' ? d : {};
+  } catch (e) { return {}; }
 }
-function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing to clear */ }
+function writeDrafts(d) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(d)); } catch (e) { /* storage full or blocked */ }
 }
+function draftKeyFor(c, brew) { return `${c.id}:${brew ? brew.id : 'new'}`; }
+function findDraft(key) {
+  const d = readDrafts()[key];
+  if (!d) return null;
+  if (!d.at || Date.now() - d.at > DRAFT_LIFE) { dropDraft(key); return null; }
+  return d;
+}
+function dropDraft(key) {
+  if (!key) return;
+  const d = readDrafts();
+  if (key in d) { delete d[key]; writeDrafts(d); }
+}
+// Is there anything on the open sheet that closing it would lose?
+function sheetHasWork() {
+  if (!editing) return false;
+  if (editingIsNew) return brewHasContent();
+  return Boolean(editingSeed) && JSON.stringify(editing) !== editingSeed;
+}
+function writeDraft(open) {
+  const c = activeCoffee();
+  if (!editing || !c || !draftAt) return;
+  if (open === undefined && $('#brew-modal').classList.contains('hidden')) return;
+  const d = readDrafts();
+  if (sheetHasWork()) {
+    d[draftAt] = {
+      coffee: c.id, isNew: editingIsNew, brewId: editingIsNew ? null : editing.id,
+      brew: editing, seed: editingSeed, pourSeed, carrySeed, at: Date.now(),
+      open: open === undefined ? true : open,
+    };
+  } else {
+    delete d[draftAt];
+  }
+  writeDrafts(d);
+}
+function hasNewDraft(c) { return Boolean(c && findDraft(draftKeyFor(c, null))); }
 function restoreDraft() {
-  let d = null;
-  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { d = null; }
-  if (!d || !d.brew || !d.coffee) return;
-  // A sheet left open for a day is not a morning's brew any more.
-  if (!d.at || Date.now() - d.at > 24 * 3600 * 1000) { clearDraft(); return; }
+  // The single-slot draft of the version before this one.
+  try { localStorage.removeItem('lento-filter-draft-v1'); } catch (e) { /* none */ }
+  const all = readDrafts();
+  const open = Object.keys(all).filter(k => all[k] && all[k].open)
+    .sort((a, b) => (all[b].at || 0) - (all[a].at || 0))[0];
+  if (!open) return;
+  const d = findDraft(open);
+  if (!d) return;
   const c = shelfCoffees().find(x => x.id === d.coffee);
-  if (!c) { clearDraft(); return; }
+  if (!c) { dropDraft(open); return; }
   state.activeId = c.id;
   renderBoard();
-  if (d.isNew) {
-    openBrew(null, { draft: d.brew, pourSeed: d.pourSeed });
-  } else {
-    const brew = c.brews.find(b => b.id === d.brew.id);
-    if (!brew) { clearDraft(); return; }
-    openBrew(brew, { draft: d.brew, seed: d.seed });
+  if (d.isNew) openBrew(null);
+  else {
+    const brew = c.brews.find(b => b.id === d.brewId);
+    if (!brew) { dropDraft(open); return; }
+    openBrew(brew);
   }
   toast('Back where you left this brew');
 }
@@ -2774,6 +2860,21 @@ function brewNumber(c, brew) {
   return c.brews.indexOf(brew) + 1;
 }
 
+/* THE PLAN REACHES THE SHEET.
+
+   "Where to start" says a bloom and two pours to 240 g, and the first
+   sheet used to open with no pours at all — then the board scolded the
+   brew for using four, a schedule the sheet had never proposed. With no
+   brew behind it and no schedule on the target, the first sheet is
+   seeded from the brewer's method scaled to the target, the same
+   schedule the board prints. It arrives as a plan: stamping a row moves
+   its weight to a placeholder, and nothing in it counts as measured. */
+function firstSchedule(c) {
+  if (!percolates() || !root().LentoRecipes) return [];
+  const { scaled } = startPlan(c);
+  return scaled ? LentoRecipes.pours(scaled).map(p => ({ ...p })) : [];
+}
+
 /* Where the grinder is, as far as this app knows.
 
    Two sources of truth could answer it: the board's "grinder today",
@@ -2790,12 +2891,22 @@ function grindStart(c) {
   return prev === null ? undefined : prev;
 }
 
-/* `resume` reopens a sheet rather than starting one: the draft that
-   survived a reload, or a sheet put back by Undo. */
+/* `resume` reopens a sheet rather than starting one. With none given, a
+   draft kept for this sheet is picked up — see CLOSING NEVER THROWS A
+   BREW AWAY. */
 function openBrew(brew, resume) {
   const c = activeCoffee();
   if (!c) return;
   const last = c.brews[c.brews.length - 1] || null;
+  draftAt = draftKeyFor(c, brew);
+  let fromDraft = false;
+  if (!resume) {
+    const d = findDraft(draftAt);
+    if (d) {
+      resume = { draft: d.brew, seed: d.seed, pourSeed: d.pourSeed, carrySeed: d.carrySeed };
+      fromDraft = true;
+    }
+  }
 
   editingIsNew = !brew;
   if (brew) {
@@ -2845,13 +2956,17 @@ function openBrew(brew, resume) {
       // No previous brew: the schedule the target carries, which is
       // where "start from this method" put one. Copied, never shared —
       // editing a brew must not rewrite what you are aiming at.
-      : ((c.target && Array.isArray(c.target.pours)) ? c.target.pours.map(p => ({ ...p })) : []),
+      : ((c.target && Array.isArray(c.target.pours) && c.target.pours.length)
+        ? c.target.pours.map(p => ({ ...p }))
+        : firstSchedule(c)),
     notes: '',
     tds: null,
     beverage: null,
   };
   if (editing.grind === undefined) editing.grind = '';
   pourSeed = resume && resume.pourSeed ? resume.pourSeed : pourSchedule(editing.pours);
+  carrySeed = resume && resume.carrySeed ? resume.carrySeed : carried(editing);
+  showDraftNote(c, brew, fromDraft);
 
   $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${brewNumber(c, brew)}`;
 
@@ -2881,7 +2996,8 @@ function openBrew(brew, resume) {
     // Written down, so a sync does not hand it back. See migrate().
     if (gone && gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
-    clearDraft();
+    dropDraft(draftAt);
+    draftAt = '';
     closeModal('#brew-modal');
     renderBoard();
     toast(`Brew ${n} removed`, {
@@ -2918,7 +3034,44 @@ function brewHasContent() {
      schedule the recipe. Closing the sheet used to drop a reworked
      schedule without asking, while it would stop and ask over a
      half-typed note. */
-  return typed || pourSchedule(editing.pours) !== pourSeed;
+  /* And the settings that arrive carried over — grind above all. They are
+     not work by being there, but they are the moment they move: a sheet
+     where only the grind was changed is the commonest dial-in there is,
+     and it used to close as though it were blank. */
+  return typed || pourSchedule(editing.pours) !== pourSeed || carried(editing) !== carrySeed
+    || Boolean(editing.clock);
+}
+
+// The settings a new sheet carries over, as one comparable string.
+function carried(b) {
+  return JSON.stringify([num(b.dose), b.grind === '' || b.grind == null ? null : num(Number(b.grind)),
+    b.temp === '' || b.temp == null ? null : num(Number(b.temp)), b.brewer || '']);
+}
+
+/* The line at the top of a sheet that came back from a draft, and the one
+   way to let it go. */
+function showDraftNote(c, brew, fromDraft) {
+  const note = $('#draft-note');
+  if (!note) return;
+  note.classList.toggle('hidden', !fromDraft);
+  if (!fromDraft) { note.innerHTML = ''; return; }
+  note.innerHTML = `<span>${brew ? 'Changes you had not saved, back where you left them.' : 'The brew you had not saved, back where you left it.'}</span>`;
+  const b = el('button', 'draft-drop', brew ? 'Discard the changes' : 'Start a fresh brew');
+  b.type = 'button';
+  b.addEventListener('click', () => {
+    haptic();
+    dropDraft(draftAt);
+    if (brew && editingSeed) {
+      try {
+        const back = JSON.parse(editingSeed);
+        Object.keys(brew).forEach(k => { if (!(k in back)) delete brew[k]; });
+        Object.assign(brew, back);
+      } catch (e) { /* keep what is there */ }
+    }
+    holdScreen(false);
+    openBrew(brew || null);
+  });
+  note.appendChild(b);
 }
 
 // The schedule as one comparable string, so "has it been touched?" is not
@@ -2927,47 +3080,40 @@ function pourSchedule(pours) {
   return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water), p.valve || null]));
 }
 
-/* Closing never asks. It used to stop on a native confirm() — reached by
-   the X, by Escape, and by a tap on the backdrop, which is where a thumb
-   lands when it misses — and the confirm was the only thing standing
-   between a wet hand and a lost brew. Now the sheet closes, and what was
-   on it waits behind an Undo that reopens it exactly as it was. */
+/* Closing never asks and never discards — see CLOSING NEVER THROWS A
+   BREW AWAY. A sheet with work on it is kept as a draft and the toast
+   says where to find it; an edit is taken back off the record, so the log
+   holds only what was saved, and comes back when the brew is opened. */
 function closeBrewSheet() {
   const c = activeCoffee();
   holdScreen(false);
-  if (editingIsNew && brewHasContent()) {
-    const draft = JSON.parse(JSON.stringify(editing));
-    const seed = pourSeed;
+  /* A field still holding focus commits its value on blur — and Escape
+     closes the sheet before that blur arrives, so the commit landed on
+     the record AFTER it had been put back, and an abandoned edit walked
+     into the log anyway. Blur first, so the value is part of the sheet
+     that is about to be kept. */
+  const focused = document.activeElement;
+  if (focused && $('#brew-modal').contains(focused) && focused.blur) focused.blur();
+  if (sheetHasWork()) {
+    writeDraft(false);
+    draftAt = '';
+    if (!editingIsNew && editingSeed) {
+      try {
+        const back = JSON.parse(editingSeed);
+        Object.keys(editing).forEach(k => { if (!(k in back)) delete editing[k]; });
+        Object.assign(editing, back);
+      } catch (e) { /* keep what is there */ }
+    }
+    const n = !editingIsNew && c ? brewNumber(c, editing) : null;
     closeModal('#brew-modal');
-    clearDraft();
-    toast('Brew put aside', {
-      restore: () => openBrew(null, { draft, pourSeed: seed }),
-    });
-    return;
-  }
-  if (!editingIsNew && editing && editingSeed && JSON.stringify(editing) !== editingSeed) {
-    const target = editing;
-    const changed = JSON.stringify(editing);
-    const seed = editingSeed;
-    try {
-      const back = JSON.parse(seed);
-      Object.keys(target).forEach(k => { if (!(k in back)) delete target[k]; });
-      Object.assign(target, back);
-    } catch (e) { /* keep what is there */ }
-    closeModal('#brew-modal');
-    clearDraft();
     renderBoard();
-    toast('Changes put aside', {
-      restore: () => {
-        if (!c || c.brews.indexOf(target) < 0) return;
-        if (state.activeId !== c.id) state.activeId = c.id;
-        openBrew(target, { draft: JSON.parse(changed), seed });
-      },
-    });
+    toast(n === null ? 'Kept as a draft — Log a brew picks it up' : `Brew ${n}: changes kept — open it to finish`);
     return;
   }
+  dropDraft(draftAt);
+  draftAt = '';
   closeModal('#brew-modal');
-  clearDraft();
+  renderBoard();
 }
 
 function buildBrewSheet(c) {
@@ -3014,19 +3160,58 @@ function nextStepLabel() {
   if (pours[i]) return pourLabel(pours, i);
   return pourLabel(pours.concat([{ at: null, water: null }]), pours.length);
 }
+// Said to a screen reader, which cannot watch the row fill in.
+function sayClock(msg) {
+  const live = $('#clock-said');
+  if (live) live.textContent = msg;
+}
+/* STAMPING A ROW TAKES ITS TIME, NOT LAST WEEK'S WEIGHT.
+
+   A carried-over schedule arrives with last brew's weights in it. Stamping
+   a row used to set this brew's time beside last brew's grams — "0:02,
+   150" — a pour that happened today with a weight that did not. The
+   weight a stamped row carried over becomes the field's placeholder: it
+   is still there to aim at, and it is not on the record until typed. */
+function seedRow(i) {
+  try { return JSON.parse(pourSeed)[i] || null; } catch (e) { return null; }
+}
 function stampStep(c, secs) {
   if (!percolates(editing)) return;
   if (!Array.isArray(editing.pours)) editing.pours = [];
   const i = editing.clock.step;
-  if (editing.pours[i]) editing.pours[i].at = secs;
-  else editing.pours.push({ at: secs, water: null });
+  const row = editing.pours[i];
+  if (row) {
+    row.at = secs;
+    const seed = seedRow(i);
+    if (!isValve(row) && num(row.water) !== null && seed && seed[1] === num(row.water)) {
+      row.plan = num(row.water);
+      row.water = null;
+    }
+  } else {
+    editing.pours.push({ at: secs, water: null });
+  }
   editing.clock.step = i + 1;
+  sayClock(`${pourLabel(editing.pours, i)} at ${fmtTime(secs)}`);
+  buildPours(c);
+  renderReadout(c);
+}
+// A valve moment, stamped where the clock is in the schedule.
+function stampValve(c, key, secs) {
+  if (!Array.isArray(editing.pours)) editing.pours = [];
+  const i = editing.clock.step;
+  editing.pours.splice(i, 0, { at: secs, water: null, valve: key });
+  editing.clock.step = i + 1;
+  sayClock(`${key === 'open' ? 'Opened' : 'Closed'} at ${fmtTime(secs)}`);
   buildPours(c);
   renderReadout(c);
 }
 function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
   const secs = clockSecs();
+  /* Kept, so a Stop pressed by mistake can be taken back: Resume puts the
+     same clock back, still counting from the same start, because the brew
+     did not pause while the thumb found the button. */
+  editing.clockWas = editing.clock;
   delete editing.clock;
   holdScreen(false);
   editing.time = secs;
@@ -3037,6 +3222,7 @@ function stopClock(c, quiet) {
   buildClock(c);
   buildNumbers(c);
   renderReadout(c);
+  sayClock(`Stopped at ${fmtTime(secs)}`);
   if (!quiet) toast(`Time ${fmtTime(secs)} recorded`);
 }
 
@@ -3050,23 +3236,39 @@ function buildClock(c) {
   wrap.classList.toggle('timed', !running && num(editing.time) !== null);
   wrap.classList.toggle('idle', !running && num(editing.time) === null);
   wrap.innerHTML = `
-    <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
-    <span class="clock-actions"></span>`;
+    <div class="clock-row">
+      <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
+      <span class="clock-actions"></span>
+    </div>`;
   const face = wrap.querySelector('.clock-face');
   const actions = wrap.querySelector('.clock-actions');
-  const button = (cls, text, fn) => {
+  const button = (cls, text, fn, where) => {
     const b = el('button', 'btn ' + cls, escapeHTML(text));
     b.type = 'button';
     b.addEventListener('click', () => { haptic(); fn(); });
-    actions.appendChild(b);
+    (where || actions).appendChild(b);
     return b;
   };
   if (running) {
-    if (pours) button('btn-ghost clock-step', `${nextStepLabel()} now`, () => {
+    /* Stop and the step button are two different weights in two
+       different places. The step button is the one pressed four or five
+       times, so it takes the primary weight and the thumb's side; Stop is
+       pressed once, an outline at the other end of the row. It used to be
+       the black button 8px from the step button. */
+    button('btn-ghost clock-stop', 'Stop', () => stopClock(c));
+    if (pours) button('btn-primary clock-step', `${nextStepLabel()} now`, () => {
       stampStep(c, clockSecs());
       buildClock(c);
     });
-    button('btn-primary clock-stop', 'Stop', () => stopClock(c));
+    // A valve brewer's moves are stamped as they happen too, not only the
+    // pours: on a Switch the sequence is the recipe.
+    if (hasValve(editing)) {
+      const valves = el('div', 'clock-valves');
+      wrap.appendChild(valves);
+      button('btn-ghost', 'Open now', () => { stampValve(c, 'open', clockSecs()); buildClock(c); }, valves);
+      button('btn-ghost', 'Close now', () => { stampValve(c, 'close', clockSecs()); buildClock(c); }, valves);
+    }
+    holdScreen(true);
     clockTick = setInterval(() => {
       if (!editing || !editing.clock || $('#brew-modal').classList.contains('hidden')) {
         clearInterval(clockTick);
@@ -3075,10 +3277,19 @@ function buildClock(c) {
       face.textContent = fmtTime(clockSecs());
     }, 250);
   } else {
+    if (editing.clockWas) {
+      button('btn-ghost clock-resume', 'Resume', () => {
+        editing.clock = editing.clockWas;
+        delete editing.clockWas;
+        sayClock('Resumed');
+        buildClock(c);
+        writeDraft();
+      });
+    }
     button('btn-ghost clock-start', num(editing.time) !== null ? 'Time it again' : 'Start the clock', () => {
+      delete editing.clockWas;
       editing.clock = { start: Date.now(), step: 0 };
       if (pours) stampStep(c, 0);
-      holdScreen(true);
       buildClock(c);
       writeDraft();
     });
@@ -3092,9 +3303,20 @@ function buildClock(c) {
    250, asking for the same number twice. It is taken from the last pour
    now, and said to be: the field notes where it came from, and typing
    over it hands it back to the person. */
+/* Only a total somebody put on THIS sheet. A schedule carried over from
+   the last brew already holds totals, and taking the water from one of
+   those printed last brew's 250 under a brew where nothing had been
+   poured yet. A row still showing exactly what it carried over is the
+   plan, not a reading. */
 function lastPourTotal(b) {
-  const ws = (b.pours || []).filter(p => !isValve(p) && num(p.water) !== null).map(p => num(p.water));
-  return ws.length ? ws[ws.length - 1] : null;
+  let total = null;
+  (b.pours || []).forEach((p, i) => {
+    if (isValve(p) || num(p.water) === null) return;
+    const seed = b === editing ? seedRow(i) : null;
+    if (seed && seed[1] === num(p.water) && seed[0] === num(p.at)) return;
+    total = num(p.water);
+  });
+  return total;
 }
 function syncWater(c) {
   if (!byWeight() || !editing) return false;
@@ -3124,7 +3346,7 @@ function buildNumbers(c) {
     });
     if (editing.waterAuto) {
       const note = waterField.querySelector('.num-note');
-      if (note) note.textContent = 'from the last pour';
+      if (note) { note.textContent = 'from the last pour'; note.classList.add('is-info'); }
     }
     row.appendChild(waterField);
   }
@@ -3184,6 +3406,11 @@ function buildNumbers(c) {
    open. Nothing is gone: it is all one tap away, and the advice reads it
    the moment it is there. */
 function buildTasteStep(c) {
+  // Its own, not buildNumbers' — the scales below call it, and when the
+  // sheet was split into steps they were left calling a name that now
+  // lives in another function, so every scale move threw and the advice
+  // on the sheet never heard about the taste.
+  const refresh = () => renderReadout(c);
   const step = $('#taste-step');
   if (step) {
     const tasted = ['taste', 'body', 'verdict'].some(k => editing[k] !== null && editing[k] !== undefined)
@@ -3473,6 +3700,8 @@ function buildPours(c) {
         // "To", because it is where the scale should read when this pour
         // finishes, not what this pour weighs.
         label: 'To', unit: 'g', compact: true,
+        // A stamped row shows the weight it carried over as a hint only.
+        placeholder: num(p.plan) !== null && num(p.water) === null ? String(num(p.plan)) : undefined,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
         onChange: v => { p.water = v; syncWater(c); buildPours(c); renderReadout(c); },
       });
@@ -3753,13 +3982,16 @@ function saveBrew() {
   // Working state of the sheet, never part of the record.
   delete editing.waterAuto;
   delete editing.tasteNow;
+  delete editing.clockWas;
+  (editing.pours || []).forEach(p => { delete p.plan; });
   if (wasNew) editing.n = numberBrews(c) + 1;
   const n = brewNumber(c, editing);
   if (wasNew) c.brews.push(editing);
   // The default for the next sheet is whatever you actually just used.
   if (editing.brewer && state.kit.brewer !== editing.brewer) state.kit.brewer = editing.brewer;
   save();
-  clearDraft();
+  dropDraft(draftAt);
+  draftAt = '';
   editingSeed = '';
   closeModal('#brew-modal');
   renderBoard();
@@ -3924,7 +4156,8 @@ function openCoffee(c, opts) {
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
-      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji"></label>
+      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji" aria-describedby="e-name-err"></label>
+    <p class="field-error" id="e-name-err" role="alert"></p>
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
@@ -4127,7 +4360,9 @@ function openCoffee(c, opts) {
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
            <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong> and <strong>${e.ratioRange}</strong>. Your grinder, water and palate finish the job.${
-             withTemp ? '' : ' Your kettle holds one temperature, so the ratio is the part of this you can take.'}${
+             // Said as the setup, not as a fact about the person's kettle:
+             // it appeared to people who had never answered the question.
+             withTemp ? '' : ' Your setup has a kettle with one temperature (change it in Settings), so the ratio is the part of this you can take.'}${
              withRatio ? '' : ' You are not brewing by weight, so the temperature is the part you can take.'}</p>
            ${moved}${warns}
            ${withTemp || withRatio
@@ -4306,11 +4541,36 @@ function openCoffee(c, opts) {
        push "Unnamed coffee" onto the shelf — the ghost bag the comment on
        addCoffee says cannot happen — and clearing the name of one already
        there did the same to a bag with brews on it. */
+    // Said under the field, not in a toast: the problem is in one place
+    // and the fix is in the same place, where the cursor now is.
     if (!c.name.trim()) {
       const field = body.querySelector('#e-name');
-      toast('Give the coffee a name first');
-      if (field) field.focus();
+      const err = body.querySelector('#e-name-err');
+      if (err) err.textContent = 'Give the coffee a name — it is how the board finds it.';
+      if (field) {
+        field.setAttribute('aria-invalid', 'true');
+        field.focus();
+        field.addEventListener('input', () => {
+          field.removeAttribute('aria-invalid');
+          if (err) err.textContent = '';
+        }, { once: true });
+      }
       return;
+    }
+    /* ONE RATIO FROM THE START.
+
+       A new coffee with a roast level was saved at the log's default
+       1:16, and then the board printed 1:16 beside a button offering the
+       bag's 1:16.7 — two numbers for one aim on the first screen anybody
+       reads. When a coffee is first added and its target is still the
+       untouched default, it starts at what the bag points to. That is the
+       number the coffee sheet showed while it was being filled in; it is
+       not written over anything somebody chose. */
+    if (adding) {
+      const sp = startingPoint(c);
+      const d = defaultTarget();
+      if (sp && byWeight() && c.target.ratio === d.ratio) c.target.ratio = sp.ratio;
+      if (sp && canSetTemp() && (c.target.temp === null || c.target.temp === d.temp)) c.target.temp = sp.temp;
     }
     if (adding && !state.coffees.some(x => x.id === c.id)) {
       state.coffees.push(c);
@@ -4393,7 +4653,15 @@ function grinderOptions(cur) {
   const hereNames = here.map(g => g.name);
   const elsewhere = mine.filter(g => hereNames.indexOf(g.name) < 0);
   const mineNames = mine.map(g => g.name);
-  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
+  /* The long list, in two groups and without the retired compounds.
+     Forty-odd names in one run made a first-timer scroll past hand
+     grinders to find an electric one, and two rows were the old
+     family-wide entries ("Timemore (C2, C3, 078)") sitting beside the
+     models they were split into. Those still resolve for anybody whose
+     kit names them — they only leave the list. */
+  const db = n => (root().LentoGearDB ? LentoGearDB.GRINDERS.find(g => g.name === n) : null) || {};
+  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0 && !db(g.name).legacy);
+  const byDrive = d => rest.filter(g => (db(g.name).drive || 'manual') === d);
   const known = mineNames.indexOf(cur) >= 0 || LentoKit.GRINDERS.some(g => g.name === cur);
   const opt = name => `<option value="${escapeHTML(name)}"${
     name === cur ? ' selected' : ''}>${escapeHTML(name)}</option>`;
@@ -4401,11 +4669,10 @@ function grinderOptions(cur) {
     ? `<optgroup label="${escapeHTML(label)}">${list.map(g => opt(g.name)).join('')}</optgroup>` : '');
   return `<option value=""${!cur ? ' selected' : ''}>Choose…</option>`
     + `<option value="__other"${cur && !known ? ' selected' : ''}>Something else</option>`
-    + (mine.length
-      ? group('Yours, for filter', here)
-        + group('Yours, used elsewhere', elsewhere)
-        + group('All grinders', rest)
-      : rest.map(g => opt(g.name)).join(''));
+    + group('Yours, for filter', here)
+    + group('Yours, used elsewhere', elsewhere)
+    + group('Hand grinders', byDrive('manual'))
+    + group('Electric grinders', byDrive('electric'));
 }
 
 /* Brewers you already own, above the shipped list — the same shape the
@@ -4417,9 +4684,20 @@ function brewerOptions() { return brewerOptionsFor(kit()); }
 function brewerOptionsFor(k) {
   const mine = ((k && k.brewers) || []).map(b => b.name);
   const rest = BREWERS.filter(b => mine.indexOf(b.name) < 0);
+  /* Grouped by how the water leaves, because that is the one fact about
+     a brewer that changes what this app asks and says — and it is the
+     question somebody looking for theirs in thirty-three names can
+     answer. */
+  const group = (label, flow) => {
+    const list = rest.filter(b => (b.flow || 'percolation') === flow);
+    return list.length ? `<optgroup label="${escapeHTML(label)}">${
+      list.map(b => `<option value="${escapeHTML(b.name)}">${escapeHTML(b.name)}</option>`).join('')}</optgroup>` : '';
+  };
   return '<option value="" selected>Add a brewer…</option>'
     + '<option value="__other">Something else</option>'
-    + rest.map(b => `<option value="${escapeHTML(b.name)}">${escapeHTML(b.name)}</option>`).join('');
+    + group('Pour over — the water drains through', 'percolation')
+    + group('Immersion — the coffee steeps', 'immersion')
+    + group('Switch — a valve does both', 'switch');
 }
 
 /* HOW THE WATER LEAVES, ASKED THE WAY SOMEBODY WOULD ANSWER IT.
@@ -5061,7 +5339,9 @@ function wire() {
   const brewModal = $('#brew-modal');
   ['input', 'change', 'click', 'keyup', 'pointerup'].forEach(t =>
     brewModal.addEventListener(t, () => setTimeout(writeDraft, 0)));
-  window.addEventListener('pagehide', writeDraft);
+  // Wrapped: a listener passes its event, which writeDraft would read as
+  // its `open` flag — and the brew just saved came back as an open draft.
+  window.addEventListener('pagehide', () => writeDraft());
   document.addEventListener('visibilitychange', () => { if (document.hidden) writeDraft(); });
 
   document.addEventListener('keydown', e => {
