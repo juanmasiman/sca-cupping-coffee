@@ -1578,7 +1578,7 @@ async function relayFetchSession(code) {
 async function relayLookupSession(code) {
   const res = await relayFetch(`/sessions/${encodeURIComponent(code)}`, { method: 'GET' });
   if (res.ok && res.data && res.data.payload) return { payload: res.data.payload };
-  return { payload: null, offline: res.status === 0 || res.status >= 500 };
+  return { payload: null, offline: res.status === 0 || res.status >= 500, busy: res.status === 429 };
 }
 
 async function relayJoinSession(code, name) {
@@ -2136,7 +2136,9 @@ function openJoinSheet() {
     length: 4,
     maxLength: 6, // the relay falls back to 6 digits if 4-digit codes collide
     onComplete: async code => {
-      const { payload, offline } = await relayLookupSession(code);
+      const { payload, offline, busy } = await relayLookupSession(code);
+      // the relay limits lookups per network; the code may be right
+      if (busy) return { message: 'Too many tries from this network. Wait a minute.', retry: true };
       if (offline) return {
         message: navigator.onLine === false
           ? 'You’re offline, so the code can’t be checked yet.'

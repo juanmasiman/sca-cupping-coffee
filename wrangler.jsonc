@@ -14,6 +14,13 @@
 
   // Stores the short-lived 4-digit join codes for live cuppings.
   // The binding name is what worker/index.js reads as env.CUPPINGS.
+  // Per-address limits on minting, looking up and joining live codes
+  // (worker/index.js, overLimit). 60 of each a minute per address. The
+  // namespace_id is any number unique within this Cloudflare account.
+  "ratelimits": [
+    { "name": "LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+  ],
+
   "kv_namespaces": [
     { "binding": "CUPPINGS", "id": "3625eb6dd7d5425fb8ded9f43a85338f" }
   ]
