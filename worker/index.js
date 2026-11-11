@@ -50,7 +50,10 @@ const ALLOWED_ORIGINS = [
    location, which nothing here uses. No full Content-Security-Policy yet:
    the pages carry inline scripts and styles, and a policy loose enough to
    allow them would mostly be a promise. frame-ancestors is the one
-   directive that holds regardless. */
+   directive that holds regardless.
+
+   Static files are served by Cloudflare without running this Worker, so
+   they get the same list from public/_headers. Keep the two in step. */
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
