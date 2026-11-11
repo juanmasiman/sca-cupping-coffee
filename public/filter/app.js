@@ -1539,7 +1539,12 @@ function tasteNote(brew, target) {
       why: 'Add the brew time and the app can say whether that is the grind or something else — sour and quick is a different problem from sour and slow, and they have opposite answers.' };
   }
   // in the window and still tasting of one of the walls
-  return { sure: false, move: 'Grind has done its job.',
+  // The move names the next thing to change. "Grind has done its job."
+  // was true and left the reader with nothing to do until they opened
+  // the reasoning underneath it.
+  return { sure: false, move: canSetTemp()
+      ? `Leave the grind. Try ${side === 'sour' ? 'hotter' : 'cooler'} water next.`
+      : `Leave the grind. ${side === 'sour' ? 'Pour more vigorously, or add water,' : 'Pour more gently, or use less water,'} next.`,
     why: canSetTemp()
       /* "A degree or two" is a physical move, and a Fahrenheit degree is
          a little over half a Celsius one — so on a kettle reading °F the
@@ -4151,7 +4156,8 @@ function openCoffee(c, opts) {
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
-      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji"></label>
+      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji" aria-describedby="e-name-err"></label>
+    <p class="field-error" id="e-name-err" role="alert"></p>
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
@@ -4354,7 +4360,9 @@ function openCoffee(c, opts) {
       ? `<div class="baseline">
            <span class="baseline-head">A place to start</span>
            <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong> and <strong>${e.ratioRange}</strong>. Your grinder, water and palate finish the job.${
-             withTemp ? '' : ' Your kettle holds one temperature, so the ratio is the part of this you can take.'}${
+             // Said as the setup, not as a fact about the person's kettle:
+             // it appeared to people who had never answered the question.
+             withTemp ? '' : ' Your setup has a kettle with one temperature (change it in Settings), so the ratio is the part of this you can take.'}${
              withRatio ? '' : ' You are not brewing by weight, so the temperature is the part you can take.'}</p>
            ${moved}${warns}
            ${withTemp || withRatio
@@ -4533,10 +4541,20 @@ function openCoffee(c, opts) {
        push "Unnamed coffee" onto the shelf — the ghost bag the comment on
        addCoffee says cannot happen — and clearing the name of one already
        there did the same to a bag with brews on it. */
+    // Said under the field, not in a toast: the problem is in one place
+    // and the fix is in the same place, where the cursor now is.
     if (!c.name.trim()) {
       const field = body.querySelector('#e-name');
-      toast('Give the coffee a name first');
-      if (field) field.focus();
+      const err = body.querySelector('#e-name-err');
+      if (err) err.textContent = 'Give the coffee a name — it is how the board finds it.';
+      if (field) {
+        field.setAttribute('aria-invalid', 'true');
+        field.focus();
+        field.addEventListener('input', () => {
+          field.removeAttribute('aria-invalid');
+          if (err) err.textContent = '';
+        }, { once: true });
+      }
       return;
     }
     /* ONE RATIO FROM THE START.
@@ -4635,7 +4653,15 @@ function grinderOptions(cur) {
   const hereNames = here.map(g => g.name);
   const elsewhere = mine.filter(g => hereNames.indexOf(g.name) < 0);
   const mineNames = mine.map(g => g.name);
-  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0);
+  /* The long list, in two groups and without the retired compounds.
+     Forty-odd names in one run made a first-timer scroll past hand
+     grinders to find an electric one, and two rows were the old
+     family-wide entries ("Timemore (C2, C3, 078)") sitting beside the
+     models they were split into. Those still resolve for anybody whose
+     kit names them — they only leave the list. */
+  const db = n => (root().LentoGearDB ? LentoGearDB.GRINDERS.find(g => g.name === n) : null) || {};
+  const rest = LentoKit.GRINDERS.filter(g => mineNames.indexOf(g.name) < 0 && !db(g.name).legacy);
+  const byDrive = d => rest.filter(g => (db(g.name).drive || 'manual') === d);
   const known = mineNames.indexOf(cur) >= 0 || LentoKit.GRINDERS.some(g => g.name === cur);
   const opt = name => `<option value="${escapeHTML(name)}"${
     name === cur ? ' selected' : ''}>${escapeHTML(name)}</option>`;
@@ -4643,11 +4669,10 @@ function grinderOptions(cur) {
     ? `<optgroup label="${escapeHTML(label)}">${list.map(g => opt(g.name)).join('')}</optgroup>` : '');
   return `<option value=""${!cur ? ' selected' : ''}>Choose…</option>`
     + `<option value="__other"${cur && !known ? ' selected' : ''}>Something else</option>`
-    + (mine.length
-      ? group('Yours, for filter', here)
-        + group('Yours, used elsewhere', elsewhere)
-        + group('All grinders', rest)
-      : rest.map(g => opt(g.name)).join(''));
+    + group('Yours, for filter', here)
+    + group('Yours, used elsewhere', elsewhere)
+    + group('Hand grinders', byDrive('manual'))
+    + group('Electric grinders', byDrive('electric'));
 }
 
 /* Brewers you already own, above the shipped list — the same shape the
@@ -4659,9 +4684,20 @@ function brewerOptions() { return brewerOptionsFor(kit()); }
 function brewerOptionsFor(k) {
   const mine = ((k && k.brewers) || []).map(b => b.name);
   const rest = BREWERS.filter(b => mine.indexOf(b.name) < 0);
+  /* Grouped by how the water leaves, because that is the one fact about
+     a brewer that changes what this app asks and says — and it is the
+     question somebody looking for theirs in thirty-three names can
+     answer. */
+  const group = (label, flow) => {
+    const list = rest.filter(b => (b.flow || 'percolation') === flow);
+    return list.length ? `<optgroup label="${escapeHTML(label)}">${
+      list.map(b => `<option value="${escapeHTML(b.name)}">${escapeHTML(b.name)}</option>`).join('')}</optgroup>` : '';
+  };
   return '<option value="" selected>Add a brewer…</option>'
     + '<option value="__other">Something else</option>'
-    + rest.map(b => `<option value="${escapeHTML(b.name)}">${escapeHTML(b.name)}</option>`).join('');
+    + group('Pour over — the water drains through', 'percolation')
+    + group('Immersion — the coffee steeps', 'immersion')
+    + group('Switch — a valve does both', 'switch');
 }
 
 /* HOW THE WATER LEAVES, ASKED THE WAY SOMEBODY WOULD ANSWER IT.

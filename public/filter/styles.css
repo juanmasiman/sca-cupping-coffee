@@ -438,3 +438,9 @@
   font-weight: 700;
   color: var(--text);
 }
+
+/* A field's own error, under it. Alert red, like a number field that
+   refused what was typed; empty, it takes no room. */
+.field-error { margin: calc(-1 * var(--space-2)) 0 0; font-size: 13px; line-height: 1.35; color: var(--red); }
+.field-error:empty { display: none; }
+.field-input[aria-invalid="true"] { border-color: var(--red); }

@@ -534,8 +534,11 @@ input { font: inherit; color: inherit; }
   font-size: 11px;
   font-weight: 600;
 }
-.log-place.in { color: var(--text-dim); }
-.log-place.out { color: var(--text-faint); }
+/* Outside the window is the finding; inside it is the confirmation. The
+   faint ink was on the wrong one — "18s long" was the least visible text
+   on the card whose job is to say what went wrong. */
+.log-place.in { color: var(--text-faint); }
+.log-place.out { color: var(--text); }
 
 /* A part-recorded entry drops to secondary ink, the same treatment a
    part-scored sheet takes on the cupping side. Greying is the whole
@@ -1737,7 +1740,10 @@ select.field-input {
    inherits the toast's own lifetime and cannot outlive the thing it undoes. */
 /* Clear of the action bar while a sheet is open. 88px is measured for a
    board with a bottom bar behind it; a sheet puts its own bar there. */
-.toast.over-sheet { bottom: calc(var(--sab) + 148px); }
+/* Over an open sheet the toast goes to the top, onto the dimmed band
+   above the sheet. At the bottom it sat over the last fields of the form
+   — "Keep it?", the pours — exactly where the next tap was going. */
+.toast.over-sheet { bottom: auto; top: calc(var(--sat) + var(--space-3)); }
 
 .toast-undo {
   pointer-events: auto;
