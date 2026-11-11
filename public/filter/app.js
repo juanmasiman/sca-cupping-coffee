@@ -950,6 +950,11 @@ function daysSinceRoast(c) {
 function newCoffee(name) {
   return {
     id: uid(),
+    /* Tombstones for removed records. migrate() adds it on load, so a
+       coffee only ever lacked it between being added and the next reload
+       — and removing a record in that window threw, leaving it on the
+       board. */
+    dead: {},
     name: (name || '').trim(),
     roaster: '',
     roastDate: '',

@@ -925,6 +925,11 @@ function daysSinceRoast(c) {
 function newCoffee(name) {
   return {
     id: uid(),
+    /* Tombstones for removed records. migrate() adds it on load, so a
+       coffee only ever lacked it between being added and the next reload
+       — and removing a record in that window threw, leaving it on the
+       board. */
+    dead: {},
     name: (name || '').trim(),
     roaster: '',
     roastDate: '',
@@ -3234,6 +3239,20 @@ function renderTarget(c) {
   });
 }
 
+/* Shot numbers that stay put, as the brew log's do. A card was numbered
+   by its place in the list, so removing shot 2 made shot 3 into shot 2
+   and "shot 3 was the one" stopped being true. Each shot keeps the number
+   it was given; older shots get one in the order they were pulled. */
+function numberShots(c) {
+  let top = 0;
+  (c.shots || []).forEach(sh => { if (num(sh.n) !== null && sh.n > top) top = sh.n; });
+  (c.shots || []).forEach(sh => { if (num(sh.n) === null) sh.n = ++top; });
+  return top;
+}
+function shotNumber(c, shot) {
+  return num(shot.n) !== null ? shot.n : c.shots.indexOf(shot) + 1;
+}
+
 function renderShots(c) {
   const list = $('#shots');
   list.innerHTML = '';
@@ -3278,13 +3297,14 @@ function renderShots(c) {
     return;
   }
 
+  numberShots(c);
   const rows = shotsNewestFirst(c);
   rows.forEach((shot, i) => {
     // the shot before this one in time, which is what "changed" means
     const prev = rows[i + 1] || null;
     // The advice is not on these cards at all — it is one card, at the top
     // of the board, about the next shot. See renderNext.
-    list.appendChild(shotCard(shot, prev, c, rows.length - i));
+    list.appendChild(shotCard(shot, prev, c, shotNumber(c, shot)));
   });
 }
 
@@ -3798,7 +3818,7 @@ function openShot(shot) {
   if (!(shot && d)) editingSeed = JSON.stringify(editing);
   showDraftNote(shot, Boolean(d));
 
-  $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${c.shots.indexOf(shot) + 1}`;
+  $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${shotNumber(c, shot)}`;
   /* Remove this shot.
 
      There was no way to. A mis-logged shot is not a small problem in a
@@ -3817,6 +3837,7 @@ function openShot(shot) {
     // so Undo restores the shot that was logged.
     if (editingSeed) revertTo(shot, editingSeed);
     const gone = c.shots[i];
+    const gn = shotNumber(c, gone);
     c.shots.splice(i, 1);
     // Written down, so a sync does not hand it back. See migrate().
     if (gone.id) c.dead[gone.id] = deletedAt(gone.updated);
@@ -3826,8 +3847,8 @@ function openShot(shot) {
     holdScreen(false);
     closeModal('#shot-modal');
     renderBoard();
-    toast('Shot removed', {
-      after: 'Shot back in the log',
+    toast(`Shot ${gn} removed`, {
+      after: `Shot ${gn} is back`,
       restore: () => {
         c.shots.splice(Math.min(i, c.shots.length), 0, gone);
         if (gone.id) delete c.dead[gone.id];
@@ -3889,7 +3910,7 @@ function closeShotSheet() {
   if (sheetHasWork()) {
     writeDraft(false);
     draftAt = '';
-    const n = !editingIsNew && c ? c.shots.indexOf(editing) + 1 : null;
+    const n = !editingIsNew && c ? shotNumber(c, editing) : null;
     if (!editingIsNew && editingSeed) revertTo(editing, editingSeed);
     closeModal('#shot-modal');
     renderBoard();
@@ -3971,6 +3992,21 @@ function buildNumbers(c) {
     min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
     startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
   }));
+  /* THE READING, WITH THE OTHER MEASUREMENTS.
+
+     The TDS field sat in the collapsed drawer beside the basket name,
+     so somebody who owns a refractometer — the one person for whom
+     extraction is the number — had to open a disclosure on every shot to
+     give it. It is a measurement taken at the bar, like the yield, so it
+     sits with the numbers when a refractometer is on the shelf. The
+     range is espresso's: a shot reads around 8–12 %, two decimals on a
+     refractometer's display. */
+  if (hasTds()) {
+    row.appendChild(numField({
+      label: 'TDS', unit: '%', value: num(editing.tds), min: 0, max: 25, step: 0.05, digits: 2,
+      startAt: 9.5, onChange: v => { editing.tds = v; refresh(); },
+    }));
+  }
 }
 
 function buildRest(c) {
@@ -4226,8 +4262,7 @@ function buildMore(c) {
     // Notes left this drawer for the sheet itself, so the summary stops
     // advertising them.
     bits.push('basket');
-    summary.textContent = `${bits.join(', ').replace(/^./, ch => ch.toUpperCase())}${
-      hasTds() ? ' and the reading' : ''}`;
+    summary.textContent = bits.join(', ').replace(/^./, ch => ch.toUpperCase());
   }
   body.innerHTML = `
     <div class="more-grid">
@@ -4242,8 +4277,6 @@ function buildMore(c) {
             either ask or do not. */ ''}
       ${seesPressure() ? `<label class="field"><span class="field-label">${canSetPressure() ? 'Pressure / flow' : 'What the gauge read'}</span>
         <input class="field-input" id="f-press" type="text" autocomplete="off" placeholder="${canSetPressure() ? 'e.g. 6 bar, 2ml/s' : 'e.g. 9 bar, steady'}"></label>` : ''}
-      ${hasTds() ? `<label class="field"><span class="field-label">TDS %</span>
-        <input class="field-input" id="f-tds" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 9.4"></label>` : ''}
     </div>
     <!-- Out of the two-column grid, because it holds a name rather than a
          number. On a machine with one temperature and no pressure gauge it
@@ -4271,12 +4304,11 @@ function buildMore(c) {
   bind('#f-temp', 'temp', false);
   bind('#f-press', 'press', false);
   bind('#f-basket', 'basket', false);
-  bind('#f-tds', 'tds', true);
 
   // Open it and it stays open — whatever is in here, somebody who filled it
   // in on the last shot is filling it in on this one.
   const more = $('#more');
-  more.open = Boolean(editing.temp || editing.press || editing.basket || editing.tds);
+  more.open = Boolean(editing.temp || editing.press || editing.basket);
 }
 
 /* The question the notes field is asking, which is not always the same one.
@@ -4397,13 +4429,24 @@ function saveShot() {
     toast(`${listWords(bad)} ${bad.length === 1 ? 'has' : 'have'} something in ${bad.length === 1 ? 'it' : 'them'} the app cannot read — fix or clear ${bad.length === 1 ? 'it' : 'them'} first`);
     return;
   }
-  if (!isComplete(editing) && editingIsNew) {
-    const missing = missingFields(editing);
-    // Saving a half-recorded shot is allowed — a bar is a bar, and a shot
-    // you only timed is still evidence. It is marked, not refused.
-    toast(`Saved without ${missing.join(' or ')}`);
+  /* A sheet with nothing on it is not a shot. The carried-over dose and
+     grind arrive by themselves and say nothing about whether a shot was
+     pulled. A half-recorded shot is still allowed; a blank one is turned
+     back with what would make it a record. */
+  if (editingIsNew && !shotHasContent()) {
+    haptic();
+    toast('Nothing recorded yet — add the yield, the time or how it tasted');
+    return;
   }
   const wasNew = editingIsNew;
+  if (wasNew) editing.n = numberShots(c) + 1;
+  const n = shotNumber(c, editing);
+  // Saving a half-recorded shot is allowed — a bar is a bar, and a shot
+  // you only timed is still evidence. It is marked, not refused; and
+  // either way the save is said, because the toast is the live region.
+  const saidSaved = isComplete(editing)
+    ? `Shot ${n} saved`
+    : `Shot ${n} saved without ${missingFields(editing).join(' or ')}`;
   delete editing.clockWas; // working state of the sheet, never the record
   if (wasNew) c.shots.push(editing);
   /* One recipe to a coffee.
@@ -4451,8 +4494,9 @@ function saveShot() {
   if (wasNew) {
     const first = $('#shots') && $('#shots').firstElementChild;
     if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    toast(saidSaved);
   } else {
-    toast('Shot updated');
+    toast(`Shot ${n} updated`);
   }
 }
 
