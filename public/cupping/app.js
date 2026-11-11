@@ -813,6 +813,14 @@ async function handleAuthRedirect() {
     return true;
   }
 
+  // the email's sign-in button: back here with a token_hash, finished
+  // after one tap (see finishEmailLink in shared/account.js)
+  if (query.get('token_hash') && window.LentoAccount && LentoAccount.finishEmailLink) {
+    const data = await LentoAccount.finishEmailLink(ENTRY_SEARCH);
+    if (data && !await adoptSession(data)) toast('Sign-in failed — please try again');
+    return true;
+  }
+
   if (hash.get('access_token')) {
     const data = {
       access_token: hash.get('access_token'),
