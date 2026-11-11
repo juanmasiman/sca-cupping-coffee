@@ -35,7 +35,7 @@ create policy "insert own cuppings" on public.cuppings
 
 drop policy if exists "update own cuppings" on public.cuppings;
 create policy "update own cuppings" on public.cuppings
-  for update using (auth.uid() = user_id);
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists "delete own cuppings" on public.cuppings;
 create policy "delete own cuppings" on public.cuppings
@@ -84,8 +84,35 @@ create policy "insert own records" on public.records
 
 drop policy if exists "update own records" on public.records;
 create policy "update own records" on public.records
-  for update using (auth.uid() = user_id);
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists "delete own records" on public.records;
 create policy "delete own records" on public.records
   for delete using (auth.uid() = user_id);
+
+-- ------------------------------------------------------------
+-- limits
+--
+-- The anon key is public and anyone can sign up, so a signed-in account is
+-- not a trusted one. Without a ceiling, one account could push rows of any
+-- size and fill the project's storage for everybody. A cupping with ten
+-- coffees is a few kilobytes; 256 KB per row is far past anything the apps
+-- write. NOT VALID: checked on every new write, never against rows that
+-- are already there, so running this cannot fail on existing history.
+--
+-- `with check` on the update policies above says out loud what Postgres
+-- already did implicitly: an update cannot move a row to another account.
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'cuppings_limits') then
+    alter table public.cuppings add constraint cuppings_limits check (
+      pg_column_size(data) < 262144 and char_length(id) <= 128
+    ) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'records_limits') then
+    alter table public.records add constraint records_limits check (
+      pg_column_size(data) < 262144 and char_length(id) <= 128 and char_length(tool) <= 32
+    ) not valid;
+  end if;
+end $$;

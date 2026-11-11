@@ -41,6 +41,51 @@ const ALLOWED_ORIGINS = [
   'https://sca-cupping-coffee.arc-heli.workers.dev',
 ];
 
+/* Headers every response carries.
+
+   nosniff, so a JSON or text response can never be read as a script;
+   no framing, so another site cannot lay lento.cafe under a transparent
+   iframe and borrow a tap (the reveal is one button, and irreversible);
+   a referrer that stops at the origin; and no camera, microphone or
+   location, which nothing here uses. No full Content-Security-Policy yet:
+   the pages carry inline scripts and styles, and a policy loose enough to
+   allow them would mostly be a promise. frame-ancestors is the one
+   directive that holds regardless. */
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Strict-Transport-Security': 'max-age=31536000',
+};
+
+function withSecurityHeaders(res) {
+  const out = new Response(res.body, res);
+  Object.entries(SECURITY_HEADERS).forEach(([k, v]) => out.headers.set(k, v));
+  return out;
+}
+
+/* Per-address limits on the three calls that cost nothing to repeat and
+   something to answer: minting a code, looking one up, and taking a seat.
+   A four-digit code is ten thousand guesses, and without a limit a script
+   could walk them and fill any table it found with sixty empty seats.
+   With one, a single address gets 60 of each a minute — room for a whole
+   cupping on one café's wifi to join at once.
+
+   Optional: the binding is LIMITER in wrangler.jsonc. Without it every
+   call is allowed, exactly as before. */
+async function overLimit(env, request, kind) {
+  if (!env.LIMITER) return false;
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  try {
+    const { success } = await env.LIMITER.limit({ key: `${kind}:${ip}` });
+    return !success;
+  } catch (e) {
+    return false; // a limiter that fails must not take the table down with it
+  }
+}
+
 function corsFor(request) {
   const origin = request.headers.get('Origin');
   return {
@@ -56,7 +101,7 @@ function corsFor(request) {
 function responder(cors) {
   return (body, status = 200) => new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...cors },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
   });
 }
 
@@ -93,6 +138,7 @@ async function handleApi(request, env, path, cors) {
 
   // --- create a session -------------------------------------------------
   if (request.method === 'POST' && path === '/sessions') {
+    if (await overLimit(env, request, 'create')) return json({ error: 'Too many requests' }, 429);
     const { body, error } = await readPayload(request, json);
     if (error) return error;
     if (!validPayload(body)) return json({ error: 'Invalid session payload' }, 400);
@@ -115,6 +161,7 @@ async function handleApi(request, env, path, cors) {
 
   // --- read a session ---------------------------------------------------
   if (request.method === 'GET' && sessionMatch) {
+    if (await overLimit(env, request, 'lookup')) return json({ error: 'Too many requests' }, 429);
     const stored = await env.CUPPINGS.get(`s:${sessionMatch[1]}`);
     if (!stored) return json({ error: 'Not found or expired' }, 404);
     const record = JSON.parse(stored);
@@ -142,6 +189,7 @@ async function handleApi(request, env, path, cors) {
 
   // --- someone joins ----------------------------------------------------
   if (request.method === 'POST' && participantsMatch) {
+    if (await overLimit(env, request, 'join')) return json({ error: 'Too many requests' }, 429);
     const code = participantsMatch[1];
     if (!(await env.CUPPINGS.get(`s:${code}`))) return json({ error: 'Not found or expired' }, 404);
 
@@ -150,7 +198,7 @@ async function handleApi(request, env, path, cors) {
     const name = String((body && body.name) || '').trim().slice(0, 24) || 'Cupper';
 
     const existing = await env.CUPPINGS.list({ prefix: `p:${code}:`, limit: MAX_PARTICIPANTS + 1 });
-    if (existing.keys.length > MAX_PARTICIPANTS) return json({ error: 'This cupping is full' }, 409);
+    if (existing.keys.length >= MAX_PARTICIPANTS) return json({ error: 'This cupping is full' }, 409);
 
     const id = randomToken();
     await env.CUPPINGS.put(`p:${code}:${id}`, '', {
@@ -301,7 +349,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const api = url.pathname.match(/^\/cupping\/api(\/.*)?$/);
-    if (api) return handleApi(request, env, api[1] || '/', corsFor(request));
-    return env.ASSETS.fetch(request);
+    if (api) return withSecurityHeaders(await handleApi(request, env, api[1] || '/', corsFor(request)));
+    return withSecurityHeaders(await env.ASSETS.fetch(request));
   },
 };

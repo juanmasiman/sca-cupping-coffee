@@ -8,7 +8,16 @@
 - [x] **Google sign-in** — OAuth client wired into Supabase and working.
 - [x] **Google consent screen** — closed as good enough. It names the Supabase project URL because Supabase owns the OAuth callback; app-name branding is set, and no logo was uploaded deliberately, since that pushes the app into Google's verification queue for no real gain. Email is the primary sign-in and is fully lento-branded, so few people meet this screen. Removing the URL entirely would need Supabase's paid Custom Domains add-on; revisit only if it starts costing credibility with paying customers.
 - [ ] **`cupping@lento.cafe` sender** — add the alias in Google Workspace, register it under Gmail's "Send mail as" (SMTP refuses otherwise), then switch the Supabase sender email to it.
-- [ ] **Security review** before opening the app up — the Worker accepts public writes and there is now an auth layer and row-level security to check.
+- [x] **Security review** — done in code (November 2026):
+  - **Escaping:** text other people supply is escaped everywhere it is shown. That covers a leader's coffee names and origin details, cupper names on the live table, and score codes pasted in from other cuppers. Checked by loading hostile names, details and notes through the share link, the live table and score codes, then going through every screen: nothing executed.
+  - **Keys:** the client ships only the `anon` key, and both tables have row-level security on.
+  - **Worker headers:** every response now carries `nosniff`, no framing (`frame-ancestors 'none'`), a strict referrer policy and HSTS.
+  - **Rate limits:** minting, looking up and joining live codes are limited per address (the `LIMITER` binding in `wrangler.jsonc`, 60 a minute).
+  - **Table size:** the 60-seat cap is now exact; it used to allow a 61st seat.
+  - **Schema:** the update policies say `with check`, and rows are capped at 256 KB.
+- [ ] **Re-run `server/supabase-schema.sql`** in the Supabase SQL editor once, to add the update `with check` and the row-size limits to the live project. It is safe to re-run: nothing is dropped and no existing row is checked.
+- [ ] **Confirm row-level security on the live project:** in Supabase, open Table Editor → `cuppings` and `records`; each should show "RLS enabled". This could not be checked from the review environment.
+- [ ] **Not yet done, deliberately:** a full Content-Security-Policy. It needs the inline scripts and styles moved into files first.
 - [ ] **Full UX/UI review pass.**
 
 
