@@ -141,7 +141,7 @@
       width: 100%;
       /* The instruments are 8px apart; this is 32px, the same interval the
          page already uses between the tagline and the cards and between
-         the cards and the footer. At 16px it read as a fifth tool. */
+         the cards and the footer. At 16px it read as one more tool. */
       margin-top: var(--space-8);
       font: inherit;
       text-align: left;
@@ -422,6 +422,31 @@
         <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
 
+      <a class="card" href="/extraction/">
+        <span class="card-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <!-- Two walls, the ratio line, and the reading sitting on it.
+                 A refractometer drop was the other candidate and it is the
+                 same drop the dripper above already hangs — two cards with
+                 one glyph between them.
+
+                 The first attempt drew the target box instead of the line:
+                 a rectangle with a dot in it, which at 24px is the glyph
+                 every operating system uses for a missing image. The line
+                 is also the truer picture, because the sentence this page
+                 is built on is that grind slides a brew along it. -->
+            <path d="M4 4v16h16"/>
+            <path d="M6.5 17.5L17.5 6.5" stroke-dasharray="3 2.6"/>
+            <circle cx="13" cy="11" r="2.1" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="card-text">
+          <span class="card-title">Extraction</span>
+          <span class="card-sub">dose, cup, TDS · and where it lands</span>
+        </span>
+        <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+
       <div class="card soon">
         <span class="card-icon">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -440,8 +465,11 @@
     <!-- Hidden until /shared/config.js says there is a project to sign in
          to: an account row on a deploy with no backend is a door to a room
          that does not exist. It sits below the instruments with a gap of
-         its own, because it is not a fifth tool — it is who you are while
-         you use the other four. -->
+         its own, because it is not one of the tools — it is who you are
+         while you use them. (This read "not a fifth tool ... the other
+         four" and counted the cards; Extraction makes five. A sentence
+         that counts is a sentence that goes stale, so it no longer
+         counts.) -->
     <button type="button" id="btn-account" class="card account-card hidden">
       <span class="card-icon">
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">

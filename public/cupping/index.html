@@ -381,8 +381,8 @@
   </datalist>
 
   <div id="wheel-modal" class="modal hidden">
-    <div class="modal-sheet wheel-sheet">
-      <h3>Flavor wheel</h3>
+    <div class="modal-sheet wheel-sheet" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+      <h3 id="wheel-title">Flavor wheel</h3>
       <p class="modal-hint" id="wheel-hint">Inner ring ticks a descriptor on the Describe form — up to 5, as the standard allows. Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.</p>
       <!-- The wheel opens whole, the way a paper one is read: take it all
            in, then lean closer. Zoom scrolls rather than reflows, so the
@@ -403,7 +403,7 @@
   </div>
 
   <div id="help-modal" class="modal hidden">
-    <div class="modal-sheet">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
       <h3 id="help-title"></h3>
       <p class="help-body" id="help-body"></p>
       <!-- The guided-mode switch used to exist only on the setup screen —
@@ -429,8 +429,8 @@
   </div>
 
   <div id="join-modal" class="modal hidden">
-    <div class="modal-sheet">
-      <h3>Join a cupping</h3>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="join-title">
+      <h3 id="join-title">Join a cupping</h3>
       <p class="modal-hint">Enter the 4-digit code from the cupping leader.</p>
       <div class="pin-boxes" id="pin-boxes" role="group" aria-label="Cupping code"></div>
       <p class="pin-error" id="pin-error"></p>
@@ -443,8 +443,8 @@
   </div>
 
   <div id="name-modal" class="modal hidden">
-    <div class="modal-sheet">
-      <h3>What’s your name?</h3>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="name-title">
+      <h3 id="name-title">What’s your name?</h3>
       <!-- What you are about to join, before you commit to it. Joining
            replaces whatever is on this device, and the sheet used to ask
            for a name without once saying what was on the other end. -->
@@ -459,8 +459,8 @@
   </div>
 
   <div id="otp-modal" class="modal hidden">
-    <div class="modal-sheet">
-      <h3>Check your email</h3>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="otp-title">
+      <h3 id="otp-title">Check your email</h3>
       <p class="modal-hint">Sent to <strong id="otp-where"></strong>. Enter the 6-digit code below, or just tap the sign-in link in the email — either works. Check junk if it hasn’t arrived.</p>
       <div class="pin-boxes" id="otp-boxes" role="group" aria-label="Sign-in code"></div>
       <p class="pin-error" id="otp-error"></p>
@@ -473,11 +473,18 @@
   </div>
 
   <div id="account-modal" class="modal hidden">
-    <div class="modal-sheet" id="account-sheet"></div>
+    <!-- Both, on purpose. This sheet's whole body is replaced on every open
+         and the heading inside it is one of three, so `aria-labelledby`
+         points at an id that does not exist until it has been opened once —
+         and a dialog whose label target is missing has no name at all.
+         `aria-label` is the floor: when the id resolves it wins, and when it
+         has not been written yet the dialog is still called something. -->
+    <div class="modal-sheet" id="account-sheet" role="dialog" aria-modal="true"
+         aria-labelledby="account-title" aria-label="Your account"></div>
   </div>
 
   <div id="share-modal" class="modal hidden">
-    <div class="modal-sheet">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="share-title">
       <h3 id="share-title">Invite cuppers</h3>
       <!-- Asked here because this is the moment the leader becomes a name on
            everyone else's screen. It used to live only on Results, which is
@@ -530,7 +537,7 @@
        focused by default — including the reveal, which is the moment this
        product exists for. -->
   <div id="confirm-modal" class="modal hidden">
-    <div class="modal-sheet">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <h3 id="confirm-title"></h3>
       <p class="modal-hint" id="confirm-body"></p>
       <ul class="confirm-effects" id="confirm-effects"></ul>
@@ -542,7 +549,7 @@
   </div>
 
   <div id="modal" class="modal hidden">
-    <div class="modal-sheet">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <h3 id="modal-title">Paste code</h3>
       <p id="modal-hint" class="modal-hint"></p>
       <textarea id="modal-input" class="modal-input" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
