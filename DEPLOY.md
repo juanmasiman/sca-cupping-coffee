@@ -3,11 +3,12 @@
 ## Open to-dos
 
 - [x] **Custom SMTP** — sending through Google Workspace (`smtp.gmail.com`, port 465) with an app password, from `jm@lento.cafe` as "LENTO! Cupping". Delivers to the inbox because lento.cafe is already SPF/DKIM-authenticated for Google.
-- [ ] **Paste the branded sign-in email into Supabase.** Authentication → Emails → **Magic Link**. Replace **both** fields: the subject (default is "Your sign in link") with something like `Your lento sign-in code`, and the body with `server/email-magic-link.html` from this repo. Not cosmetic — the default body contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done.
-- [ ] **Create a `cupping@lento.cafe` alias** in Google Workspace (Admin console → Users → your user → Add alias, or a Group of that name), then switch the Supabase sender to it so sign-in mail isn't tied to a personal mailbox.
+- [ ] **Paste the branded sign-in email into Supabase.** Authentication → Emails → **Magic Link**. Replace **both** fields: the subject (default is "Your sign in link") with `Your lento sign-in code` — lowercase, as the brand is written everywhere else, and the body with `server/email-magic-link.html` from this repo. Not cosmetic — the default body contains only `{{ .ConfirmationURL }}`, so the **6-digit code does not appear in the email** until this is done.
+  - **About the template:** it uses `{{ .Token }}` for the code, and `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email` for the button. The button returns to the lento.cafe page the person signed in from, and `shared/account.js` finishes the sign-in there after one tap. A mail scanner opening the link cannot spend it, and the link is never on Supabase's own `*.supabase.co` address: a lento.cafe mail asking you to sign in somewhere else reads as phishing, and that is what sent the first test to junk. The file is a whole HTML document with no comments, because comments are mailed too. Colours come from `public/shared/tokens.css`.
+  - **Redirect URLs:** Supabase → Authentication → URL Configuration → Redirect URLs must allow `https://lento.cafe/**`, or `{{ .RedirectTo }}` falls back to the Site URL (`https://lento.cafe`).
 - [x] **Google sign-in** — OAuth client wired into Supabase and working.
 - [x] **Google consent screen** — closed as good enough. It names the Supabase project URL because Supabase owns the OAuth callback; app-name branding is set, and no logo was uploaded deliberately, since that pushes the app into Google's verification queue for no real gain. Email is the primary sign-in and is fully lento-branded, so few people meet this screen. Removing the URL entirely would need Supabase's paid Custom Domains add-on; revisit only if it starts costing credibility with paying customers.
-- [ ] **`cupping@lento.cafe` sender** — add the alias in Google Workspace, register it under Gmail's "Send mail as" (SMTP refuses otherwise), then switch the Supabase sender email to it.
+- [ ] **`hello@lento.cafe` sender**, named "lento". One sign-in serves cupping, espresso and filter, so the address is not "cupping@" (that alias exists and is left alone), and replies to a sign-in mail ("I didn't get the code") should reach someone, so it is not a no-reply. Steps: add `hello` as an alternate address on your user in Google Admin; add it under Gmail → Settings → Accounts → **Send mail as**, with name `lento` (SMTP `smtp.gmail.com`, 465, SSL, the existing app password — Gmail's SMTP refuses a From it has not verified); then set Supabase → Authentication → Emails → SMTP Settings → Sender email `hello@lento.cafe`, Sender name `lento`.
 - [x] **Security review** — done in code (November 2026):
   - **Escaping:** text other people supply is escaped everywhere it is shown. That covers a leader's coffee names and origin details, cupper names on the live table, and score codes pasted in from other cuppers. Checked by loading hostile names, details and notes through the share link, the live table and score codes, then going through every screen: nothing executed.
   - **Keys:** the client ships only the `anon` key, and both tables have row-level security on.
@@ -96,7 +97,7 @@ Nothing else changes — all three work signed out, with no signal, for ever.
    to another origin. For local work, add the exact localhost URL while you
    need it and take it out again.
 4. **Google provider** (free): in [Google Cloud Console](https://console.cloud.google.com) create a project → OAuth consent screen (External) → Credentials → OAuth client ID (Web application), with authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`. Paste the client ID and secret into Supabase → Authentication → Providers → Google.
-5. **Email magic links** work out of the box using Supabase's built-in mailer, which is rate-limited to a few messages an hour. Before real launch, add free SMTP (Resend, Brevo) under Authentication → SMTP settings so mail comes from `cupping@lento.cafe`.
+5. **Email magic links** work out of the box using Supabase's built-in mailer, which is rate-limited to a few messages an hour. Before real launch, add free SMTP (Resend, Brevo) under Authentication → SMTP settings so mail comes from `hello@lento.cafe`.
 6. Put the project URL and anon key into `public/shared/config.js` — one file,
    read by all three tools:
 
@@ -122,7 +123,7 @@ Supabase locks email-template editing until custom SMTP exists, and Resend will 
 3. Supabase → **Project Settings → Authentication → SMTP Settings** → enable Custom SMTP: host `smtp.resend.com`, port `465`, username `resend`, password = the API key, sender email `onboarding@resend.dev`, sender name `lento`.
 4. Save. Template editing unlocks — paste `server/email-magic-link.html` into Authentication → Emails → Magic Link.
 
-Then verify the domain below to send to anyone from `cupping@lento.cafe`.
+Then verify the domain below to send to anyone from `hello@lento.cafe`.
 
 ### Full setup: verify lento.cafe
 
@@ -144,7 +145,7 @@ Then verify the domain below to send to anyone from `cupping@lento.cafe`.
    - Port `465`
    - Username `resend`
    - Password: the API key from step 4
-   - Sender email `cupping@lento.cafe`
+   - Sender email `hello@lento.cafe`
    - Sender name `lento`
 6. Save, then send yourself a sign-in code from the app to confirm it arrives in the inbox.
 7. Supabase → Authentication → **Rate Limits** → raise the email limit, which the built-in mailer had pinned low.

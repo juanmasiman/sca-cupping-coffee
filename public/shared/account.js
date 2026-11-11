@@ -194,10 +194,84 @@
     announce();
   }
 
+  /* THE SIGN-IN BUTTON IN THE EMAIL.
+
+     It used to be Supabase's own link, on the project's *.supabase.co
+     address: a lento.cafe email asking you to sign in somewhere else,
+     which is what phishing looks like, and the first live test went to
+     junk. It now comes back to the lento.cafe page you started from with
+     a one-time token_hash, and the page finishes the sign-in itself.
+
+     It asks for one tap first. Mail scanners open every link in a
+     message, and some run the page's script; if loading the page spent
+     the token, a scanner would sign itself in and the code in the same
+     email would be dead before anyone read it. A scanner does not tap.
+
+     Returns the session (to adopt), or null. The token leaves the address
+     bar at once either way, so it never sits in history. */
+  function finishEmailLink(search) {
+    var q = new URLSearchParams(search === undefined ? location.search : search);
+    var hash = q.get('token_hash');
+    if (!enabled() || !hash) return Promise.resolve(null);
+    var type = q.get('type') || 'email';
+    history.replaceState(null, '', location.pathname + location.hash);
+
+    return new Promise(function (resolve) {
+      var box = document.createElement('div');
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'finish-signin-title');
+      box.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:flex-end;justify-content:center;'
+        + 'background:rgba(15,17,19,0.45);padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));';
+      box.innerHTML =
+        '<div style="width:100%;max-width:420px;background:var(--bg-card,#fff);color:var(--text,#16181c);'
+        + 'border:1px solid var(--line,#d9dad4);border-radius:var(--radius,4px);padding:24px;font-family:var(--sans,system-ui,sans-serif);">'
+        + '<h2 id="finish-signin-title" style="margin:0;font-size:17px;font-weight:700;">Finish signing in</h2>'
+        + '<p class="finish-signin-say" style="margin:8px 0 20px;font-size:15px;line-height:1.45;color:var(--text-dim,#565b63);">'
+        + 'You opened the link from your lento sign-in email.</p>'
+        + '<button type="button" data-go style="display:block;width:100%;min-height:48px;border:0;border-radius:var(--radius,4px);'
+        + 'background:var(--chrome,#16181c);color:var(--on-chrome,#fbfaf7);font:inherit;font-size:17px;font-weight:700;cursor:pointer;">Sign in</button>'
+        + '<button type="button" data-no style="display:block;width:100%;min-height:44px;margin-top:8px;border:0;background:none;'
+        + 'color:var(--text-dim,#565b63);font:inherit;font-size:15px;cursor:pointer;">Not now</button>'
+        + '</div>';
+      document.body.appendChild(box);
+      var go = box.querySelector('[data-go]');
+      var say = box.querySelector('.finish-signin-say');
+      var done = function (v) { box.remove(); resolve(v); };
+      go.focus();
+      box.querySelector('[data-no]').addEventListener('click', function () { done(null); });
+      box.addEventListener('keydown', function (e) { if (e.key === 'Escape') done(null); });
+      go.addEventListener('click', async function () {
+        go.disabled = true;
+        go.textContent = 'Signing in…';
+        try {
+          var data = await sbFetch('/auth/v1/verify', {
+            method: 'POST',
+            body: JSON.stringify({ type: type, token_hash: hash }),
+          });
+          done(data);
+        } catch (e) {
+          // used, expired, or offline: say which, and leave the code as the way in
+          say.textContent = e && e.status
+            ? 'That link was already used or has expired. Ask for a new code from your profile.'
+            : 'No connection. Try the link again when you are back online, or use the code.';
+          say.style.color = 'var(--red,#9a3412)';
+          go.textContent = 'Close';
+          go.disabled = false;
+          go.addEventListener('click', function () { done(null); }, { once: true });
+        }
+      }, { once: true });
+    });
+  }
+
   /* An OAuth return lands as a URL fragment. Consumed and wiped from the
-     address bar, so a token never survives in history or a shared link. */
+     address bar, so a token never survives in history or a shared link.
+     The email's sign-in button lands as ?token_hash=, handled first. */
   async function adoptRedirect() {
-    if (!enabled() || !location.hash) return false;
+    if (!enabled()) return false;
+    var emailed = await finishEmailLink();
+    if (emailed) return adoptSession(emailed);
+    if (!location.hash) return false;
     var h = new URLSearchParams(location.hash.slice(1));
     if (!h.get('access_token')) return false;
     var ok = await adoptSession({
@@ -439,6 +513,7 @@
     verifyEmailCode: verifyEmailCode,
     signOut: signOut,
     adoptRedirect: adoptRedirect,
+    finishEmailLink: finishEmailLink,
     push: push,
     pull: pull,
     remove: remove,
