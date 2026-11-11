@@ -355,11 +355,28 @@
    written to the record as the brew's time. */
 .brew-clock {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  flex-direction: column;
+  gap: var(--space-3);
   padding: var(--space-4) 0;
   margin-bottom: var(--space-4);
   border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+/* While it runs the clock stays on screen: pour weights are typed further
+   down the sheet, and a clock that scrolled away was a clock nobody could
+   see or stamp from. Pinned to the top of the sheet's own scroll, on the
+   sheet's ground so what slides under it does not show through. */
+.brew-clock.running {
+  position: sticky;
+  top: calc(-1 * var(--space-5));
+  z-index: 2;
+  margin-top: calc(-1 * var(--space-5));
+  padding-top: var(--space-5);
+}
+.clock-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 .clock-face {
   flex: none;
@@ -380,11 +397,18 @@
   flex: 1;
   display: flex;
   gap: var(--space-3);
-  justify-content: flex-end;
   min-width: 0;
 }
-.clock-actions .btn { flex: 1 1 auto; width: auto; min-height: 44px; margin: 0; }
-.clock-actions .clock-stop { flex: 0 0 auto; padding: 0 var(--space-6); }
+.clock-actions .btn { width: auto; min-height: 44px; margin: 0; padding: 0 var(--space-4); }
+/* The step button is the one pressed four times, so it takes the room and
+   the thumb's end of the row; Stop is pressed once and sits apart at the
+   other end, an outline rather than the black slab it used to be. */
+.clock-actions .clock-step,
+.clock-actions .clock-start { flex: 1 1 auto; }
+.clock-actions .clock-stop { flex: 0 0 auto; margin-right: var(--space-4); }
+.clock-actions .clock-resume { flex: 0 0 auto; }
+.clock-valves { display: flex; gap: var(--space-3); }
+.clock-valves .btn { flex: 1; width: auto; min-height: 44px; margin: 0; }
 
 /* The cup, as its own step. It reuses the disclosure the notes already
    use, so it reads as part of the same sheet rather than a new pattern. */

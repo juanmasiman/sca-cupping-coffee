@@ -911,6 +911,9 @@ html.sheet-open, html.sheet-open body {
   color: var(--red);
 }
 .num-note:empty { display: none; }
+/* The same slot, saying where a value came from rather than what is wrong
+   with it — "from the last pour". Information, so secondary ink. */
+.num-note.is-info { color: var(--text-dim); }
 .num-field.bad { border-color: var(--red); }
 .num-field.bad .num-value { color: var(--red); }
 

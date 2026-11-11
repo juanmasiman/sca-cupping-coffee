@@ -2973,6 +2973,7 @@ function openBrew(brew, resume) {
     if (gone && gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
     dropDraft(draftAt);
+    draftAt = '';
     closeModal('#brew-modal');
     renderBoard();
     toast(`Brew ${n} removed`, {
@@ -3071,6 +3072,7 @@ function closeBrewSheet() {
   if (focused && $('#brew-modal').contains(focused) && focused.blur) focused.blur();
   if (sheetHasWork()) {
     writeDraft(false);
+    draftAt = '';
     if (!editingIsNew && editingSeed) {
       try {
         const back = JSON.parse(editingSeed);
@@ -3085,6 +3087,7 @@ function closeBrewSheet() {
     return;
   }
   dropDraft(draftAt);
+  draftAt = '';
   closeModal('#brew-modal');
   renderBoard();
 }
@@ -3133,19 +3136,58 @@ function nextStepLabel() {
   if (pours[i]) return pourLabel(pours, i);
   return pourLabel(pours.concat([{ at: null, water: null }]), pours.length);
 }
+// Said to a screen reader, which cannot watch the row fill in.
+function sayClock(msg) {
+  const live = $('#clock-said');
+  if (live) live.textContent = msg;
+}
+/* STAMPING A ROW TAKES ITS TIME, NOT LAST WEEK'S WEIGHT.
+
+   A carried-over schedule arrives with last brew's weights in it. Stamping
+   a row used to set this brew's time beside last brew's grams — "0:02,
+   150" — a pour that happened today with a weight that did not. The
+   weight a stamped row carried over becomes the field's placeholder: it
+   is still there to aim at, and it is not on the record until typed. */
+function seedRow(i) {
+  try { return JSON.parse(pourSeed)[i] || null; } catch (e) { return null; }
+}
 function stampStep(c, secs) {
   if (!percolates(editing)) return;
   if (!Array.isArray(editing.pours)) editing.pours = [];
   const i = editing.clock.step;
-  if (editing.pours[i]) editing.pours[i].at = secs;
-  else editing.pours.push({ at: secs, water: null });
+  const row = editing.pours[i];
+  if (row) {
+    row.at = secs;
+    const seed = seedRow(i);
+    if (!isValve(row) && num(row.water) !== null && seed && seed[1] === num(row.water)) {
+      row.plan = num(row.water);
+      row.water = null;
+    }
+  } else {
+    editing.pours.push({ at: secs, water: null });
+  }
   editing.clock.step = i + 1;
+  sayClock(`${pourLabel(editing.pours, i)} at ${fmtTime(secs)}`);
+  buildPours(c);
+  renderReadout(c);
+}
+// A valve moment, stamped where the clock is in the schedule.
+function stampValve(c, key, secs) {
+  if (!Array.isArray(editing.pours)) editing.pours = [];
+  const i = editing.clock.step;
+  editing.pours.splice(i, 0, { at: secs, water: null, valve: key });
+  editing.clock.step = i + 1;
+  sayClock(`${key === 'open' ? 'Opened' : 'Closed'} at ${fmtTime(secs)}`);
   buildPours(c);
   renderReadout(c);
 }
 function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
   const secs = clockSecs();
+  /* Kept, so a Stop pressed by mistake can be taken back: Resume puts the
+     same clock back, still counting from the same start, because the brew
+     did not pause while the thumb found the button. */
+  editing.clockWas = editing.clock;
   delete editing.clock;
   holdScreen(false);
   editing.time = secs;
@@ -3156,6 +3198,7 @@ function stopClock(c, quiet) {
   buildClock(c);
   buildNumbers(c);
   renderReadout(c);
+  sayClock(`Stopped at ${fmtTime(secs)}`);
   if (!quiet) toast(`Time ${fmtTime(secs)} recorded`);
 }
 
@@ -3169,23 +3212,39 @@ function buildClock(c) {
   wrap.classList.toggle('timed', !running && num(editing.time) !== null);
   wrap.classList.toggle('idle', !running && num(editing.time) === null);
   wrap.innerHTML = `
-    <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
-    <span class="clock-actions"></span>`;
+    <div class="clock-row">
+      <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
+      <span class="clock-actions"></span>
+    </div>`;
   const face = wrap.querySelector('.clock-face');
   const actions = wrap.querySelector('.clock-actions');
-  const button = (cls, text, fn) => {
+  const button = (cls, text, fn, where) => {
     const b = el('button', 'btn ' + cls, escapeHTML(text));
     b.type = 'button';
     b.addEventListener('click', () => { haptic(); fn(); });
-    actions.appendChild(b);
+    (where || actions).appendChild(b);
     return b;
   };
   if (running) {
-    if (pours) button('btn-ghost clock-step', `${nextStepLabel()} now`, () => {
+    /* Stop and the step button are two different weights in two
+       different places. The step button is the one pressed four or five
+       times, so it takes the primary weight and the thumb's side; Stop is
+       pressed once, an outline at the other end of the row. It used to be
+       the black button 8px from the step button. */
+    button('btn-ghost clock-stop', 'Stop', () => stopClock(c));
+    if (pours) button('btn-primary clock-step', `${nextStepLabel()} now`, () => {
       stampStep(c, clockSecs());
       buildClock(c);
     });
-    button('btn-primary clock-stop', 'Stop', () => stopClock(c));
+    // A valve brewer's moves are stamped as they happen too, not only the
+    // pours: on a Switch the sequence is the recipe.
+    if (hasValve(editing)) {
+      const valves = el('div', 'clock-valves');
+      wrap.appendChild(valves);
+      button('btn-ghost', 'Open now', () => { stampValve(c, 'open', clockSecs()); buildClock(c); }, valves);
+      button('btn-ghost', 'Close now', () => { stampValve(c, 'close', clockSecs()); buildClock(c); }, valves);
+    }
+    holdScreen(true);
     clockTick = setInterval(() => {
       if (!editing || !editing.clock || $('#brew-modal').classList.contains('hidden')) {
         clearInterval(clockTick);
@@ -3194,10 +3253,19 @@ function buildClock(c) {
       face.textContent = fmtTime(clockSecs());
     }, 250);
   } else {
+    if (editing.clockWas) {
+      button('btn-ghost clock-resume', 'Resume', () => {
+        editing.clock = editing.clockWas;
+        delete editing.clockWas;
+        sayClock('Resumed');
+        buildClock(c);
+        writeDraft();
+      });
+    }
     button('btn-ghost clock-start', num(editing.time) !== null ? 'Time it again' : 'Start the clock', () => {
+      delete editing.clockWas;
       editing.clock = { start: Date.now(), step: 0 };
       if (pours) stampStep(c, 0);
-      holdScreen(true);
       buildClock(c);
       writeDraft();
     });
@@ -3211,9 +3279,20 @@ function buildClock(c) {
    250, asking for the same number twice. It is taken from the last pour
    now, and said to be: the field notes where it came from, and typing
    over it hands it back to the person. */
+/* Only a total somebody put on THIS sheet. A schedule carried over from
+   the last brew already holds totals, and taking the water from one of
+   those printed last brew's 250 under a brew where nothing had been
+   poured yet. A row still showing exactly what it carried over is the
+   plan, not a reading. */
 function lastPourTotal(b) {
-  const ws = (b.pours || []).filter(p => !isValve(p) && num(p.water) !== null).map(p => num(p.water));
-  return ws.length ? ws[ws.length - 1] : null;
+  let total = null;
+  (b.pours || []).forEach((p, i) => {
+    if (isValve(p) || num(p.water) === null) return;
+    const seed = b === editing ? seedRow(i) : null;
+    if (seed && seed[1] === num(p.water) && seed[0] === num(p.at)) return;
+    total = num(p.water);
+  });
+  return total;
 }
 function syncWater(c) {
   if (!byWeight() || !editing) return false;
@@ -3243,7 +3322,7 @@ function buildNumbers(c) {
     });
     if (editing.waterAuto) {
       const note = waterField.querySelector('.num-note');
-      if (note) note.textContent = 'from the last pour';
+      if (note) { note.textContent = 'from the last pour'; note.classList.add('is-info'); }
     }
     row.appendChild(waterField);
   }
@@ -3597,6 +3676,8 @@ function buildPours(c) {
         // "To", because it is where the scale should read when this pour
         // finishes, not what this pour weighs.
         label: 'To', unit: 'g', compact: true,
+        // A stamped row shows the weight it carried over as a hint only.
+        placeholder: num(p.plan) !== null && num(p.water) === null ? String(num(p.plan)) : undefined,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
         onChange: v => { p.water = v; syncWater(c); buildPours(c); renderReadout(c); },
       });
@@ -3877,6 +3958,8 @@ function saveBrew() {
   // Working state of the sheet, never part of the record.
   delete editing.waterAuto;
   delete editing.tasteNow;
+  delete editing.clockWas;
+  (editing.pours || []).forEach(p => { delete p.plan; });
   if (wasNew) editing.n = numberBrews(c) + 1;
   const n = brewNumber(c, editing);
   if (wasNew) c.brews.push(editing);
@@ -3884,6 +3967,7 @@ function saveBrew() {
   if (editing.brewer && state.kit.brewer !== editing.brewer) state.kit.brewer = editing.brewer;
   save();
   dropDraft(draftAt);
+  draftAt = '';
   editingSeed = '';
   closeModal('#brew-modal');
   renderBoard();
@@ -5185,7 +5269,9 @@ function wire() {
   const brewModal = $('#brew-modal');
   ['input', 'change', 'click', 'keyup', 'pointerup'].forEach(t =>
     brewModal.addEventListener(t, () => setTimeout(writeDraft, 0)));
-  window.addEventListener('pagehide', writeDraft);
+  // Wrapped: a listener passes its event, which writeDraft would read as
+  // its `open` flag — and the brew just saved came back as an open draft.
+  window.addEventListener('pagehide', () => writeDraft());
   document.addEventListener('visibilitychange', () => { if (document.hidden) writeDraft(); });
 
   document.addEventListener('keydown', e => {

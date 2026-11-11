@@ -119,6 +119,9 @@
            tap of the step button stamps the pour you are making; Stop
            writes the time. Built by buildClock. -->
       <div class="brew-clock" id="brew-clock"></div>
+      <!-- What the clock just did, for a reader who cannot watch the rows
+           fill in. Outside the clock so a redraw does not wipe it. -->
+      <span class="sr-only" id="clock-said" aria-live="polite"></span>
 
       <!-- Said before the numbers, because that is when you know it — and now
            drawn there too. The card compares it afterwards with what
