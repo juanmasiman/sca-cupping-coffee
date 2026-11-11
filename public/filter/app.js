@@ -1903,7 +1903,8 @@ function toast(msg, undo) {
   t.appendChild(document.createTextNode(msg));
   undoSlot = undo || null;
   if (undo) {
-    const b = el('button', 'toast-undo', 'Undo');
+    // Undo by default; an offer to carry on (e.g. "Add the taste") names itself.
+    const b = el('button', 'toast-undo', escapeHTML(undo.label || 'Undo'));
     b.type = 'button';
     b.addEventListener('click', () => {
       const act = undoSlot;
@@ -2814,6 +2815,10 @@ function openBrew(brew, resume) {
 
   buildBrewSheet(c);
   openModal('#brew-modal');
+  if (resume && resume.focus === 'taste') {
+    const step = $('#taste-step');
+    if (step) { step.open = true; step.scrollIntoView({ block: 'start' }); }
+  }
   writeDraft();
 }
 
@@ -2848,6 +2853,7 @@ function pourSchedule(pours) {
    on it waits behind an Undo that reopens it exactly as it was. */
 function closeBrewSheet() {
   const c = activeCoffee();
+  holdScreen(false);
   if (editingIsNew && brewHasContent()) {
     const draft = JSON.parse(JSON.stringify(editing));
     const seed = pourSeed;
@@ -2885,6 +2891,142 @@ function closeBrewSheet() {
 
 function buildBrewSheet(c) {
   buildBrewerPick(c);
+  buildClock(c);
+  buildNumbers(c);
+  buildPours(c);
+  buildTasteStep(c);
+}
+
+/* THE CLOCK.
+
+   "This app will not print a number it cannot account for" — and the
+   number every piece of advice here reasons from, the time, was read off
+   a timer in another app and typed in afterwards. The sheet is the timer
+   now. Start it as the water goes on: the first row of the schedule (the
+   bloom, or a valve) is stamped at 0:00. Each tap of the step button
+   stamps the next row at the moment you make it, adding a row when the
+   schedule runs out. Stop writes the time, and — because the pours just
+   happened — takes the water from the last one if it is still blank.
+
+   The clock lives on the brew as `clock` while it runs, so the draft that
+   survives a reload keeps it running from the same start. It never
+   reaches the log: saving stops it first. */
+let clockTick = null;
+let wakeLock = null;
+
+function clockSecs() {
+  return editing && editing.clock ? Math.max(0, Math.round((Date.now() - editing.clock.start) / 1000)) : 0;
+}
+function holdScreen(on) {
+  try {
+    if (on && navigator.wakeLock && !wakeLock) {
+      navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(() => {});
+    } else if (!on && wakeLock) {
+      wakeLock.release().catch(() => {}); wakeLock = null;
+    }
+  } catch (e) { /* not everywhere, and never essential */ }
+}
+// The label of the row the step button will stamp next.
+function nextStepLabel() {
+  const i = editing.clock ? editing.clock.step : 0;
+  const pours = editing.pours || [];
+  if (pours[i]) return pourLabel(pours, i);
+  return pourLabel(pours.concat([{ at: null, water: null }]), pours.length);
+}
+function stampStep(c, secs) {
+  if (!percolates(editing)) return;
+  if (!Array.isArray(editing.pours)) editing.pours = [];
+  const i = editing.clock.step;
+  if (editing.pours[i]) editing.pours[i].at = secs;
+  else editing.pours.push({ at: secs, water: null });
+  editing.clock.step = i + 1;
+  buildPours(c);
+  renderReadout(c);
+}
+function stopClock(c, quiet) {
+  if (!editing || !editing.clock) return;
+  const secs = clockSecs();
+  delete editing.clock;
+  holdScreen(false);
+  editing.time = secs;
+  if (byWeight() && (editing.water === null || editing.water === undefined)) {
+    const total = lastPourTotal(editing);
+    if (total !== null) { editing.water = total; editing.waterAuto = true; }
+  }
+  buildClock(c);
+  buildNumbers(c);
+  renderReadout(c);
+  if (!quiet) toast(`Time ${fmtTime(secs)} recorded`);
+}
+
+function buildClock(c) {
+  const wrap = $('#brew-clock');
+  if (!wrap) return;
+  clearInterval(clockTick);
+  const running = Boolean(editing.clock);
+  const pours = percolates(editing);
+  wrap.classList.toggle('running', running);
+  wrap.classList.toggle('timed', !running && num(editing.time) !== null);
+  wrap.classList.toggle('idle', !running && num(editing.time) === null);
+  wrap.innerHTML = `
+    <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
+    <span class="clock-actions"></span>`;
+  const face = wrap.querySelector('.clock-face');
+  const actions = wrap.querySelector('.clock-actions');
+  const button = (cls, text, fn) => {
+    const b = el('button', 'btn ' + cls, escapeHTML(text));
+    b.type = 'button';
+    b.addEventListener('click', () => { haptic(); fn(); });
+    actions.appendChild(b);
+    return b;
+  };
+  if (running) {
+    if (pours) button('btn-ghost clock-step', `${nextStepLabel()} now`, () => {
+      stampStep(c, clockSecs());
+      buildClock(c);
+    });
+    button('btn-primary clock-stop', 'Stop', () => stopClock(c));
+    clockTick = setInterval(() => {
+      if (!editing || !editing.clock || $('#brew-modal').classList.contains('hidden')) {
+        clearInterval(clockTick);
+        return;
+      }
+      face.textContent = fmtTime(clockSecs());
+    }, 250);
+  } else {
+    button('btn-ghost clock-start', num(editing.time) !== null ? 'Time it again' : 'Start the clock', () => {
+      editing.clock = { start: Date.now(), step: 0 };
+      if (pours) stampStep(c, 0);
+      holdScreen(true);
+      buildClock(c);
+      writeDraft();
+    });
+  }
+}
+
+/* THE WATER IS ALREADY ON THE SCALE.
+
+   Pours are written as running totals, so the last one is the water —
+   and the sheet used to leave Water blank under a schedule ending at
+   250, asking for the same number twice. It is taken from the last pour
+   now, and said to be: the field notes where it came from, and typing
+   over it hands it back to the person. */
+function lastPourTotal(b) {
+  const ws = (b.pours || []).filter(p => !isValve(p) && num(p.water) !== null).map(p => num(p.water));
+  return ws.length ? ws[ws.length - 1] : null;
+}
+function syncWater(c) {
+  if (!byWeight() || !editing) return false;
+  if (editing.water !== null && editing.water !== undefined && !editing.waterAuto) return false;
+  const total = lastPourTotal(editing);
+  if (total === editing.water) return false;
+  editing.water = total;
+  editing.waterAuto = total !== null;
+  buildNumbers(c);
+  return true;
+}
+
+function buildNumbers(c) {
   const row = $('#num-row');
   row.innerHTML = '';
   const refresh = () => renderReadout(c);
@@ -2894,10 +3036,16 @@ function buildBrewSheet(c) {
       label: 'Coffee', unit: 'g', value: num(editing.dose), min: 0, max: 200, step: 0.5, digits: 1,
       startAt: c.target.dose, onChange: v => { editing.dose = v; refresh(); },
     }));
-    row.appendChild(numField({
+    const waterField = numField({
       label: 'Water', unit: 'g', value: num(editing.water), min: 0, max: 2000, step: 10, digits: 0,
-      startAt: Math.round(c.target.dose * c.target.ratio), onChange: v => { editing.water = v; refresh(); },
-    }));
+      startAt: Math.round(c.target.dose * c.target.ratio),
+      onChange: v => { editing.water = v; editing.waterAuto = false; refresh(); },
+    });
+    if (editing.waterAuto) {
+      const note = waterField.querySelector('.num-note');
+      if (note) note.textContent = 'from the last pour';
+    }
+    row.appendChild(waterField);
   }
   row.appendChild(numField({
     label: 'Time', unit: '', time: true, value: num(editing.time), min: 0, max: 1800, step: 5, digits: 0,
@@ -2942,7 +3090,24 @@ function buildBrewSheet(c) {
     })));
   }
 
-  buildPours(c);
+}
+
+/* WHAT IT TASTED LIKE IS A SECOND MOMENT.
+
+   The sheet asked for the cup in the same breath as the pours — scales,
+   words, the wheel and a verdict under a kettle still in the hand — and
+   ran to 28 controls. The taste is known four minutes later, cup in the
+   other hand. On a new brew it waits behind one row and is offered again
+   after Save; on a brew that already has it, or one being edited, it is
+   open. Nothing is gone: it is all one tap away, and the advice reads it
+   the moment it is there. */
+function buildTasteStep(c) {
+  const step = $('#taste-step');
+  if (step) {
+    const tasted = ['taste', 'body', 'verdict'].some(k => editing[k] !== null && editing[k] !== undefined)
+      || (Array.isArray(editing.flavours) && editing.flavours.length > 0);
+    step.open = !editingIsNew || tasted || Boolean(editing.tasteNow);
+  }
 
   const taste = $('#taste-scale');
   taste.innerHTML = '';
@@ -3227,7 +3392,7 @@ function buildPours(c) {
         // finishes, not what this pour weighs.
         label: 'To', unit: 'g', compact: true,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
-        onChange: v => { p.water = v; buildPours(c); renderReadout(c); },
+        onChange: v => { p.water = v; syncWater(c); buildPours(c); renderReadout(c); },
       });
       w.classList.add('pour-field');
       line.appendChild(w);
@@ -3240,6 +3405,7 @@ function buildPours(c) {
     rm.addEventListener('click', () => {
       editing.pours.splice(i, 1);
       haptic();
+      syncWater(c);
       buildPours(c);
       renderReadout(c);
     });
@@ -3487,6 +3653,8 @@ function renderReadout(c) {
 function saveBrew() {
   const c = activeCoffee();
   if (!c) return;
+  // A running clock is the time not yet written down; saving stops it.
+  if (editing && editing.clock) stopClock(c, true);
   const wasNew = editingIsNew;
   /* A sheet with nothing on it is not a brew. Saving one put a card on
      the board reading "15.0 → —g" — the carried-over dose and nothing
@@ -3500,6 +3668,9 @@ function saveBrew() {
                      : 'Nothing recorded yet — add the time or how it tasted');
     return;
   }
+  // Working state of the sheet, never part of the record.
+  delete editing.waterAuto;
+  delete editing.tasteNow;
   if (wasNew) editing.n = numberBrews(c) + 1;
   const n = brewNumber(c, editing);
   if (wasNew) c.brews.push(editing);
@@ -3517,9 +3688,18 @@ function saveBrew() {
     // and a brew you only timed is still evidence. It is marked, not
     // refused. Either way the save is said out loud: the toast is the
     // live region, and a new brew used to be the one save it never spoke.
-    toast(isComplete(editing)
+    const saved = editing;
+    const said = isComplete(saved)
       ? `Brew ${n} saved`
-      : `Brew ${n} saved without ${missingFields(editing).join(' or ')}`);
+      : `Brew ${n} saved without ${missingFields(saved).join(' or ')}`;
+    // The second moment: if the cup has not been described yet, the toast
+    // that confirms the save is also the way back to it.
+    const tasted = ['taste', 'body', 'verdict'].some(k => saved[k] !== null && saved[k] !== undefined)
+      || (Array.isArray(saved.flavours) && saved.flavours.length > 0);
+    toast(said, tasted ? undefined : {
+      label: 'Add the taste',
+      restore: () => { if (c.brews.indexOf(saved) >= 0) openBrew(saved, { focus: 'taste' }); },
+    });
   } else {
     toast(`Brew ${n} updated`);
   }
