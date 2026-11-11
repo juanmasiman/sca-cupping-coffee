@@ -1152,11 +1152,25 @@ function pourAdded(brew, i) {
    from dose and water alone is estimating that retention and printing
    the result as a reading. This one asks for the cup on the scale, or
    returns nothing. */
-function extractionOf(brew) {
+function rawExtraction(brew) {
   if (!hasTds() || !byWeight()) return null;
   const tds = num(brew.tds), bev = num(brew.beverage), dose = num(brew.dose);
-  if (tds === null || bev === null || dose === null || dose <= 0) return null;
+  if (tds === null || tds <= 0 || bev === null || bev <= 0 || dose === null || dose <= 0) return null;
   return (bev * tds) / dose;
+}
+
+/* Coffee is about 30% soluble by weight, so nothing above that came out
+   of a bed. A result past it is a decimal slip — 13.5 typed for 1.35 —
+   and printing "198% extraction" as a reading is the one thing this
+   number must never do. It is withheld, and the readout says why. */
+const EY_CEILING = 30;
+function extractionOf(brew) {
+  const ey = rawExtraction(brew);
+  return ey !== null && ey <= EY_CEILING ? ey : null;
+}
+function extractionImplausible(brew) {
+  const ey = rawExtraction(brew);
+  return ey !== null && ey > EY_CEILING;
 }
 
 function isComplete(brew) {
@@ -2130,13 +2144,13 @@ function renderBoard() {
   const heading = $('#board-heading');
   if (heading) heading.textContent = c ? coffeeLabel(c) : 'No coffee yet';
   $('#coffee-sub').textContent = c
-    ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
+    ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : ' · tap to name it'}`
     : 'tap to add one';
 
   // No dead control on the front door: the button does the next thing
   // rather than greying out the one thing a first visit has to do.
   const logBtn = $('#btn-log');
-  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
+  logBtn.textContent = !c ? 'Start brewing' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -2403,8 +2417,10 @@ function renderBrews(c) {
        the window and the schedule in it. */
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
-         <p class="empty-body">Add the bag you are brewing and this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
+         <p class="empty-body">Start brewing and name the coffee later, or add the bag first. Either way this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
+         <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
          <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+    empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
 
@@ -3872,7 +3888,9 @@ function renderReadout(c) {
   if (hasTds()) {
     cells.push(`<div class="readout-cell">
       <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
-      <span class="readout-label">${ey === null ? 'extraction · needs TDS and the cup weighed' : 'extraction yield'}</span>
+      <span class="readout-label">${ey !== null ? 'extraction yield'
+        : extractionImplausible(editing) ? 'extraction · check the TDS: a filter cup reads about 1.1–1.6%'
+        : 'extraction · needs TDS and the cup weighed'}</span>
     </div>`);
   }
 
@@ -4068,6 +4086,28 @@ function openCoffees() {
 
 /* A coffee arrives when it has a name, not when the button is pressed,
    so backing out of the sheet does not leave a ghost bag on the shelf. */
+/* STRAIGHT TO THE KETTLE.
+
+   The first brew used to wait for a bag: name, roaster, roast date, the
+   lot. Sometimes the bag is in the other room, or the brew is already
+   blooming, and the questions stood between someone and the one
+   thing they came to do. This starts an unnamed coffee and opens the
+   sheet; the header says "Unnamed coffee · tap to name it" until it is
+   named, and everything logged against it stays with it when it is.
+
+   An unnamed bag is on this tool's shelf only: the other tool adopts a
+   bag once it has a name (LentoCoffees.said), so a quick start here does
+   not put a blank coffee on the dial-in. */
+function quickStart() {
+  const c = newCoffee('');
+  state.coffees.push(c);
+  state.activeId = c.id;
+  commitBag(c);
+  save();
+  renderBoard();
+  openBrew(null);
+}
+
 function addCoffee() {
   const c = newCoffee('');
   closeModal('#coffee-modal');
@@ -5242,7 +5282,7 @@ function queueSync() {
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
-  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : addCoffee()));
+  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : quickStart()));
   $('#brew-close').addEventListener('click', closeBrewSheet);
   $('#brew-save').addEventListener('click', saveBrew);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));

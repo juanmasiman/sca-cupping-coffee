@@ -348,7 +348,46 @@ async function handleApi(request, env, path, cors) {
   return json({ error: 'Not found' }, 404);
 }
 
+/* KEEPING SUPABASE AWAKE.
+
+   A free Supabase project is paused after about a week with no activity,
+   and a paused project signs nobody in and syncs nothing; it happened in
+   November 2026. Once a day this runs one real query against the
+   database, which is the activity that counts.
+
+   It reads the project's address and public key from the site's own
+   shared/config.js rather than keeping a second copy here, so the two
+   cannot disagree. The query asks for one row with the anon key and no
+   user, so row-level security returns nothing: it touches the database
+   and reads no one's data. */
+async function supabaseConfig(env) {
+  const res = await env.ASSETS.fetch('https://lento.cafe/shared/config.js');
+  if (!res.ok) return null;
+  const text = await res.text();
+  const pick = name => {
+    const m = text.match(new RegExp(`window\\.${name}\\s*=\\s*['"]([^'"]+)['"]`));
+    return m ? m[1] : null;
+  };
+  const url = pick('SUPABASE_URL');
+  const key = pick('SUPABASE_ANON_KEY');
+  return url && key ? { url, key } : null;
+}
+
+async function keepSupabaseAwake(env) {
+  const cfg = await supabaseConfig(env);
+  if (!cfg) { console.log('keep-awake: no Supabase configured'); return; }
+  const res = await fetch(`${cfg.url}/rest/v1/cuppings?select=id&limit=1`, {
+    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+  });
+  // in the Worker's logs, so a paused or broken project shows up there
+  console.log(`keep-awake: Supabase answered ${res.status}`);
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(keepSupabaseAwake(env));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const api = url.pathname.match(/^\/cupping\/api(\/.*)?$/);

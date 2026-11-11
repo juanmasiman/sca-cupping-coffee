@@ -1018,10 +1018,24 @@ function flowOf(shot) {
    is not a measurement. Some tools print an estimate here. This one
    returns null, because an estimate and a reading look identical once
    they are set in the same type, and only one of them is a fact. */
-function extractionOf(shot) {
+function rawExtraction(shot) {
   const d = num(shot.dose), y = num(shot.yield), tds = num(shot.tds);
-  if (!d || d <= 0 || y === null || tds === null || tds <= 0) return null;
+  if (!d || d <= 0 || y === null || y <= 0 || tds === null || tds <= 0) return null;
   return (y * tds) / d;
+}
+
+/* Coffee is about 30% soluble by weight, so nothing above that came out
+   of a puck. A result past it is a decimal slip — 94 typed for 9.4 — and
+   printing "188% extraction" as a reading is the one thing this number
+   must never do. It is withheld, and the readout says why. */
+const EY_CEILING = 30;
+function extractionOf(shot) {
+  const ey = rawExtraction(shot);
+  return ey !== null && ey <= EY_CEILING ? ey : null;
+}
+function extractionImplausible(shot) {
+  const ey = rawExtraction(shot);
+  return ey !== null && ey > EY_CEILING;
 }
 
 // A shot the arithmetic can work on at all.
@@ -2898,7 +2912,7 @@ function renderBoard() {
   renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
   $('#coffee-sub').textContent = c
-    ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
+    ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : ' · tap to name it'}`
     : 'tap to add one';
 
   /* No dead control on the front door.
@@ -2909,7 +2923,7 @@ function renderBoard() {
      only by WCAG's exemption for inactive components. A button that does
      the next thing needs no exemption. */
   const logBtn = $('#btn-log');
-  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the shot' : 'Log a shot';
+  logBtn.textContent = !c ? 'Start dialling in' : hasNewDraft(c) ? 'Continue the shot' : 'Log a shot';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -3188,8 +3202,10 @@ function renderShots(c) {
        situations and keep theirs. */
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
-         <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
+         <p class="empty-body">Start pulling and name the coffee later, or add the bag first. Either way this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
+         <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
          <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+    empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
 
@@ -4293,7 +4309,9 @@ function renderReadout(c) {
       </div>
       ${hasTds() ? `<div class="readout-cell">
         <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
-        <span class="readout-label">${ey === null ? 'extraction · needs a TDS reading' : 'extraction yield'}</span>
+        <span class="readout-label">${ey !== null ? 'extraction yield'
+          : extractionImplausible(editing) ? 'extraction · check the TDS: espresso reads about 7–12%'
+          : 'extraction · needs a TDS reading'}</span>
       </div>` : ''}
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>
@@ -4940,6 +4958,28 @@ function openEdit(c, opts) {
    the shelf before a character had been typed, so backing out of the sheet
    left a ghost bag behind. The record is built here and only joins the
    shelf if the sheet is saved. */
+/* STRAIGHT TO THE MACHINE.
+
+   The first shot used to wait for a bag: name, roaster, roast date, the
+   lot. Sometimes the bag is in the other room, or the shot is already
+   in the cup, and the questions stood between someone and the one
+   thing they came to do. This starts an unnamed coffee and opens the
+   sheet; the header says "Unnamed coffee · tap to name it" until it is
+   named, and everything logged against it stays with it when it is.
+
+   An unnamed bag is on this tool's shelf only: the other tool adopts a
+   bag once it has a name (LentoCoffees.said), so a quick start here does
+   not put a blank coffee on the brew log. */
+function quickStart() {
+  const c = newCoffee('');
+  state.coffees.push(c);
+  state.activeId = c.id;
+  commitBag(c);
+  save();
+  renderBoard();
+  openShot(null);
+}
+
 function addCoffee() {
   const c = newCoffee('');
   closeModal('#coffee-modal');
@@ -5857,7 +5897,7 @@ function queueSync() {
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
-  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
+  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : quickStart()));
   $('#shot-close').addEventListener('click', closeShotSheet);
   // Every change on the sheet is written to its draft on the next tick,
   // after the field's own handler has updated `editing`. The listeners are
