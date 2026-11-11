@@ -3615,6 +3615,20 @@ function openCoffee(c, opts) {
      which it is. */
   const roastWrap = body.querySelector('#e-roastlevel');
   const baseWrap = body.querySelector('#e-baseline');
+/* WHY THIS IS A VARIABLE AND NOT JUST A CALL.
+
+   Three things in this sheet change who owns the ratio, and all three
+   used to leave the method block saying whatever it said when the sheet
+   opened: the roast chips (which decide whether there is a starting point
+   at all), the Ratio and Coffee fields, and the bag's own apply button.
+
+   renderRoast runs before renderMethod is defined and both are const
+   arrows, so the first cannot name the second without hitting the
+   temporal dead zone. This is pointed at the real function the moment
+   that definition is reached. Until then no roast change can have
+   happened yet, so the no-op is correct rather than a swallowed call. */
+  let refreshMethod = () => {};
+
   const renderRoast = () => {
     roastWrap.innerHTML = '';
     ROASTS.forEach(r => {
@@ -3623,7 +3637,16 @@ function openCoffee(c, opts) {
       b.type = 'button';
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', on ? 'true' : 'false');
-      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
+      b.addEventListener('click', () => {
+        c.roast = on ? '' : r.key;
+        haptic();
+        renderRoast();
+        /* Taking a roast level off, or putting one on, moves the ratio
+           from the method to the bag or back. The block below has to be
+           told, or it goes on printing a number it no longer owns — and
+           its button goes on writing one. */
+        refreshMethod();
+      });
       roastWrap.appendChild(b);
     });
     const sp = startingPoint(c);
@@ -3657,6 +3680,8 @@ function openCoffee(c, opts) {
       commit();
       if (!adding) save();
       haptic();
+      // The schedule below is drawn at the ratio this just changed.
+      refreshMethod();
       // Applying a starting point is one field changing, not the end of
       // the conversation: the sheet stays open and the grid redraws, so
       // the evidence it worked is the number and not a toast.
@@ -3704,7 +3729,22 @@ function openCoffee(c, opts) {
        and the temperature and the method owns the schedule; without one the
        method owns all three. */
     const sp = startingPoint(c);
-    const scaled = methodAt(m, byWeight() ? t.dose : m.dose, sp && byWeight() ? t.ratio : null);
+    /* ONE PLACE THAT ANSWERS "WHAT SCHEDULE DOES THIS METHOD MEAN NOW".
+
+       This was computed once, when the sheet was built, and both the list
+       below and the button that writes it read that one answer for as long
+       as the sheet stayed open. That was survivable while the schedule
+       depended only on the method's own ratio. It stopped being survivable
+       when the board's ratio became an input to it: editing the Ratio field
+       to 20 left the button writing a schedule still built at 16.5 — 248g
+       of pours under a 300g target, which is the mismatch this block exists
+       to prevent, printed by the card's own warning.
+
+       The calls below refresh what is DRAWN. This function is what makes
+       what is WRITTEN right whether or not anybody remembered to call them,
+       which matters because forgetting is exactly how it broke. */
+    const scaleNow = () => methodAt(m, byWeight() ? t.dose : m.dose, sp && byWeight() ? t.ratio : null);
+    const scaled = scaleNow();
     const rows = scaled.steps.map(st => {
       const l = LentoRecipes.line(st, fmtTime);
       return `<li class="step"><span class="step-at">${escapeHTML(l.when)}</span><span class="step-do">${escapeHTML(l.what)}</span></li>`;
@@ -3769,8 +3809,14 @@ function openCoffee(c, opts) {
         <button class="btn btn-ghost" type="button" id="btn-apply-method">${owns}</button>
       </div>`;
     methodWrap.querySelector('#btn-apply-method').addEventListener('click', () => {
+      /* Read the dose and the ratio as they are at the tap, not as they
+         were at the draw. `now.dose` is the current dose normalised rather
+         than an old one restored — the previous line put `scaled.dose`
+         here, so changing the dose to 22 and taking the schedule silently
+         put it back to 15. */
+      const now = scaleNow();
       if (byWeight()) {
-        t.dose = scaled.dose;
+        t.dose = now.dose;
         if (!sp) t.ratio = m.ratio;
       }
       if (canSetTemp() && m.temp !== null && !sp) t.temp = m.temp;
@@ -3780,7 +3826,7 @@ function openCoffee(c, opts) {
         t.timeLo = Math.max(30, total - 30);
         t.timeHi = total + 30;
       }
-      t.pours = LentoRecipes.pours(scaled);
+      t.pours = LentoRecipes.pours(now);
       commit();
       if (!adding) save();
       haptic();
@@ -3789,16 +3835,19 @@ function openCoffee(c, opts) {
       toast(sp ? 'Schedule applied' : 'Method applied');
     });
   };
+  refreshMethod = renderMethod;
   renderMethod();
 
   const grid = body.querySelector('#target-grid');
   const buildTargetGrid = () => {
     grid.innerHTML = '';
     if (byWeight()) {
+      // Both of these are inputs to the method's schedule, so the block
+      // that shows it is redrawn with them.
       grid.appendChild(numField({ label: 'Coffee', unit: 'g', value: t.dose, min: 5, max: 120, step: 0.5, digits: 1,
-        onChange: v => { t.dose = v === null ? 15 : v; } }));
+        onChange: v => { t.dose = v === null ? 15 : v; refreshMethod(); } }));
       grid.appendChild(numField({ label: 'Ratio 1:', unit: '', value: t.ratio, min: 8, max: 25, step: 0.5, digits: 1,
-        onChange: v => { t.ratio = v === null ? 16 : v; } }));
+        onChange: v => { t.ratio = v === null ? 16 : v; refreshMethod(); } }));
     }
     grid.appendChild(numField({ label: 'From', unit: '', time: true, value: t.timeLo, min: 30, max: 1800, step: 15, digits: 0,
       onChange: v => { t.timeLo = v === null ? flowEntry().lo : v; } }));
