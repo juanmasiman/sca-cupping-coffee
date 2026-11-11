@@ -59,7 +59,13 @@
     </button>
   </header>
 
-  <div class="board-scroll" id="board-scroll">
+  <main class="board-scroll" id="board-scroll">
+    <!-- The coffee's name is the page's heading, as on the dial-in. The
+         board had no heading and no main landmark, so a screen reader had
+         nothing to jump to and no way to learn which coffee was open: the
+         name lived only in the header button. Visually hidden because that
+         button already shows it. -->
+    <h1 class="sr-only" id="board-heading"></h1>
     <!-- The recipe you settled on, if you have settled on one. It is pinned
          because it is the answer the whole board exists to find. -->
     <div class="keeper hidden" id="keeper"></div>
@@ -68,7 +74,7 @@
          next?", so it sits at the top of the board rather than as the last
          line of the newest brew card, under the numbers and the schedule
          and the taste pips. -->
-    <div class="next-card hidden" id="next-card"></div>
+    <div class="next-card hidden" id="next-card" aria-live="polite"></div>
 
     <!-- What you are aiming at. A brew is only quick or long against
          something, so the window is stated rather than assumed. -->
@@ -79,7 +85,7 @@
     <div class="empty hidden" id="empty"></div>
 
     <div class="board-footpad"></div>
-  </div>
+  </main>
 
   <div class="board-action">
     <button id="btn-log" class="btn btn-primary">Log a brew</button>

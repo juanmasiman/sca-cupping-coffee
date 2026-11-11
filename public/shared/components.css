@@ -889,6 +889,12 @@ html.sheet-open, html.sheet-open body {
 /* Nothing entered is not zero. The slot shows its placeholder in tertiary
    ink and the data ink stays for values somebody actually set. */
 .num-field.empty .num-value { color: var(--text-faint); }
+/* The "—" an empty number field shows is a placeholder, and the rule above
+   colours the input's text, not its placeholder. With no rule of its own
+   the dash fell back to the browser's grey, rgb(117,117,117) in both
+   themes, which is 3.79:1 on the dark card. Tertiary ink clears 4.5:1 on
+   all four grounds; opacity is reset because Firefox dims placeholders. */
+.num-value::placeholder { color: var(--text-faint); opacity: 1; }
 
 /* What is wrong with what was typed.
 

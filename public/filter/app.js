@@ -2164,6 +2164,9 @@ function wordScale(opts) {
 function renderBoard() {
   const c = activeCoffee();
   $('#coffee-name').textContent = coffeeLabel(c);
+  // The page heading follows the bag on the board (see index.html).
+  const heading = $('#board-heading');
+  if (heading) heading.textContent = c ? coffeeLabel(c) : 'No coffee yet';
   $('#coffee-sub').textContent = c
     ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
     : 'tap to add one';
