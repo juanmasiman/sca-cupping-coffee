@@ -4,9 +4,16 @@
   Paste into Supabase → Authentication → Emails → Magic Link,
   replacing the default template. Subject: Your lento sign-in code
 
-  Supabase variables used:
+  Supabase variable used:
     {{ .Token }}            the 6-digit sign-in code
-    {{ .ConfirmationURL }}  the one-tap sign-in link
+
+  No sign-in link, on purpose. Supabase's link points at the project's
+  own domain (*.supabase.co), so a mail from lento.cafe asking you to
+  sign in somewhere else looks exactly like phishing, and the first test
+  landed in junk. Mail scanners also open every link they see, and
+  opening this one spends the sign-in, so the code could be dead before
+  anyone read it. The app asks for the code anyway; it works on any
+  device, which the link never did.
 
   Drawn from public/shared/tokens.css (light theme), because a mail
   client cannot load it: ground #fbfaf7, card #ffffff, rule #d9dad4,
@@ -35,7 +42,7 @@
           <td style="padding:28px 32px 0;text-align:center;">
             <h1 style="margin:0;font-size:17px;font-weight:700;color:#16181c;">Your sign-in code</h1>
             <p style="margin:8px 0 0;font-size:15px;line-height:1.45;color:#565b63;">
-              Type it into lento.cafe where it asks for the code. It works for an hour.
+              Type it into lento.cafe where it asks for the code. It works for an hour, once.
             </p>
           </td>
         </tr>
@@ -46,15 +53,6 @@
           </td>
         </tr>
 
-        <tr>
-          <td style="padding:28px 32px 0;text-align:center;">
-            <p style="margin:0 0 12px;font-size:13px;color:#6a6f75;">Or sign in with one tap on this device</p>
-            <a href="{{ .ConfirmationURL }}"
-               style="display:inline-block;background:#16181c;color:#fbfaf7;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:4px;">
-              Sign in to lento
-            </a>
-          </td>
-        </tr>
 
         <tr>
           <td style="padding:28px 32px 32px;">
