@@ -3187,6 +3187,11 @@ function buildNumbers(c) {
    open. Nothing is gone: it is all one tap away, and the advice reads it
    the moment it is there. */
 function buildTasteStep(c) {
+  // Its own, not buildNumbers' — the scales below call it, and when the
+  // sheet was split into steps they were left calling a name that now
+  // lives in another function, so every scale move threw and the advice
+  // on the sheet never heard about the taste.
+  const refresh = () => renderReadout(c);
   const step = $('#taste-step');
   if (step) {
     const tasted = ['taste', 'body', 'verdict'].some(k => editing[k] !== null && editing[k] !== undefined)
