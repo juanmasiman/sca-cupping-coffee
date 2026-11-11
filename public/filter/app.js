@@ -1852,12 +1852,38 @@ function el(tag, cls, html) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+/* The toast, and the undo it can carry — the dial-in's pattern, brought
+   across. This app said "There is no undo" over a brew and asked a native
+   confirm() before letting a half-typed sheet go: a browser dialog that
+   names the origin, blocks the page, and lands under a wet thumb that was
+   aiming at the backdrop. The thing worth taking back is always the thing
+   you just did, so there is one slot; it lives on the toast, which is
+   already a live region, for eight seconds rather than two and a half. */
+let undoSlot = null;
+
+function toast(msg, undo) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  t.appendChild(document.createTextNode(msg));
+  undoSlot = undo || null;
+  if (undo) {
+    const b = el('button', 'toast-undo', 'Undo');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const act = undoSlot;
+      undoSlot = null;
+      t.classList.add('hidden');
+      if (!act) return;
+      act.restore();
+      haptic();
+      renderBoard();
+      if (act.after) toast(act.after);
+    });
+    t.appendChild(b);
+  }
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2400);
+  toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
 }
 
 function haptic() {
@@ -2273,13 +2299,14 @@ function renderBrews(c) {
     return;
   }
 
+  numberBrews(c);
   const rows = brewsNewestFirst(c);
   rows.forEach((brew, i) => {
     // the brew before this one in time, which is what "changed" means
     const prev = rows[i + 1] || null;
     // The advice is not on these cards at all — it is one card, at the top
     // of the board, about the next brew. See renderNext.
-    list.appendChild(brewCard(brew, prev, c, rows.length - i));
+    list.appendChild(brewCard(brew, prev, c, brewNumber(c, brew)));
   });
 }
 
@@ -2515,6 +2542,75 @@ let editingIsNew = false;
 // The schedule as it was when the sheet opened, so an edit to it can be
 // told from the copy that was carried over. See brewHasContent.
 let pourSeed = '[]';
+/* An existing brew as it was when its sheet opened.
+
+   `editing` IS the stored record on an existing brew, so every field was
+   written straight into the log and only the save was optional. Closing
+   without saving put nothing back: the abandoned edit sat in memory and
+   went to disk with the next save of anything else. The dial-in found
+   this first; the snapshot is how it is undone. */
+let editingSeed = '';
+
+/* THE SHEET SURVIVES A RELOAD.
+
+   A brew is typed with one hand while the other holds a kettle, and the
+   phone is free to kill a backgrounded tab whenever it likes. Reloading
+   mid-entry used to drop everything on the sheet without a word. The open
+   sheet is written to its own key on every change and put back on boot;
+   saving, closing or removing clears it. It is a separate key rather than
+   a field in the log because it is not a record — it never syncs, and a
+   stale one is simply ignored. */
+const DRAFT_KEY = 'lento-filter-draft-v1';
+
+function writeDraft() {
+  const c = activeCoffee();
+  if (!editing || !c || $('#brew-modal').classList.contains('hidden')) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      coffee: c.id, isNew: editingIsNew, brew: editing, seed: editingSeed, pourSeed, at: Date.now(),
+    }));
+  } catch (e) { /* storage full or blocked: the sheet still works, it just will not survive */ }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing to clear */ }
+}
+function restoreDraft() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { d = null; }
+  if (!d || !d.brew || !d.coffee) return;
+  // A sheet left open for a day is not a morning's brew any more.
+  if (!d.at || Date.now() - d.at > 24 * 3600 * 1000) { clearDraft(); return; }
+  const c = shelfCoffees().find(x => x.id === d.coffee);
+  if (!c) { clearDraft(); return; }
+  state.activeId = c.id;
+  renderBoard();
+  if (d.isNew) {
+    openBrew(null, { draft: d.brew, pourSeed: d.pourSeed });
+  } else {
+    const brew = c.brews.find(b => b.id === d.brew.id);
+    if (!brew) { clearDraft(); return; }
+    openBrew(brew, { draft: d.brew, seed: d.seed });
+  }
+  toast('Back where you left this brew');
+}
+
+/* Brew numbers that stay put.
+
+   A card was numbered by its place in the list, so removing brew 2 made
+   brew 3 into brew 2 — and "brew 3 was the good one" stopped being true
+   the moment anything before it was tidied away. Each brew now keeps the
+   number it was given. Brews from before this carry none, and get one in
+   the order they were logged, which is the number they already showed. */
+function numberBrews(c) {
+  let top = 0;
+  (c.brews || []).forEach(b => { if (num(b.n) !== null && b.n > top) top = b.n; });
+  (c.brews || []).forEach(b => { if (num(b.n) === null) b.n = ++top; });
+  return top;
+}
+function brewNumber(c, brew) {
+  if (num(brew.n) !== null) return brew.n;
+  return c.brews.indexOf(brew) + 1;
+}
 
 /* Where the grinder is, as far as this app knows.
 
@@ -2525,17 +2621,31 @@ function grindStart(c) {
   const now = num(Number(c.grindNow));
   if (c.grindNow !== '' && now !== null) return now;
   const last = brewsNewestFirst(c)[0];
-  const prev = last ? num(Number(last.grind)) : null;
+  /* A brew logged without a grind stores '', and Number('') is 0 — so the
+     next sheet arrived prefilled at 0, was saved at 0, and the card said
+     "grind 0" over a brew nobody had given a setting. */
+  const prev = last && last.grind !== '' && last.grind != null ? num(Number(last.grind)) : null;
   return prev === null ? undefined : prev;
 }
 
-function openBrew(brew) {
+/* `resume` reopens a sheet rather than starting one: the draft that
+   survived a reload, or a sheet put back by Undo. */
+function openBrew(brew, resume) {
   const c = activeCoffee();
   if (!c) return;
   const last = c.brews[c.brews.length - 1] || null;
 
   editingIsNew = !brew;
-  editing = brew || {
+  if (brew) {
+    editingSeed = resume && resume.seed ? resume.seed : JSON.stringify(brew);
+    if (resume && resume.draft) {
+      Object.keys(brew).forEach(k => { if (!(k in resume.draft)) delete brew[k]; });
+      Object.assign(brew, resume.draft);
+    }
+  } else {
+    editingSeed = '';
+  }
+  editing = brew || (resume && resume.draft) || {
     id: uid(),
     at: Date.now(),
     /* The dose carries over and the rest starts empty. A brew holds the
@@ -2575,9 +2685,9 @@ function openBrew(brew) {
     beverage: null,
   };
   if (editing.grind === undefined) editing.grind = '';
-  pourSeed = pourSchedule(editing.pours);
+  pourSeed = resume && resume.pourSeed ? resume.pourSeed : pourSchedule(editing.pours);
 
-  $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${c.brews.indexOf(brew) + 1}`;
+  $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${brewNumber(c, brew)}`;
 
   // Only on a brew that exists — there is nothing to remove from a sheet
   // nobody has saved. A mis-logged brew is not a small problem in a log
@@ -2585,22 +2695,42 @@ function openBrew(brew) {
   // the history for ever and skews the next card's arithmetic.
   const del = $('#brew-delete');
   del.classList.toggle('hidden', editingIsNew);
+  /* Removed at once, with an Undo, rather than behind a confirm() that
+     said "There is no undo" — which this app was in a position to fix
+     rather than announce. Anything changed on the sheet first is put back
+     to the saved record, so Undo restores the brew that was logged. */
   del.onclick = () => {
     const i = c.brews.indexOf(brew);
     if (i < 0) return;
-    if (!confirm(`Remove brew ${i + 1}? It goes out of the log and out of the comparison with the brews either side of it. There is no undo.`)) return;
+    if (editingSeed) {
+      try {
+        const back = JSON.parse(editingSeed);
+        Object.keys(brew).forEach(k => { if (!(k in back)) delete brew[k]; });
+        Object.assign(brew, back);
+      } catch (e) { /* keep what is there */ }
+    }
     const gone = c.brews[i];
+    const n = brewNumber(c, gone);
     c.brews.splice(i, 1);
     // Written down, so a sync does not hand it back. See migrate().
     if (gone && gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
+    clearDraft();
     closeModal('#brew-modal');
     renderBoard();
-    toast('Brew removed');
+    toast(`Brew ${n} removed`, {
+      after: `Brew ${n} is back`,
+      restore: () => {
+        c.brews.splice(Math.min(i, c.brews.length), 0, gone);
+        if (gone.id) delete c.dead[gone.id];
+        save();
+      },
+    });
   };
 
   buildBrewSheet(c);
   openModal('#brew-modal');
+  writeDraft();
 }
 
 // Has anything been put on this sheet? Used to decide whether closing it
@@ -2608,7 +2738,10 @@ function openBrew(brew) {
 function brewHasContent() {
   if (!editing) return false;
   const typed = ['water', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
-    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined)
+    // Words picked off the bag or the wheel are work too; a sheet holding
+    // only those used to close as if it were blank.
+    || (Array.isArray(editing.flavours) && editing.flavours.length > 0);
   /* The schedule counts too, and only when it has been changed.
      It arrives carried over from the last brew, so its mere presence is
      not somebody's work — but editing it is, and this app calls the
@@ -2624,10 +2757,46 @@ function pourSchedule(pours) {
   return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water), p.valve || null]));
 }
 
+/* Closing never asks. It used to stop on a native confirm() — reached by
+   the X, by Escape, and by a tap on the backdrop, which is where a thumb
+   lands when it misses — and the confirm was the only thing standing
+   between a wet hand and a lost brew. Now the sheet closes, and what was
+   on it waits behind an Undo that reopens it exactly as it was. */
 function closeBrewSheet() {
-  if (editingIsNew && brewHasContent()
-      && !confirm('Close without saving? What you have put on this sheet goes with it.')) return;
+  const c = activeCoffee();
+  if (editingIsNew && brewHasContent()) {
+    const draft = JSON.parse(JSON.stringify(editing));
+    const seed = pourSeed;
+    closeModal('#brew-modal');
+    clearDraft();
+    toast('Brew put aside', {
+      restore: () => openBrew(null, { draft, pourSeed: seed }),
+    });
+    return;
+  }
+  if (!editingIsNew && editing && editingSeed && JSON.stringify(editing) !== editingSeed) {
+    const target = editing;
+    const changed = JSON.stringify(editing);
+    const seed = editingSeed;
+    try {
+      const back = JSON.parse(seed);
+      Object.keys(target).forEach(k => { if (!(k in back)) delete target[k]; });
+      Object.assign(target, back);
+    } catch (e) { /* keep what is there */ }
+    closeModal('#brew-modal');
+    clearDraft();
+    renderBoard();
+    toast('Changes put aside', {
+      restore: () => {
+        if (!c || c.brews.indexOf(target) < 0) return;
+        if (state.activeId !== c.id) state.activeId = c.id;
+        openBrew(target, { draft: JSON.parse(changed), seed });
+      },
+    });
+    return;
+  }
   closeModal('#brew-modal');
+  clearDraft();
 }
 
 function buildBrewSheet(c) {
@@ -3234,24 +3403,40 @@ function saveBrew() {
   const c = activeCoffee();
   if (!c) return;
   const wasNew = editingIsNew;
-  if (!isComplete(editing) && wasNew) {
-    const missing = missingFields(editing);
-    // Saving a half-recorded brew is allowed — a morning is a morning,
-    // and a brew you only timed is still evidence. It is marked, not
-    // refused.
-    toast(`Saved without ${missing.join(' or ')}`);
+  /* A sheet with nothing on it is not a brew. Saving one put a card on
+     the board reading "15.0 → —g" — the carried-over dose and nothing
+     measured — which then sat in the comparison with the brews either
+     side of it. A half-recorded brew is still allowed (see below); a
+     blank one is turned back with what would make it a record. */
+  // The grind is not on that list: it arrives carried over from the last
+  // brew, so its presence says nothing about whether this one happened.
+  if (wasNew && !brewHasContent()) {
+    toast(byWeight() ? 'Nothing recorded yet — add the water, the time or how it tasted'
+                     : 'Nothing recorded yet — add the time or how it tasted');
+    return;
   }
+  if (wasNew) editing.n = numberBrews(c) + 1;
+  const n = brewNumber(c, editing);
   if (wasNew) c.brews.push(editing);
   // The default for the next sheet is whatever you actually just used.
   if (editing.brewer && state.kit.brewer !== editing.brewer) state.kit.brewer = editing.brewer;
   save();
+  clearDraft();
+  editingSeed = '';
   closeModal('#brew-modal');
   renderBoard();
   if (wasNew) {
     const first = $('#brews') && $('#brews').firstElementChild;
     if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Saving a half-recorded brew is allowed — a morning is a morning,
+    // and a brew you only timed is still evidence. It is marked, not
+    // refused. Either way the save is said out loud: the toast is the
+    // live region, and a new brew used to be the one save it never spoke.
+    toast(isComplete(editing)
+      ? `Brew ${n} saved`
+      : `Brew ${n} saved without ${missingFields(editing).join(' or ')}`);
   } else {
-    toast('Brew updated');
+    toast(`Brew ${n} updated`);
   }
 }
 
@@ -3754,6 +3939,16 @@ function openCoffee(c, opts) {
 
   $('#edit-save').onclick = () => {
     commit();
+    /* A coffee arrives when it has a name. Saving a blank sheet used to
+       push "Unnamed coffee" onto the shelf — the ghost bag the comment on
+       addCoffee says cannot happen — and clearing the name of one already
+       there did the same to a bag with brews on it. */
+    if (!c.name.trim()) {
+      const field = body.querySelector('#e-name');
+      toast('Give the coffee a name first');
+      if (field) field.focus();
+      return;
+    }
     if (adding && !state.coffees.some(x => x.id === c.id)) {
       state.coffees.push(c);
       state.activeId = c.id;
@@ -4491,6 +4686,14 @@ function wire() {
   $('#help-close').addEventListener('click', closeHelp);
   $('#help-done').addEventListener('click', closeHelp);
 
+  // Every change on the sheet is written to the draft key on the next
+  // tick, after the field's own handler has updated `editing`.
+  const brewModal = $('#brew-modal');
+  ['input', 'change', 'click', 'keyup', 'pointerup'].forEach(t =>
+    brewModal.addEventListener(t, () => setTimeout(writeDraft, 0)));
+  window.addEventListener('pagehide', writeDraft);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) writeDraft(); });
+
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     const open = document.querySelector('.modal:not(.hidden)');
@@ -4533,6 +4736,7 @@ function boot() {
   }
   wire();
   renderBoard();
+  restoreDraft();
   /* An OAuth return lands as a fragment on this URL, so it is consumed
      before anything else can rewrite the address bar. Then a sync, which
      is a no-op signed out. */
