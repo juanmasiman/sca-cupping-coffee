@@ -1815,10 +1815,45 @@ function beanNote(brew, c) {
   return { move: `${r.head}, in particular.`, why: r.chase };
 }
 
+/* THE MOVE, THEN ONE SENTENCE, THEN A TAP.
+
+   The advice ran to twelve lines under the bold instruction — the first
+   brew's card was about eighty words — and the one line somebody acts on
+   at seven in the morning was buried in its own reasoning. The dial-in
+   solved this first and the brew log takes its mechanism: the move, about
+   a sentence of why, and the rest behind "Why this". Split on sentence
+   ends, never inside "1:16.7" or "2.5g". The budget is tighter here than
+   the dial-in's thirty-five words, because the brew log's reasons run
+   longer and the card sits above the whole board. */
+const WHY_WORDS = 20;
+
+function splitWhy(why) {
+  const text = String(why || '').trim();
+  if (!text) return { head: '', tail: '' };
+  const parts = text.split(/(?<=[.?!])\s+/);
+  const head = [];
+  let words = 0;
+  for (const part of parts) {
+    const n = part.split(/\s+/).length;
+    // Always at least one sentence, however long.
+    if (head.length && words + n > WHY_WORDS) break;
+    head.push(part);
+    words += n;
+  }
+  return { head: head.join(' '), tail: parts.slice(head.length).join(' ') };
+}
+
+function whyHTML(why) {
+  const { head, tail } = splitWhy(why);
+  return `<span class="tip-why">${escapeHTML(head)}</span>${tail
+    ? `<details class="tip-more"><summary>Why this</summary><span class="tip-why">${escapeHTML(tail)}</span></details>`
+    : ''}`;
+}
+
 function tipHTML(tip, cls) {
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
+      ${whyHTML(tip.why)}
     </div>`;
 }
 
@@ -2203,7 +2238,8 @@ function renderNext(c) {
         <span class="tip-move">${byWeight()
           ? `${fmt1(t.dose)}g coffee to ${water}g water (1:${t.ratio})${temp}, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
           : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip${temp}.`}</span>
-        <span class="tip-why">${escapeHTML(schedule)} ${grindWay}</span>
+        <span class="tip-why">${escapeHTML(schedule)}</span>
+        <details class="tip-more"><summary>If it runs fast or slow</summary><span class="tip-why">${escapeHTML(grindWay)}</span></details>
         ${offer}
       </div>`;
     const take = wrap.querySelector('#btn-start-bag');
@@ -2231,7 +2267,7 @@ function renderNext(c) {
       <span class="next-label">Next</span>
       <div class="tip open">
         <span class="tip-move">Add the time to that brew.</span>
-        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grind changes in a brewer that drains, and it decides whether “finer” or “coarser” is the right answer. Tap the brew above and put it in.</span>
+        ${whyHTML('Tap the brew below and put it in. How long it ran is the number this app reasons from: it is what the grind changes in a brewer that drains, and it decides whether “finer” or “coarser” is the right answer.')}
       </div>`;
     return;
   }
@@ -2508,11 +2544,24 @@ function brewCard(brew, prev, c, n) {
      row — and a drawdown that has crept from 1:20 to 2:10 across four
      brews is the bed clogging, which is the finding this app exists to
      hand somebody. */
+  /* GRIND AND TIME LEAD; THE RECIPE FOLLOWS.
+
+     The headline was dose → water at 24px, and across a dial-in that is
+     the same "15.0 → 250g" down the whole board while the grind — the
+     thing a brew is usually about — sat at body size underneath. The two
+     numbers that move from one morning to the next now lead: where the
+     grinder was, and where the clock landed. Dose → water stays on the
+     card, a line down, because a card is still read alone. A brew with
+     no grind recorded keeps the old headline rather than leading with a
+     dash. */
+  const hasGrind = brew.grind !== '' && brew.grind !== null && brew.grind !== undefined
+    && num(Number(brew.grind)) !== null;
+  const recipe = byWeight()
+    ? `${num(brew.dose) === null ? '—' : fmt1(num(brew.dose))}<span class="log-arrow" aria-hidden="true">→</span>${
+        water === null ? '—' : fmt0(water)}<small>g</small>`
+    : '<span class="brew-noscale">no scale</span>';
   const set = [];
-  if (num(Number(brew.grind)) !== null && brew.grind !== '') {
-    set.push(`<span class="is-set">grind ${escapeHTML(String(brew.grind))}${
-      grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}</span>`);
-  }
+  if (hasGrind) set.push(`<span class="is-set">${recipe}</span>`);
   /* Temperature is not here, and the dial-in's card does not carry it
      either. Three things plus a window verdict wrapped this line at 390px,
      and of the three it is the one that is nearly always the same figure
@@ -2577,10 +2626,10 @@ function brewCard(brew, prev, c, n) {
     </div>
 
     <div class="log-shot">
-      <span class="log-inout">${byWeight()
-        ? `${num(brew.dose) === null ? '—' : fmt1(num(brew.dose))}<span class="log-arrow" aria-hidden="true">→</span>${
-            water === null ? '—' : fmt0(water)}<small>g</small>`
-        : '<span class="brew-noscale">no scale</span>'}</span>
+      <span class="log-inout">${hasGrind
+        ? `<small class="log-key">grind </small>${escapeHTML(String(brew.grind))}${
+            grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}`
+        : recipe}</span>
       <span class="log-secs ${timeClass}">${fmtTime(brew.time)}</span>
     </div>
 

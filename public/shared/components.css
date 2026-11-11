@@ -469,6 +469,9 @@ input { font: inherit; color: inherit; }
 }
 .log-set .log-grind { flex: 1 1 auto; min-width: 0; }
 .log-set .log-place { margin: 0; flex: none; }
+/* Units in the set line. A bare <small> is the browser's "smaller", which
+   on a 13px line is 10.8px — under the floor by a fraction nobody chose. */
+.log-set small { font-size: 11px; }
 /* The grind is the figure the barista moved and the one they come back to
    the board to read. Full ink beside a secondary neighbour — enough to
    find by eye without becoming a second headline. */
@@ -1738,6 +1741,11 @@ select.field-input {
   cursor: pointer;
 }
 .toast-undo:focus-visible { outline: 2px solid var(--on-chrome); outline-offset: 2px; }
+/* 32px drawn, 44px to the thumb: the button stays the size of a word in a
+   sentence and only its target grows, inside the toast's own padding, the
+   way the help marks do. */
+.toast-undo { position: relative; }
+.toast-undo::after { content: ''; position: absolute; inset: -6px -4px; }
 
 /* ---------- wider than a phone ---------- */
 

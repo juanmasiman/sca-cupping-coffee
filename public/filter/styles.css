@@ -24,7 +24,7 @@
    every row and a note repeated five times is noise. */
 .pour-hint {
   margin-top: calc(-1 * var(--space-2));
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   color: var(--text-dim);
 }
@@ -133,7 +133,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
@@ -194,8 +194,8 @@
   border-bottom: 1px solid var(--line);
 }
 .seg-stack .seg-btn:last-child { border-bottom: none; }
-.seg-main { font-size: 14px; font-weight: 700; }
-.seg-eg { font-size: 12px; font-weight: 400; color: var(--text-faint); }
+.seg-main { font-size: 15px; font-weight: 700; }
+.seg-eg { font-size: 11px; font-weight: 400; color: var(--text-faint); }
 .seg-btn.on .seg-eg { color: var(--on-chrome); opacity: 0.75; }
 
 /* A row per brewer: what you call it, what it does, and the way off the
@@ -229,7 +229,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.shelf-flow { font-size: 12px; color: var(--text-dim); }
+.shelf-flow { font-size: 11px; color: var(--text-dim); }
 .shelf-kill { flex: none; align-self: center; margin-right: var(--space-2); color: var(--text-faint); }
 #k-brewers { display: flex; flex-direction: column; gap: var(--space-3); }
 /* Nothing on the shelf is a state, not a gap — it says so rather than
@@ -304,7 +304,7 @@
   padding: 2px var(--space-3);
   border-radius: 999px;
   background: var(--chrome-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
 }
