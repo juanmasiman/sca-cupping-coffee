@@ -103,7 +103,7 @@
     return '<div id="' + id + '-modal" class="modal hidden">'
       + '<div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="' + id + '-title">'
       + '<div class="sheet-head">'
-      + '<h3 id="' + id + '-title">' + title + '</h3>'
+      + '<h2 id="' + id + '-title">' + title + '</h2>'
       + '<button id="' + id + '-close" class="icon-btn" aria-label="Close">' + CLOSE_ICON + '</button>'
       + '</div>'
       + '<div class="settings-body" id="' + id + '-body"></div>'

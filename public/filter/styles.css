@@ -24,7 +24,7 @@
    every row and a note repeated five times is noise. */
 .pour-hint {
   margin-top: calc(-1 * var(--space-2));
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   color: var(--text-dim);
 }
@@ -87,10 +87,14 @@
   padding: 0 var(--space-3);
   gap: var(--space-2);
 }
-.num-field.compact .num-label { width: auto; flex: none; font-size: 10px; }
-.num-field.compact .num-value { font-size: 17px; padding: var(--space-2) 0; }
-.num-field.compact .num-unit { font-size: 10px; }
-.num-field.compact .num-note { font-size: 12px; padding-bottom: var(--space-2); margin-top: 0; }
+/* The input is the whole height of its row, so the target is 44px and
+   not the 33px of text it used to be — a pour is typed with a wet thumb
+   as often as any other number on this sheet. Labels and units sit on
+   the 11px floor: they were 10, which the floor exists to stop. */
+.num-field.compact .num-label { width: auto; flex: none; font-size: 11px; }
+.num-field.compact .num-value { font-size: 17px; padding: 0; min-height: 44px; }
+.num-field.compact .num-unit { font-size: 11px; }
+.num-field.compact .num-note { font-size: 11px; padding-bottom: var(--space-2); margin-top: 0; }
 
 .pour-field { flex: 1; min-width: 0; }
 
@@ -129,7 +133,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
@@ -190,8 +194,8 @@
   border-bottom: 1px solid var(--line);
 }
 .seg-stack .seg-btn:last-child { border-bottom: none; }
-.seg-main { font-size: 14px; font-weight: 700; }
-.seg-eg { font-size: 12px; font-weight: 400; color: var(--text-faint); }
+.seg-main { font-size: 15px; font-weight: 700; }
+.seg-eg { font-size: 11px; font-weight: 400; color: var(--text-faint); }
 .seg-btn.on .seg-eg { color: var(--on-chrome); opacity: 0.75; }
 
 /* A row per brewer: what you call it, what it does, and the way off the
@@ -225,7 +229,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.shelf-flow { font-size: 12px; color: var(--text-dim); }
+.shelf-flow { font-size: 11px; color: var(--text-dim); }
 .shelf-kill { flex: none; align-self: center; margin-right: var(--space-2); color: var(--text-faint); }
 #k-brewers { display: flex; flex-direction: column; gap: var(--space-3); }
 /* Nothing on the shelf is a state, not a gap — it says so rather than
@@ -300,7 +304,7 @@
   padding: 2px var(--space-3);
   border-radius: 999px;
   background: var(--chrome-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -340,3 +344,48 @@
   font-weight: 600;
 }
 .pour-chip.is-valve i { color: var(--data); opacity: 0.7; }
+
+/* ---------- the brew clock ----------
+
+   One band at the top of the sheet: the running time in the figure face,
+   and at most two buttons. Running, the step button stamps the pour
+   being made and Stop writes the time; stopped, one button starts it.
+   The figure is set like every other measured number here — Plex Mono,
+   tabular, in the page's ink rather than the data ink until it has been
+   written to the record as the brew's time. */
+.brew-clock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.clock-face {
+  flex: none;
+  min-width: 4ch;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+/* Nothing timed yet reads faint, like any empty field; a time written to
+   the brew takes the data ink, because it is now a value in the record. */
+.brew-clock.idle .clock-face { color: var(--text-faint); }
+.brew-clock.timed .clock-face { color: var(--data); }
+.clock-actions {
+  flex: 1;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  min-width: 0;
+}
+.clock-actions .btn { flex: 1 1 auto; width: auto; min-height: 44px; margin: 0; }
+.clock-actions .clock-stop { flex: 0 0 auto; padding: 0 var(--space-6); }
+
+/* The cup, as its own step. It reuses the disclosure the notes already
+   use, so it reads as part of the same sheet rather than a new pattern. */
+.taste-step { margin-top: var(--space-5); }

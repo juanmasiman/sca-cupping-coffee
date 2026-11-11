@@ -2,3 +2,5 @@ node_modules/
 .wrangler/
 package-lock.json
 .impeccable/config.local.json
+.claude/skills/impeccable/scripts/bin/
+.impeccable/live/

@@ -887,6 +887,42 @@ function methodAt(m, dose) {
   return LentoRecipes.brew(m, dose);
 }
 
+/* ONE STARTING POINT, READ THE SAME WAY EVERYWHERE.
+
+   Three surfaces answered "where do I start" and gave three answers for
+   one bag on one brewer: the coffee sheet's roast block said 1:16.8, the
+   brewer's method two inches below it said 1:16.7 with a 45 g bloom, and
+   the board — the only one a first-timer reads before brewing — said
+   1:16 with a 30 g bloom, because it read the bare target and made the
+   bloom up as twice the dose.
+
+   The division of labour was already decided on the coffee sheet and is
+   kept: the BAG owns the ratio and the temperature, the BREWER owns the
+   schedule. What was missing was one function that applies it, so every
+   surface states the same numbers. The schedule is always scaled to the
+   ratio actually being aimed at — a method's pours written at its own
+   1:16.7 and printed under a 1:16.8 target add up to neither. */
+function methodScaled(m, t) {
+  if (!m) return null;
+  const at = byWeight() && t && num(t.ratio) !== null ? Object.assign({}, m, { ratio: t.ratio }) : m;
+  return methodAt(at, byWeight() && t ? t.dose : m.dose);
+}
+function startPlan(c) {
+  const t = c.target;
+  const sp = startingPoint(c);
+  const m = methodFor(kit().brewer);
+  /* What the bag would change, if it has not been taken yet. Offered,
+     never applied behind the reader's back: the target is what the log
+     compares against, and it moves only when somebody says so. */
+  let suggest = null;
+  if (sp) {
+    const ratio = byWeight() && sp.ratio !== t.ratio ? sp.ratio : null;
+    const temp = canSetTemp() && sp.temp !== null && sp.temp !== t.temp ? sp.temp : null;
+    if (ratio !== null || temp !== null) suggest = { ratio, temp, label: sp.e.label };
+  }
+  return { t, sp, m, suggest, scaled: methodScaled(m, t) };
+}
+
 // Days since the bag was roasted, or null when nobody said.
 function daysSinceRoast(c) {
   if (!c || !c.roastDate) return null;
@@ -1779,10 +1815,45 @@ function beanNote(brew, c) {
   return { move: `${r.head}, in particular.`, why: r.chase };
 }
 
+/* THE MOVE, THEN ONE SENTENCE, THEN A TAP.
+
+   The advice ran to twelve lines under the bold instruction — the first
+   brew's card was about eighty words — and the one line somebody acts on
+   at seven in the morning was buried in its own reasoning. The dial-in
+   solved this first and the brew log takes its mechanism: the move, about
+   a sentence of why, and the rest behind "Why this". Split on sentence
+   ends, never inside "1:16.7" or "2.5g". The budget is tighter here than
+   the dial-in's thirty-five words, because the brew log's reasons run
+   longer and the card sits above the whole board. */
+const WHY_WORDS = 20;
+
+function splitWhy(why) {
+  const text = String(why || '').trim();
+  if (!text) return { head: '', tail: '' };
+  const parts = text.split(/(?<=[.?!])\s+/);
+  const head = [];
+  let words = 0;
+  for (const part of parts) {
+    const n = part.split(/\s+/).length;
+    // Always at least one sentence, however long.
+    if (head.length && words + n > WHY_WORDS) break;
+    head.push(part);
+    words += n;
+  }
+  return { head: head.join(' '), tail: parts.slice(head.length).join(' ') };
+}
+
+function whyHTML(why) {
+  const { head, tail } = splitWhy(why);
+  return `<span class="tip-why">${escapeHTML(head)}</span>${tail
+    ? `<details class="tip-more"><summary>Why this</summary><span class="tip-why">${escapeHTML(tail)}</span></details>`
+    : ''}`;
+}
+
 function tipHTML(tip, cls) {
   return `<div class="${cls} ${tip.sure ? 'sure' : 'open'}">
       <span class="tip-move">${escapeHTML(tip.move)}</span>
-      <span class="tip-why">${escapeHTML(tip.why)}</span>
+      ${whyHTML(tip.why)}
     </div>`;
 }
 
@@ -1852,12 +1923,41 @@ function el(tag, cls, html) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+/* The toast, and the undo it can carry — the dial-in's pattern, brought
+   across. This app said "There is no undo" over a brew and asked a native
+   confirm() before letting a half-typed sheet go: a browser dialog that
+   names the origin, blocks the page, and lands under a wet thumb that was
+   aiming at the backdrop. The thing worth taking back is always the thing
+   you just did, so there is one slot; it lives on the toast, which is
+   already a live region, for eight seconds rather than two and a half. */
+let undoSlot = null;
+
+function toast(msg, undo) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = '';
+  t.appendChild(document.createTextNode(msg));
+  undoSlot = undo || null;
+  if (undo) {
+    // Undo by default; an offer to carry on (e.g. "Add the taste") names itself.
+    const b = el('button', 'toast-undo', escapeHTML(undo.label || 'Undo'));
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const act = undoSlot;
+      undoSlot = null;
+      t.classList.add('hidden');
+      if (!act) return;
+      act.restore();
+      haptic();
+      renderBoard();
+      if (act.after) toast(act.after);
+    });
+    t.appendChild(b);
+  }
+  // Over an open sheet, clear of that sheet's own action bar.
+  t.classList.toggle('over-sheet', Boolean(document.querySelector('.modal:not(.hidden)')));
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2400);
+  toastTimer = setTimeout(() => { t.classList.add('hidden'); undoSlot = null; }, undo ? 8000 : 2400);
 }
 
 function haptic() {
@@ -2096,19 +2196,87 @@ function renderNext(c) {
      schedule, which is the part a beginner has no way to guess and the
      part every recipe on the internet states differently. */
   if (!newest) {
-    const t = c.target;
+    const { t, m, suggest, scaled } = startPlan(c);
     const water = Math.round(t.dose * t.ratio);
-    const bloom = Math.round(t.dose * 2);
+    const temp = canSetTemp() && t.temp ? ` at ${escapeHTML(degrees(t.temp))}` : '';
+    /* The schedule, from the one place that knows it: the pours on the
+       target once a method has been applied, the brewer's method scaled
+       to this target before then, and only with neither a general rule
+       stated as one ("about") rather than as a number. */
+    let schedule;
+    const tp = Array.isArray(t.pours) ? t.pours.filter(p => num(p.water) !== null) : [];
+    if (byWeight() && tp.length) {
+      schedule = tp.map((p, i) => i === 0
+        ? `Bloom with ${fmt0(p.water)}g`
+        : `pour to ${fmt0(p.water)}g${num(p.at) !== null ? ` at ${fmtTime(p.at)}` : ''}`).join(', ') + '.';
+    } else if (scaled && scaled.steps.length) {
+      schedule = scaled.steps.slice(0, 4).map(st => {
+        const l = LentoRecipes.line(st, fmtTime);
+        return (l.when ? `${l.when} ` : '') + l.what.charAt(0).toLowerCase() + l.what.slice(1);
+      }).join(', ') + (scaled.steps.length > 4 ? ', and on.' : '.');
+      schedule = `${m.brewer}: ${schedule}`;
+    } else if (percolates()) {
+      schedule = byWeight()
+        ? `Bloom with about ${fmt0(t.dose * 2)}g and give it thirty to forty-five seconds, then pour the rest in two or three goes.`
+        : 'Wet all the grounds first and give them thirty to forty-five seconds, then pour the rest in two or three goes.';
+    } else {
+      schedule = 'Stir once when the water is in, leave it, and press or decant at the time you set.';
+    }
+    const grindWay = percolates()
+      ? 'Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser.'
+      : 'Grind is what changes the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.';
+    const offer = suggest
+      ? `<div class="start-offer">
+           <p class="tip-why">This is the log's default. For a ${escapeHTML(suggest.label.toLowerCase())} roast the bag points to ${
+             [suggest.ratio !== null ? `<strong>1:${suggest.ratio}</strong>` : '', suggest.temp !== null ? `<strong>${escapeHTML(degrees(suggest.temp))}</strong>` : ''].filter(Boolean).join(' and ')}.</p>
+           <button class="tip-act" type="button" id="btn-start-bag">Start at ${
+             [suggest.ratio !== null ? `1:${suggest.ratio}` : '', suggest.temp !== null ? escapeHTML(degrees(suggest.temp)) : ''].filter(Boolean).join(' and ')}</button>
+         </div>`
+      : '';
     wrap.className = 'next-card';
     wrap.innerHTML = `
       <span class="next-label">Where to start</span>
       <div class="tip open">
         <span class="tip-move">${byWeight()
-          ? `${fmt1(t.dose)}g coffee, ${water}g water, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
-          : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip.`}</span>
-        <span class="tip-why">${percolates()
-          ? `${byWeight() ? `Bloom with about ${bloom}g — twice the dose — and give it thirty to forty-five seconds, then pour the rest in two or three goes. ` : 'Wet all the grounds first and give them thirty to forty-five seconds, then pour the rest in two or three goes. '}Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser. Nobody can tell you the number — it is different on every grinder — but the window tells you which way.`
-          : `Stir once when the water is in, leave it, and press or decant at the time you set. Grind is what changes the strength of the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.`}</span>
+          ? `${fmt1(t.dose)}g coffee to ${water}g water (1:${t.ratio})${temp}, in ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)}.`
+          : `Aim for ${fmtTime(t.timeLo)}–${fmtTime(t.timeHi)} from first pour to last drip${temp}.`}</span>
+        <span class="tip-why">${escapeHTML(schedule)}</span>
+        <details class="tip-more"><summary>If it runs fast or slow</summary><span class="tip-why">${escapeHTML(grindWay)}</span></details>
+        ${offer}
+      </div>`;
+    const take = wrap.querySelector('#btn-start-bag');
+    if (take) take.addEventListener('click', () => {
+      if (suggest.ratio !== null) t.ratio = suggest.ratio;
+      if (suggest.temp !== null) t.temp = suggest.temp;
+      // Pours written for the old ratio would no longer add up to the
+      // water; the method rescales them, so they are rewritten with it.
+      if (Array.isArray(t.pours) && t.pours.length && m && root().LentoRecipes) {
+        const s = methodScaled(m, t);
+        if (s) t.pours = LentoRecipes.pours(s);
+      }
+      save();
+      haptic();
+      renderBoard();
+      toast('Starting point applied');
+    });
+    return;
+  }
+
+  /* THE RECIPE IS SETTLED.
+
+     Mark a brew "the one" and the card above the board went on coaching
+     it as though it were any other morning — "grind finer" over the cup
+     somebody had just called the recipe. When the newest brew IS the
+     recipe, the card says so and says what is left to do. A later brew
+     that drifts off it is coached again as usual; that is when coaching
+     is wanted. */
+  if (newest.verdict === 'keeper') {
+    wrap.className = 'next-card';
+    wrap.innerHTML = `
+      <span class="next-label">Next</span>
+      <div class="tip sure">
+        <span class="tip-move">That is the recipe. Brew it the same way.</span>
+        ${whyHTML('It is pinned above the board with its grind. When the bag ages and the same setting starts running quick, set where the grinder is today on the recipe card rather than rewriting the recipe.')}
       </div>`;
     return;
   }
@@ -2120,7 +2288,7 @@ function renderNext(c) {
       <span class="next-label">Next</span>
       <div class="tip open">
         <span class="tip-move">Add the time to that brew.</span>
-        <span class="tip-why">How long it ran is the number this app reasons from: it is what the grind changes in a brewer that drains, and it decides whether “finer” or “coarser” is the right answer. Tap the brew above and put it in.</span>
+        ${whyHTML('Tap the brew below and put it in. How long it ran is the number this app reasons from: it is what the grind changes in a brewer that drains, and it decides whether “finer” or “coarser” is the right answer.')}
       </div>`;
     return;
   }
@@ -2273,13 +2441,21 @@ function renderBrews(c) {
     return;
   }
 
+  numberBrews(c);
   const rows = brewsNewestFirst(c);
   rows.forEach((brew, i) => {
-    // the brew before this one in time, which is what "changed" means
-    const prev = rows[i + 1] || null;
+    /* The brew before this one in time, which is what "changed" means —
+       on the SAME brewer. A Switch brew compared with the V60 brew before
+       it read "−30s" as though the grinder had moved, when what changed
+       was the cone. Across brewers there is no "changed", there is a
+       different recipe. */
+    const older = rows.slice(i + 1);
+    const prev = brew.brewer
+      ? (older.find(b => !b.brewer || b.brewer === brew.brewer) || null)
+      : (older[0] || null);
     // The advice is not on these cards at all — it is one card, at the top
     // of the board, about the next brew. See renderNext.
-    list.appendChild(brewCard(brew, prev, c, rows.length - i));
+    list.appendChild(brewCard(brew, prev, c, brewNumber(c, brew)));
   });
 }
 
@@ -2396,11 +2572,24 @@ function brewCard(brew, prev, c, n) {
      row — and a drawdown that has crept from 1:20 to 2:10 across four
      brews is the bed clogging, which is the finding this app exists to
      hand somebody. */
+  /* GRIND AND TIME LEAD; THE RECIPE FOLLOWS.
+
+     The headline was dose → water at 24px, and across a dial-in that is
+     the same "15.0 → 250g" down the whole board while the grind — the
+     thing a brew is usually about — sat at body size underneath. The two
+     numbers that move from one morning to the next now lead: where the
+     grinder was, and where the clock landed. Dose → water stays on the
+     card, a line down, because a card is still read alone. A brew with
+     no grind recorded keeps the old headline rather than leading with a
+     dash. */
+  const hasGrind = brew.grind !== '' && brew.grind !== null && brew.grind !== undefined
+    && num(Number(brew.grind)) !== null;
+  const recipe = byWeight()
+    ? `${num(brew.dose) === null ? '—' : fmt1(num(brew.dose))}<span class="log-arrow" aria-hidden="true">→</span>${
+        water === null ? '—' : fmt0(water)}<small>g</small>`
+    : '<span class="brew-noscale">no scale</span>';
   const set = [];
-  if (num(Number(brew.grind)) !== null && brew.grind !== '') {
-    set.push(`<span class="is-set">grind ${escapeHTML(String(brew.grind))}${
-      grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}</span>`);
-  }
+  if (hasGrind) set.push(`<span class="is-set">${recipe}</span>`);
   /* Temperature is not here, and the dial-in's card does not carry it
      either. Three things plus a window verdict wrapped this line at 390px,
      and of the three it is the one that is nearly always the same figure
@@ -2465,10 +2654,10 @@ function brewCard(brew, prev, c, n) {
     </div>
 
     <div class="log-shot">
-      <span class="log-inout">${byWeight()
-        ? `${num(brew.dose) === null ? '—' : fmt1(num(brew.dose))}<span class="log-arrow" aria-hidden="true">→</span>${
-            water === null ? '—' : fmt0(water)}<small>g</small>`
-        : '<span class="brew-noscale">no scale</span>'}</span>
+      <span class="log-inout">${hasGrind
+        ? `<small class="log-key">grind </small>${escapeHTML(String(brew.grind))}${
+            grindUnit() === 'clicks' ? '<small> clicks</small>' : ''}`
+        : recipe}</span>
       <span class="log-secs ${timeClass}">${fmtTime(brew.time)}</span>
     </div>
 
@@ -2515,6 +2704,75 @@ let editingIsNew = false;
 // The schedule as it was when the sheet opened, so an edit to it can be
 // told from the copy that was carried over. See brewHasContent.
 let pourSeed = '[]';
+/* An existing brew as it was when its sheet opened.
+
+   `editing` IS the stored record on an existing brew, so every field was
+   written straight into the log and only the save was optional. Closing
+   without saving put nothing back: the abandoned edit sat in memory and
+   went to disk with the next save of anything else. The dial-in found
+   this first; the snapshot is how it is undone. */
+let editingSeed = '';
+
+/* THE SHEET SURVIVES A RELOAD.
+
+   A brew is typed with one hand while the other holds a kettle, and the
+   phone is free to kill a backgrounded tab whenever it likes. Reloading
+   mid-entry used to drop everything on the sheet without a word. The open
+   sheet is written to its own key on every change and put back on boot;
+   saving, closing or removing clears it. It is a separate key rather than
+   a field in the log because it is not a record — it never syncs, and a
+   stale one is simply ignored. */
+const DRAFT_KEY = 'lento-filter-draft-v1';
+
+function writeDraft() {
+  const c = activeCoffee();
+  if (!editing || !c || $('#brew-modal').classList.contains('hidden')) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      coffee: c.id, isNew: editingIsNew, brew: editing, seed: editingSeed, pourSeed, at: Date.now(),
+    }));
+  } catch (e) { /* storage full or blocked: the sheet still works, it just will not survive */ }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* nothing to clear */ }
+}
+function restoreDraft() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { d = null; }
+  if (!d || !d.brew || !d.coffee) return;
+  // A sheet left open for a day is not a morning's brew any more.
+  if (!d.at || Date.now() - d.at > 24 * 3600 * 1000) { clearDraft(); return; }
+  const c = shelfCoffees().find(x => x.id === d.coffee);
+  if (!c) { clearDraft(); return; }
+  state.activeId = c.id;
+  renderBoard();
+  if (d.isNew) {
+    openBrew(null, { draft: d.brew, pourSeed: d.pourSeed });
+  } else {
+    const brew = c.brews.find(b => b.id === d.brew.id);
+    if (!brew) { clearDraft(); return; }
+    openBrew(brew, { draft: d.brew, seed: d.seed });
+  }
+  toast('Back where you left this brew');
+}
+
+/* Brew numbers that stay put.
+
+   A card was numbered by its place in the list, so removing brew 2 made
+   brew 3 into brew 2 — and "brew 3 was the good one" stopped being true
+   the moment anything before it was tidied away. Each brew now keeps the
+   number it was given. Brews from before this carry none, and get one in
+   the order they were logged, which is the number they already showed. */
+function numberBrews(c) {
+  let top = 0;
+  (c.brews || []).forEach(b => { if (num(b.n) !== null && b.n > top) top = b.n; });
+  (c.brews || []).forEach(b => { if (num(b.n) === null) b.n = ++top; });
+  return top;
+}
+function brewNumber(c, brew) {
+  if (num(brew.n) !== null) return brew.n;
+  return c.brews.indexOf(brew) + 1;
+}
 
 /* Where the grinder is, as far as this app knows.
 
@@ -2525,17 +2783,31 @@ function grindStart(c) {
   const now = num(Number(c.grindNow));
   if (c.grindNow !== '' && now !== null) return now;
   const last = brewsNewestFirst(c)[0];
-  const prev = last ? num(Number(last.grind)) : null;
+  /* A brew logged without a grind stores '', and Number('') is 0 — so the
+     next sheet arrived prefilled at 0, was saved at 0, and the card said
+     "grind 0" over a brew nobody had given a setting. */
+  const prev = last && last.grind !== '' && last.grind != null ? num(Number(last.grind)) : null;
   return prev === null ? undefined : prev;
 }
 
-function openBrew(brew) {
+/* `resume` reopens a sheet rather than starting one: the draft that
+   survived a reload, or a sheet put back by Undo. */
+function openBrew(brew, resume) {
   const c = activeCoffee();
   if (!c) return;
   const last = c.brews[c.brews.length - 1] || null;
 
   editingIsNew = !brew;
-  editing = brew || {
+  if (brew) {
+    editingSeed = resume && resume.seed ? resume.seed : JSON.stringify(brew);
+    if (resume && resume.draft) {
+      Object.keys(brew).forEach(k => { if (!(k in resume.draft)) delete brew[k]; });
+      Object.assign(brew, resume.draft);
+    }
+  } else {
+    editingSeed = '';
+  }
+  editing = brew || (resume && resume.draft) || {
     id: uid(),
     at: Date.now(),
     /* The dose carries over and the rest starts empty. A brew holds the
@@ -2551,7 +2823,11 @@ function openBrew(brew) {
        one reached for last anywhere is the fallback. It is recorded on
        the brew rather than read from the kit at display time, so the log
        stays true when the shelf changes. */
-    brewer: (last && last.brewer) || kit().brewer || '',
+    /* Once there is a recipe, its brewer: a Switch brew on a V60 recipe
+       is an experiment, and the default should be the thing being
+       repeated rather than the last detour. */
+    brewer: ((c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0] || {}).brewer)
+      || (last && last.brewer) || kit().brewer || '',
     /* What you tasted, in words. Not carried over from the last brew:
        the whole question is whether THIS one came out the way the bag
        said, and prefilling it would answer that with last week's cup. */
@@ -2575,9 +2851,9 @@ function openBrew(brew) {
     beverage: null,
   };
   if (editing.grind === undefined) editing.grind = '';
-  pourSeed = pourSchedule(editing.pours);
+  pourSeed = resume && resume.pourSeed ? resume.pourSeed : pourSchedule(editing.pours);
 
-  $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${c.brews.indexOf(brew) + 1}`;
+  $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${brewNumber(c, brew)}`;
 
   // Only on a brew that exists — there is nothing to remove from a sheet
   // nobody has saved. A mis-logged brew is not a small problem in a log
@@ -2585,22 +2861,46 @@ function openBrew(brew) {
   // the history for ever and skews the next card's arithmetic.
   const del = $('#brew-delete');
   del.classList.toggle('hidden', editingIsNew);
+  /* Removed at once, with an Undo, rather than behind a confirm() that
+     said "There is no undo" — which this app was in a position to fix
+     rather than announce. Anything changed on the sheet first is put back
+     to the saved record, so Undo restores the brew that was logged. */
   del.onclick = () => {
     const i = c.brews.indexOf(brew);
     if (i < 0) return;
-    if (!confirm(`Remove brew ${i + 1}? It goes out of the log and out of the comparison with the brews either side of it. There is no undo.`)) return;
+    if (editingSeed) {
+      try {
+        const back = JSON.parse(editingSeed);
+        Object.keys(brew).forEach(k => { if (!(k in back)) delete brew[k]; });
+        Object.assign(brew, back);
+      } catch (e) { /* keep what is there */ }
+    }
     const gone = c.brews[i];
+    const n = brewNumber(c, gone);
     c.brews.splice(i, 1);
     // Written down, so a sync does not hand it back. See migrate().
     if (gone && gone.id) c.dead[gone.id] = deletedAt(gone.updated);
     save();
+    clearDraft();
     closeModal('#brew-modal');
     renderBoard();
-    toast('Brew removed');
+    toast(`Brew ${n} removed`, {
+      after: `Brew ${n} is back`,
+      restore: () => {
+        c.brews.splice(Math.min(i, c.brews.length), 0, gone);
+        if (gone.id) delete c.dead[gone.id];
+        save();
+      },
+    });
   };
 
   buildBrewSheet(c);
   openModal('#brew-modal');
+  if (resume && resume.focus === 'taste') {
+    const step = $('#taste-step');
+    if (step) { step.open = true; step.scrollIntoView({ block: 'start' }); }
+  }
+  writeDraft();
 }
 
 // Has anything been put on this sheet? Used to decide whether closing it
@@ -2608,7 +2908,10 @@ function openBrew(brew) {
 function brewHasContent() {
   if (!editing) return false;
   const typed = ['water', 'time', 'taste', 'body', 'verdict', 'intent', 'notes', 'tds']
-    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined);
+    .some(k => editing[k] !== null && editing[k] !== '' && editing[k] !== undefined)
+    // Words picked off the bag or the wheel are work too; a sheet holding
+    // only those used to close as if it were blank.
+    || (Array.isArray(editing.flavours) && editing.flavours.length > 0);
   /* The schedule counts too, and only when it has been changed.
      It arrives carried over from the last brew, so its mere presence is
      not somebody's work — but editing it is, and this app calls the
@@ -2624,14 +2927,187 @@ function pourSchedule(pours) {
   return JSON.stringify((pours || []).map(p => [num(p.at), num(p.water), p.valve || null]));
 }
 
+/* Closing never asks. It used to stop on a native confirm() — reached by
+   the X, by Escape, and by a tap on the backdrop, which is where a thumb
+   lands when it misses — and the confirm was the only thing standing
+   between a wet hand and a lost brew. Now the sheet closes, and what was
+   on it waits behind an Undo that reopens it exactly as it was. */
 function closeBrewSheet() {
-  if (editingIsNew && brewHasContent()
-      && !confirm('Close without saving? What you have put on this sheet goes with it.')) return;
+  const c = activeCoffee();
+  holdScreen(false);
+  if (editingIsNew && brewHasContent()) {
+    const draft = JSON.parse(JSON.stringify(editing));
+    const seed = pourSeed;
+    closeModal('#brew-modal');
+    clearDraft();
+    toast('Brew put aside', {
+      restore: () => openBrew(null, { draft, pourSeed: seed }),
+    });
+    return;
+  }
+  if (!editingIsNew && editing && editingSeed && JSON.stringify(editing) !== editingSeed) {
+    const target = editing;
+    const changed = JSON.stringify(editing);
+    const seed = editingSeed;
+    try {
+      const back = JSON.parse(seed);
+      Object.keys(target).forEach(k => { if (!(k in back)) delete target[k]; });
+      Object.assign(target, back);
+    } catch (e) { /* keep what is there */ }
+    closeModal('#brew-modal');
+    clearDraft();
+    renderBoard();
+    toast('Changes put aside', {
+      restore: () => {
+        if (!c || c.brews.indexOf(target) < 0) return;
+        if (state.activeId !== c.id) state.activeId = c.id;
+        openBrew(target, { draft: JSON.parse(changed), seed });
+      },
+    });
+    return;
+  }
   closeModal('#brew-modal');
+  clearDraft();
 }
 
 function buildBrewSheet(c) {
   buildBrewerPick(c);
+  buildClock(c);
+  buildNumbers(c);
+  buildPours(c);
+  buildTasteStep(c);
+}
+
+/* THE CLOCK.
+
+   "This app will not print a number it cannot account for" — and the
+   number every piece of advice here reasons from, the time, was read off
+   a timer in another app and typed in afterwards. The sheet is the timer
+   now. Start it as the water goes on: the first row of the schedule (the
+   bloom, or a valve) is stamped at 0:00. Each tap of the step button
+   stamps the next row at the moment you make it, adding a row when the
+   schedule runs out. Stop writes the time, and — because the pours just
+   happened — takes the water from the last one if it is still blank.
+
+   The clock lives on the brew as `clock` while it runs, so the draft that
+   survives a reload keeps it running from the same start. It never
+   reaches the log: saving stops it first. */
+let clockTick = null;
+let wakeLock = null;
+
+function clockSecs() {
+  return editing && editing.clock ? Math.max(0, Math.round((Date.now() - editing.clock.start) / 1000)) : 0;
+}
+function holdScreen(on) {
+  try {
+    if (on && navigator.wakeLock && !wakeLock) {
+      navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(() => {});
+    } else if (!on && wakeLock) {
+      wakeLock.release().catch(() => {}); wakeLock = null;
+    }
+  } catch (e) { /* not everywhere, and never essential */ }
+}
+// The label of the row the step button will stamp next.
+function nextStepLabel() {
+  const i = editing.clock ? editing.clock.step : 0;
+  const pours = editing.pours || [];
+  if (pours[i]) return pourLabel(pours, i);
+  return pourLabel(pours.concat([{ at: null, water: null }]), pours.length);
+}
+function stampStep(c, secs) {
+  if (!percolates(editing)) return;
+  if (!Array.isArray(editing.pours)) editing.pours = [];
+  const i = editing.clock.step;
+  if (editing.pours[i]) editing.pours[i].at = secs;
+  else editing.pours.push({ at: secs, water: null });
+  editing.clock.step = i + 1;
+  buildPours(c);
+  renderReadout(c);
+}
+function stopClock(c, quiet) {
+  if (!editing || !editing.clock) return;
+  const secs = clockSecs();
+  delete editing.clock;
+  holdScreen(false);
+  editing.time = secs;
+  if (byWeight() && (editing.water === null || editing.water === undefined)) {
+    const total = lastPourTotal(editing);
+    if (total !== null) { editing.water = total; editing.waterAuto = true; }
+  }
+  buildClock(c);
+  buildNumbers(c);
+  renderReadout(c);
+  if (!quiet) toast(`Time ${fmtTime(secs)} recorded`);
+}
+
+function buildClock(c) {
+  const wrap = $('#brew-clock');
+  if (!wrap) return;
+  clearInterval(clockTick);
+  const running = Boolean(editing.clock);
+  const pours = percolates(editing);
+  wrap.classList.toggle('running', running);
+  wrap.classList.toggle('timed', !running && num(editing.time) !== null);
+  wrap.classList.toggle('idle', !running && num(editing.time) === null);
+  wrap.innerHTML = `
+    <span class="clock-face" role="timer" aria-label="Brew time">${fmtTime(running ? clockSecs() : (num(editing.time) || 0))}</span>
+    <span class="clock-actions"></span>`;
+  const face = wrap.querySelector('.clock-face');
+  const actions = wrap.querySelector('.clock-actions');
+  const button = (cls, text, fn) => {
+    const b = el('button', 'btn ' + cls, escapeHTML(text));
+    b.type = 'button';
+    b.addEventListener('click', () => { haptic(); fn(); });
+    actions.appendChild(b);
+    return b;
+  };
+  if (running) {
+    if (pours) button('btn-ghost clock-step', `${nextStepLabel()} now`, () => {
+      stampStep(c, clockSecs());
+      buildClock(c);
+    });
+    button('btn-primary clock-stop', 'Stop', () => stopClock(c));
+    clockTick = setInterval(() => {
+      if (!editing || !editing.clock || $('#brew-modal').classList.contains('hidden')) {
+        clearInterval(clockTick);
+        return;
+      }
+      face.textContent = fmtTime(clockSecs());
+    }, 250);
+  } else {
+    button('btn-ghost clock-start', num(editing.time) !== null ? 'Time it again' : 'Start the clock', () => {
+      editing.clock = { start: Date.now(), step: 0 };
+      if (pours) stampStep(c, 0);
+      holdScreen(true);
+      buildClock(c);
+      writeDraft();
+    });
+  }
+}
+
+/* THE WATER IS ALREADY ON THE SCALE.
+
+   Pours are written as running totals, so the last one is the water —
+   and the sheet used to leave Water blank under a schedule ending at
+   250, asking for the same number twice. It is taken from the last pour
+   now, and said to be: the field notes where it came from, and typing
+   over it hands it back to the person. */
+function lastPourTotal(b) {
+  const ws = (b.pours || []).filter(p => !isValve(p) && num(p.water) !== null).map(p => num(p.water));
+  return ws.length ? ws[ws.length - 1] : null;
+}
+function syncWater(c) {
+  if (!byWeight() || !editing) return false;
+  if (editing.water !== null && editing.water !== undefined && !editing.waterAuto) return false;
+  const total = lastPourTotal(editing);
+  if (total === editing.water) return false;
+  editing.water = total;
+  editing.waterAuto = total !== null;
+  buildNumbers(c);
+  return true;
+}
+
+function buildNumbers(c) {
   const row = $('#num-row');
   row.innerHTML = '';
   const refresh = () => renderReadout(c);
@@ -2641,13 +3117,20 @@ function buildBrewSheet(c) {
       label: 'Coffee', unit: 'g', value: num(editing.dose), min: 0, max: 200, step: 0.5, digits: 1,
       startAt: c.target.dose, onChange: v => { editing.dose = v; refresh(); },
     }));
-    row.appendChild(numField({
+    const waterField = numField({
       label: 'Water', unit: 'g', value: num(editing.water), min: 0, max: 2000, step: 10, digits: 0,
-      startAt: Math.round(c.target.dose * c.target.ratio), onChange: v => { editing.water = v; refresh(); },
-    }));
+      startAt: Math.round(c.target.dose * c.target.ratio),
+      onChange: v => { editing.water = v; editing.waterAuto = false; refresh(); },
+    });
+    if (editing.waterAuto) {
+      const note = waterField.querySelector('.num-note');
+      if (note) note.textContent = 'from the last pour';
+    }
+    row.appendChild(waterField);
   }
   row.appendChild(numField({
-    label: 'Time', unit: '', time: true, value: num(editing.time), min: 0, max: 1800, step: 5, digits: 0,
+    // "—" like every other empty field; "0:00" read as a time of nothing.
+    label: 'Time', unit: '', time: true, placeholder: '—', value: num(editing.time), min: 0, max: 1800, step: 5, digits: 0,
     startAt: c.target.timeLo, onChange: v => { editing.time = v; refresh(); },
   }));
   // Grind is one of the numbers, not one of the details: it is the thing
@@ -2689,7 +3172,24 @@ function buildBrewSheet(c) {
     })));
   }
 
-  buildPours(c);
+}
+
+/* WHAT IT TASTED LIKE IS A SECOND MOMENT.
+
+   The sheet asked for the cup in the same breath as the pours — scales,
+   words, the wheel and a verdict under a kettle still in the hand — and
+   ran to 28 controls. The taste is known four minutes later, cup in the
+   other hand. On a new brew it waits behind one row and is offered again
+   after Save; on a brew that already has it, or one being edited, it is
+   open. Nothing is gone: it is all one tap away, and the advice reads it
+   the moment it is there. */
+function buildTasteStep(c) {
+  const step = $('#taste-step');
+  if (step) {
+    const tasted = ['taste', 'body', 'verdict'].some(k => editing[k] !== null && editing[k] !== undefined)
+      || (Array.isArray(editing.flavours) && editing.flavours.length > 0);
+    step.open = !editingIsNew || tasted || Boolean(editing.tasteNow);
+  }
 
   const taste = $('#taste-scale');
   taste.innerHTML = '';
@@ -2824,6 +3324,7 @@ function openWheel(c) {
     toggle: $('#wheel-zoom-toggle'),
     level: $('#wheel-zoom-level'),
     haptic: haptic,
+    word: 'flavour',
     categoryHint: 'a whole family, if that is as far as it got',
     wordHint: 'writes the word down',
   });
@@ -2973,7 +3474,7 @@ function buildPours(c) {
         // finishes, not what this pour weighs.
         label: 'To', unit: 'g', compact: true,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
-        onChange: v => { p.water = v; buildPours(c); renderReadout(c); },
+        onChange: v => { p.water = v; syncWater(c); buildPours(c); renderReadout(c); },
       });
       w.classList.add('pour-field');
       line.appendChild(w);
@@ -2986,6 +3487,7 @@ function buildPours(c) {
     rm.addEventListener('click', () => {
       editing.pours.splice(i, 1);
       haptic();
+      syncWater(c);
       buildPours(c);
       renderReadout(c);
     });
@@ -3196,25 +3698,25 @@ function renderReadout(c) {
   const cells = [];
   if (byWeight()) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${fmtRatio(r)}</span>
+      <span class="readout-value${r === null ? ' empty' : ''}">${fmtRatio(r)}</span>
       <span class="readout-label">ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
     </div>`);
   }
   if (percolates(editing)) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${fmtTime(dd)}</span>
+      <span class="readout-value${dd === null ? ' empty' : ''}">${fmtTime(dd)}</span>
       <span class="readout-label">drawdown</span>
     </div>`);
   }
   if (byWeight() && percolates(editing)) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${bloom === null ? '—' : `${bloom.toFixed(1)}×`}</span>
+      <span class="readout-value${bloom === null ? ' empty' : ''}">${bloom === null ? '—' : `${bloom.toFixed(1)}×`}</span>
       <span class="readout-label">bloom</span>
     </div>`);
   }
   if (prefs.tds) {
     cells.push(`<div class="readout-cell">
-      <span class="readout-value">${ey === null ? '—' : fmt1(ey) + '%'}</span>
+      <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
       <span class="readout-label">${ey === null ? 'extraction · needs TDS and the cup weighed' : 'extraction yield'}</span>
     </div>`);
   }
@@ -3233,25 +3735,55 @@ function renderReadout(c) {
 function saveBrew() {
   const c = activeCoffee();
   if (!c) return;
+  // A running clock is the time not yet written down; saving stops it.
+  if (editing && editing.clock) stopClock(c, true);
   const wasNew = editingIsNew;
-  if (!isComplete(editing) && wasNew) {
-    const missing = missingFields(editing);
-    // Saving a half-recorded brew is allowed — a morning is a morning,
-    // and a brew you only timed is still evidence. It is marked, not
-    // refused.
-    toast(`Saved without ${missing.join(' or ')}`);
+  /* A sheet with nothing on it is not a brew. Saving one put a card on
+     the board reading "15.0 → —g" — the carried-over dose and nothing
+     measured — which then sat in the comparison with the brews either
+     side of it. A half-recorded brew is still allowed (see below); a
+     blank one is turned back with what would make it a record. */
+  // The grind is not on that list: it arrives carried over from the last
+  // brew, so its presence says nothing about whether this one happened.
+  if (wasNew && !brewHasContent()) {
+    toast(byWeight() ? 'Nothing recorded yet — add the water, the time or how it tasted'
+                     : 'Nothing recorded yet — add the time or how it tasted');
+    return;
   }
+  // Working state of the sheet, never part of the record.
+  delete editing.waterAuto;
+  delete editing.tasteNow;
+  if (wasNew) editing.n = numberBrews(c) + 1;
+  const n = brewNumber(c, editing);
   if (wasNew) c.brews.push(editing);
   // The default for the next sheet is whatever you actually just used.
   if (editing.brewer && state.kit.brewer !== editing.brewer) state.kit.brewer = editing.brewer;
   save();
+  clearDraft();
+  editingSeed = '';
   closeModal('#brew-modal');
   renderBoard();
   if (wasNew) {
     const first = $('#brews') && $('#brews').firstElementChild;
     if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Saving a half-recorded brew is allowed — a morning is a morning,
+    // and a brew you only timed is still evidence. It is marked, not
+    // refused. Either way the save is said out loud: the toast is the
+    // live region, and a new brew used to be the one save it never spoke.
+    const saved = editing;
+    const said = isComplete(saved)
+      ? `Brew ${n} saved`
+      : `Brew ${n} saved without ${missingFields(saved).join(' or ')}`;
+    // The second moment: if the cup has not been described yet, the toast
+    // that confirms the save is also the way back to it.
+    const tasted = ['taste', 'body', 'verdict'].some(k => saved[k] !== null && saved[k] !== undefined)
+      || (Array.isArray(saved.flavours) && saved.flavours.length > 0);
+    toast(said, tasted ? undefined : {
+      label: 'Add the taste',
+      restore: () => { if (c.brews.indexOf(saved) >= 0) openBrew(saved, { focus: 'taste' }); },
+    });
   } else {
-    toast('Brew updated');
+    toast(`Brew ${n} updated`);
   }
 }
 
@@ -3321,7 +3853,11 @@ function openCoffees() {
     const keeper = c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0];
     const bag = bagLine(c);
     const roast = roastEntry(c.roast);
+    // Age leads the line, as DESIGN.md says it does: it is the one fact
+    // on this row that changes every day and changes what to expect.
+    const age = daysSinceRoast(c);
     const counts = [
+      age === null ? '' : age === 0 ? 'roasted today' : `${age} day${age === 1 ? '' : 's'} off roast`,
       `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}`,
       keeper && ratioOf(keeper) !== null ? `dialled at ${fmtRatio(ratioOf(keeper))}` : '',
       roast ? roast.label.toLowerCase() : '',
@@ -3388,7 +3924,7 @@ function openCoffee(c, opts) {
   $('#edit-title').textContent = c.name.trim() ? coffeeLabel(c) : 'The coffee';
   body.innerHTML = `
     <label class="field"><span class="field-label">Name</span>
-      <input class="field-input" id="e-name" type="text" maxlength="48" placeholder="e.g. Ethiopia Guji"></label>
+      <input class="field-input" id="e-name" type="text" maxlength="80" placeholder="e.g. Ethiopia Guji"></label>
     <label class="field"><span class="field-label">Roaster</span>
       <input class="field-input" id="e-roaster" type="text" maxlength="48" placeholder="optional"></label>
     <label class="field"><span class="field-label">Roast date</span>
@@ -3571,7 +4107,9 @@ function openCoffee(c, opts) {
       b.type = 'button';
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', on ? 'true' : 'false');
-      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); });
+      // The method block reads the roast too — it drops its own ratio
+      // once the bag has one — so it redraws with it.
+      b.addEventListener('click', () => { c.roast = on ? '' : r.key; haptic(); renderRoast(); renderMethod(); });
       roastWrap.appendChild(b);
     });
     const sp = startingPoint(c);
@@ -3647,7 +4185,12 @@ function openCoffee(c, opts) {
   const renderMethod = () => {
     const m = methodFor(kit().brewer);
     if (!m) { methodWrap.innerHTML = ''; return; }
-    const scaled = methodAt(m, byWeight() ? t.dose : m.dose);
+    const sp0 = startingPoint(c);
+    // With a roast level, the bag owns the ratio, so the schedule is
+    // scaled to the target's ratio rather than the method's — otherwise
+    // the pours it writes would add up to a different water than the
+    // target two lines above them.
+    const scaled = sp0 ? methodScaled(m, t) : methodAt(m, byWeight() ? t.dose : m.dose);
     const rows = scaled.steps.map(st => {
       const l = LentoRecipes.line(st, fmtTime);
       return `<li class="step"><span class="step-at">${escapeHTML(l.when)}</span><span class="step-do">${escapeHTML(l.what)}</span></li>`;
@@ -3685,7 +4228,12 @@ function openCoffee(c, opts) {
     methodWrap.innerHTML = `
       <div class="baseline method">
         <span class="baseline-head">How a ${escapeHTML(m.brewer)} wants to be used</span>
-        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — 1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}</p>
+        <p class="baseline-body"><strong>${escapeHTML(m.title)}</strong> — ${sp
+          // The method's own ratio and temperature are not printed beside
+          // the bag's: two numbers for one thing, inches apart, is the
+          // contradiction this block was rewritten to stop.
+          ? escapeHTML(m.grind)
+          : `1:${m.ratio}${tempLine} · ${escapeHTML(m.grind)}`}</p>
         <p class="baseline-why">${escapeHTML(m.why)}</p>
         <ol class="steps">${rows}</ol>
         ${hands}
@@ -3754,6 +4302,16 @@ function openCoffee(c, opts) {
 
   $('#edit-save').onclick = () => {
     commit();
+    /* A coffee arrives when it has a name. Saving a blank sheet used to
+       push "Unnamed coffee" onto the shelf — the ghost bag the comment on
+       addCoffee says cannot happen — and clearing the name of one already
+       there did the same to a bag with brews on it. */
+    if (!c.name.trim()) {
+      const field = body.querySelector('#e-name');
+      toast('Give the coffee a name first');
+      if (field) field.focus();
+      return;
+    }
     if (adding && !state.coffees.some(x => x.id === c.id)) {
       state.coffees.push(c);
       state.activeId = c.id;
@@ -4090,12 +4648,19 @@ function openKit() {
     }
   });
 
+  /* The kettle question starts unanswered on a first setup. "Off the
+     boil" used to arrive already selected, so somebody with a variable
+     kettle who scrolled past it was opted out of the temperature field
+     without ever being asked — a default dressed as an answer. It still
+     falls back to off the boil if left alone, because most kettles are;
+     it just no longer claims you said so. */
+  let tempAnswered = Boolean(k.asked);
   const redraw = () => {
     const put = (sel, row) => { const n = body.querySelector(sel); n.innerHTML = ''; n.appendChild(row); };
     put('#k-temp', segRow('Kettle temperature',
       'Most kettles have one setting. Say so and the temperature field leaves the brew sheet, and nothing here tells you to raise it.',
-      [['fixed', 'Off the boil'], ['set', 'I set it']], k.temp,
-      key => { k.temp = key; redraw(); }));
+      [['fixed', 'Off the boil'], ['set', 'I set it']], tempAnswered ? k.temp : null,
+      key => { k.temp = key; tempAnswered = true; redraw(); }));
 
     put('#k-steps', segRow('The grind dial',
       'Only so the app uses your words for it. It never suggests a setting, only a direction — your numbers mean nothing on anyone else’s grinder.',
@@ -4491,6 +5056,14 @@ function wire() {
   $('#help-close').addEventListener('click', closeHelp);
   $('#help-done').addEventListener('click', closeHelp);
 
+  // Every change on the sheet is written to the draft key on the next
+  // tick, after the field's own handler has updated `editing`.
+  const brewModal = $('#brew-modal');
+  ['input', 'change', 'click', 'keyup', 'pointerup'].forEach(t =>
+    brewModal.addEventListener(t, () => setTimeout(writeDraft, 0)));
+  window.addEventListener('pagehide', writeDraft);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) writeDraft(); });
+
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     const open = document.querySelector('.modal:not(.hidden)');
@@ -4533,6 +5106,7 @@ function boot() {
   }
   wire();
   renderBoard();
+  restoreDraft();
   /* An OAuth return lands as a fragment on this URL, so it is consumed
      before anything else can rewrite the address bar. Then a sync, which
      is a no-op signed out. */
