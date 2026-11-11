@@ -1018,10 +1018,24 @@ function flowOf(shot) {
    is not a measurement. Some tools print an estimate here. This one
    returns null, because an estimate and a reading look identical once
    they are set in the same type, and only one of them is a fact. */
-function extractionOf(shot) {
+function rawExtraction(shot) {
   const d = num(shot.dose), y = num(shot.yield), tds = num(shot.tds);
-  if (!d || d <= 0 || y === null || tds === null || tds <= 0) return null;
+  if (!d || d <= 0 || y === null || y <= 0 || tds === null || tds <= 0) return null;
   return (y * tds) / d;
+}
+
+/* Coffee is about 30% soluble by weight, so nothing above that came out
+   of a puck. A result past it is a decimal slip — 94 typed for 9.4 — and
+   printing "188% extraction" as a reading is the one thing this number
+   must never do. It is withheld, and the readout says why. */
+const EY_CEILING = 30;
+function extractionOf(shot) {
+  const ey = rawExtraction(shot);
+  return ey !== null && ey <= EY_CEILING ? ey : null;
+}
+function extractionImplausible(shot) {
+  const ey = rawExtraction(shot);
+  return ey !== null && ey > EY_CEILING;
 }
 
 // A shot the arithmetic can work on at all.
@@ -4293,7 +4307,9 @@ function renderReadout(c) {
       </div>
       ${hasTds() ? `<div class="readout-cell">
         <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
-        <span class="readout-label">${ey === null ? 'extraction · needs a TDS reading' : 'extraction yield'}</span>
+        <span class="readout-label">${ey !== null ? 'extraction yield'
+          : extractionImplausible(editing) ? 'extraction · check the TDS: espresso reads about 7–12%'
+          : 'extraction · needs a TDS reading'}</span>
       </div>` : ''}
     </div>
     <div class="readout-window ${timeClass}">${windowNote}</div>

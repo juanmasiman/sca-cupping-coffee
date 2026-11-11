@@ -1152,11 +1152,25 @@ function pourAdded(brew, i) {
    from dose and water alone is estimating that retention and printing
    the result as a reading. This one asks for the cup on the scale, or
    returns nothing. */
-function extractionOf(brew) {
+function rawExtraction(brew) {
   if (!hasTds() || !byWeight()) return null;
   const tds = num(brew.tds), bev = num(brew.beverage), dose = num(brew.dose);
-  if (tds === null || bev === null || dose === null || dose <= 0) return null;
+  if (tds === null || tds <= 0 || bev === null || bev <= 0 || dose === null || dose <= 0) return null;
   return (bev * tds) / dose;
+}
+
+/* Coffee is about 30% soluble by weight, so nothing above that came out
+   of a bed. A result past it is a decimal slip — 13.5 typed for 1.35 —
+   and printing "198% extraction" as a reading is the one thing this
+   number must never do. It is withheld, and the readout says why. */
+const EY_CEILING = 30;
+function extractionOf(brew) {
+  const ey = rawExtraction(brew);
+  return ey !== null && ey <= EY_CEILING ? ey : null;
+}
+function extractionImplausible(brew) {
+  const ey = rawExtraction(brew);
+  return ey !== null && ey > EY_CEILING;
 }
 
 function isComplete(brew) {
@@ -3872,7 +3886,9 @@ function renderReadout(c) {
   if (hasTds()) {
     cells.push(`<div class="readout-cell">
       <span class="readout-value${ey === null ? ' empty' : ''}">${ey === null ? '—' : fmt1(ey) + '%'}</span>
-      <span class="readout-label">${ey === null ? 'extraction · needs TDS and the cup weighed' : 'extraction yield'}</span>
+      <span class="readout-label">${ey !== null ? 'extraction yield'
+        : extractionImplausible(editing) ? 'extraction · check the TDS: a filter cup reads about 1.1–1.6%'
+        : 'extraction · needs TDS and the cup weighed'}</span>
     </div>`);
   }
 
