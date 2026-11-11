@@ -2144,13 +2144,13 @@ function renderBoard() {
   const heading = $('#board-heading');
   if (heading) heading.textContent = c ? coffeeLabel(c) : 'No coffee yet';
   $('#coffee-sub').textContent = c
-    ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
+    ? `${c.brews.length} brew${c.brews.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : ' · tap to name it'}`
     : 'tap to add one';
 
   // No dead control on the front door: the button does the next thing
   // rather than greying out the one thing a first visit has to do.
   const logBtn = $('#btn-log');
-  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
+  logBtn.textContent = !c ? 'Start brewing' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -2417,8 +2417,10 @@ function renderBrews(c) {
        the window and the schedule in it. */
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
-         <p class="empty-body">Add the bag you are brewing and this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
+         <p class="empty-body">Start brewing and name the coffee later, or add the bag first. Either way this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
+         <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
          <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+    empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
 
@@ -4084,6 +4086,28 @@ function openCoffees() {
 
 /* A coffee arrives when it has a name, not when the button is pressed,
    so backing out of the sheet does not leave a ghost bag on the shelf. */
+/* STRAIGHT TO THE KETTLE.
+
+   The first brew used to wait for a bag: name, roaster, roast date, the
+   lot. Sometimes the bag is in the other room, or the brew is already
+   blooming, and the questions stood between someone and the one
+   thing they came to do. This starts an unnamed coffee and opens the
+   sheet; the header says "Unnamed coffee · tap to name it" until it is
+   named, and everything logged against it stays with it when it is.
+
+   An unnamed bag is on this tool's shelf only: the other tool adopts a
+   bag once it has a name (LentoCoffees.said), so a quick start here does
+   not put a blank coffee on the dial-in. */
+function quickStart() {
+  const c = newCoffee('');
+  state.coffees.push(c);
+  state.activeId = c.id;
+  commitBag(c);
+  save();
+  renderBoard();
+  openBrew(null);
+}
+
 function addCoffee() {
   const c = newCoffee('');
   closeModal('#coffee-modal');
@@ -5258,7 +5282,7 @@ function queueSync() {
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
-  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : addCoffee()));
+  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : quickStart()));
   $('#brew-close').addEventListener('click', closeBrewSheet);
   $('#brew-save').addEventListener('click', saveBrew);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));

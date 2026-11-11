@@ -2912,7 +2912,7 @@ function renderBoard() {
   renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
   $('#coffee-sub').textContent = c
-    ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}`
+    ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : ' · tap to name it'}`
     : 'tap to add one';
 
   /* No dead control on the front door.
@@ -2923,7 +2923,7 @@ function renderBoard() {
      only by WCAG's exemption for inactive components. A button that does
      the next thing needs no exemption. */
   const logBtn = $('#btn-log');
-  logBtn.textContent = !c ? 'Add a coffee' : hasNewDraft(c) ? 'Continue the shot' : 'Log a shot';
+  logBtn.textContent = !c ? 'Start dialling in' : hasNewDraft(c) ? 'Continue the shot' : 'Log a shot';
   logBtn.disabled = false;
 
   renderKeeper(c);
@@ -3202,8 +3202,10 @@ function renderShots(c) {
        situations and keep theirs. */
     if (c) { empty.classList.add('hidden'); empty.innerHTML = ''; return; }
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
-         <p class="empty-body">Add the bag you are dialling in and this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
+         <p class="empty-body">Start pulling and name the coffee later, or add the bag first. Either way this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
+         <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
          <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+    empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
 
@@ -4956,6 +4958,28 @@ function openEdit(c, opts) {
    the shelf before a character had been typed, so backing out of the sheet
    left a ghost bag behind. The record is built here and only joins the
    shelf if the sheet is saved. */
+/* STRAIGHT TO THE MACHINE.
+
+   The first shot used to wait for a bag: name, roaster, roast date, the
+   lot. Sometimes the bag is in the other room, or the shot is already
+   in the cup, and the questions stood between someone and the one
+   thing they came to do. This starts an unnamed coffee and opens the
+   sheet; the header says "Unnamed coffee · tap to name it" until it is
+   named, and everything logged against it stays with it when it is.
+
+   An unnamed bag is on this tool's shelf only: the other tool adopts a
+   bag once it has a name (LentoCoffees.said), so a quick start here does
+   not put a blank coffee on the brew log. */
+function quickStart() {
+  const c = newCoffee('');
+  state.coffees.push(c);
+  state.activeId = c.id;
+  commitBag(c);
+  save();
+  renderBoard();
+  openShot(null);
+}
+
 function addCoffee() {
   const c = newCoffee('');
   closeModal('#coffee-modal');
@@ -5873,7 +5897,7 @@ function queueSync() {
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
-  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : addCoffee()));
+  $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : quickStart()));
   $('#shot-close').addEventListener('click', closeShotSheet);
   // Every change on the sheet is written to its draft on the next tick,
   // after the field's own handler has updated `editing`. The listeners are
