@@ -2914,15 +2914,46 @@ function tasteScale(opts) {
     else if (v === null) { v = next; render(); onChange(v); }
   };
 
+  /* A TOUCH DECIDES WHAT IT IS BEFORE IT WRITES ANYTHING.
+
+     The track is full-width and sits in the sheet's scroll path, and it
+     used to take every touch: `touch-action: none` and a value written on
+     pointerdown, so a thumb scrolling down the sheet that happened to
+     start on a track recorded a taste nobody gave. The track now lets the
+     page have vertical gestures (`pan-y`), and a touch writes only once
+     it has shown itself to be horizontal, or when it lifts as a tap.
+     A mouse has no scroll to steal from and still sets on press. */
+  const SLOP = 8;
   let dragging = false;
+  let start = null;
   track.addEventListener('pointerdown', e => {
-    dragging = true;
-    track.setPointerCapture(e.pointerId);
-    setFromX(e.clientX);
+    if (e.pointerType === 'mouse') {
+      dragging = true;
+      track.setPointerCapture(e.pointerId);
+      setFromX(e.clientX);
+      return;
+    }
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
   });
-  track.addEventListener('pointermove', e => { if (dragging) setFromX(e.clientX); });
-  track.addEventListener('pointerup', () => { dragging = false; });
-  track.addEventListener('pointercancel', () => { dragging = false; });
+  track.addEventListener('pointermove', e => {
+    if (dragging) { setFromX(e.clientX); return; }
+    if (!start || e.pointerId !== start.id) return;
+    const dx = Math.abs(e.clientX - start.x), dy = Math.abs(e.clientY - start.y);
+    if (dx > SLOP && dx > dy) {
+      dragging = true;
+      try { track.setPointerCapture(e.pointerId); } catch (err) { /* already released */ }
+      setFromX(e.clientX);
+    } else if (dy > SLOP) {
+      start = null; // a scroll; the browser has it
+    }
+  });
+  track.addEventListener('pointerup', e => {
+    if (!dragging && start && e.pointerId === start.id) setFromX(start.x); // a tap
+    dragging = false;
+    start = null;
+  });
+  track.addEventListener('pointercancel', () => { dragging = false; start = null; });
+  track.addEventListener('lostpointercapture', () => { dragging = false; });
 
   track.addEventListener('keydown', e => {
     let next = null;

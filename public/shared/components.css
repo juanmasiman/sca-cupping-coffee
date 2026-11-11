@@ -1034,7 +1034,9 @@ html.sheet-open, html.sheet-open body {
   height: 44px;
   display: flex;
   align-items: center;
-  touch-action: none;
+  /* The page keeps vertical gestures; the track takes a touch only once it
+     moves sideways or lifts as a tap. See wordScale. */
+  touch-action: pan-y;
 }
 /* A band rather than a hairline.
 

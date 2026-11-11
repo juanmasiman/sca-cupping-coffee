@@ -389,3 +389,28 @@
 /* The cup, as its own step. It reuses the disclosure the notes already
    use, so it reads as part of the same sheet rather than a new pattern. */
 .taste-step { margin-top: var(--space-5); }
+
+/* A sheet that came back from a draft says so, in the page's own voice:
+   one line of secondary ink and a quiet way out, not a banner. */
+.draft-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.draft-note span { flex: 1; min-width: 0; }
+.draft-drop {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
