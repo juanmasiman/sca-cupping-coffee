@@ -1636,16 +1636,18 @@ select.field-input {
 .kit-basket { display: flex; gap: var(--space-3); align-items: flex-end; }
 .kit-basket .field { flex: 1; }
 .field-narrow { flex: 0 0 88px !important; }
-/* What the coin test found, shown where the dose is set. */
+/* What the coin test found, shown where the dose is set. The tint alone
+   sets it apart from the fields around it; it carried a stripe down its
+   left edge too, which DESIGN.md rules out on any card ("no accent stripe
+   on the left edge"), whatever ink the stripe is drawn in. */
 .kit-fits {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
   margin-top: var(--space-3);
   padding: var(--space-3);
-  border-left: 2px solid var(--rail);
   background: var(--chrome-soft);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: var(--radius);
 }
 .kit-fits-text { flex: 1; font-size: 13px; line-height: 1.5; }
 .kit-fits-clear {
