@@ -170,8 +170,11 @@
   --settle: cubic-bezier(0.22, 1, 0.36, 1);
   --ease: cubic-bezier(0.25, 0.8, 0.3, 1);
 }
+/* Day is the default. The phone's dark mode is followed only when someone
+   has chosen "Auto" in an app's settings (data-theme="auto"); "Dark"
+   is the block below. Nothing turns the page dark on its own. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root[data-theme="auto"] {
     --bg: #0f1113;
     --bg-raise: #14171a;
     --bg-card: #171a1d;

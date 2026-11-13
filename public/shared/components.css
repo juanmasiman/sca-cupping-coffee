@@ -1327,7 +1327,7 @@ html.sheet-open, html.sheet-open body {
    rendering alone. */
 :root { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { color-scheme: dark; }
+  :root[data-theme="auto"] { color-scheme: dark; }
 }
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -1884,3 +1884,19 @@ select.field-input {
   color: var(--text);
 }
 
+
+/* A one-time question on the board (the refractometer, after the kit).
+   Bordered like the other cards on the board, no fill of its own, two
+   answers of equal weight because neither is the right one. */
+.ask-card {
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ask-title { font-size: 17px; font-weight: 700; }
+.ask-body { font-size: 13px; color: var(--text-dim); }
+.ask-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-2); }
