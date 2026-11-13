@@ -92,13 +92,13 @@
          refractometer). Empty once answered. See renderAsk. -->
     <div id="ask-gear"></div>
     <div class="next-card hidden" id="next-card" aria-live="polite"></div>
-    <!-- TDS against extraction, every shot a point: shown when there is a
-         refractometer. See renderEyCard. -->
-    <div class="ey-card hidden" id="ey-card"></div>
 
     <!-- What you are aiming at. A shot is only fast or slow against
          something, so the window is stated rather than assumed. -->
     <div class="target-card" id="target-card"></div>
+    <!-- TDS against extraction, every shot a point: shown when there is a
+         refractometer. See renderEyCard. -->
+    <div class="ey-card hidden" id="ey-card"></div>
 
     <div class="log-list" id="shots"></div>
 
@@ -131,6 +131,13 @@
 
       <!-- THE SHOT CLOCK. Start it with the pump; Stop writes the time.
            Built by buildClock. -->
+      <!-- Said before the numbers — before the clock, even — because that is
+           when you know it. The
+           card compares it afterwards with what actually moved. -->
+      <div class="intent-block">
+        <span class="field-label" id="intent-label">What are you changing?</span>
+        <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
+      </div>
       <div class="brew-clock" id="brew-clock"></div>
       <span class="sr-only" id="clock-said" aria-live="polite"></span>
 
@@ -142,12 +149,6 @@
            will compare them to the last shot's. -->
       <div class="readout" id="readout"></div>
 
-      <!-- Said before the numbers, because that is when you know it. The
-           card compares it afterwards with what actually moved. -->
-      <div class="intent-block">
-        <span class="field-label" id="intent-label">What are you changing?</span>
-        <div class="chips" id="intent" role="radiogroup" aria-labelledby="intent-label"></div>
-      </div>
 
       <!-- What the shot looked like coming out.
 

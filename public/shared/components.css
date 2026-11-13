@@ -110,7 +110,11 @@ input { font: inherit; color: inherit; }
 .screen {
   display: none;
   flex-direction: column;
-  min-height: 100dvh;
+  /* Exactly one screen tall, so only the board scrolls and the header and
+     "Log a shot" stay pinned. With min-height the whole page grew instead:
+     on a four-shot board the button sat 2000px down and the header
+     scrolled away — the opposite of what the board-action comment says. */
+  height: 100dvh;
 }
 .screen.active { display: flex; }
 
@@ -155,8 +159,7 @@ input { font: inherit; color: inherit; }
 .coffee-sub {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
-  font-family: var(--mono);
+  color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -182,6 +185,7 @@ input { font: inherit; color: inherit; }
 
 .board-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: var(--space-5);
@@ -190,6 +194,8 @@ input { font: inherit; color: inherit; }
   gap: var(--space-4);
 }
 .board-footpad { height: var(--space-3); }
+/* the cards keep their height and the board scrolls, as in the sheets */
+.board-scroll > * { flex-shrink: 0; }
 
 /* The recipe, pinned. It is the only output the board has, so it is the
    one card that reads as a conclusion rather than a row. */
@@ -345,6 +351,7 @@ input { font: inherit; color: inherit; }
 .log-card.is-keeper .log-diff,
 .log-card.is-keeper .log-change,
 .log-card.is-keeper .log-place.out,
+.log-card.is-keeper .log-place.in,
 .log-card.is-keeper .log-missing,
 .log-card.is-keeper .log-inout small,
 .log-card.is-keeper .log-secs small { color: var(--text-dim); }
@@ -423,7 +430,7 @@ input { font: inherit; color: inherit; }
 .log-secs {
   font-size: 24px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--data);
   white-space: nowrap;
 }
 /* In the window takes the data ink; outside it takes the full ink. Not a
@@ -431,7 +438,9 @@ input { font: inherit; color: inherit; }
    is a reading, not an error. (The rule here was `var(--alert)`, which is
    documented in DESIGN.md and defined nowhere in tokens.css: it was this
    file's only use of the token and it silently resolved to inherit.) */
-.log-secs.in { color: var(--data); }
+/* (It used to flip: data ink in the window, full ink out of it — a meaning
+   carried by colour alone, on a value. Every time is now a value in the
+   data ink; whether it was in the window is said in words beside it.) */
 
 /* WHERE THE GRINDER WAS, AND WHERE THE CLOCK LANDED.
 
@@ -468,7 +477,7 @@ input { font: inherit; color: inherit; }
   color: var(--text-dim);
 }
 .log-set .log-grind { flex: 1 1 auto; min-width: 0; }
-.log-set .log-place { margin: 0; flex: none; }
+.log-set .log-place { margin: 0; flex: none; font-family: var(--sans); }  /* a word, not a figure */
 /* Units in the set line. A bare <small> is the browser's "smaller", which
    on a 13px line is 10.8px — under the floor by a fraction nobody chose. */
 .log-set small { font-size: 11px; }
@@ -530,8 +539,7 @@ input { font: inherit; color: inherit; }
 .log-notes { font-style: italic; }
 
 .log-place {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 /* Outside the window is the finding; inside it is the confirmation. The
@@ -1102,10 +1110,11 @@ html.sheet-open, html.sheet-open body {
 }
 .scale-anchor-mid { color: var(--text-dim); }
 .scale-readout {
-  font-family: var(--mono);
+  /* a word ("a little thin"), so sans and the text ink: the mono face and
+     the data ink are for numbers */
   font-size: 13px;
   font-weight: 600;
-  color: var(--data);
+  color: var(--text);
   text-align: center;
 }
 .scale-readout.untouched { color: var(--text-faint); font-weight: 400; }
@@ -1461,8 +1470,12 @@ select.field-input {
 /* A verdict the shot is not yet eligible for. Legible, not greyed into
    invisibility — it has something to tell you, and it says it in its own
    sub-line rather than waiting to be tapped. */
-.verdict-btn.is-blocked { opacity: 0.5; }
-.verdict-btn.is-blocked .verdict-sub { font-style: italic; }
+/* Blocked, but readable: the sub-line is the one sentence that says why
+   it is blocked, and at half opacity it measured about 2:1. The dashed
+   border and the quieter title carry "not yet"; the reason keeps full ink. */
+.verdict-btn.is-blocked { border-style: dashed; }
+.verdict-btn.is-blocked .verdict-label { color: var(--text-faint); }
+.verdict-btn.is-blocked .verdict-sub { color: var(--text-dim); }
 
 /* The action a tip carries. Outlined rather than filled: the card's
    instruction is the thing to do, and this is the shortcut to the screen
@@ -1603,6 +1616,8 @@ select.field-input {
 .switch-title { font-size: 15px; font-weight: 700; }
 .switch-sub { font-size: 13px; color: var(--text-dim); }
 .switch { flex: none; position: relative; width: 48px; height: 28px; }
+/* 48×28 drawn, 44px tall to the thumb */
+.switch::after { content: ''; position: absolute; inset: -8px -2px; }
 .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .switch-track {
   display: block;
@@ -1935,10 +1950,10 @@ select.field-input {
 /* The extraction chart (shared/eychart.js): on the board when there is a
    refractometer and a reading. */
 .ey-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  padding: var(--space-4);
+  /* A section under a hairline, not another bordered card: the board was
+     a stack of eight equal boxes and nothing led. */
+  border-top: 1px solid var(--line);
+  padding: var(--space-4) 0 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -1946,7 +1961,9 @@ select.field-input {
 .ey-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .ey-title { font-size: 15px; font-weight: 700; }
 .ey-key { font-size: 11px; color: var(--text-faint); }
-.ey-say { font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+.ey-say { font-size: 13px; line-height: 1.45; color: var(--text-dim); text-wrap: pretty; }
+/* the key under the title rather than squeezed beside it */
+.ey-head { flex-wrap: wrap; }
 .ey-say strong { color: var(--text); }
 .eyc { width: 100%; height: auto; display: block; }
 .eyc-grid { stroke: var(--line); stroke-width: 1; }

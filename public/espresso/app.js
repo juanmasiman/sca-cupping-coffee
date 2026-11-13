@@ -3889,6 +3889,19 @@ function sayClock(msg) {
 function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
   const secs = Math.round(clockMs() / 1000);
+  /* A stop under five seconds is a mis-tap, not a shot: it used to write
+     2s over the time and the readout called it 23s under the window. It
+     is not recorded; Resume carries on from where it was. */
+  if (secs < 5) {
+    editing.clockWas = editing.clock;
+    editing.clockStoppedAt = Date.now();
+    delete editing.clock;
+    holdScreen(false);
+    buildClock(c);
+    sayClock('Stopped too soon to record');
+    if (!quiet) toast('Too short to be a shot — not recorded. Resume, or start again.');
+    return;
+  }
   editing.clockWas = editing.clock;
   editing.clockStoppedAt = Date.now();
   delete editing.clock;
@@ -4951,7 +4964,7 @@ function openEdit(c, opts) {
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
-    <p class="sheet-note">A shot is only fast or slow against a window, so this app will not call one fast until you have said what the window is. The numbers below are this coffee's starting point, from its roast where it has one — not where it has to stay.</p>
+    <p class="sheet-note">A shot is only fast or slow against a window. This coffee's window starts from its roast, or the usual 25–30 seconds when it has none; set your own here and the board judges every shot against yours.</p>
     <div class="target-grid" id="target-grid"></div>
   `;
   body.querySelector('#e-name').value = c.name;

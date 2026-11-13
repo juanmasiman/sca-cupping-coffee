@@ -70,6 +70,7 @@
     + '.lp-input{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--text);background:var(--bg);'
     + 'border:1px solid var(--rail);border-radius:var(--radius);padding:0 var(--space-4)}'
     + '.lp-input:focus-visible{outline:2px solid var(--data);outline-offset:1px}'
+    + '.lp-input::placeholder{color:var(--text-faint);opacity:1}'
     + '.lp-code{font-family:var(--mono);font-size:24px;letter-spacing:.3em;text-align:center;font-variant-numeric:tabular-nums}'
     + '.lp-btn{display:block;width:100%;min-height:48px;font:inherit;font-size:17px;font-weight:700;border-radius:var(--radius);cursor:pointer;'
     + 'border:1px solid var(--rail);background:transparent;color:var(--text)}'
