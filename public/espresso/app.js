@@ -1769,6 +1769,11 @@ function clockAdvice(shot, target, c) {
 function shotBefore(c, shot) {
   const rows = (c && c.shots) || [];
   const i = rows.indexOf(shot);
+  /* A shot still on the sheet is not in the list yet, and it follows the
+     newest saved one. Returning null here meant the sheet never ran any
+     of the "did the last change work?" checks, so it showed the old,
+     repeating advice while the board, after Save, showed the right one. */
+  if (i < 0) return rows.length ? rows[rows.length - 1] : null;
   return i > 0 ? rows[i - 1] : null;
 }
 
@@ -1847,10 +1852,11 @@ function suggest(shot, target, c) {
           /* The recipe is a floor, not a ceiling. */
           const next = nextExperiment(c, shot);
           if (!next) {
-            return { sure: true, move: 'Dialled in.',
+            const n = goodShots(c).length;
+            return { sure: true, move: 'Dialled in. Pull the next one the same and change nothing.',
               why: `${shot.bright
                 ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
-                : 'In the window and sweet.'} You have been longer, shorter and heavier around this one and come back to it, which is as good a reason to trust a recipe as there is. Pull the next one to it and change nothing.` };
+                : 'In the window and sweet.'} ${n >= 3 ? `That is ${n} good shots of this coffee, which` : 'You have tried around this one and come back to it, which'} is as good a reason to trust a recipe as there is.` };
           }
           /* The experiment first, the argument for it second. The
              preamble explaining why a finished dial-in is not finished is
@@ -1882,6 +1888,14 @@ function suggest(shot, target, c) {
              this board has run out of things to say and the mouth
              decides. That is the whole point of the second phase. */
           const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+          /* Three good shots and none of them is the recipe: the dial-in
+             is done, whichever is kept. Say so rather than ask for a
+             fourth. */
+          const good = goodShots(c).filter(sh => sh !== shot).length + 1;
+          if (good >= 3) {
+            return { sure: true, move: 'Dialled in — make your favourite the current recipe.',
+              why: `${good} good shots of this coffee, all in the window and sweet. Mark the one you would rather drink tomorrow as your current recipe and pull it again unchanged; the board stops suggesting changes there.` };
+          }
           if (keeper && keeper !== shot) {
             const mine = `${fmtDose(num(shot.yield))}g out in ${Math.round(num(shot.time))}s`;
             const theirs = `${fmtDose(num(keeper.yield))}g out in ${keeper.time === null ? '—' : Math.round(keeper.time)}s`;
@@ -2106,7 +2120,15 @@ function cornerPastWindow(shot, target, c, over) {
   }
   // 3. the move, in the headline
   const to = yieldTo(shot, over ? -2.5 : 2.5);
-  if (evenSeen(shot)) {
+  /* The puck check is offered once. Pulled again unchanged and it is the
+     same cup, the puck was not it: the yield step comes next instead of
+     the same headline for ever (spouts, or a skipped kit, never count as
+     "seen even", so this used to repeat with no end). */
+  const repeatOfPrev = prev && tasteFault(prev) === tasteFault(shot)
+    && placeOf(prev, target).time === placeOf(shot, target).time
+    && String(prev.grind) === String(shot.grind)
+    && Math.abs((num(prev.yield) || 0) - (num(shot.yield) || 0)) < 0.5;
+  if (evenSeen(shot) || repeatOfPrev) {
     return { sure: false, noGrind: true,
       move: over ? `Stop it shorter — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g less'}, same grind.` : `Let it run longer — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g more'}, same grind.`,
       why: `${over ? 'Bitter and heavy' : 'Sour and thin'} is the picture of an ${over ? 'over' : 'under'}-extracted shot, and ${over ? 'coarser' : 'finer'} is the usual answer — except this one is already ${over ? 'short of' : 'past'} the window, so the grinder would only push the clock further the wrong way.${notThePuck(shot, target, c, over)}` };
@@ -2525,6 +2547,19 @@ function withExtraction(tips, shot, target, c) {
   const tip = tips[0];
   const at = `${fmt1(r.ey)}% extraction`;
   const sweet = tasteFault(shot) === 'neither';
+  /* Taste wins in the end. Once three shots of this coffee have tasted
+     right while reading outside the band, the band has been tested and
+     the cup keeps saying yes: chasing the number further only costs
+     shots (a re-test went finer, longer, finer, longer and into bitter).
+     The reading is then mentioned, not obeyed. */
+  const sweetOut = c.shots.concat(c.shots.includes(shot) ? [] : [shot]).filter(sh => {
+    if (tasteFault(sh) !== 'neither') return false;
+    const x = eyReading(c, sh);
+    return x && x.v.extraction !== 'in';
+  }).length;
+  if (sweet && r.v.extraction !== 'in' && sweetOut >= 3) {
+    return [Object.assign({}, tip, { why: `${tip.why} The refractometer still reads ${at}, ${r.v.extraction === 'under' ? 'under' : 'over'} the ${r.band} band ${r.what} usually aims for — but this is the third shot that tastes right there, so trust the cup. The band is a guide, and this coffee is telling you where it is happiest.` })].concat(tips.slice(1));
+  }
   if (sweet && r.v.extraction !== 'in' && /^(This is your recipe|Two good shots|Dialled in|Try it longer|Now the other way|Close, by your own account)/.test(tip.move)) {
     const under = r.v.extraction === 'under';
     const time = placeOf(shot, target).time;
@@ -3158,9 +3193,11 @@ function renderEyCard(c) {
     say = `Add a TDS reading to a shot and it lands here, against the box ${box.roast ? `for a ${box.roast} roast` : 'for espresso'}: ${fmt1(box.eyLo)}–${fmt1(box.eyHi)}% extraction.`;
   } else {
     const r = eyReading(c, latest);
-    const where = r.v.extraction === 'under' ? `<strong>under-extracted</strong> — below the ${r.band} ${r.what} aims for. Grind finer, or let it run longer.`
-      : r.v.extraction === 'over' ? `<strong>over-extracted</strong> — above the ${r.band} ${r.what} aims for. Grind coarser, or stop it shorter.`
-      : `<strong>in the band</strong> (${r.band}).${r.v.strength === 'weak' ? ' On the weak side: a shorter ratio makes it stronger.' : r.v.strength === 'strong' ? ' On the strong side: a longer ratio softens it.' : ''}`;
+    // Where it landed, and nothing about what to do: the advice card above
+    // says that, and two instructions on one board contradicted each other.
+    const where = r.v.extraction === 'under' ? `<strong>under-extracted</strong>, below the ${r.band} ${r.what} aims for.`
+      : r.v.extraction === 'over' ? `<strong>over-extracted</strong>, above the ${r.band} ${r.what} aims for.`
+      : `<strong>in the band</strong> (${r.band})${r.v.strength === 'weak' ? ', on the weak side' : r.v.strength === 'strong' ? ', on the strong side' : ''}.`;
     say = `Shot ${shotNumber(c, latest)}: ${fmt1(r.ey)}% extraction at ${num(latest.tds).toFixed(2)}% TDS — ${where}`;
   }
   wrap.innerHTML = `

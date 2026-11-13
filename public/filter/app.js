@@ -1197,9 +1197,10 @@ function renderEyCard(c) {
   } else {
     const ey = extractionOf(latest), tds = num(latest.tds);
     const v = LentoEyChart.verdict(ey, tds, FILTER_BOX);
-    const where = v.extraction === 'under' ? '<strong>under-extracted</strong> — grind finer, or brew it longer.'
-      : v.extraction === 'over' ? '<strong>over-extracted</strong> — grind coarser, or brew it shorter.'
-      : `<strong>in the band</strong>.${v.strength === 'weak' ? ' On the weak side: less water for the same coffee makes it stronger.' : v.strength === 'strong' ? ' On the strong side: more water softens it.' : ''}`;
+    // Where it landed; what to do is the advice card's job.
+    const where = v.extraction === 'under' ? '<strong>under-extracted</strong>, below 18%.'
+      : v.extraction === 'over' ? '<strong>over-extracted</strong>, above 22%.'
+      : `<strong>in the band</strong>${v.strength === 'weak' ? ', on the weak side' : v.strength === 'strong' ? ', on the strong side' : ''}.`;
     say = `Brew ${brewNumber(c, latest)}: ${fmt1(ey)}% extraction at ${tds.toFixed(2)}% TDS — ${where}`;
   }
   wrap.innerHTML = `

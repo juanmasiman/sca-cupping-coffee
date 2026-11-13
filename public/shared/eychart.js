@@ -71,12 +71,31 @@
     });
     // Numbers newest first, and only where there is room: shots that land
     // together would otherwise print a stack of digits on one spot.
+    // Each number tries four spots around its dot and takes the first that
+    // is clear of other numbers, other dots and the recipe's ring.
     var placed = [];
-    pts.slice().reverse().forEach(function (p) {
-      var lx = X(p.ey) + 8, ly = Y(p.tds) - 7;
-      if (placed.some(function (q) { return Math.abs(q[0] - lx) < 14 && Math.abs(q[1] - ly) < 12; })) return;
-      placed.push([lx, ly]);
-      s += '<text x="' + lx + '" y="' + ly + '" class="eyc-label">' + esc(p.n) + '</text>';
+    var dots = pts.map(function (p) { return [X(p.ey), Y(p.tds), p.recipe ? 11 : 7]; });
+    var clear = function (lx, ly, self) {
+      // the label's box, roughly: 14 wide, 11 tall, left/baseline anchored
+      var bx = lx, by = ly - 10, bw = 14, bh = 12;
+      if (bx < L || bx + bw > L + pw || by < T || by + bh > T + ph) return false;
+      if (placed.some(function (q) { return Math.abs(q[0] - lx) < 14 && Math.abs(q[1] - ly) < 12; })) return false;
+      return !dots.some(function (d, j) {
+        if (j === self) return false;
+        var nx = Math.max(bx, Math.min(d[0], bx + bw)), ny = Math.max(by, Math.min(d[1], by + bh));
+        return Math.hypot(nx - d[0], ny - d[1]) < d[2];
+      });
+    };
+    pts.map(function (p, j) { return [p, j]; }).reverse().forEach(function (pj) {
+      var p = pj[0], j = pj[1], cx = X(p.ey), cy = Y(p.tds), r = p.recipe ? 12 : 8;
+      var spots = [[cx + r, cy - r + 4], [cx - r - 8, cy - r + 4], [cx + r, cy + r + 8], [cx - r - 8, cy + r + 8]];
+      for (var k = 0; k < spots.length; k++) {
+        if (clear(spots[k][0], spots[k][1], j)) {
+          placed.push(spots[k]);
+          s += '<text x="' + spots[k][0] + '" y="' + spots[k][1] + '" class="eyc-label">' + esc(p.n) + '</text>';
+          return;
+        }
+      }
     });
 
     var desc = (o.points || []).map(function (p) {
