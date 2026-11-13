@@ -1176,6 +1176,40 @@ function extractionOf(brew) {
   const ey = rawExtraction(brew);
   return ey !== null && ey <= EY_CEILING ? ey : null;
 }
+/* THE EXTRACTION CHART, on the board, for anybody with a refractometer
+   and a scale: the classic brewing control chart. The box is the usual
+   filter target, 18–22% extraction at 1.15–1.45% strength; every brew
+   with a reading is a point, and the sentence says where the last one
+   landed and which way to go. */
+const FILTER_BOX = { eyLo: 18, eyHi: 22, tdsLo: 1.15, tdsHi: 1.45 };
+function renderEyCard(c) {
+  const wrap = $('#ey-card');
+  if (!wrap) return;
+  if (!c || !hasTds() || !byWeight() || !root().LentoEyChart) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  numberBrews(c);
+  const recipe = c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0];
+  const read = c.brews.filter(b => extractionOf(b) !== null);
+  const latest = read[read.length - 1];
+  const points = read.map(b => ({ ey: extractionOf(b), tds: num(b.tds), n: brewNumber(c, b), recipe: b === recipe }));
+  let say;
+  if (!latest) {
+    say = 'Add a TDS reading and the weight in the cup to a brew and it lands here, against the usual filter box: 18–22% extraction at 1.15–1.45% TDS.';
+  } else {
+    const ey = extractionOf(latest), tds = num(latest.tds);
+    const v = LentoEyChart.verdict(ey, tds, FILTER_BOX);
+    // Where it landed; what to do is the advice card's job.
+    const where = v.extraction === 'under' ? '<strong>under-extracted</strong>, below 18%.'
+      : v.extraction === 'over' ? '<strong>over-extracted</strong>, above 22%.'
+      : `<strong>in the band</strong>${v.strength === 'weak' ? ', on the weak side' : v.strength === 'strong' ? ', on the strong side' : ''}.`;
+    say = `Brew ${brewNumber(c, latest)}: ${fmt1(ey)}% extraction at ${tds.toFixed(2)}% TDS — ${where}`;
+  }
+  wrap.innerHTML = `
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target${recipe ? ' · ring: current recipe' : ''}</span></div>
+    ${LentoEyChart.render({ points, box: FILTER_BOX, x: [14, 26], y: [0.9, 1.7], yStep: 0.1, label: 'Brew' })}
+    <p class="ey-say">${say}</p>`;
+  wrap.classList.remove('hidden');
+}
+
 function extractionImplausible(brew) {
   const ey = rawExtraction(brew);
   return ey !== null && ey > EY_CEILING;
@@ -1543,8 +1577,8 @@ function tasteNote(brew, target) {
       return brew.verdict === 'keeper'
         ? { sure: true, move: 'This is the recipe.',
             why: 'Tasting of neither wall. It is pinned at the top of the board; brew the next one to it and change nothing.' }
-        : { sure: true, move: 'This is the one.',
-            why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Mark it as the keeper and the recipe pins to the top of this board.' };
+        : { sure: true, move: 'This is your recipe.',
+            why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Make it your current recipe and it pins to the top of this board.' };
     }
     if (place.time === null) return null;
     return { sure: false, move: 'Taste says nothing is wrong.',
@@ -2161,8 +2195,29 @@ function renderAsk() {
   if (card) box.appendChild(card);
 }
 
+// The small print under an empty board: the sign-in invitation only to
+// somebody who is not signed in.
+function signinFoot() {
+  const u = window.LentoAccountSheet && LentoAccountSheet.enabled() ? LentoAccountSheet.user() : null;
+  if (u || !(window.LentoAccountSheet && LentoAccountSheet.enabled())) return 'Works with no signal and no account.';
+  return 'Works with no signal and no account. <button type="button" class="empty-link" data-signin>Sign in</button> only to carry your log between devices.';
+}
+
+// The profile button in the header: shown when there is an account
+// backend, with a dot once you are signed in.
+function renderProfileButton() {
+  const btn = $('#btn-profile');
+  if (!btn) return;
+  const on = Boolean(window.LentoAccountSheet && LentoAccountSheet.enabled());
+  btn.classList.toggle('hidden', !on);
+  const u = on ? LentoAccountSheet.user() : null;
+  $('#profile-dot').classList.toggle('hidden', !u);
+  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
+}
+
 function renderBoard() {
   renderAsk();
+  renderProfileButton();
   const c = activeCoffee();
   $('#coffee-name').textContent = coffeeLabel(c);
   // The page heading follows the bag on the board (see index.html).
@@ -2180,6 +2235,7 @@ function renderBoard() {
 
   renderKeeper(c);
   renderNext(c);
+  renderEyCard(c);
   renderTarget(c);
   renderBrews(c);
 }
@@ -2344,7 +2400,7 @@ function renderKeeper(c) {
   })();
 
   wrap.innerHTML = `
-    <span class="keeper-label">The recipe</span>
+    <span class="keeper-label">Current recipe</span>
     <div class="keeper-line">
       ${byWeight() ? `<span class="keeper-big">${fmt1(num(keeper.dose))}<small>g coffee</small></span>
       <span class="keeper-arrow" aria-hidden="true">→</span>
@@ -2428,7 +2484,7 @@ function renderBrews(c) {
         <p class="empty-body">What you brew in, and a few things about the kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a cone, a plain kettle, a scale</button>
-        <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+        <p class="empty-foot">${signinFoot()}</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
         state.kit = Object.assign(defaultKit(), { asked: true });
@@ -2444,7 +2500,7 @@ function renderBrews(c) {
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Start brewing and name the coffee later, or add the bag first. Either way this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
          <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
-         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+         <p class="empty-foot">${signinFoot()}</p>`;
     empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
@@ -3802,7 +3858,7 @@ function buildIntent(c) {
 const VERDICTS = [
   { key: 'off', label: 'Off', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
+  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
 ];
 
 function buildVerdict(c) {
@@ -4944,7 +5000,8 @@ function openKit() {
 
     // Shared with the dial-in and Your gear, so it is saved as it is
     // picked rather than with the rest of this sheet.
-    if (root().LentoGear) {
+    // Not on the first-run sheet: the board asks it as a card straight after.
+    if (root().LentoGear && !first) {
       put('#k-refr', segRow('Refractometer',
         'With one, every brew sheet takes a TDS reading and, with the cup weighed, the board works out extraction. The same answer applies in the espresso dial-in.',
         [['no', 'No'], ['yes', 'I have one']], LentoGear.refractometerAsked() ? (hasTds() ? 'yes' : 'no') : null,
@@ -5022,7 +5079,7 @@ function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
     ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
-      <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
+      <span class="kit-btn-title">${cloudUser() ? 'Your profile' : 'Sign in'}</span>
       <span class="kit-btn-sub">${escapeHTML(LentoAccountSheet.line())}</span>
     </button>` : ''}
 
@@ -5081,6 +5138,9 @@ function openSettings() {
   body.querySelector('#btn-coffees').addEventListener('click', () => { closeModal('#settings-modal'); openCoffees(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
+  // from the top each time: the account row is first, and a sheet that
+  // reopened where it was last scrolled hid it after signing in
+  body.scrollTop = 0;
 }
 
 // Where Help was opened from, so closing it goes back there rather than
@@ -5323,8 +5383,17 @@ function queueSync() {
 /* ---------- account UI ---------- */
 
 function wire() {
-  $('#btn-coffee').addEventListener('click', openCoffees);
+  // An unnamed coffee's header says "tap to name it", so it does that.
+  $('#btn-coffee').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c && !c.name.trim()) openCoffee(c, {}); else openCoffees();
+  });
   $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-profile').addEventListener('click', () => { if (window.LentoAccountSheet) LentoAccountSheet.open(); });
+  // "Sign in" in the empty board's small print opens the same profile
+  $('#empty').addEventListener('click', e => {
+    if (e.target.closest('[data-signin]') && window.LentoAccountSheet) LentoAccountSheet.open();
+  });
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : quickStart()));
   $('#brew-close').addEventListener('click', closeBrewSheet);
   $('#brew-save').addEventListener('click', saveBrew);
@@ -5385,8 +5454,6 @@ function boot() {
      walks `.modal` once to bind the backdrop click. */
   if (window.LentoAccountSheet) {
     LentoAccountSheet.install({
-      open: sel => openModal(sel),
-      close: sel => closeModal(sel),
       toast: msg => toast(msg),
       refresh: () => renderBoard(),
       sync: () => syncNow(),
@@ -5397,9 +5464,6 @@ function boot() {
           ? `Synced · ${n} ${word}`
           : `${n} ${word}, backed up as you log them.`;
       },
-      signedOutNote: 'Your log then follows you to any device — and still works with no signal.',
-      signOutNote: 'Signing out leaves every brew here.',
-      signedInToast: 'Signed in — your log is backing up',
     });
   }
   wire();
@@ -5409,12 +5473,11 @@ function boot() {
      before anything else can rewrite the address bar. Then a sync, which
      is a no-op signed out. */
   if (window.LentoAccount) {
-    LentoAccount.onChange(() => renderBoard());
-    LentoAccount.adoptRedirect()
-      .then(signedIn => {
-        if (signedIn) toast('Signed in — your log is backing up');
-        if (cloudUser()) return syncNow();
-      })
+    LentoAccount.onChange(u => { renderBoard(); if (u) syncNow(); });
+    // the sign-in message (or why it failed) is the shared sheet's, the
+    // same words on every page
+    (window.LentoAccountSheet ? LentoAccountSheet.adoptRedirect() : LentoAccount.adoptRedirect())
+      .then(() => { if (cloudUser()) return syncNow(); })
       .catch(() => {});
   }
   /* No protocol test. serviceWorker is only exposed in a secure context

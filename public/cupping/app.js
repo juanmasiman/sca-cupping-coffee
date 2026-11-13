@@ -41,7 +41,6 @@ const RELAY_URL = APP_URL + 'api';
 // (window overrides let deploys inject config without editing this file)
 const SUPABASE_URL = window.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
-const OTP_LENGTH = Math.min(10, Math.max(6, window.OTP_LENGTH || 6));
 // One account across the three tools, so the token lives under a name that
 // is not one tool's name. /shared/account.js owns the key and migrates the
 // old `sca-cupping-auth-v1` in place, so nobody signed in gets signed out.
@@ -699,7 +698,8 @@ function clearArchive() {
 
 /* ============================================================
    ACCOUNTS & CLOUD SYNC (Supabase, optional)
-   Sign in with Apple/Google keeps history synced across devices.
+   Signing in (one account for every lento tool) keeps history synced
+   across devices.
    Everything works without it; this layer only activates when
    SUPABASE_URL is configured. Plain REST — no SDK.
    ============================================================ */
@@ -738,133 +738,30 @@ async function sbFetch(path, opts = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-function signInWith(provider) {
-  const redirect = encodeURIComponent(APP_URL);
-  location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=${provider}&redirect_to=${redirect}`;
-}
+/* ONE SIGN-IN.
 
-async function signOut() {
-  try { await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { /* best effort */ }
-  clearAuth();
-  renderAccountButton();
-  toast('Signed out — history stays on this device');
-}
+   This sheet had its own: a "Keep your history everywhere" sheet, a
+   six-box keypad for the code, its own redirect handling and its own
+   token refresh — the same account as the other tools, met through
+   different screens that said different things about the same failures.
+   All of that is /shared/account.js and /shared/account-sheet.js now,
+   the one sign-in and profile page every lento page uses. What stays
+   here is what is genuinely the cupping sheet's: its history in the
+   `cuppings` table, and the cupper's name taken from the account. */
 
-// Turn a fresh token pair into a signed-in session.
-async function adoptSession(data) {
-  if (!data || !data.access_token) return false;
-  saveAuth({
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-    user: null,
-  });
-  try {
-    const user = data.user || await sbFetch('/auth/v1/user');
-    const auth = loadAuth();
-    auth.user = {
-      id: user.id,
-      email: user.email || '',
-      name: (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '',
-      avatar: (user.user_metadata && user.user_metadata.avatar_url) || '',
-    };
-    saveAuth(auth);
-    if (auth.user.name && !getCupperName()) setCupperName(auth.user.name.split(' ')[0]);
-    renderAccountButton();
-    const label = auth.user.name ? auth.user.name.split(' ')[0] : auth.user.email;
-    toast(`Signed in${label ? ' as ' + label : ''}`);
-    cloudSyncAll();
-    return true;
-  } catch (e) {
-    clearAuth();
-    return false;
-  }
-}
-
-// Sign in with the 6-digit code from the email — immune to the link
-// being consumed by a spam scanner or opened in a different browser.
-async function verifyEmailCode(email, code) {
-  try {
-    const data = await sbFetch('/auth/v1/verify', {
-      method: 'POST',
-      body: JSON.stringify({ type: 'email', email, token: code }),
-    });
-    return await adoptSession(data);
-  } catch (e) {
-    return false;
-  }
-}
-
-// Handle the return trip from a magic link or OAuth. Supabase reports
-// failures here too, and staying silent about them is worse than useless.
-async function handleAuthRedirect() {
-  const hash = new URLSearchParams(ENTRY_HASH.replace(/^#/, ''));
-  const query = new URLSearchParams(ENTRY_SEARCH);
-  const clean = () => history.replaceState(null, '', location.pathname);
-
-  const error = hash.get('error_description') || hash.get('error')
-    || query.get('error_description') || query.get('error');
-  if (error) {
-    clean();
-    const text = decodeURIComponent(String(error).replace(/\+/g, ' '));
-    toast(/expired|invalid/i.test(text)
-      ? 'That sign-in link was already used or expired — use the code instead'
-      : text.slice(0, 90));
-    return true;
-  }
-
-  // the email's sign-in button: back here with a token_hash, finished
-  // after one tap (see finishEmailLink in shared/account.js)
-  if (query.get('token_hash') && window.LentoAccount && LentoAccount.finishEmailLink) {
-    const data = await LentoAccount.finishEmailLink(ENTRY_SEARCH);
-    if (data && !await adoptSession(data)) toast('Sign-in failed — please try again');
-    return true;
-  }
-
-  if (hash.get('access_token')) {
-    const data = {
-      access_token: hash.get('access_token'),
-      refresh_token: hash.get('refresh_token'),
-      expires_in: parseInt(hash.get('expires_in') || '3600', 10),
-    };
-    clean();
-    if (!await adoptSession(data)) toast('Sign-in failed — please try again');
-    return true;
-  }
-
-  // PKCE-style return: we never started a PKCE flow, so say so plainly
-  // rather than appearing to do nothing.
-  if (query.get('code') && !query.get('state')) {
-    clean();
-    toast('Sign-in link needs the code instead — open your profile and enter it');
-    return true;
-  }
-
-  return false;
-}
-
+// A token that is about to expire is refreshed first; a refresh that
+// fails for want of signal keeps you signed in (see freshAuth).
 async function ensureFreshAuth() {
-  const auth = loadAuth();
-  if (!auth) return null;
-  if (auth.expires_at - Date.now() > 60000) return auth;
-  if (!auth.refresh_token) { clearAuth(); return null; }
-  try {
-    const data = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: auth.refresh_token }),
-    });
-    const next = {
-      ...auth,
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || auth.refresh_token,
-      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-    };
-    saveAuth(next);
-    return next;
-  } catch (e) {
-    clearAuth();
-    return null;
-  }
+  if (window.LentoAccount && LentoAccount.freshAuth) return LentoAccount.freshAuth();
+  return loadAuth();
+}
+
+// After any sign-in, on this page or another tab: the cupper's name from
+// the account if there is none yet, the account button, and a sync.
+function onAccountChange(u) {
+  renderAccountButton();
+  if (u && u.name && !getCupperName()) setCupperName(u.name.split(' ')[0]);
+  if (u) cloudSyncAll();
 }
 
 async function cloudPushEntry(entry) {
@@ -928,143 +825,16 @@ async function cloudDeleteAll() {
 
 function renderAccountButton() {
   const auth = loadAuth();
-  $('#account-dot').classList.toggle('hidden', !(auth && auth.user));
-}
-
-const googleIconSVG = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.5-5.8c-2.1 1.4-4.7 2.2-7.5 2.2-6.3 0-11.7-3.7-13.6-9.2l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>`;
-
-// Free passwordless option for non-Google users. Supabase emails both a
-// link and a 6-digit code; we lead with the code because links get
-// consumed by spam scanners and open in whichever browser the mail app
-// prefers, neither of which the code cares about.
-async function sendMagicLink(email) {
-  try {
-    await sbFetch(`/auth/v1/otp?redirect_to=${encodeURIComponent(APP_URL)}`, {
-      method: 'POST',
-      body: JSON.stringify({ email, create_user: true }),
-    });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function openEmailCodeSheet(email) {
-  const modal = $('#otp-modal');
-  $('#otp-where').textContent = email;
-
-  const pad = mountKeypad({
-    boxes: $('#otp-boxes'),
-    keypad: $('#otp-keypad'),
-    errorEl: $('#otp-error'),
-    length: OTP_LENGTH,
-    maxLength: 10, // Supabase allows 6–10; keep typing if yours is longer
-    onComplete: async code => {
-      const ok = await verifyEmailCode(email, code);
-      if (!ok) return code.length < 10
-        ? 'Not yet — keep typing if your code is longer.'
-        : 'That code didn’t work — send a new one.';
-      close();
-      return null;
-    },
-  });
-
-  const close = () => {
-    closeSheet(modal);
-    pad.detach();
-    modal.onclick = null;
-  };
-
-  openSheet(modal, () => close());
-  $('#otp-cancel').onclick = close;
-  modal.onclick = e => { if (e.target === modal) close(); };
-  $('#otp-resend').onclick = async () => {
-    $('#otp-error').textContent = '';
-    $('#otp-resend').textContent = 'Sending…';
-    const ok = await sendMagicLink(email);
-    $('#otp-resend').textContent = ok ? 'New code sent' : 'Could not resend — wait a minute';
-    setTimeout(() => { $('#otp-resend').textContent = 'Send a new code'; }, 4000);
-  };
+  const u = auth && auth.user;
+  const btn = $('#btn-account');
+  // no account backend on this deploy: no door to one
+  btn.classList.toggle('hidden', !(window.LentoAccountSheet && LentoAccountSheet.enabled()));
+  $('#account-dot').classList.toggle('hidden', !u);
+  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
 }
 
 function openAccountSheet() {
-  const modal = $('#account-modal');
-  const sheet = $('#account-sheet');
-  const auth = loadAuth();
-  const archive = loadArchive();
-  const close = () => { closeSheet(modal); modal.onclick = null; };
-
-  if (auth && auth.user) {
-    const initial = (auth.user.name || auth.user.email || '?').trim()[0].toUpperCase();
-    sheet.innerHTML = `
-      <h2>Your profile</h2>
-      <div class="account-user">
-        <div class="account-avatar">${auth.user.avatar ? `<img src="${escapeHTML(auth.user.avatar)}" alt="">` : escapeHTML(initial)}</div>
-        <div class="account-user-info">
-          <div class="account-user-name">${escapeHTML(auth.user.name || 'Cupper')}</div>
-          <div class="account-user-mail">${escapeHTML(auth.user.email)}</div>
-        </div>
-      </div>
-      <p class="account-status" id="account-status">${archive.length} cupping${archive.length === 1 ? '' : 's'} in your history</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btn-signout">Sign out</button>
-        <button class="btn btn-primary" id="btn-sync">Sync now</button>
-      </div>
-    `;
-    sheet.querySelector('#btn-signout').onclick = async () => { await signOut(); close(); };
-    sheet.querySelector('#btn-sync').onclick = async () => {
-      const status = sheet.querySelector('#account-status');
-      status.textContent = 'Syncing…';
-      const ok = await cloudSyncAll();
-      const n = loadArchive().length;
-      status.textContent = ok ? `Synced · ${n} cupping${n === 1 ? '' : 's'} backed up` : 'Could not reach the cloud — will retry later';
-    };
-  } else if (cloudEnabled()) {
-    sheet.innerHTML = `
-      <h2>Keep your history everywhere</h2>
-      <p class="modal-hint">We’ll email you a 6-digit code — no password. Your cuppings then back up and follow you across devices. Joining a cupping and scoring never requires an account.</p>
-      <div class="auth-buttons">
-        <label class="detail-label" for="auth-email">Your email</label>
-        <input class="detail-field auth-email-field" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
-        <button class="btn btn-primary" id="btn-auth-email">Email me a code</button>
-        <p class="account-status" id="auth-email-status"></p>
-        <div class="auth-divider"><span>or</span></div>
-        <button class="auth-btn auth-google" id="btn-auth-google">${googleIconSVG} Continue with Google</button>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btn-auth-cancel">Not now</button>
-      </div>
-    `;
-    sheet.querySelector('#btn-auth-google').onclick = () => signInWith('google');
-
-    const emailInput = sheet.querySelector('#auth-email');
-    const sendCode = async () => {
-      const email = emailInput.value.trim();
-      const status = sheet.querySelector('#auth-email-status');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status.textContent = 'Enter a valid email address.'; return; }
-      status.textContent = 'Sending…';
-      const ok = await sendMagicLink(email);
-      if (!ok) { status.textContent = 'Could not send the code. Try again in a minute.'; return; }
-      close();
-      openEmailCodeSheet(email);
-    };
-    sheet.querySelector('#btn-auth-email').onclick = sendCode;
-    emailInput.onkeydown = e => { if (e.key === 'Enter') sendCode(); };
-    setTimeout(() => emailInput.focus(), 80);
-    sheet.querySelector('#btn-auth-cancel').onclick = close;
-  } else {
-    sheet.innerHTML = `
-      <h2>Your cupping history</h2>
-      <p class="modal-hint">History is saved on this device (${archive.length} cupping${archive.length === 1 ? '' : 's'} so far). Cloud sign-in isn’t configured on this deployment yet — once it is, you’ll be able to back up and sync across devices with Apple or Google.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btn-auth-cancel">Close</button>
-      </div>
-    `;
-    sheet.querySelector('#btn-auth-cancel').onclick = close;
-  }
-
-  openSheet(modal, () => close());
-  modal.onclick = e => { if (e.target === modal) close(); };
+  if (window.LentoAccountSheet) LentoAccountSheet.open();
 }
 
 /* ---------- scoring ---------- */
@@ -6625,9 +6395,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // account: OAuth return, profile button, quiet background sync
+  if (window.LentoAccountSheet) {
+    LentoAccountSheet.install({
+      toast: msg => toast(msg),
+      refresh: () => renderAccountButton(),
+      sync: () => cloudSyncAll(),
+      status: phase => {
+        const n = loadArchive().length;
+        const word = `cupping${n === 1 ? '' : 's'}`;
+        return phase === 'synced' ? `Synced · ${n} ${word} backed up` : `${n} ${word} in your history, backed up as you finish them.`;
+      },
+    });
+  }
+  if (window.LentoAccount) LentoAccount.onChange(onAccountChange);
   $('#btn-account').addEventListener('click', openAccountSheet);
-  handleAuthRedirect().then(() => renderAccountButton());
   renderAccountButton();
+  if (window.LentoAccountSheet) LentoAccountSheet.adoptRedirect().then(() => renderAccountButton());
   if (loadAuth()) cloudSyncAll();
 
   // auto-join when opened from a scanned QR / shared link

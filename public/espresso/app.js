@@ -753,12 +753,37 @@ const ROASTS = [
   // `lo` and `hi` are the band; the string that used to sit beside them
   // is built where it is printed now, in whichever unit the machine
   // reads. A sentence with the numbers cooked into it cannot be asked.
-  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9' },
+  // `eyLo`/`eyHi`: the extraction band a shot of this roast is aiming at.
+  // Light roasts are harder to extract and taste right higher up; dark
+  // roasts turn harsh sooner. Used by the extraction chart and the advice.
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5', eyLo: 19.5, eyHi: 22.5 },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3', eyLo: 19, eyHi: 22 },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1', eyLo: 18.5, eyHi: 21.5 },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0', eyLo: 18, eyHi: 21 },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9', eyLo: 17.5, eyHi: 20.5 },
 ];
+
+/* The box a shot of this coffee is aiming at on the extraction chart:
+   the roast's extraction band, and the strength that band gives at the
+   target ratio give or take 0.2 — TDS is extraction divided by ratio. */
+function eyBox(c) {
+  const e = c ? roastEntry(c.roast) : null;
+  const eyLo = e ? e.eyLo : 18, eyHi = e ? e.eyHi : 22;
+  const ratio = (c && num(c.target && c.target.ratio)) || 2;
+  return { eyLo, eyHi, tdsLo: eyLo / (ratio + 0.2), tdsHi: eyHi / Math.max(1.2, ratio - 0.2), ratio, roast: e ? e.label.toLowerCase() : null };
+}
+
+/* What the last reading says against the box, in one sentence the board
+   and the advice can both use. Null without a reading. */
+function eyReading(c, shot) {
+  const ey = extractionOf(shot);
+  if (ey === null || !root().LentoEyChart) return null;
+  const box = eyBox(c);
+  const v = LentoEyChart.verdict(ey, num(shot.tds), box);
+  const band = `${fmt1(box.eyLo)}–${fmt1(box.eyHi)}%`;
+  const what = box.roast ? `a ${box.roast} roast` : 'espresso';
+  return { ey, box, v, band, what };
+}
 
 /* Where to start the dose, given the roast and the basket.
 
@@ -1177,7 +1202,7 @@ function notThePuck(shot, target, c, over) {
 function puckOrNot(shot, target, c, over) {
   if (evenSeen(shot)) return notThePuck(shot, target, c, over);
   if (sawEven(shot)) {
-    return ` You said it ran even, though through spouts the bed is out of sight and a steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
+    return ` You said it ran even, though ${kit().skipped ? 'a' : 'through spouts the bed is out of sight and a'} steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
       notThePuck(shot, target, c, over).replace(/^ This is a coffee/, ' it is a coffee')}`;
   }
   return over
@@ -1744,6 +1769,11 @@ function clockAdvice(shot, target, c) {
 function shotBefore(c, shot) {
   const rows = (c && c.shots) || [];
   const i = rows.indexOf(shot);
+  /* A shot still on the sheet is not in the list yet, and it follows the
+     newest saved one. Returning null here meant the sheet never ran any
+     of the "did the last change work?" checks, so it showed the old,
+     repeating advice while the board, after Save, showed the right one. */
+  if (i < 0) return rows.length ? rows[rows.length - 1] : null;
   return i > 0 ? rows[i - 1] : null;
 }
 
@@ -1822,10 +1852,11 @@ function suggest(shot, target, c) {
           /* The recipe is a floor, not a ceiling. */
           const next = nextExperiment(c, shot);
           if (!next) {
-            return { sure: true, move: 'Dialled in.',
+            const n = goodShots(c).length;
+            return { sure: true, move: 'Dialled in. Pull the next one the same and change nothing.',
               why: `${shot.bright
                 ? 'In the window, with the acidity you decided was the coffee rather than a fault.'
-                : 'In the window and sweet.'} You have been longer, shorter and heavier around this one and come back to it, which is as good a reason to trust a recipe as there is. Pull the next one to it and change nothing.` };
+                : 'In the window and sweet.'} ${n >= 3 ? `That is ${n} good shots of this coffee, which` : 'You have tried around this one and come back to it, which'} is as good a reason to trust a recipe as there is.` };
           }
           /* The experiment first, the argument for it second. The
              preamble explaining why a finished dial-in is not finished is
@@ -1857,16 +1888,24 @@ function suggest(shot, target, c) {
              this board has run out of things to say and the mouth
              decides. That is the whole point of the second phase. */
           const keeper = c && c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+          /* Three good shots and none of them is the recipe: the dial-in
+             is done, whichever is kept. Say so rather than ask for a
+             fourth. */
+          const good = goodShots(c).filter(sh => sh !== shot).length + 1;
+          if (good >= 3) {
+            return { sure: true, move: 'Dialled in — make your favourite the current recipe.',
+              why: `${good} good shots of this coffee, all in the window and sweet. Mark the one you would rather drink tomorrow as your current recipe and pull it again unchanged; the board stops suggesting changes there.` };
+          }
           if (keeper && keeper !== shot) {
             const mine = `${fmtDose(num(shot.yield))}g out in ${Math.round(num(shot.time))}s`;
             const theirs = `${fmtDose(num(keeper.yield))}g out in ${keeper.time === null ? '—' : Math.round(keeper.time)}s`;
             return { sure: false, move: 'Two good shots. Which one?',
-              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, mark it the one and the recipe moves; if not, leave it and the board offers the next thing to try.` };
+              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, make it your current recipe and the recipe moves; if not, leave it and the board offers the next thing to try.` };
           }
-          return { sure: true, move: 'This is the one.',
+          return { sure: true, move: 'This is your recipe.',
             why: `${shot.bright
               ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
-              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Mark it as the keeper and the recipe pins to the top of this board — then the board starts looking for something better than it.` };
+              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Make it your current recipe and it pins to the top of this board — then the board starts looking for something better than it.` };
         })();
   }
   /* Out of the window and right in the cup.
@@ -1895,7 +1934,7 @@ function suggest(shot, target, c) {
     // bodyNote owns it. Nothing to say here.
     if (bodySide(shot.body) !== 'neither') return null;
     return { sure: true, act: 'window', at: secs,
-      move: `This is the one — at ${secs}s.`,
+      move: `This is your recipe — at ${secs}s.`,
       why: `Sweet, and the texture is right. It is ${off} than the ${win} window, and the window is the part that is wrong: those numbers were a guess written down before you had pulled anything, and this cup is a measurement of the coffee actually in front of you. Keep the shot and move the window onto it, and the board judges the next one against something true.` };
   }
   /* In the window, and still tasting of one of the walls.
@@ -2039,6 +2078,65 @@ const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : 
    The clock still outranks the cup on the two grind answers. Finer is the
    wrong move on a shot that is already slow however it tastes, and the
    pair says so rather than repeating itself louder. */
+/* Sour and thin but already slow (or bitter and heavy but already fast):
+   the usual grind answer would push the clock further the wrong way.
+
+   It used to headline the diagnosis ("Under-extracted — but not for want
+   of grind") and hide the instruction in "Why this", and when the
+   instruction was "run it longer" and that did not work, it said the same
+   thing again, word for word. Now, in this order:
+     1. the last grind change overshot the window → go back halfway;
+     2. the yield move was already tried and did not help → stop repeating
+        it, go back and change the next variable;
+     3. otherwise the move itself is the headline. */
+function cornerPastWindow(shot, target, c, over) {
+  const prev = shotBefore(c, shot);
+  const t1 = num(shot.time);
+  // 1. an overshoot: the previous shot was on the other side of the
+  // window (or in it) and only the grind changed in between
+  if (prev && placeOf(prev, target).time !== placeOf(shot, target).time) {
+    const g0 = num(Number(prev.grind)), g1 = num(Number(shot.grind));
+    if (g0 !== null && g1 !== null && g0 !== g1 && prev.grind !== '' && shot.grind !== '') {
+      const mid = grindUnit() === 'clicks' ? Math.round((g0 + g1) / 2) : Math.round((g0 + g1) / 2 * 10) / 10;
+      if (mid !== g1) {
+        return { sure: true, move: `Back about halfway — grind ${mid}${holdLine(shot, 'grind')}.`,
+          why: `The last grind change took the shot from ${Math.round(num(prev.time))}s to ${Math.round(t1)}s, ${over ? 'short of' : 'past'} the ${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s window. It went the right way and too far. Split the difference and taste it again before changing anything else.` };
+      }
+    }
+  }
+  // 2. the yield move was already made, and the cup is no better
+  const side = over ? 'bitter' : 'sour';
+  const tried = yieldTried(c, shot, side);
+  if (tried) {
+    const back = num(prev && prev.yield);
+    const extra = canSetTemp()
+      ? (over ? 'and a degree cooler' : 'and a degree hotter')
+      : (over ? 'and half a gram less coffee' : 'and half a gram more coffee');
+    return { sure: false, noGrind: true,
+      move: `That did not help. Back to ${back !== null ? fmtDose(back) + 'g out' : 'the last yield'}, ${extra}.`,
+      why: over
+        ? `Stopping it shorter did not take the bitterness out, and the cup got heavier. Go back to where it was and change the next thing instead: ${canSetTemp() ? 'cooler extracts a little less without touching the clock' : 'a little less coffee under the same water extracts a little more gently and lightens the cup'}.`
+        : `Running it longer did not take the sourness out, and the cup got thinner: more water dilutes as much as it extracts. Go back to where it was and change the next thing instead: ${canSetTemp() ? 'hotter extracts more without touching the clock' : 'a little more coffee at the same ratio makes the cup stronger and slows the shot enough to extract a touch more'}.` };
+  }
+  // 3. the move, in the headline
+  const to = yieldTo(shot, over ? -2.5 : 2.5);
+  /* The puck check is offered once. Pulled again unchanged and it is the
+     same cup, the puck was not it: the yield step comes next instead of
+     the same headline for ever (spouts, or a skipped kit, never count as
+     "seen even", so this used to repeat with no end). */
+  const repeatOfPrev = prev && tasteFault(prev) === tasteFault(shot)
+    && placeOf(prev, target).time === placeOf(shot, target).time
+    && String(prev.grind) === String(shot.grind)
+    && Math.abs((num(prev.yield) || 0) - (num(shot.yield) || 0)) < 0.5;
+  if (evenSeen(shot) || repeatOfPrev) {
+    return { sure: false, noGrind: true,
+      move: over ? `Stop it shorter — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g less'}, same grind.` : `Let it run longer — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g more'}, same grind.`,
+      why: `${over ? 'Bitter and heavy' : 'Sour and thin'} is the picture of an ${over ? 'over' : 'under'}-extracted shot, and ${over ? 'coarser' : 'finer'} is the usual answer — except this one is already ${over ? 'short of' : 'past'} the window, so the grinder would only push the clock further the wrong way.${notThePuck(shot, target, c, over)}` };
+  }
+  return { sure: false, noGrind: true, move: 'Check the puck first: distribution and tamp, then pull it again unchanged.',
+    why: `${over ? 'Bitter and heavy' : 'Sour and thin'} while ${over ? 'fast' : 'slow'} does not point at grind: ${over ? 'coarser' : 'finer'} would only push the clock further the wrong way.${puckOrNot(shot, target, c, over)}` };
+}
+
 function wallPair(shot, target, c) {
   const t = tasteFault(shot);
   const b = bodySide(shot.body);
@@ -2048,18 +2146,12 @@ function wallPair(shot, target, c) {
   const at = r === null ? '' : ` at 1:${r.toFixed(1)}`;
 
   if (t === 'sour' && b === 'watery') {
-    if (place.time === 'slow') {
-      return { sure: false, noGrind: true, move: 'Under-extracted — but not for want of grind.',
-        why: `Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower.${puckOrNot(shot, target, c, false)}` };
-    }
+    if (place.time === 'slow') return cornerPastWindow(shot, target, c, false);
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
-    if (place.time === 'fast') {
-      return { sure: false, noGrind: true, move: 'Over-extracted — but not for want of grind.',
-        why: `Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster.${puckOrNot(shot, target, c, true)}` };
-    }
+    if (place.time === 'fast') return cornerPastWindow(shot, target, c, true);
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
   }
@@ -2350,7 +2442,24 @@ function phaseOf(c) {
   return c && c.shots.some(sh => sh.verdict === 'keeper') ? 'taste' : 'window';
 }
 
+/* Shots of this coffee that were in the window and tasted of neither
+   wall: the good ones, whatever the verdict said. */
+function goodShots(c) {
+  const target = c && c.target;
+  if (!target) return [];
+  return (c.shots || []).filter(sh => sh.verdict !== 'off'
+    && placeOf(sh, target).time === 'in'
+    && tasteFault(sh) === 'neither'
+    && bodySide(sh.body) !== 'watery' && bodySide(sh.body) !== 'muddy');
+}
+
 function nextExperiment(c, keeper) {
+  /* A stopping point. Each experiment the board offered was "two grams
+     longer", and each time the longer one became the recipe the board
+     offered two grams longer again — a dial-in test went round that loop
+     with no end in sight. Three good shots around one coffee is a
+     finished dial-in: the board says so and stops asking. */
+  if (goodShots(c).length >= 3) return null;
   const rows = (c.shots || []).filter(sh => sh !== keeper);
   const ky = num(keeper.yield), kd = num(keeper.dose), kt = num(Number(keeper.temp));
   const tried = (read, want) => rows.some(sh => {
@@ -2418,6 +2527,77 @@ function backToRecipe(shot, target, c) {
 }
 
 function nextMove(shot, target, c) {
+  return withExtraction(nextMoveFromTaste(shot, target, c), shot, target, c);
+}
+
+/* THE REFRACTOMETER IN THE ADVICE.
+
+   The reading was drawn on the board and never read by the advice: a
+   dial-in test pulled three shots at 17% extraction on a light roast and
+   was told "the numbers have said everything they can". Now, where a shot
+   has a reading:
+   - tasted right but reads outside the roast's band → say so, and offer
+     the one experiment that tests it;
+   - two good shots to choose between → the reading breaks the tie;
+   - otherwise the reading is added to the reasoning, agreeing or not. */
+function withExtraction(tips, shot, target, c) {
+  if (!tips || !tips.length || !hasTds()) return tips;
+  const r = eyReading(c, shot);
+  if (!r) return tips;
+  const tip = tips[0];
+  const at = `${fmt1(r.ey)}% extraction`;
+  const sweet = tasteFault(shot) === 'neither';
+  /* Taste wins in the end. Once three shots of this coffee have tasted
+     right while reading outside the band, the band has been tested and
+     the cup keeps saying yes: chasing the number further only costs
+     shots (a re-test went finer, longer, finer, longer and into bitter).
+     The reading is then mentioned, not obeyed. */
+  const sweetOut = c.shots.concat(c.shots.includes(shot) ? [] : [shot]).filter(sh => {
+    if (tasteFault(sh) !== 'neither') return false;
+    const x = eyReading(c, sh);
+    return x && x.v.extraction !== 'in';
+  }).length;
+  if (sweet && r.v.extraction !== 'in' && sweetOut >= 3) {
+    return [Object.assign({}, tip, { why: `${tip.why} The refractometer still reads ${at}, ${r.v.extraction === 'under' ? 'under' : 'over'} the ${r.band} band ${r.what} usually aims for — but this is the third shot that tastes right there, so trust the cup. The band is a guide, and this coffee is telling you where it is happiest.` })].concat(tips.slice(1));
+  }
+  if (sweet && r.v.extraction !== 'in' && /^(This is your recipe|Two good shots|Dialled in|Try it longer|Now the other way|Close, by your own account)/.test(tip.move)) {
+    const under = r.v.extraction === 'under';
+    const time = placeOf(shot, target).time;
+    /* The grinder where the clock has room for it; the yield where it does
+       not — finer on a shot that is already slow only makes it slower. */
+    let byYield = under ? time === 'slow' : time === 'fast';
+    /* And not the same yield move twice when the reading says it barely
+       worked: two grams longer took a light roast from 17.0 to 17.2%, and
+       "longer again" would have been the third identical card. */
+    const prev = shotBefore(c, shot);
+    const pr = prev ? eyReading(c, prev) : null;
+    const yieldMoved = prev && num(prev.yield) !== null && num(shot.yield) !== null
+      && (under ? num(shot.yield) > num(prev.yield) : num(shot.yield) < num(prev.yield));
+    const barely = pr && Math.abs(r.ey - pr.ey) < 0.5;
+    if (byYield && yieldMoved && barely) byYield = false;
+    const to = yieldTo(shot, under ? 2 : -2);
+    const move = byYield
+      ? `${under ? 'Let it run longer' : 'Stop it shorter'} — ${to !== null ? fmtDose(to) + 'g out' : (under ? '2g more' : '2g less')}, same grind.`
+      : `Try it a touch ${under ? 'finer' : 'coarser'}${holdLine(shot, 'grind')}.`;
+    return [{ sure: false,
+      move: `Tastes right, reads ${under ? 'under' : 'over'}-extracted. ${move}`,
+      why: `${at} is ${under ? 'below' : 'above'} the ${r.band} ${r.what} usually tastes best at. It tasted right, so this is a test rather than a fix: pull the next one ${byYield ? (under ? 'longer' : 'shorter') : (under ? 'finer' : 'coarser')}, taste the two side by side, and keep whichever you would rather drink. ${under ? 'On a light roast the sweeter, rounder cup is usually higher up.' : 'Higher up, the cup turns dry and harsh.'}` }];
+  }
+  if (/^Two good shots/.test(tip.move)) {
+    const recipe = c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+    const rr = recipe && recipe !== shot ? eyReading(c, recipe) : null;
+    if (rr) {
+      const mid = (r.box.eyLo + r.box.eyHi) / 2;
+      const thisCloser = Math.abs(r.ey - mid) < Math.abs(rr.ey - mid);
+      return [Object.assign({}, tip, {
+        why: `${tip.why} The refractometer leans ${thisCloser ? 'to this one' : 'to the recipe'}: ${at} here against ${fmt1(rr.ey)}% for the recipe, where ${r.what} aims for ${r.band}. If you cannot taste a difference, keep ${thisCloser ? 'this one' : 'the recipe'}.` })];
+    }
+  }
+  const agrees = r.v.extraction === 'in' ? `inside the ${r.band} band` : r.v.extraction === 'under' ? `under the ${r.band} band` : `over the ${r.band} band`;
+  return [Object.assign({}, tip, { why: `${tip.why} The refractometer: ${at}, ${agrees}.` })].concat(tips.slice(1));
+}
+
+function nextMoveFromTaste(shot, target, c) {
   const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
     || tempFault(shot, c) || (c ? stuckNote(c) : null);
   if (first) return [withAge(first, c, shot, target)];
@@ -2859,7 +3039,10 @@ function numField(opts) {
      silently corrected — the text stays as typed until the person fixes
      it, because it is their typo to see. */
   const note = wrap.querySelector('.num-note');
+  // A quiet note until the value is touched (e.g. a grind carried over).
+  if (opts.info) { note.textContent = opts.info; note.classList.add('is-info'); }
   const setNote = msg => {
+    note.classList.remove('is-info');
     note.textContent = msg || '';
     wrap.classList.toggle('bad', Boolean(msg));
   };
@@ -2931,8 +3114,29 @@ function renderAsk() {
   if (card) box.appendChild(card);
 }
 
+// The small print under an empty board: the sign-in invitation only to
+// somebody who is not signed in.
+function signinFoot() {
+  const u = window.LentoAccountSheet && LentoAccountSheet.enabled() ? LentoAccountSheet.user() : null;
+  if (u || !(window.LentoAccountSheet && LentoAccountSheet.enabled())) return 'Works with no signal and no account.';
+  return 'Works with no signal and no account. <button type="button" class="empty-link" data-signin>Sign in</button> only to carry your log between devices.';
+}
+
+// The profile button in the header: shown when there is an account
+// backend, with a dot once you are signed in.
+function renderProfileButton() {
+  const btn = $('#btn-profile');
+  if (!btn) return;
+  const on = Boolean(window.LentoAccountSheet && LentoAccountSheet.enabled());
+  btn.classList.toggle('hidden', !on);
+  const u = on ? LentoAccountSheet.user() : null;
+  $('#profile-dot').classList.toggle('hidden', !u);
+  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
+}
+
 function renderBoard() {
   renderAsk();
+  renderProfileButton();
   const c = activeCoffee();
   renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
@@ -2953,6 +3157,7 @@ function renderBoard() {
 
   renderKeeper(c);
   renderNext(c);
+  renderEyCard(c);
   renderTarget(c);
   renderShots(c);
 }
@@ -2969,6 +3174,39 @@ function renderBoard() {
 
    When a recipe is pinned the keeper card above is the answer, and this
    one only speaks if the newest shot has drifted off it. */
+/* THE EXTRACTION CHART, on the board, for anybody with a refractometer.
+   Every shot with a reading is a point; the box is where this coffee is
+   aiming; the sentence under it says where the last one landed and which
+   way to go. */
+function renderEyCard(c) {
+  const wrap = $('#ey-card');
+  if (!wrap) return;
+  if (!c || !hasTds() || !root().LentoEyChart) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  numberShots(c);
+  const box = eyBox(c);
+  const recipe = c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+  const read = c.shots.filter(sh => extractionOf(sh) !== null);
+  const latest = read[read.length - 1];
+  const points = read.map(sh => ({ ey: extractionOf(sh), tds: num(sh.tds), n: shotNumber(c, sh), recipe: sh === recipe, latest: sh === latest }));
+  let say;
+  if (!latest) {
+    say = `Add a TDS reading to a shot and it lands here, against the box ${box.roast ? `for a ${box.roast} roast` : 'for espresso'}: ${fmt1(box.eyLo)}–${fmt1(box.eyHi)}% extraction.`;
+  } else {
+    const r = eyReading(c, latest);
+    // Where it landed, and nothing about what to do: the advice card above
+    // says that, and two instructions on one board contradicted each other.
+    const where = r.v.extraction === 'under' ? `<strong>under-extracted</strong>, below the ${r.band} ${r.what} aims for.`
+      : r.v.extraction === 'over' ? `<strong>over-extracted</strong>, above the ${r.band} ${r.what} aims for.`
+      : `<strong>in the band</strong> (${r.band})${r.v.strength === 'weak' ? ', on the weak side' : r.v.strength === 'strong' ? ', on the strong side' : ''}.`;
+    say = `Shot ${shotNumber(c, latest)}: ${fmt1(r.ey)}% extraction at ${num(latest.tds).toFixed(2)}% TDS — ${where}`;
+  }
+  wrap.innerHTML = `
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target · dashed line: 1:${fmt1(box.ratio)}${recipe ? ' · ring: current recipe' : ''}</span></div>
+    ${LentoEyChart.render({ points, box, ratio: box.ratio, x: [14, 26], y: [5, 14], yStep: 1, label: 'Shot' })}
+    <p class="ey-say">${say}</p>`;
+  wrap.classList.remove('hidden');
+}
+
 function renderNext(c) {
   const wrap = $('#next-card');
   if (!c) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
@@ -3016,7 +3254,7 @@ function renderNext(c) {
     /* Only where the reader has actually said so. With the kit screen
        skipped, "that is under the 18g on the basket" is the default value
        being read back as a fact about hardware nobody has described. */
-    const told = kit().asked || measured;
+    const told = (kit().asked && !kit().skipped) || measured;
     const why = under && told && e && e.dose < 0
       ? ` That is under the ${fmtDose(cap)}g ${measured ? 'you found fits the basket' : 'on the basket'} because a ${e.label.toLowerCase()} roast is harder to extract, and less coffee is less work. Expect the puck to blow apart at the end — messy, harmless.`
       : '';
@@ -3083,7 +3321,7 @@ function renderKeeper(c) {
   })();
 
   wrap.innerHTML = `
-    <span class="keeper-label">The recipe</span>
+    <span class="keeper-label">Current recipe</span>
     <div class="keeper-line">
       <span class="keeper-big">${fmt1(num(keeper.dose))}<small>g in</small></span>
       <span class="keeper-arrow" aria-hidden="true">→</span>
@@ -3209,10 +3447,10 @@ function renderShots(c) {
         <p class="empty-body">A handful of questions about your machine and grinder, once. The shot sheet is built from the answers: there is no point in a temperature field on a machine with one temperature, and no point in advice that tells you to raise it.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — most machines are the default</button>
-        <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+        <p class="empty-foot">${signinFoot()}</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
-        state.kit = Object.assign(defaultKit(), { asked: true });
+        state.kit = Object.assign(defaultKit(), { asked: true, skipped: true });
         save();
         renderBoard();
       });
@@ -3229,7 +3467,7 @@ function renderShots(c) {
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Start pulling and name the coffee later, or add the bag first. Either way this becomes its board — every shot, what changed between them, and the recipe you settle on.</p>
          <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
-         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+         <p class="empty-foot">${signinFoot()}</p>`;
     empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
@@ -3267,7 +3505,7 @@ function shotCard(shot, prev, c, n) {
     if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
       bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
     }
-    if (shot.verdict === 'keeper') bits.push('the keeper');
+    if (shot.verdict === 'keeper') bits.push('current recipe');
     return `${bits.join(', ')}. Edit.`;
   })());
   const ey = extractionOf(shot);
@@ -3443,7 +3681,7 @@ function shotCard(shot, prev, c, n) {
   card.innerHTML = `
     <div class="log-meta">
       <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}</span>
-      ${shot.verdict === 'keeper' ? '<span class="log-flag">the keeper</span>' : ''}
+      ${shot.verdict === 'keeper' ? '<span class="log-flag">current recipe</span>' : ''}
     </div>
 
     <div class="log-shot">
@@ -3583,6 +3821,21 @@ function revertTo(target, seed) {
 }
 // The line at the top of a sheet that came back from a draft, and the one
 // way to let it go.
+/* The board's "Where to start", repeated at the top of the first shot's
+   sheet: "Start dialling in" opens the sheet straight away, and it used
+   to cover the one card that says what to pull. */
+function showStartNote(c) {
+  const box = $('#start-note');
+  if (!box) return;
+  const first = editingIsNew && c && c.shots.length === 0;
+  box.classList.toggle('hidden', !first);
+  if (!first) { box.textContent = ''; return; }
+  const t = c.target;
+  const start = num(t.dose) ?? doseStart(c) ?? basketCap();
+  const out = start !== null ? Math.round(start * t.ratio) : null;
+  box.innerHTML = `<strong>Where to start:</strong> ${start !== null ? `${fmtDose(start)}g in, about ${out}g out, ` : ''}in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds. Start coarse and come finer.`;
+}
+
 function showDraftNote(shot, fromDraft) {
   const note = $('#draft-note');
   if (!note) return;
@@ -3636,7 +3889,21 @@ function sayClock(msg) {
 function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
   const secs = Math.round(clockMs() / 1000);
+  /* A stop under five seconds is a mis-tap, not a shot: it used to write
+     2s over the time and the readout called it 23s under the window. It
+     is not recorded; Resume carries on from where it was. */
+  if (secs < 5) {
+    editing.clockWas = editing.clock;
+    editing.clockStoppedAt = Date.now();
+    delete editing.clock;
+    holdScreen(false);
+    buildClock(c);
+    sayClock('Stopped too soon to record');
+    if (!quiet) toast('Too short to be a shot — not recorded. Resume, or start again.');
+    return;
+  }
   editing.clockWas = editing.clock;
+  editing.clockStoppedAt = Date.now();
   delete editing.clock;
   holdScreen(false);
   editing.time = secs;
@@ -3684,7 +3951,12 @@ function buildClock(c) {
       face.firstChild.textContent = clockText(clockMs());
     }, 100);
   } else {
-    if (editing.clockWas) {
+    /* Resume is for a Stop pressed by mistake, so it is offered for a few
+       seconds after one; a finished shot showing both Resume and "Time it
+       again" asked a question nobody had. */
+    const recent = editing.clockWas && Date.now() - (editing.clockStoppedAt || 0) < 8000;
+    if (recent) setTimeout(() => { if (editing && $('#brew-clock')) buildClock(c); }, 8100);
+    if (recent) {
       button('btn-ghost clock-resume', 'Resume', () => {
         editing.clock = editing.clockWas;
         delete editing.clockWas;
@@ -3756,6 +4028,7 @@ function openShot(shot) {
      already different from the log; the snapshot is the only way back. */
   if (!(shot && d)) editingSeed = JSON.stringify(editing);
   showDraftNote(shot, Boolean(d));
+  showStartNote(c);
 
   $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${shotNumber(c, shot)}`;
   /* Remove this shot.
@@ -3928,8 +4201,11 @@ function buildNumbers(c) {
        wrong-but-plausible value poisons it just as well as a wild one — so
        the cap was never the thing protecting it. */
     label: 'Grind', unit: '', value: num(editing.grind),
+    // A carried-over setting is easy to save by accident after moving the
+    // grinder, so it says where it came from until it is changed.
+    info: editingIsNew && num(editing.grind) !== null && !editing.grindTouched ? 'Same as last time — change it if you moved the grinder' : '',
     min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
-    startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
+    startAt: grindStart(c), onChange: v => { editing.grind = v; editing.grindTouched = true; refresh(); },
   }));
   /* THE READING, WITH THE OTHER MEASUREMENTS.
 
@@ -4037,6 +4313,7 @@ function buildIntent(c) {
     b.setAttribute('aria-checked', on ? 'true' : 'false');
     b.addEventListener('click', () => {
       editing.intent = on ? null : i.key;
+      editing.intentChosen = true; // a tap outranks the guess from the numbers
       haptic();
       buildIntent(c);
       renderReadout(c);
@@ -4135,7 +4412,7 @@ const VERDICTS = [
   // poured away is that they poured it away.
   { key: 'off', label: 'Tipped it', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
+  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
 ];
 
 /* What a shot is missing before it can be called the recipe.
@@ -4298,7 +4575,30 @@ function buildNotes(c) {
 
    The dashes here are load-bearing. A ratio with no yield behind it is
    not zero and not "1:0" — there is no ratio, and the slot says so. */
+/* "What are you changing?", answered from the numbers until somebody
+   answers it. A dial-in test called the chips redundant: the app already
+   works out the difference from the last shot. If exactly one thing moved
+   the chip follows it, nothing moved is "Same again", and two moved is
+   left for the person to say which they meant. */
+function autoIntent(c) {
+  if (!editing || editing.intentChosen) return false;
+  const prev = prevShotOf(c);
+  if (!prev) return false;
+  const moved = [];
+  const g0 = num(Number(prev.grind)), g1 = num(Number(editing.grind));
+  if (g0 !== null && g1 !== null && prev.grind !== '' && editing.grind !== '' && Math.abs(g1 - g0) >= 0.05) moved.push(g1 < g0 ? 'finer' : 'coarser');
+  const r0 = ratioOf(prev), r1 = ratioOf(editing);
+  if (r0 !== null && r1 !== null && Math.abs(r1 - r0) >= 0.05) moved.push(r1 > r0 ? 'longer' : 'shorter');
+  const t0 = num(Number(prev.temp)), t1 = num(Number(editing.temp));
+  if (canSetTemp() && t0 !== null && t1 !== null && Math.abs(t1 - t0) >= 0.5) moved.push(t1 > t0 ? 'hotter' : 'cooler');
+  const want = moved.length === 1 ? moved[0] : moved.length === 0 && num(editing.yield) !== null ? 'same' : null;
+  if (want === editing.intent) return false;
+  editing.intent = want;
+  return true;
+}
+
 function renderReadout(c) {
+  if (autoIntent(c)) buildIntent(c);
   const wrap = $('#readout');
   const r = ratioOf(editing);
   const flow = flowOf(editing);
@@ -4591,7 +4891,12 @@ function openEdit(c, opts) {
      already has shots against it has been dialled around its target, so
      every field on it is theirs. */
   const own = { dose: false, ratio: false, time: false, temp: false };
-  if (!adding || c.shots.length > 0) { own.dose = own.ratio = own.time = own.temp = true; }
+  /* A coffee started from "Start dialling in" and never described is
+     still on the app's generic target, whatever has been pulled against
+     it: naming it and picking the roast should move the target to that
+     roast, the way adding it first would have. */
+  const neverDescribed = !c.name.trim() && !c.roast && !c.roaster;
+  if ((!adding || c.shots.length > 0) && !neverDescribed) { own.dose = own.ratio = own.time = own.temp = true; }
   let gridBuilt = false;
   // the grind-today sheet borrows this shell and hides the destructive
   // control; so does a coffee that is not on the shelf yet
@@ -4659,7 +4964,7 @@ function openEdit(c, opts) {
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
-    <p class="sheet-note">A shot is only fast or slow against a window, so this app will not call one fast until you have said what the window is. 1:2 in 25–30 seconds is where most recipes start, not where they have to stay.</p>
+    <p class="sheet-note">A shot is only fast or slow against a window. This coffee's window starts from its roast, or the usual 25–30 seconds when it has none; set your own here and the board judges every shot against yours.</p>
     <div class="target-grid" id="target-grid"></div>
   `;
   body.querySelector('#e-name').value = c.name;
@@ -4784,7 +5089,7 @@ function openEdit(c, opts) {
                 a hundred and five words of unbroken prose with the one
                 actionable line at the bottom, which is the shape a reader
                 skips. */ ''}
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take ${withTemp ? `<strong>${escapeHTML(tempBand(e))}</strong>, ` : ''}<strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
            <details class="tip-more"><summary>Why these</summary>
              <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
                e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
@@ -5226,7 +5531,10 @@ function openKit() {
     // picked rather than with the rest of this sheet.
     const rf = body.querySelector('#k-refr');
     rf.innerHTML = '';
-    if (root().LentoGear) {
+    // Not on the first-run sheet: the board asks it as a card straight
+    // after, and asking twice in a minute was one of the things a dial-in
+    // test tripped on.
+    if (root().LentoGear && !first) {
       rf.appendChild(segRow('Refractometer',
         'With one, every shot sheet takes a TDS reading and the board works out extraction from it. The same answer applies in the filter brew log.',
         [['no', 'No'], ['yes', 'I have one']], LentoGear.refractometerAsked() ? (hasTds() ? 'yes' : 'no') : null,
@@ -5294,6 +5602,7 @@ function openKit() {
        coin test came back to a board still offering to set their kit up. */
     captureNames();
     k.asked = true;
+    k.skipped = false;
     state.kit = k;
     // Including this app's grinder going on the person's list, which Save
     // does and this exit did not — the comment above says "everything Save
@@ -5313,6 +5622,7 @@ function openKit() {
     if (isFinite(d) && d > 0 && d <= 60) setPrinted(d);
     else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
+    k.skipped = false; // described now: its answers can be quoted back
     state.kit = k;
     /* On the person's list, so the brew log can offer it. `true` says
        this app asked about retention, so its answer is worth recording —
@@ -5328,7 +5638,7 @@ function openKit() {
   // somebody who skips should get the simplest sheet rather than the
   // fullest one. It is not asked again, and it is in Settings for ever.
   $('#kit-skip').onclick = () => {
-    state.kit = Object.assign(defaultKit(), { asked: true });
+    state.kit = Object.assign(defaultKit(), { asked: true, skipped: true });
     save();
     closeModal('#kit-modal');
     renderBoard();
@@ -5523,7 +5833,7 @@ function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
     ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
-      <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
+      <span class="kit-btn-title">${cloudUser() ? 'Your profile' : 'Sign in'}</span>
       <span class="kit-btn-sub">${escapeHTML(LentoAccountSheet.line())}</span>
     </button>` : ''}
 
@@ -5612,6 +5922,9 @@ function openSettings() {
   body.querySelector('#btn-coffees').addEventListener('click', () => { closeModal('#settings-modal'); openCoffees(); });
   body.querySelector('#btn-help').addEventListener('click', () => { helpFrom = 'settings'; closeModal('#settings-modal'); openHelp(); });
   openModal('#settings-modal');
+  // from the top each time: the account row is first, and a sheet that
+  // reopened where it was last scrolled hid it after signing in
+  body.scrollTop = 0;
 }
 
 // Where Help was opened from, so closing it goes back there. Closing it
@@ -5940,8 +6253,17 @@ function queueSync() {
    ============================================================ */
 
 function wire() {
-  $('#btn-coffee').addEventListener('click', openCoffees);
+  // An unnamed coffee's header says "tap to name it", so it does that.
+  $('#btn-coffee').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c && !c.name.trim()) openEdit(c, {}); else openCoffees();
+  });
   $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-profile').addEventListener('click', () => { if (window.LentoAccountSheet) LentoAccountSheet.open(); });
+  // "Sign in" in the empty board's small print opens the same profile
+  $('#empty').addEventListener('click', e => {
+    if (e.target.closest('[data-signin]') && window.LentoAccountSheet) LentoAccountSheet.open();
+  });
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openShot(null) : quickStart()));
   $('#shot-close').addEventListener('click', closeShotSheet);
   // Every change on the sheet is written to its draft on the next tick,
@@ -6023,8 +6345,6 @@ function boot() {
      walks `.modal` once to bind the backdrop click. */
   if (window.LentoAccountSheet) {
     LentoAccountSheet.install({
-      open: sel => openModal(sel),
-      close: sel => closeModal(sel),
       toast: msg => toast(msg),
       refresh: () => renderBoard(),
       sync: () => syncNow(),
@@ -6035,9 +6355,6 @@ function boot() {
           ? `Synced · ${n} ${word}`
           : `${n} ${word}, backed up as you log them.`;
       },
-      signedOutNote: 'Your log then follows you to any device — and still works with no signal.',
-      signOutNote: 'Signing out leaves every shot here.',
-      signedInToast: 'Signed in — your log is backing up',
     });
   }
   wire();
@@ -6047,12 +6364,11 @@ function boot() {
      before anything else can rewrite the address bar. Then a sync, which
      is a no-op signed out. */
   if (window.LentoAccount) {
-    LentoAccount.onChange(() => renderBoard());
-    LentoAccount.adoptRedirect()
-      .then(signedIn => {
-        if (signedIn) toast('Signed in — your log is backing up');
-        if (cloudUser()) return syncNow();
-      })
+    LentoAccount.onChange(u => { renderBoard(); if (u) syncNow(); });
+    // the sign-in message (or why it failed) is the shared sheet's, the
+    // same words on every page
+    (window.LentoAccountSheet ? LentoAccountSheet.adoptRedirect() : LentoAccount.adoptRedirect())
+      .then(() => { if (cloudUser()) return syncNow(); })
       .catch(() => {});
   }
   if ('serviceWorker' in navigator) {

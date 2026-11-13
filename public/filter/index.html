@@ -46,6 +46,13 @@
       </span>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    <!-- Your profile: the one sign-in for every lento tool, and who you
+         are once signed in. The dot says you are. Hidden on a deploy with
+         no account backend. -->
+    <button id="btn-profile" class="icon-btn profile-btn hidden" aria-label="Your profile">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="profile-dot hidden" id="profile-dot"></span>
+    </button>
     <button id="btn-settings" class="icon-btn" aria-label="Settings">
       <!-- Sliders, not a cog: a circle with eight spokes at 21px is a sun,
            and this button is not the theme switch. -->
@@ -87,6 +94,9 @@
     <!-- What you are aiming at. A brew is only quick or long against
          something, so the window is stated rather than assumed. -->
     <div class="target-card" id="target-card"></div>
+    <!-- TDS against extraction, every brew a point: shown when there is a
+         refractometer. See renderEyCard. -->
+    <div class="ey-card hidden" id="ey-card"></div>
 
     <div class="log-list" id="brews"></div>
 
@@ -346,6 +356,7 @@
 <script src="/shared/grind.js"></script>
 <script src="/shared/wheel.js"></script>
 <script src="/shared/scale.js"></script>
+<script src="/shared/eychart.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

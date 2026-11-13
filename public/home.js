@@ -311,7 +311,7 @@
   // signing in is for; signed in the address is already on the line above,
   // so this says what that account is currently holding on this device.
   function rowNote(u) {
-    if (!u) return 'Your log on every device';
+    if (!u) return 'One account for cupping, espresso and filter';
     var bits = counts();
     return bits.length ? bits.join(' · ') : 'Nothing logged on this device yet';
   }
@@ -1711,8 +1711,6 @@
     }
 
     LentoAccountSheet.install({
-      open: openModal,
-      close: closeModal,
       toast: toast,
       refresh: renderAll,
       /* There is a Sync now here at last. The launcher had no records of
@@ -1721,12 +1719,7 @@
          exactly the two that are worth having before you open a tool on
          a phone you have just signed in on. */
       sync: syncMine,
-      status: function () { return deviceLine(); },
-      // Not "your log": the front door is not a log. What follows you is
-      // whatever the three tools have recorded.
-      signedOutNote: 'Your cuppings, shots and brews then follow you to any device — and every tool still works with no signal.',
-      signOutNote: 'Signing out leaves everything on this device.',
-      signedInToast: 'Signed in — your tools will follow you',
+      status: function (phase) { return (phase === 'synced' ? 'Synced · ' : '') + deviceLine(); },
     });
 
     LentoAccount.onChange(function () { renderAll(); syncMine(); });
@@ -1740,11 +1733,7 @@
        `https://lento.cafe/` has to be in the project's Redirect URLs for
        that to come back to this page rather than the site URL — see
        DEPLOY.md. */
-    LentoAccount.adoptRedirect()
-      .then(function (arrived) {
-        if (arrived) toast('Signed in — your tools will follow you');
-      })
-      .catch(function () {});
+    LentoAccountSheet.adoptRedirect().catch(function () {});
   }
 
   /* The front door works offline too, now that it is a door somebody comes
