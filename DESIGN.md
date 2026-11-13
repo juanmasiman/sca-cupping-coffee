@@ -1068,7 +1068,7 @@ Category labels read along the radius, and that ring is 56 units deep, so a comp
 - Preserve the distinction between unrated and 5, everywhere, forever — including in exports, history and print.
 - Derive every downstream surface from the scale grammar: the results radar, the printed sheet, and the calibration bar are all the same object at different scales.
 - Make the calibration bar **symmetric around zero**. In a calibration exercise only magnitude means anything; direction is a habit, not a verdict. The outgoing world highlighted high runners and greyed out low ones, which told a novice in front of the room that they had scored the wrong way.
-- Keep both themes complete and switchable, and never hard-code one.
+- Keep both themes complete and switchable, and never hard-code one. **Day is the default** (November 2026): with no `data-theme` the page is the light theme, and dark comes only from choosing Dark, or Auto to follow the phone, in an app's settings. The dark tokens sit under `:root[data-theme="dark"]` and, inside `prefers-color-scheme: dark`, `:root[data-theme="auto"]`.
 
 **Don't**
 

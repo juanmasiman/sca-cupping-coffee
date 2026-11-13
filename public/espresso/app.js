@@ -27,7 +27,7 @@ const STORE = 'lento-espresso-v1';
 const PREF = 'lento-espresso-prefs-v1';
 
 let state = null;
-let prefs = { tds: false, theme: 'auto', seenHelp: false };
+let prefs = { tds: false, theme: 'light', seenHelp: false };
 
 function load() {
   try {
@@ -59,6 +59,14 @@ function load() {
     const raw = localStorage.getItem(PREF);
     if (raw) prefs = Object.assign(prefs, JSON.parse(raw));
   } catch (e) { /* defaults are fine */ }
+  /* Day is the default now. "Auto" used to be, and it was saved with
+     every other preference whether or not anyone chose it, so a stored
+     "auto" from before this is the old default rather than a decision.
+     It becomes "light" once; picking Auto again sticks. */
+  if (!prefs.themeV2) {
+    if (prefs.theme === 'auto') prefs.theme = 'light';
+    prefs.themeV2 = true;
+  }
 }
 
 /* ============================================================
@@ -2907,7 +2915,24 @@ function tasteScale(opts) {
    THE BOARD
    ============================================================ */
 
+/* The refractometer, asked once on first run: after the kit question,
+   so a new visitor gets one question at a time, and on whichever tool is
+   opened first (the answer is shared). */
+function renderAsk() {
+  const box = $('#ask-gear');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!kit().asked || !root().LentoGear || !LentoGear.askRefractometerCard) return;
+  const card = LentoGear.askRefractometerCard(yes => {
+    haptic();
+    toast(yes ? 'TDS added to every sheet' : 'No TDS field — change it any time in your setup');
+    renderBoard();
+  });
+  if (card) box.appendChild(card);
+}
+
 function renderBoard() {
+  renderAsk();
   const c = activeCoffee();
   renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
@@ -5105,6 +5130,7 @@ function openKit() {
     <div id="k-steps"></div>
     <div id="k-retains"></div>
     <div id="k-porta"></div>
+    <div id="k-refr"></div>
     <div class="kit-basket">
       <label class="field"><span class="field-label">Basket</span>
         <input class="field-input" id="k-basket" type="text" maxlength="60" autocomplete="off" placeholder="e.g. IMS Competizione"></label>
@@ -5195,6 +5221,17 @@ function openKit() {
       'Only so the app uses your words for it. It never suggests a setting, only a direction — your numbers mean nothing on anyone else’s grinder.',
       [['stepless', 'A number'], ['stepped', 'Clicks']], k.steps,
       key => { k.steps = key; redraw(); }));
+
+    // Shared with the brew log and Your gear, so it is saved as it is
+    // picked rather than with the rest of this sheet.
+    const rf = body.querySelector('#k-refr');
+    rf.innerHTML = '';
+    if (root().LentoGear) {
+      rf.appendChild(segRow('Refractometer',
+        'With one, every shot sheet takes a TDS reading and the board works out extraction from it. The same answer applies in the filter brew log.',
+        [['no', 'No'], ['yes', 'I have one']], LentoGear.refractometerAsked() ? (hasTds() ? 'yes' : 'no') : null,
+        key => { LentoGear.setRefractometer(key === 'yes'); redraw(); renderBoard(); }));
+    }
   };
   /* What the coin found, and a way to disown it. */
   const drawFits = () => {
@@ -5560,7 +5597,7 @@ function openSettings() {
   });
 
   const seg = body.querySelector('#theme-seg');
-  [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].forEach(([key, label]) => {
+  [['light', 'Light'], ['dark', 'Dark'], ['auto', 'Auto']].forEach(([key, label]) => {
     const b = el('button', 'seg-btn' + (prefs.theme === key ? ' on' : ''), label);
     b.type = 'button';
     b.setAttribute('role', 'radio');
@@ -5705,8 +5742,16 @@ function closeModal(sel) {
 
 function applyTheme() {
   const root = document.documentElement;
-  if (prefs.theme === 'auto') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', prefs.theme);
+  // always stated: with no attribute the page is day (tokens.css), and
+  // "auto" is what lets the phone's dark mode in
+  root.setAttribute('data-theme', prefs.theme || 'light');
+  // the phone's status bar follows the page, not the system setting
+  const bar = document.querySelector('meta[name="theme-color"]');
+  if (bar) {
+    const dark = prefs.theme === 'dark'
+      || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    bar.setAttribute('content', dark ? '#0f1113' : '#fbfaf7');
+  }
 }
 
 /* ============================================================

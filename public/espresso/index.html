@@ -7,8 +7,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
-  <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbfaf7">
   <title>Espresso dial-in — lento</title>
   <meta name="description" content="Dial a shot in and keep the record: dose, yield, time, ratio and flow, with what changed between one shot and the next.">
   <link rel="icon" href="icons/icon-192.png">
@@ -82,6 +81,9 @@
          — and this is the answer to it, so it sits at the top of the board
          rather than as the last line of the newest shot card, under the
          numbers and the deltas and the taste pips. -->
+    <!-- One-time questions that change what the sheets ask for (the
+         refractometer). Empty once answered. See renderAsk. -->
+    <div id="ask-gear"></div>
     <div class="next-card hidden" id="next-card" aria-live="polite"></div>
 
     <!-- What you are aiming at. A shot is only fast or slow against

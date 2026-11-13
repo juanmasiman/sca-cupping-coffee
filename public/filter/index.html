@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
-  <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fbfaf7">
   <title>Filter brew log — lento</title>
   <meta name="description" content="Keep the record of a pour-over: coffee, water, time, grind and the pour schedule, with what changed between one brew and the next.">
   <link rel="icon" href="icons/icon-192.png">
@@ -80,6 +79,9 @@
          next?", so it sits at the top of the board rather than as the last
          line of the newest brew card, under the numbers and the schedule
          and the taste pips. -->
+    <!-- One-time questions that change what the sheets ask for (the
+         refractometer). Empty once answered. See renderAsk. -->
+    <div id="ask-gear"></div>
     <div class="next-card hidden" id="next-card" aria-live="polite"></div>
 
     <!-- What you are aiming at. A brew is only quick or long against

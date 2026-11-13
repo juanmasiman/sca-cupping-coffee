@@ -631,7 +631,53 @@
   function ownsRefractometer() {
     return ofKind('refractometer').length > 0;
   }
+  /* Asked, as distinct from owned. "No" and "never asked" are both an
+     empty shelf, and only one of them should be asked again. Owning one
+     answers it; so does saying either way, on this device, in any tool. */
+  var ASKED_KEY = 'lento-refractometer-asked-v1';
+  function refractometerAsked() {
+    if (ownsRefractometer()) return true;
+    try { return localStorage.getItem(ASKED_KEY) === '1'; } catch (e) { return true; }
+  }
+  function markRefractometerAsked() {
+    try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* private mode: asked again next time */ }
+  }
+
+  /* THE QUESTION, ON FIRST RUN.
+
+     Whether there is a refractometer decides what both brew sheets ask
+     for (a TDS field) and what the boards can say (extraction yield). It
+     used to be found only by somebody who went looking in the kit sheet
+     or on the front door. Now it is asked once, as a card on the board,
+     straight after the kit — and either answer stays editable there and
+     in Your gear. Returns the card, or null once it has been answered. */
+  function askRefractometerCard(onAnswer) {
+    if (refractometerAsked()) return null;
+    var card = document.createElement('div');
+    card.className = 'ask-card';
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-labelledby', 'ask-refr-title');
+    card.innerHTML =
+      '<div class="ask-title" id="ask-refr-title">Do you have a refractometer?</div>'
+      + '<p class="ask-body">With one, every sheet takes a TDS reading and the board works out extraction from it. Without one, nothing asks for it.</p>'
+      + '<div class="ask-actions">'
+      + '<button type="button" class="btn btn-ghost" data-v="no">No</button>'
+      + '<button type="button" class="btn btn-ghost" data-v="yes">Yes, I have one</button>'
+      + '</div>';
+    card.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var yes = b.getAttribute('data-v') === 'yes';
+        setRefractometer(yes);
+        markRefractometerAsked();
+        card.remove();
+        if (onAnswer) onAnswer(yes);
+      });
+    });
+    return card;
+  }
+
   function setRefractometer(on) {
+    markRefractometerAsked();
     var have = ofKind('refractometer');
     if (on && !have.length) {
       var g = bare('refractometer', 'Refractometer');
@@ -647,6 +693,8 @@
     STORE: STORE,
     ownsRefractometer: ownsRefractometer,
     setRefractometer: setRefractometer,
+    refractometerAsked: refractometerAsked,
+    askRefractometerCard: askRefractometerCard,
     FIELDS: FIELDS,
     kinds: kinds,
     all: all,
