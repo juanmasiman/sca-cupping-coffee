@@ -62,6 +62,7 @@
     + '@media (min-width:640px){.lp-modal{align-items:center;padding:var(--space-5)}.lp-sheet{border-radius:var(--radius);border-bottom:1px solid var(--line)}}'
     + '.lp-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}'
     + '.lp-head h2{margin:0;font-size:20px;font-weight:700}'
+    + '.lp-head h2:focus{outline:none}'
     + '.lp-x{flex:none;width:44px;height:44px;margin-right:-10px;display:grid;place-items:center;background:none;border:0;color:var(--text);cursor:pointer;border-radius:var(--radius)}'
     + '.lp-note{margin:0;font-size:15px;line-height:1.45;color:var(--text-dim)}'
     + '.lp-foot{margin:0;font-size:13px;line-height:1.45;color:var(--text-faint)}'
@@ -93,6 +94,7 @@
 
   var host = { toast: function () {}, refresh: function () {}, sync: null, status: function () { return ''; } };
   var modal = null, sheetEl = null, lastFocus = null, inerted = [];
+  var signingOut = false, inCodeStep = false;
 
   function esc(s) {
     return String(s === null || typeof s === 'undefined' ? '' : s)
@@ -150,8 +152,10 @@
     sheetEl = modal.firstChild;
     document.body.appendChild(modal);
     modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal && !modal.hidden) { e.preventDefault(); close(); }
+    });
     modal.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
       if (e.key !== 'Tab') return;
       var f = [].slice.call(sheetEl.querySelectorAll('button:not([disabled]), input, [href]'));
       if (!f.length) return;
@@ -159,10 +163,22 @@
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
-    // Another tab signed in or out: redraw this one rather than leave it
-    // claiming the opposite until a reload.
+    /* The account changed — here, in another tab, or because the server
+       ended the session. The page redraws, and so does this sheet if it
+       is open: a profile left up after a sign-out elsewhere still offered
+       Sync now on an account that was gone. A sign-out nobody asked for on
+       this page is said, rather than discovered later. */
+    var was = user();
     if (root.LentoAccount && root.LentoAccount.onChange) {
-      root.LentoAccount.onChange(function () { try { host.refresh(); } catch (e) {} });
+      root.LentoAccount.onChange(function (u) {
+        try { host.refresh(); } catch (e) {}
+        if (modal && !modal.hidden && !inCodeStep) {
+          if (u) profile(u); else emailStep('');
+          focusSoon('#lp-title'); // the old focus went with the old contents
+        }
+        if (was && !u && !signingOut) host.toast('You were signed out. Sign in again to keep syncing.');
+        was = u;
+      });
     }
   }
 
@@ -183,7 +199,7 @@
     if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
   }
   function frame(title, inner) {
-    sheetEl.innerHTML = '<div class="lp-head"><h2 id="lp-title">' + title + '</h2>'
+    sheetEl.innerHTML = '<div class="lp-head"><h2 id="lp-title" tabindex="-1">' + title + '</h2>'
       + '<button type="button" class="lp-x" data-close aria-label="Close">' + CLOSE_ICON + '</button></div>' + inner;
     sheetEl.querySelector('[data-close]').addEventListener('click', close);
   }
@@ -200,10 +216,11 @@
     else emailStep('');
     show();
     if (!u) focusSoon('#lp-email');
-    else focusSoon('[data-close]');
+    else focusSoon('#lp-title');
   }
 
   function profile(u) {
+    inCodeStep = false;
     var initial = (u.name || u.email || '?').trim().charAt(0).toUpperCase();
     frame('Your profile',
       '<div class="lp-who"><div class="lp-avatar">'
@@ -217,7 +234,9 @@
       + '</div>'
       + '<p class="lp-foot">One account for cupping, espresso and filter. You stay signed in on this device until you sign out, and signing out leaves everything here.</p>');
     sheetEl.querySelector('#lp-signout').addEventListener('click', async function () {
+      signingOut = true;
       await root.LentoAccount.signOut();
+      signingOut = false;
       close();
       host.toast(SIGNED_OUT);
       host.refresh();
@@ -227,11 +246,13 @@
       var status = sheetEl.querySelector('#lp-status');
       status.textContent = 'Syncing…';
       var ok = await host.sync();
+      if (!user()) return; // signed out meanwhile: the sheet has redrawn and said so
       status.textContent = ok ? host.status('synced') : 'Could not reach the cloud — it will try again on its own.';
     });
   }
 
   function emailStep(prefill) {
+    inCodeStep = false;
     frame('Sign in',
       '<p class="lp-note">One account for cupping, espresso and filter. We email you a code — no password — and you stay signed in on this device. Every tool works without it.</p>'
       + '<label class="lp-label" for="lp-email">Your email</label>'
@@ -264,6 +285,7 @@
         go.disabled = false;
         status.textContent = whySendFailed(e);
         status.classList.add('lp-bad');
+        input.focus();
         return;
       }
       codeStep(email);
@@ -276,6 +298,7 @@
      can offer the code from Mail (autocomplete one-time-code), and it
      signs in by itself the moment the last digit is in. */
   function codeStep(email) {
+    inCodeStep = true;
     var n = codeLength();
     frame('Enter your code',
       '<p class="lp-note">Sent to <strong>' + esc(email) + '</strong>. '
@@ -301,6 +324,8 @@
       status.classList.remove('lp-bad');
       if (code.length < n) {
         status.textContent = 'The code is ' + n + ' digits.';
+        status.classList.add('lp-bad');
+        input.focus();
         return;
       }
       busy = true;
@@ -312,17 +337,18 @@
       if (!res.ok) {
         status.textContent = whyCodeFailed(res.status);
         status.classList.add('lp-bad');
+        input.focus();
         if (res.status) { input.select(); }
         return;
       }
+      inCodeStep = false;
       close();
       host.toast(signedInMsg(user()));
-      host.refresh();
-      if (host.sync) host.sync();
+      // the page's own account listener redraws and syncs, once
     };
     go.addEventListener('click', verify);
     input.addEventListener('input', function () {
-      if (input.value.replace(/\D/g, '').length === n) verify();
+      if (input.value.replace(/\D/g, '').length >= n) verify();
     });
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); verify(); } });
     sheetEl.querySelector('#lp-resend').addEventListener('click', async function () {

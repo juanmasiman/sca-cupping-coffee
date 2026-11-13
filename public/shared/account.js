@@ -286,16 +286,21 @@
           done(data);
         } catch (e) {
           // used, expired, or offline: say which, and leave the code as the way in
-          say.textContent = e && e.status
-            ? 'That link was already used or has expired. Sign in again from your profile to get a new code.'
+          var expired = Boolean(e && e.status);
+          say.textContent = expired
+            ? 'That link was already used or has expired. Get a new code to sign in.'
             : 'No connection. Try the link again when you are back online, or use the code.';
           say.style.color = 'var(--red,#9a3412)';
-          go.textContent = 'Close';
           go.disabled = false;
-          // one way out, not two that do the same thing
+          // one way on, not two buttons that both close it
           var no = box.querySelector('[data-no]');
           if (no) no.remove();
-          go.addEventListener('click', function () { done(null); }, { once: true });
+          var sheet = expired && root.LentoAccountSheet;
+          go.textContent = sheet ? 'Get a new code' : 'Close';
+          go.addEventListener('click', function () {
+            done(null);
+            if (sheet) root.LentoAccountSheet.open();
+          }, { once: true });
         }
       }, { once: true });
     });

@@ -825,7 +825,12 @@ async function cloudDeleteAll() {
 
 function renderAccountButton() {
   const auth = loadAuth();
-  $('#account-dot').classList.toggle('hidden', !(auth && auth.user));
+  const u = auth && auth.user;
+  const btn = $('#btn-account');
+  // no account backend on this deploy: no door to one
+  btn.classList.toggle('hidden', !(window.LentoAccountSheet && LentoAccountSheet.enabled()));
+  $('#account-dot').classList.toggle('hidden', !u);
+  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
 }
 
 function openAccountSheet() {

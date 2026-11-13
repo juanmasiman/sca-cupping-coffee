@@ -1711,8 +1711,6 @@
     }
 
     LentoAccountSheet.install({
-      open: openModal,
-      close: closeModal,
       toast: toast,
       refresh: renderAll,
       /* There is a Sync now here at last. The launcher had no records of
@@ -1721,12 +1719,7 @@
          exactly the two that are worth having before you open a tool on
          a phone you have just signed in on. */
       sync: syncMine,
-      status: function () { return deviceLine(); },
-      // Not "your log": the front door is not a log. What follows you is
-      // whatever the three tools have recorded.
-      signedOutNote: 'Your cuppings, shots and brews then follow you to any device — and every tool still works with no signal.',
-      signOutNote: 'Signing out leaves everything on this device.',
-      signedInToast: 'Signed in — your tools will follow you',
+      status: function (phase) { return (phase === 'synced' ? 'Synced · ' : '') + deviceLine(); },
     });
 
     LentoAccount.onChange(function () { renderAll(); syncMine(); });
