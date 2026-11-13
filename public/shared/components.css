@@ -1931,3 +1931,29 @@ select.field-input {
   cursor: pointer;
 }
 .empty-link::after { content: ''; position: absolute; inset: -14px -6px; }
+
+/* The extraction chart (shared/eychart.js): on the board when there is a
+   refractometer and a reading. */
+.ey-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ey-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.ey-title { font-size: 15px; font-weight: 700; }
+.ey-key { font-size: 11px; color: var(--text-faint); }
+.ey-say { font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+.ey-say strong { color: var(--text); }
+.eyc { width: 100%; height: auto; display: block; }
+.eyc-grid { stroke: var(--line); stroke-width: 1; }
+.eyc-num { font-family: var(--mono); font-size: 11px; fill: var(--text-faint); }
+.eyc-axis { font-size: 11px; fill: var(--text-dim); }
+.eyc-box { fill: var(--data-soft); stroke: var(--data); stroke-width: 1; stroke-dasharray: 3 3; }
+.eyc-ratio { stroke: var(--rail); stroke-width: 1; stroke-dasharray: 5 4; }
+.eyc-pt { fill: var(--data); }
+.eyc-recipe { fill: none; stroke: var(--text); stroke-width: 1.5; }
+.eyc-label { font-family: var(--mono); font-size: 11px; font-weight: 600; fill: var(--text); }

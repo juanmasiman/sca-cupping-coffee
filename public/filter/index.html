@@ -90,6 +90,9 @@
          refractometer). Empty once answered. See renderAsk. -->
     <div id="ask-gear"></div>
     <div class="next-card hidden" id="next-card" aria-live="polite"></div>
+    <!-- TDS against extraction, every brew a point: shown when there is a
+         refractometer. See renderEyCard. -->
+    <div class="ey-card hidden" id="ey-card"></div>
 
     <!-- What you are aiming at. A brew is only quick or long against
          something, so the window is stated rather than assumed. -->
@@ -353,6 +356,7 @@
 <script src="/shared/grind.js"></script>
 <script src="/shared/wheel.js"></script>
 <script src="/shared/scale.js"></script>
+<script src="/shared/eychart.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

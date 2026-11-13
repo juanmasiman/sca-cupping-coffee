@@ -1176,6 +1176,39 @@ function extractionOf(brew) {
   const ey = rawExtraction(brew);
   return ey !== null && ey <= EY_CEILING ? ey : null;
 }
+/* THE EXTRACTION CHART, on the board, for anybody with a refractometer
+   and a scale: the classic brewing control chart. The box is the usual
+   filter target, 18–22% extraction at 1.15–1.45% strength; every brew
+   with a reading is a point, and the sentence says where the last one
+   landed and which way to go. */
+const FILTER_BOX = { eyLo: 18, eyHi: 22, tdsLo: 1.15, tdsHi: 1.45 };
+function renderEyCard(c) {
+  const wrap = $('#ey-card');
+  if (!wrap) return;
+  if (!c || !hasTds() || !byWeight() || !root().LentoEyChart) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  numberBrews(c);
+  const recipe = c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0];
+  const read = c.brews.filter(b => extractionOf(b) !== null);
+  const latest = read[read.length - 1];
+  const points = read.map(b => ({ ey: extractionOf(b), tds: num(b.tds), n: brewNumber(c, b), recipe: b === recipe }));
+  let say;
+  if (!latest) {
+    say = 'Add a TDS reading and the weight in the cup to a brew and it lands here, against the usual filter box: 18–22% extraction at 1.15–1.45% TDS.';
+  } else {
+    const ey = extractionOf(latest), tds = num(latest.tds);
+    const v = LentoEyChart.verdict(ey, tds, FILTER_BOX);
+    const where = v.extraction === 'under' ? '<strong>under-extracted</strong> — grind finer, or brew it longer.'
+      : v.extraction === 'over' ? '<strong>over-extracted</strong> — grind coarser, or brew it shorter.'
+      : `<strong>in the band</strong>.${v.strength === 'weak' ? ' On the weak side: less water for the same coffee makes it stronger.' : v.strength === 'strong' ? ' On the strong side: more water softens it.' : ''}`;
+    say = `Brew ${brewNumber(c, latest)}: ${fmt1(ey)}% extraction at ${tds.toFixed(2)}% TDS — ${where}`;
+  }
+  wrap.innerHTML = `
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target${recipe ? ' · ring: current recipe' : ''}</span></div>
+    ${LentoEyChart.render({ points, box: FILTER_BOX, x: [14, 26], y: [0.9, 1.7], yStep: 0.1, label: 'Brew' })}
+    <p class="ey-say">${say}</p>`;
+  wrap.classList.remove('hidden');
+}
+
 function extractionImplausible(brew) {
   const ey = rawExtraction(brew);
   return ey !== null && ey > EY_CEILING;
@@ -1543,8 +1576,8 @@ function tasteNote(brew, target) {
       return brew.verdict === 'keeper'
         ? { sure: true, move: 'This is the recipe.',
             why: 'Tasting of neither wall. It is pinned at the top of the board; brew the next one to it and change nothing.' }
-        : { sure: true, move: 'This is the one.',
-            why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Mark it as the keeper and the recipe pins to the top of this board.' };
+        : { sure: true, move: 'This is your recipe.',
+            why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Make it your current recipe and it pins to the top of this board.' };
     }
     if (place.time === null) return null;
     return { sure: false, move: 'Taste says nothing is wrong.',
@@ -2201,6 +2234,7 @@ function renderBoard() {
 
   renderKeeper(c);
   renderNext(c);
+  renderEyCard(c);
   renderTarget(c);
   renderBrews(c);
 }
@@ -2365,7 +2399,7 @@ function renderKeeper(c) {
   })();
 
   wrap.innerHTML = `
-    <span class="keeper-label">The recipe</span>
+    <span class="keeper-label">Current recipe</span>
     <div class="keeper-line">
       ${byWeight() ? `<span class="keeper-big">${fmt1(num(keeper.dose))}<small>g coffee</small></span>
       <span class="keeper-arrow" aria-hidden="true">→</span>
@@ -3823,7 +3857,7 @@ function buildIntent(c) {
 const VERDICTS = [
   { key: 'off', label: 'Off', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
+  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
 ];
 
 function buildVerdict(c) {

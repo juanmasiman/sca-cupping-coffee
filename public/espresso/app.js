@@ -753,12 +753,37 @@ const ROASTS = [
   // `lo` and `hi` are the band; the string that used to sit beside them
   // is built where it is printed now, in whichever unit the machine
   // reads. A sentence with the numbers cooked into it cannot be asked.
-  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5' },
-  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3' },
-  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1' },
-  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0' },
-  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9' },
+  // `eyLo`/`eyHi`: the extraction band a shot of this roast is aiming at.
+  // Light roasts are harder to extract and taste right higher up; dark
+  // roasts turn harsh sooner. Used by the extraction chart and the advice.
+  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5', eyLo: 19.5, eyHi: 22.5 },
+  { key: 'mlight', label: 'Medium-light', temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3', eyLo: 19, eyHi: 22 },
+  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1', eyLo: 18.5, eyHi: 21.5 },
+  { key: 'mdark',  label: 'Medium-dark',  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0', eyLo: 18, eyHi: 21 },
+  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9', eyLo: 17.5, eyHi: 20.5 },
 ];
+
+/* The box a shot of this coffee is aiming at on the extraction chart:
+   the roast's extraction band, and the strength that band gives at the
+   target ratio give or take 0.2 — TDS is extraction divided by ratio. */
+function eyBox(c) {
+  const e = c ? roastEntry(c.roast) : null;
+  const eyLo = e ? e.eyLo : 18, eyHi = e ? e.eyHi : 22;
+  const ratio = (c && num(c.target && c.target.ratio)) || 2;
+  return { eyLo, eyHi, tdsLo: eyLo / (ratio + 0.2), tdsHi: eyHi / Math.max(1.2, ratio - 0.2), ratio, roast: e ? e.label.toLowerCase() : null };
+}
+
+/* What the last reading says against the box, in one sentence the board
+   and the advice can both use. Null without a reading. */
+function eyReading(c, shot) {
+  const ey = extractionOf(shot);
+  if (ey === null || !root().LentoEyChart) return null;
+  const box = eyBox(c);
+  const v = LentoEyChart.verdict(ey, num(shot.tds), box);
+  const band = `${fmt1(box.eyLo)}–${fmt1(box.eyHi)}%`;
+  const what = box.roast ? `a ${box.roast} roast` : 'espresso';
+  return { ey, box, v, band, what };
+}
 
 /* Where to start the dose, given the roast and the basket.
 
@@ -1861,12 +1886,12 @@ function suggest(shot, target, c) {
             const mine = `${fmtDose(num(shot.yield))}g out in ${Math.round(num(shot.time))}s`;
             const theirs = `${fmtDose(num(keeper.yield))}g out in ${keeper.time === null ? '—' : Math.round(keeper.time)}s`;
             return { sure: false, move: 'Two good shots. Which one?',
-              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, mark it the one and the recipe moves; if not, leave it and the board offers the next thing to try.` };
+              why: `This one is ${mine}; the recipe is ${theirs}. Both are in the window and both are sweet, so there is nothing left on this board to separate them — the numbers have said everything they can and the rest is your mouth. Drink them one after the other and keep whichever you would rather have tomorrow morning. If it is this one, make it your current recipe and the recipe moves; if not, leave it and the board offers the next thing to try.` };
           }
-          return { sure: true, move: 'This is the one.',
+          return { sure: true, move: 'This is your recipe.',
             why: `${shot.bright
               ? 'In the window, and the acidity in it is the coffee rather than a fault you still have to fix — which on a light roast is the shot, not a step on the way to one.'
-              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Mark it as the keeper and the recipe pins to the top of this board — then the board starts looking for something better than it.` };
+              : 'In the window and sweet, which is the middle of the extraction and where a dial-in ends.'} Make it your current recipe and it pins to the top of this board — then the board starts looking for something better than it.` };
         })();
   }
   /* Out of the window and right in the cup.
@@ -1895,7 +1920,7 @@ function suggest(shot, target, c) {
     // bodyNote owns it. Nothing to say here.
     if (bodySide(shot.body) !== 'neither') return null;
     return { sure: true, act: 'window', at: secs,
-      move: `This is the one — at ${secs}s.`,
+      move: `This is your recipe — at ${secs}s.`,
       why: `Sweet, and the texture is right. It is ${off} than the ${win} window, and the window is the part that is wrong: those numbers were a guess written down before you had pulled anything, and this cup is a measurement of the coffee actually in front of you. Keep the shot and move the window onto it, and the board judges the next one against something true.` };
   }
   /* In the window, and still tasting of one of the walls.
@@ -2974,6 +2999,7 @@ function renderBoard() {
 
   renderKeeper(c);
   renderNext(c);
+  renderEyCard(c);
   renderTarget(c);
   renderShots(c);
 }
@@ -2990,6 +3016,37 @@ function renderBoard() {
 
    When a recipe is pinned the keeper card above is the answer, and this
    one only speaks if the newest shot has drifted off it. */
+/* THE EXTRACTION CHART, on the board, for anybody with a refractometer.
+   Every shot with a reading is a point; the box is where this coffee is
+   aiming; the sentence under it says where the last one landed and which
+   way to go. */
+function renderEyCard(c) {
+  const wrap = $('#ey-card');
+  if (!wrap) return;
+  if (!c || !hasTds() || !root().LentoEyChart) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  numberShots(c);
+  const box = eyBox(c);
+  const recipe = c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+  const read = c.shots.filter(sh => extractionOf(sh) !== null);
+  const latest = read[read.length - 1];
+  const points = read.map(sh => ({ ey: extractionOf(sh), tds: num(sh.tds), n: shotNumber(c, sh), recipe: sh === recipe, latest: sh === latest }));
+  let say;
+  if (!latest) {
+    say = `Add a TDS reading to a shot and it lands here, against the box ${box.roast ? `for a ${box.roast} roast` : 'for espresso'}: ${fmt1(box.eyLo)}–${fmt1(box.eyHi)}% extraction.`;
+  } else {
+    const r = eyReading(c, latest);
+    const where = r.v.extraction === 'under' ? `<strong>under-extracted</strong> — below the ${r.band} ${r.what} aims for. Grind finer, or let it run longer.`
+      : r.v.extraction === 'over' ? `<strong>over-extracted</strong> — above the ${r.band} ${r.what} aims for. Grind coarser, or stop it shorter.`
+      : `<strong>in the band</strong> (${r.band}).${r.v.strength === 'weak' ? ' On the weak side: a shorter ratio makes it stronger.' : r.v.strength === 'strong' ? ' On the strong side: a longer ratio softens it.' : ''}`;
+    say = `Shot ${shotNumber(c, latest)}: ${fmt1(r.ey)}% extraction at ${num(latest.tds).toFixed(2)}% TDS — ${where}`;
+  }
+  wrap.innerHTML = `
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target · dashed line: 1:${fmt1(box.ratio)}${recipe ? ' · ring: current recipe' : ''}</span></div>
+    ${LentoEyChart.render({ points, box, ratio: box.ratio, x: [14, 26], y: [5, 14], yStep: 1, label: 'Shot' })}
+    <p class="ey-say">${say}</p>`;
+  wrap.classList.remove('hidden');
+}
+
 function renderNext(c) {
   const wrap = $('#next-card');
   if (!c) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
@@ -3104,7 +3161,7 @@ function renderKeeper(c) {
   })();
 
   wrap.innerHTML = `
-    <span class="keeper-label">The recipe</span>
+    <span class="keeper-label">Current recipe</span>
     <div class="keeper-line">
       <span class="keeper-big">${fmt1(num(keeper.dose))}<small>g in</small></span>
       <span class="keeper-arrow" aria-hidden="true">→</span>
@@ -3288,7 +3345,7 @@ function shotCard(shot, prev, c, n) {
     if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
       bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
     }
-    if (shot.verdict === 'keeper') bits.push('the keeper');
+    if (shot.verdict === 'keeper') bits.push('current recipe');
     return `${bits.join(', ')}. Edit.`;
   })());
   const ey = extractionOf(shot);
@@ -3464,7 +3521,7 @@ function shotCard(shot, prev, c, n) {
   card.innerHTML = `
     <div class="log-meta">
       <span>${n}<span class="log-dot">·</span>${fmtDate(shot.at)}</span>
-      ${shot.verdict === 'keeper' ? '<span class="log-flag">the keeper</span>' : ''}
+      ${shot.verdict === 'keeper' ? '<span class="log-flag">current recipe</span>' : ''}
     </div>
 
     <div class="log-shot">
@@ -4156,7 +4213,7 @@ const VERDICTS = [
   // poured away is that they poured it away.
   { key: 'off', label: 'Tipped it', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'The one', sub: 'this is the recipe' },
+  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
 ];
 
 /* What a shot is missing before it can be called the recipe.
