@@ -1581,6 +1581,12 @@ select.field-input {
   flex-direction: column;
   gap: var(--space-4);
 }
+/* The body scrolls; its rows never shrink. A row with its own min-height
+   (every .btn is 48px) gives up the flex default that keeps it as tall as
+   its text, so on a phone where Settings is taller than the screen the
+   rows were squeezed to 48px and their descriptions spilled over the row
+   below — "Appearance" printed across the refractometer's sentence. */
+.edit-body > *, .settings-body > *, .help-body > *, .kit-body > *, .dose-body > * { flex-shrink: 0; }
 .help-body p { font-size: 15px; color: var(--text-dim); }
 .help-body strong { color: var(--text); font-weight: 700; }
 
@@ -1900,3 +1906,28 @@ select.field-input {
 .ask-title { font-size: 17px; font-weight: 700; }
 .ask-body { font-size: 13px; color: var(--text-dim); }
 .ask-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-2); }
+
+/* The profile button in the board header, and its signed-in dot. */
+.profile-btn { position: relative; }
+.profile-dot {
+  position: absolute;
+  top: 9px; right: 9px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--chrome);
+  border: 2px solid var(--bg-raise);
+}
+/* "Sign in" inside the empty board's small print: a link in the sentence,
+   with a 44px target. */
+.empty-link {
+  position: relative;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.empty-link::after { content: ''; position: absolute; inset: -14px -6px; }

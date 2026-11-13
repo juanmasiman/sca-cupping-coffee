@@ -311,7 +311,7 @@
   // signing in is for; signed in the address is already on the line above,
   // so this says what that account is currently holding on this device.
   function rowNote(u) {
-    if (!u) return 'Your log on every device';
+    if (!u) return 'One account for cupping, espresso and filter';
     var bits = counts();
     return bits.length ? bits.join(' · ') : 'Nothing logged on this device yet';
   }
@@ -1740,11 +1740,7 @@
        `https://lento.cafe/` has to be in the project's Redirect URLs for
        that to come back to this page rather than the site URL — see
        DEPLOY.md. */
-    LentoAccount.adoptRedirect()
-      .then(function (arrived) {
-        if (arrived) toast('Signed in — your tools will follow you');
-      })
-      .catch(function () {});
+    LentoAccountSheet.adoptRedirect().catch(function () {});
   }
 
   /* The front door works offline too, now that it is a door somebody comes

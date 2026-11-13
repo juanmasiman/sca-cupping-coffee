@@ -2161,8 +2161,21 @@ function renderAsk() {
   if (card) box.appendChild(card);
 }
 
+// The profile button in the header: shown when there is an account
+// backend, with a dot once you are signed in.
+function renderProfileButton() {
+  const btn = $('#btn-profile');
+  if (!btn) return;
+  const on = Boolean(window.LentoAccountSheet && LentoAccountSheet.enabled());
+  btn.classList.toggle('hidden', !on);
+  const u = on ? LentoAccountSheet.user() : null;
+  $('#profile-dot').classList.toggle('hidden', !u);
+  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
+}
+
 function renderBoard() {
   renderAsk();
+  renderProfileButton();
   const c = activeCoffee();
   $('#coffee-name').textContent = coffeeLabel(c);
   // The page heading follows the bag on the board (see index.html).
@@ -2428,7 +2441,7 @@ function renderBrews(c) {
         <p class="empty-body">What you brew in, and a few things about the kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
         <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a cone, a plain kettle, a scale</button>
-        <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+        <p class="empty-foot">Works with no signal and no account. <button type="button" class="empty-link" data-signin>Sign in</button> only to carry your log between devices.</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
         state.kit = Object.assign(defaultKit(), { asked: true });
@@ -2444,7 +2457,7 @@ function renderBrews(c) {
     empty.innerHTML = `<div class="empty-title">Nothing on the shelf</div>
          <p class="empty-body">Start brewing and name the coffee later, or add the bag first. Either way this becomes its board — every brew, what changed between them, and the recipe you settle on.</p>
          <button type="button" class="btn btn-ghost" id="btn-add-first">Add the coffee first</button>
-         <p class="empty-foot">Works with no signal and no account. Sign in only to carry your log between devices.</p>`;
+         <p class="empty-foot">Works with no signal and no account. <button type="button" class="empty-link" data-signin>Sign in</button> only to carry your log between devices.</p>`;
     empty.querySelector('#btn-add-first').addEventListener('click', addCoffee);
     return;
   }
@@ -5022,7 +5035,7 @@ function openSettings() {
   const body = $('#settings-body');
   body.innerHTML = `
     ${cloudOn() ? `<button class="btn btn-ghost kit-btn" id="btn-account">
-      <span class="kit-btn-title">${cloudUser() ? 'Your account' : 'Sign in'}</span>
+      <span class="kit-btn-title">${cloudUser() ? 'Your profile' : 'Sign in'}</span>
       <span class="kit-btn-sub">${escapeHTML(LentoAccountSheet.line())}</span>
     </button>` : ''}
 
@@ -5325,6 +5338,11 @@ function queueSync() {
 function wire() {
   $('#btn-coffee').addEventListener('click', openCoffees);
   $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-profile').addEventListener('click', () => { if (window.LentoAccountSheet) LentoAccountSheet.open(); });
+  // "Sign in" in the empty board's small print opens the same profile
+  $('#empty').addEventListener('click', e => {
+    if (e.target.closest('[data-signin]') && window.LentoAccountSheet) LentoAccountSheet.open();
+  });
   $('#btn-log').addEventListener('click', () => (activeCoffee() ? openBrew(null) : quickStart()));
   $('#brew-close').addEventListener('click', closeBrewSheet);
   $('#brew-save').addEventListener('click', saveBrew);
@@ -5410,11 +5428,10 @@ function boot() {
      is a no-op signed out. */
   if (window.LentoAccount) {
     LentoAccount.onChange(() => renderBoard());
-    LentoAccount.adoptRedirect()
-      .then(signedIn => {
-        if (signedIn) toast('Signed in — your log is backing up');
-        if (cloudUser()) return syncNow();
-      })
+    // the sign-in message (or why it failed) is the shared sheet's, the
+    // same words on every page
+    (window.LentoAccountSheet ? LentoAccountSheet.adoptRedirect() : LentoAccount.adoptRedirect())
+      .then(() => { if (cloudUser()) return syncNow(); })
       .catch(() => {});
   }
   /* No protocol test. serviceWorker is only exposed in a secure context

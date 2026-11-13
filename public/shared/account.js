@@ -76,6 +76,12 @@
   }
 
   function onChange(fn) { if (typeof fn === 'function') listeners.push(fn); }
+  // Signed in or out in another tab of this site: tell this one.
+  try {
+    root.addEventListener('storage', function (e) {
+      if (e.key === AUTH_KEY || e.key === null) announce();
+    });
+  } catch (e) { /* no window events: one tab only */ }
   function announce() {
     listeners.forEach(function (fn) { try { fn(user()); } catch (e) {} });
   }
@@ -119,14 +125,35 @@
         method: 'POST',
         body: JSON.stringify({ refresh_token: a.refresh_token }),
       });
-      var next = Object.assign({}, a, {
+      var next = Object.assign({}, loadAuth() || a, {
         access_token: data.access_token,
         refresh_token: data.refresh_token || a.refresh_token,
         expires_at: Date.now() + (data.expires_in || 3600) * 1000,
       });
       saveAuth(next);
       return next;
-    } catch (e) { clearAuth(); announce(); return null; }
+    } catch (e) {
+      /* SIGNED IN UNTIL YOU SIGN OUT.
+
+         Any failure here used to sign you out — including a phone with no
+         signal, which is most of the places coffee is made. Now only the
+         server saying the session is finished does that (400/401/403).
+         With no connection, or a server error, the session stays and the
+         next attempt refreshes it.
+
+         Another tab may have refreshed first: refresh tokens rotate, so
+         the one this tab sent can be spent while a newer one is already in
+         storage. That is not a dead session; use the newer one. */
+      var now = loadAuth();
+      if (now && now.refresh_token && now.refresh_token !== a.refresh_token) {
+        return now.expires_at - Date.now() > 60000 ? now : null;
+      }
+      if (e && (e.status === 400 || e.status === 401 || e.status === 403)) {
+        clearAuth();
+        announce();
+      }
+      return null;
+    }
   }
 
   async function adoptSession(data) {
@@ -178,14 +205,21 @@
     return true;
   }
 
-  async function verifyEmailCode(email, code) {
+  /* The code, checked, with the reason when it fails: { ok, status }.
+     status 0 means the request never got there (no signal), which is not
+     the same as a wrong code and must not be reported as one. */
+  async function verifyCode(email, code) {
     try {
       var data = await sbFetch('/auth/v1/verify', {
         method: 'POST',
         body: JSON.stringify({ type: 'email', email: email, token: code }),
       });
-      return await adoptSession(data);
-    } catch (e) { return false; }
+      var ok = await adoptSession(data);
+      return { ok: ok, status: ok ? 200 : 0 };
+    } catch (e) { return { ok: false, status: (e && e.status) || 0 }; }
+  }
+  async function verifyEmailCode(email, code) {
+    return (await verifyCode(email, code)).ok;
   }
 
   async function signOut() {
@@ -253,11 +287,14 @@
         } catch (e) {
           // used, expired, or offline: say which, and leave the code as the way in
           say.textContent = e && e.status
-            ? 'That link was already used or has expired. Ask for a new code from your profile.'
+            ? 'That link was already used or has expired. Sign in again from your profile to get a new code.'
             : 'No connection. Try the link again when you are back online, or use the code.';
           say.style.color = 'var(--red,#9a3412)';
           go.textContent = 'Close';
           go.disabled = false;
+          // one way out, not two that do the same thing
+          var no = box.querySelector('[data-no]');
+          if (no) no.remove();
           go.addEventListener('click', function () { done(null); }, { once: true });
         }
       }, { once: true });
@@ -267,8 +304,26 @@
   /* An OAuth return lands as a URL fragment. Consumed and wiped from the
      address bar, so a token never survives in history or a shared link.
      The email's sign-in button lands as ?token_hash=, handled first. */
+  /* A sign-in that came back with an error (Google refused, an old link).
+     Taken once, so the page can say it, and wiped from the address bar. */
+  var redirectErr = null;
+  function redirectError() { var e = redirectErr; redirectErr = null; return e; }
+  function takeRedirectError() {
+    var h = new URLSearchParams(location.hash.slice(1));
+    var q = new URLSearchParams(location.search);
+    var err = h.get('error_description') || h.get('error') || q.get('error_description') || q.get('error');
+    if (!err) return false;
+    history.replaceState(null, '', location.pathname);
+    var text = decodeURIComponent(String(err).replace(/\+/g, ' '));
+    redirectErr = /expired|invalid/i.test(text)
+      ? 'That sign-in link was already used or has expired. Sign in again to get a new code.'
+      : 'Sign-in did not finish: ' + text.slice(0, 80);
+    return true;
+  }
+
   async function adoptRedirect() {
     if (!enabled()) return false;
+    if (takeRedirectError()) return false;
     var emailed = await finishEmailLink();
     if (emailed) return adoptSession(emailed);
     if (!location.hash) return false;
@@ -513,7 +568,10 @@
     verifyEmailCode: verifyEmailCode,
     signOut: signOut,
     adoptRedirect: adoptRedirect,
+    redirectError: redirectError,
     finishEmailLink: finishEmailLink,
+    verifyCode: verifyCode,
+    freshAuth: freshAuth,
     push: push,
     pull: pull,
     remove: remove,
