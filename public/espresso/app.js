@@ -2064,6 +2064,57 @@ const nth = n => (n === 2 ? 'second' : n === 3 ? 'third' : n === 4 ? 'fourth' : 
    The clock still outranks the cup on the two grind answers. Finer is the
    wrong move on a shot that is already slow however it tastes, and the
    pair says so rather than repeating itself louder. */
+/* Sour and thin but already slow (or bitter and heavy but already fast):
+   the usual grind answer would push the clock further the wrong way.
+
+   It used to headline the diagnosis ("Under-extracted — but not for want
+   of grind") and hide the instruction in "Why this", and when the
+   instruction was "run it longer" and that did not work, it said the same
+   thing again, word for word. Now, in this order:
+     1. the last grind change overshot the window → go back halfway;
+     2. the yield move was already tried and did not help → stop repeating
+        it, go back and change the next variable;
+     3. otherwise the move itself is the headline. */
+function cornerPastWindow(shot, target, c, over) {
+  const prev = shotBefore(c, shot);
+  const t1 = num(shot.time);
+  // 1. an overshoot: the previous shot was on the other side of the
+  // window (or in it) and only the grind changed in between
+  if (prev && placeOf(prev, target).time !== placeOf(shot, target).time) {
+    const g0 = num(Number(prev.grind)), g1 = num(Number(shot.grind));
+    if (g0 !== null && g1 !== null && g0 !== g1 && prev.grind !== '' && shot.grind !== '') {
+      const mid = grindUnit() === 'clicks' ? Math.round((g0 + g1) / 2) : Math.round((g0 + g1) / 2 * 10) / 10;
+      if (mid !== g1) {
+        return { sure: true, move: `Back about halfway — grind ${mid}${holdLine(shot, 'grind')}.`,
+          why: `The last grind change took the shot from ${Math.round(num(prev.time))}s to ${Math.round(t1)}s, ${over ? 'short of' : 'past'} the ${Math.round(target.timeLo)}–${Math.round(target.timeHi)}s window. It went the right way and too far. Split the difference and taste it again before changing anything else.` };
+      }
+    }
+  }
+  // 2. the yield move was already made, and the cup is no better
+  const side = over ? 'bitter' : 'sour';
+  const tried = yieldTried(c, shot, side);
+  if (tried) {
+    const back = num(prev && prev.yield);
+    const extra = canSetTemp()
+      ? (over ? 'and a degree cooler' : 'and a degree hotter')
+      : (over ? 'and half a gram less coffee' : 'and half a gram more coffee');
+    return { sure: false, noGrind: true,
+      move: `That did not help. Back to ${back !== null ? fmtDose(back) + 'g out' : 'the last yield'}, ${extra}.`,
+      why: over
+        ? `Stopping it shorter did not take the bitterness out, and the cup got heavier. Go back to where it was and change the next thing instead: ${canSetTemp() ? 'cooler extracts a little less without touching the clock' : 'a little less coffee under the same water extracts a little more gently and lightens the cup'}.`
+        : `Running it longer did not take the sourness out, and the cup got thinner: more water dilutes as much as it extracts. Go back to where it was and change the next thing instead: ${canSetTemp() ? 'hotter extracts more without touching the clock' : 'a little more coffee at the same ratio makes the cup stronger and slows the shot enough to extract a touch more'}.` };
+  }
+  // 3. the move, in the headline
+  const to = yieldTo(shot, over ? -2.5 : 2.5);
+  if (evenSeen(shot)) {
+    return { sure: false, noGrind: true,
+      move: over ? `Stop it shorter — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g less'}, same grind.` : `Let it run longer — ${to !== null ? fmtDose(to) + 'g out' : '2 to 3g more'}, same grind.`,
+      why: `${over ? 'Bitter and heavy' : 'Sour and thin'} is the picture of an ${over ? 'over' : 'under'}-extracted shot, and ${over ? 'coarser' : 'finer'} is the usual answer — except this one is already ${over ? 'short of' : 'past'} the window, so the grinder would only push the clock further the wrong way.${notThePuck(shot, target, c, over)}` };
+  }
+  return { sure: false, noGrind: true, move: 'Check the puck first: distribution and tamp, then pull it again unchanged.',
+    why: `${over ? 'Bitter and heavy' : 'Sour and thin'} while ${over ? 'fast' : 'slow'} does not point at grind: ${over ? 'coarser' : 'finer'} would only push the clock further the wrong way.${puckOrNot(shot, target, c, over)}` };
+}
+
 function wallPair(shot, target, c) {
   const t = tasteFault(shot);
   const b = bodySide(shot.body);
@@ -2073,18 +2124,12 @@ function wallPair(shot, target, c) {
   const at = r === null ? '' : ` at 1:${r.toFixed(1)}`;
 
   if (t === 'sour' && b === 'watery') {
-    if (place.time === 'slow') {
-      return { sure: false, noGrind: true, move: 'Under-extracted — but not for want of grind.',
-        why: `Sour and thin is the picture of an under-extracted shot and finer is the usual answer, except this one is already past the window: finer would only make it slower.${puckOrNot(shot, target, c, false)}` };
-    }
+    if (place.time === 'slow') return cornerPastWindow(shot, target, c, false);
     return { sure: true, move: `Grind finer${grindMoveLine(shot, target, true)}${holdLine(shot, 'grind')}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the puck, so the cup is sharp and weak at the same time. Finer is the single change that moves both${place.time === 'fast' ? ', and it brings the time up into the window on the way' : ''}.${grindWhyLine(shot, target, true)}${finerCaveat(c)}` };
   }
   if (t === 'bitter' && b === 'muddy') {
-    if (place.time === 'fast') {
-      return { sure: false, noGrind: true, move: 'Over-extracted — but not for want of grind.',
-        why: `Bitter and heavy is the picture of an over-extracted shot and coarser is the usual answer, except this one is already short of the window: coarser would only make it faster.${puckOrNot(shot, target, c, true)}` };
-    }
+    if (place.time === 'fast') return cornerPastWindow(shot, target, c, true);
     return { sure: true, move: `Grind coarser${grindMoveLine(shot, target, false)}${holdLine(shot, 'grind')}.`,
       why: `Bitter and heavy together are one fault, not two — too much came out of the puck, so the cup is harsh and thick with it. Coarser is the single change that moves both${place.time === 'slow' ? ', and it brings the time back into the window on the way' : ''}.${grindWhyLine(shot, target, false)}` };
   }
@@ -2375,7 +2420,24 @@ function phaseOf(c) {
   return c && c.shots.some(sh => sh.verdict === 'keeper') ? 'taste' : 'window';
 }
 
+/* Shots of this coffee that were in the window and tasted of neither
+   wall: the good ones, whatever the verdict said. */
+function goodShots(c) {
+  const target = c && c.target;
+  if (!target) return [];
+  return (c.shots || []).filter(sh => sh.verdict !== 'off'
+    && placeOf(sh, target).time === 'in'
+    && tasteFault(sh) === 'neither'
+    && bodySide(sh.body) !== 'watery' && bodySide(sh.body) !== 'muddy');
+}
+
 function nextExperiment(c, keeper) {
+  /* A stopping point. Each experiment the board offered was "two grams
+     longer", and each time the longer one became the recipe the board
+     offered two grams longer again — a dial-in test went round that loop
+     with no end in sight. Three good shots around one coffee is a
+     finished dial-in: the board says so and stops asking. */
+  if (goodShots(c).length >= 3) return null;
   const rows = (c.shots || []).filter(sh => sh !== keeper);
   const ky = num(keeper.yield), kd = num(keeper.dose), kt = num(Number(keeper.temp));
   const tried = (read, want) => rows.some(sh => {
@@ -2443,6 +2505,64 @@ function backToRecipe(shot, target, c) {
 }
 
 function nextMove(shot, target, c) {
+  return withExtraction(nextMoveFromTaste(shot, target, c), shot, target, c);
+}
+
+/* THE REFRACTOMETER IN THE ADVICE.
+
+   The reading was drawn on the board and never read by the advice: a
+   dial-in test pulled three shots at 17% extraction on a light roast and
+   was told "the numbers have said everything they can". Now, where a shot
+   has a reading:
+   - tasted right but reads outside the roast's band → say so, and offer
+     the one experiment that tests it;
+   - two good shots to choose between → the reading breaks the tie;
+   - otherwise the reading is added to the reasoning, agreeing or not. */
+function withExtraction(tips, shot, target, c) {
+  if (!tips || !tips.length || !hasTds()) return tips;
+  const r = eyReading(c, shot);
+  if (!r) return tips;
+  const tip = tips[0];
+  const at = `${fmt1(r.ey)}% extraction`;
+  const sweet = tasteFault(shot) === 'neither';
+  if (sweet && r.v.extraction !== 'in' && /^(This is your recipe|Two good shots|Dialled in|Try it longer|Now the other way|Close, by your own account)/.test(tip.move)) {
+    const under = r.v.extraction === 'under';
+    const time = placeOf(shot, target).time;
+    /* The grinder where the clock has room for it; the yield where it does
+       not — finer on a shot that is already slow only makes it slower. */
+    let byYield = under ? time === 'slow' : time === 'fast';
+    /* And not the same yield move twice when the reading says it barely
+       worked: two grams longer took a light roast from 17.0 to 17.2%, and
+       "longer again" would have been the third identical card. */
+    const prev = shotBefore(c, shot);
+    const pr = prev ? eyReading(c, prev) : null;
+    const yieldMoved = prev && num(prev.yield) !== null && num(shot.yield) !== null
+      && (under ? num(shot.yield) > num(prev.yield) : num(shot.yield) < num(prev.yield));
+    const barely = pr && Math.abs(r.ey - pr.ey) < 0.5;
+    if (byYield && yieldMoved && barely) byYield = false;
+    const to = yieldTo(shot, under ? 2 : -2);
+    const move = byYield
+      ? `${under ? 'Let it run longer' : 'Stop it shorter'} — ${to !== null ? fmtDose(to) + 'g out' : (under ? '2g more' : '2g less')}, same grind.`
+      : `Try it a touch ${under ? 'finer' : 'coarser'}${holdLine(shot, 'grind')}.`;
+    return [{ sure: false,
+      move: `Tastes right, reads ${under ? 'under' : 'over'}-extracted. ${move}`,
+      why: `${at} is ${under ? 'below' : 'above'} the ${r.band} ${r.what} usually tastes best at. It tasted right, so this is a test rather than a fix: pull the next one ${byYield ? (under ? 'longer' : 'shorter') : (under ? 'finer' : 'coarser')}, taste the two side by side, and keep whichever you would rather drink. ${under ? 'On a light roast the sweeter, rounder cup is usually higher up.' : 'Higher up, the cup turns dry and harsh.'}` }];
+  }
+  if (/^Two good shots/.test(tip.move)) {
+    const recipe = c.shots.filter(sh => sh.verdict === 'keeper').slice(-1)[0];
+    const rr = recipe && recipe !== shot ? eyReading(c, recipe) : null;
+    if (rr) {
+      const mid = (r.box.eyLo + r.box.eyHi) / 2;
+      const thisCloser = Math.abs(r.ey - mid) < Math.abs(rr.ey - mid);
+      return [Object.assign({}, tip, {
+        why: `${tip.why} The refractometer leans ${thisCloser ? 'to this one' : 'to the recipe'}: ${at} here against ${fmt1(rr.ey)}% for the recipe, where ${r.what} aims for ${r.band}. If you cannot taste a difference, keep ${thisCloser ? 'this one' : 'the recipe'}.` })];
+    }
+  }
+  const agrees = r.v.extraction === 'in' ? `inside the ${r.band} band` : r.v.extraction === 'under' ? `under the ${r.band} band` : `over the ${r.band} band`;
+  return [Object.assign({}, tip, { why: `${tip.why} The refractometer: ${at}, ${agrees}.` })].concat(tips.slice(1));
+}
+
+function nextMoveFromTaste(shot, target, c) {
   const first = basketFault(shot) || runFault(shot, target) || harshFault(shot)
     || tempFault(shot, c) || (c ? stuckNote(c) : null);
   if (first) return [withAge(first, c, shot, target)];

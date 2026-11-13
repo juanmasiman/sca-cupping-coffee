@@ -318,7 +318,15 @@ function makeGrind(env) {
          grinder, and it had grown a subordinate clause explaining itself.
          The explanation is true and it belongs in the paragraph. */
       return {
-        move: env.stepped() ? ` — two or three clicks` : ` — a decisive move`,
+        /* A size the reader can check, on any grinder: not "1 on the
+           dial", which means nothing across grinders, but how far the
+           clock should move. A dial-in test went 2 numbers on "a decisive
+           move", gained 8 seconds and overshot the window. */
+        move: env.stepped()
+          ? ` — two or three clicks`
+          : (Math.abs(wantSeconds) >= 2
+            ? ` — enough to make it about ${Math.round(Math.abs(wantSeconds))}s ${wantSeconds > 0 ? 'slower' : 'faster'}`
+            : ` — a small, decisive move`),
         /* Cut from sixty words to thirty-five, and the condition made
            honest: it used to promise a number "once two brews differ only
            in grind" without the clause that actually gates it — the clock
