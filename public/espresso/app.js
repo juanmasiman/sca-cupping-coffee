@@ -1202,7 +1202,7 @@ function notThePuck(shot, target, c, over) {
 function puckOrNot(shot, target, c, over) {
   if (evenSeen(shot)) return notThePuck(shot, target, c, over);
   if (sawEven(shot)) {
-    return ` You said it ran even, though through spouts the bed is out of sight and a steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
+    return ` You said it ran even, though ${kit().skipped ? 'a' : 'through spouts the bed is out of sight and a'} steady stream can still be going round part of it. Check distribution and tamp on the next one; if it happens again with the puck prepped carefully,${
       notThePuck(shot, target, c, over).replace(/^ This is a coffee/, ' it is a coffee')}`;
   }
   return over
@@ -3004,7 +3004,10 @@ function numField(opts) {
      silently corrected — the text stays as typed until the person fixes
      it, because it is their typo to see. */
   const note = wrap.querySelector('.num-note');
+  // A quiet note until the value is touched (e.g. a grind carried over).
+  if (opts.info) { note.textContent = opts.info; note.classList.add('is-info'); }
   const setNote = msg => {
+    note.classList.remove('is-info');
     note.textContent = msg || '';
     wrap.classList.toggle('bad', Boolean(msg));
   };
@@ -3214,7 +3217,7 @@ function renderNext(c) {
     /* Only where the reader has actually said so. With the kit screen
        skipped, "that is under the 18g on the basket" is the default value
        being read back as a fact about hardware nobody has described. */
-    const told = kit().asked || measured;
+    const told = (kit().asked && !kit().skipped) || measured;
     const why = under && told && e && e.dose < 0
       ? ` That is under the ${fmtDose(cap)}g ${measured ? 'you found fits the basket' : 'on the basket'} because a ${e.label.toLowerCase()} roast is harder to extract, and less coffee is less work. Expect the puck to blow apart at the end — messy, harmless.`
       : '';
@@ -3410,7 +3413,7 @@ function renderShots(c) {
         <p class="empty-foot">${signinFoot()}</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
-        state.kit = Object.assign(defaultKit(), { asked: true });
+        state.kit = Object.assign(defaultKit(), { asked: true, skipped: true });
         save();
         renderBoard();
       });
@@ -3781,6 +3784,21 @@ function revertTo(target, seed) {
 }
 // The line at the top of a sheet that came back from a draft, and the one
 // way to let it go.
+/* The board's "Where to start", repeated at the top of the first shot's
+   sheet: "Start dialling in" opens the sheet straight away, and it used
+   to cover the one card that says what to pull. */
+function showStartNote(c) {
+  const box = $('#start-note');
+  if (!box) return;
+  const first = editingIsNew && c && c.shots.length === 0;
+  box.classList.toggle('hidden', !first);
+  if (!first) { box.textContent = ''; return; }
+  const t = c.target;
+  const start = num(t.dose) ?? doseStart(c) ?? basketCap();
+  const out = start !== null ? Math.round(start * t.ratio) : null;
+  box.innerHTML = `<strong>Where to start:</strong> ${start !== null ? `${fmtDose(start)}g in, about ${out}g out, ` : ''}in ${Math.round(t.timeLo)}–${Math.round(t.timeHi)} seconds. Start coarse and come finer.`;
+}
+
 function showDraftNote(shot, fromDraft) {
   const note = $('#draft-note');
   if (!note) return;
@@ -3835,6 +3853,7 @@ function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
   const secs = Math.round(clockMs() / 1000);
   editing.clockWas = editing.clock;
+  editing.clockStoppedAt = Date.now();
   delete editing.clock;
   holdScreen(false);
   editing.time = secs;
@@ -3882,7 +3901,12 @@ function buildClock(c) {
       face.firstChild.textContent = clockText(clockMs());
     }, 100);
   } else {
-    if (editing.clockWas) {
+    /* Resume is for a Stop pressed by mistake, so it is offered for a few
+       seconds after one; a finished shot showing both Resume and "Time it
+       again" asked a question nobody had. */
+    const recent = editing.clockWas && Date.now() - (editing.clockStoppedAt || 0) < 8000;
+    if (recent) setTimeout(() => { if (editing && $('#brew-clock')) buildClock(c); }, 8100);
+    if (recent) {
       button('btn-ghost clock-resume', 'Resume', () => {
         editing.clock = editing.clockWas;
         delete editing.clockWas;
@@ -3954,6 +3978,7 @@ function openShot(shot) {
      already different from the log; the snapshot is the only way back. */
   if (!(shot && d)) editingSeed = JSON.stringify(editing);
   showDraftNote(shot, Boolean(d));
+  showStartNote(c);
 
   $('#shot-title').textContent = editingIsNew ? 'This shot' : `Shot ${shotNumber(c, shot)}`;
   /* Remove this shot.
@@ -4126,8 +4151,11 @@ function buildNumbers(c) {
        wrong-but-plausible value poisons it just as well as a wild one — so
        the cap was never the thing protecting it. */
     label: 'Grind', unit: '', value: num(editing.grind),
+    // A carried-over setting is easy to save by accident after moving the
+    // grinder, so it says where it came from until it is changed.
+    info: editingIsNew && num(editing.grind) !== null && !editing.grindTouched ? 'Same as last time — change it if you moved the grinder' : '',
     min: 0, step: stepped ? 1 : 0.1, digits: stepped ? 0 : 1,
-    startAt: grindStart(c), onChange: v => { editing.grind = v; refresh(); },
+    startAt: grindStart(c), onChange: v => { editing.grind = v; editing.grindTouched = true; refresh(); },
   }));
   /* THE READING, WITH THE OTHER MEASUREMENTS.
 
@@ -4235,6 +4263,7 @@ function buildIntent(c) {
     b.setAttribute('aria-checked', on ? 'true' : 'false');
     b.addEventListener('click', () => {
       editing.intent = on ? null : i.key;
+      editing.intentChosen = true; // a tap outranks the guess from the numbers
       haptic();
       buildIntent(c);
       renderReadout(c);
@@ -4496,7 +4525,30 @@ function buildNotes(c) {
 
    The dashes here are load-bearing. A ratio with no yield behind it is
    not zero and not "1:0" — there is no ratio, and the slot says so. */
+/* "What are you changing?", answered from the numbers until somebody
+   answers it. A dial-in test called the chips redundant: the app already
+   works out the difference from the last shot. If exactly one thing moved
+   the chip follows it, nothing moved is "Same again", and two moved is
+   left for the person to say which they meant. */
+function autoIntent(c) {
+  if (!editing || editing.intentChosen) return false;
+  const prev = prevShotOf(c);
+  if (!prev) return false;
+  const moved = [];
+  const g0 = num(Number(prev.grind)), g1 = num(Number(editing.grind));
+  if (g0 !== null && g1 !== null && prev.grind !== '' && editing.grind !== '' && Math.abs(g1 - g0) >= 0.05) moved.push(g1 < g0 ? 'finer' : 'coarser');
+  const r0 = ratioOf(prev), r1 = ratioOf(editing);
+  if (r0 !== null && r1 !== null && Math.abs(r1 - r0) >= 0.05) moved.push(r1 > r0 ? 'longer' : 'shorter');
+  const t0 = num(Number(prev.temp)), t1 = num(Number(editing.temp));
+  if (canSetTemp() && t0 !== null && t1 !== null && Math.abs(t1 - t0) >= 0.5) moved.push(t1 > t0 ? 'hotter' : 'cooler');
+  const want = moved.length === 1 ? moved[0] : moved.length === 0 && num(editing.yield) !== null ? 'same' : null;
+  if (want === editing.intent) return false;
+  editing.intent = want;
+  return true;
+}
+
 function renderReadout(c) {
+  if (autoIntent(c)) buildIntent(c);
   const wrap = $('#readout');
   const r = ratioOf(editing);
   const flow = flowOf(editing);
@@ -4789,7 +4841,12 @@ function openEdit(c, opts) {
      already has shots against it has been dialled around its target, so
      every field on it is theirs. */
   const own = { dose: false, ratio: false, time: false, temp: false };
-  if (!adding || c.shots.length > 0) { own.dose = own.ratio = own.time = own.temp = true; }
+  /* A coffee started from "Start dialling in" and never described is
+     still on the app's generic target, whatever has been pulled against
+     it: naming it and picking the roast should move the target to that
+     roast, the way adding it first would have. */
+  const neverDescribed = !c.name.trim() && !c.roast && !c.roaster;
+  if ((!adding || c.shots.length > 0) && !neverDescribed) { own.dose = own.ratio = own.time = own.temp = true; }
   let gridBuilt = false;
   // the grind-today sheet borrows this shell and hides the destructive
   // control; so does a coffee that is not on the shelf yet
@@ -4857,7 +4914,7 @@ function openEdit(c, opts) {
     <div id="e-baseline"></div>
 
     <span class="field-label section">What you are aiming at</span>
-    <p class="sheet-note">A shot is only fast or slow against a window, so this app will not call one fast until you have said what the window is. 1:2 in 25–30 seconds is where most recipes start, not where they have to stay.</p>
+    <p class="sheet-note">A shot is only fast or slow against a window, so this app will not call one fast until you have said what the window is. The numbers below are this coffee's starting point, from its roast where it has one — not where it has to stay.</p>
     <div class="target-grid" id="target-grid"></div>
   `;
   body.querySelector('#e-name').value = c.name;
@@ -4982,7 +5039,7 @@ function openEdit(c, opts) {
                 a hundred and five words of unbroken prose with the one
                 actionable line at the bottom, which is the shape a reader
                 skips. */ ''}
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take <strong>${escapeHTML(tempBand(e))}</strong>, <strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take ${withTemp ? `<strong>${escapeHTML(tempBand(e))}</strong>, ` : ''}<strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
            <details class="tip-more"><summary>Why these</summary>
              <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
                e.timeLo < 25 ? ' The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.' : ''}${
@@ -5424,7 +5481,10 @@ function openKit() {
     // picked rather than with the rest of this sheet.
     const rf = body.querySelector('#k-refr');
     rf.innerHTML = '';
-    if (root().LentoGear) {
+    // Not on the first-run sheet: the board asks it as a card straight
+    // after, and asking twice in a minute was one of the things a dial-in
+    // test tripped on.
+    if (root().LentoGear && !first) {
       rf.appendChild(segRow('Refractometer',
         'With one, every shot sheet takes a TDS reading and the board works out extraction from it. The same answer applies in the filter brew log.',
         [['no', 'No'], ['yes', 'I have one']], LentoGear.refractometerAsked() ? (hasTds() ? 'yes' : 'no') : null,
@@ -5492,6 +5552,7 @@ function openKit() {
        coin test came back to a board still offering to set their kit up. */
     captureNames();
     k.asked = true;
+    k.skipped = false;
     state.kit = k;
     // Including this app's grinder going on the person's list, which Save
     // does and this exit did not — the comment above says "everything Save
@@ -5511,6 +5572,7 @@ function openKit() {
     if (isFinite(d) && d > 0 && d <= 60) setPrinted(d);
     else { k.basketDose = null; k.doseFits = null; }
     k.asked = true;
+    k.skipped = false; // described now: its answers can be quoted back
     state.kit = k;
     /* On the person's list, so the brew log can offer it. `true` says
        this app asked about retention, so its answer is worth recording —
@@ -5526,7 +5588,7 @@ function openKit() {
   // somebody who skips should get the simplest sheet rather than the
   // fullest one. It is not asked again, and it is in Settings for ever.
   $('#kit-skip').onclick = () => {
-    state.kit = Object.assign(defaultKit(), { asked: true });
+    state.kit = Object.assign(defaultKit(), { asked: true, skipped: true });
     save();
     closeModal('#kit-modal');
     renderBoard();
@@ -6141,7 +6203,11 @@ function queueSync() {
    ============================================================ */
 
 function wire() {
-  $('#btn-coffee').addEventListener('click', openCoffees);
+  // An unnamed coffee's header says "tap to name it", so it does that.
+  $('#btn-coffee').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c && !c.name.trim()) openEdit(c, {}); else openCoffees();
+  });
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-profile').addEventListener('click', () => { if (window.LentoAccountSheet) LentoAccountSheet.open(); });
   // "Sign in" in the empty board's small print opens the same profile

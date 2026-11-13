@@ -4999,7 +4999,8 @@ function openKit() {
 
     // Shared with the dial-in and Your gear, so it is saved as it is
     // picked rather than with the rest of this sheet.
-    if (root().LentoGear) {
+    // Not on the first-run sheet: the board asks it as a card straight after.
+    if (root().LentoGear && !first) {
       put('#k-refr', segRow('Refractometer',
         'With one, every brew sheet takes a TDS reading and, with the cup weighed, the board works out extraction. The same answer applies in the espresso dial-in.',
         [['no', 'No'], ['yes', 'I have one']], LentoGear.refractometerAsked() ? (hasTds() ? 'yes' : 'no') : null,
@@ -5381,7 +5382,11 @@ function queueSync() {
 /* ---------- account UI ---------- */
 
 function wire() {
-  $('#btn-coffee').addEventListener('click', openCoffees);
+  // An unnamed coffee's header says "tap to name it", so it does that.
+  $('#btn-coffee').addEventListener('click', () => {
+    const c = activeCoffee();
+    if (c && !c.name.trim()) openCoffee(c, {}); else openCoffees();
+  });
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-profile').addEventListener('click', () => { if (window.LentoAccountSheet) LentoAccountSheet.open(); });
   // "Sign in" in the empty board's small print opens the same profile

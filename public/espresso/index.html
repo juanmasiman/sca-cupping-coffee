@@ -125,6 +125,9 @@
     <div class="sheet-scroll">
       <!-- Shown only on a sheet that came back from a draft. See showDraftNote. -->
       <div class="draft-note hidden" id="draft-note"></div>
+      <!-- The first shot of a coffee: where to start, here rather than on
+           the board behind this sheet, where it could not be read. -->
+      <p class="sheet-note start-note hidden" id="start-note"></p>
 
       <!-- THE SHOT CLOCK. Start it with the pump; Stop writes the time.
            Built by buildClock. -->
@@ -185,7 +188,7 @@
              Settings, which is nowhere at all when you are standing over
              a cooling cup trying to name what you just drank. -->
         <div class="field-label-row">
-          <span class="field-label" id="taste-label">How sweet is it?</span>
+          <span class="field-label" id="taste-label">Sour or bitter?</span>
           <button type="button" class="field-help" id="taste-help">What am I tasting?</button>
         </div>
         <div id="taste-scale"></div>
