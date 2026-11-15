@@ -3212,17 +3212,23 @@ function wireCardToggle(card) {
 function buildDetailsCard(coffee) {
   const card = el('div', 'details-card');
   card.innerHTML = `
-    <button class="details-toggle">
-      <span class="details-toggle-label">Details</span>
-      <span class="details-summary"></span>
-      <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
+    <div class="details-toggle-row">
+      <button class="details-toggle">
+        <span class="details-toggle-text">
+          <span class="details-toggle-label">Details</span>
+          <span class="details-summary"></span>
+        </span>
+        <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <div class="details-collapse"><div class="details-collapse-inner"><div class="details-grid"></div></div></div>
   `;
 
   const summaryEl = card.querySelector('.details-summary');
   const grid = card.querySelector('.details-grid');
-  addHelp(card.querySelector('.details-toggle-label'), 'details');
+  // beside the toggle, as on Describe: inside it, the mark was a button
+  // inside a button and took part of the tap that opens the card
+  addHelp(card.querySelector('.details-toggle-row'), 'details');
 
   const refreshSummary = () => {
     summaryEl.textContent = metaSummary(coffee.meta) || 'variety · process · farm…';
@@ -3567,8 +3573,10 @@ function buildDescriptiveCard(coffee) {
   card.innerHTML = `
     <div class="details-toggle-row">
       <button class="details-toggle">
-        <span class="details-toggle-label">Describe<span class="optional-pill">optional</span></span>
-        <span class="details-summary"></span>
+        <span class="details-toggle-text">
+          <span class="details-toggle-label">Describe<span class="optional-pill">optional</span></span>
+          <span class="details-summary"></span>
+        </span>
         <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>

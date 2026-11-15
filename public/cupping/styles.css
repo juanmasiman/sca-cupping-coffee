@@ -690,14 +690,25 @@ input, textarea, select { font: inherit; }
    card's per-section ones */
 .notes-block { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
 .notes-block .detail-label { padding-left: var(--space-2); }
-.details-summary {
+/* The summary sits under the title, not beside it. Beside it, a 360px
+   phone had room for "what yo…" once the title, the OPTIONAL pill, the
+   chevron and the help mark had taken theirs; under it, the whole line
+   fits and wraps to a second line before it is ever cut. */
+.details-toggle-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.details-summary {
   font-size: 13px;
   color: var(--text-faint);
-  text-align: right;
-  white-space: nowrap;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .details-chevron {
   flex: none;
