@@ -3992,11 +3992,13 @@ function openShot(shot) {
     id: uid(),
     at: Date.now(),
     // A dial-in holds the dose still and moves the grind, so the dose
-    // carries over and the two numbers you actually read off the bar
-    // start empty. Prefilling those would be putting the last shot's
-    // measurement under this shot's heading.
+    // carries over. The yield carries over too, flagged as carried: on
+    // espresso it is mostly a plan — where you mean to stop the shot — and
+    // a "same again" shot then needs only the clock and the cup (the
+    // critique asked for a faster path for somebody dialling in quickly).
+    // The time is the one pure measurement and starts empty.
     dose: last ? num(last.dose) : c.target.dose,
-    yield: null,
+    yield: last ? num(last.yield) : null,
     time: null,
     taste: null,
     body: null,
@@ -4154,7 +4156,8 @@ function buildNumbers(c) {
   }));
   row.appendChild(numField({
     label: 'Out', unit: 'g', value: editing.yield, min: 0, max: 200, step: 0.5, digits: 1,
-    startAt: Math.round(c.target.dose * c.target.ratio), onChange: v => { editing.yield = v; refresh(); },
+    info: editingIsNew && num(editing.yield) !== null && !editing.yieldTouched ? 'Same as last time — change it if you stopped elsewhere' : '',
+    startAt: Math.round(c.target.dose * c.target.ratio), onChange: v => { editing.yield = v; editing.yieldTouched = true; refresh(); },
   }));
   row.appendChild(numField({
     label: 'Time', unit: 's', value: editing.time, min: 0, max: 180, step: 1, digits: 0,
@@ -5460,6 +5463,10 @@ function openKit() {
      ruling. */
   const mPick = body.querySelector('#k-machine-pick');
   const gPick = body.querySelector('#k-grinder-pick');
+  if (root().lentoSelectFinder) {
+    lentoSelectFinder(mPick, 'Type to find your machine');
+    lentoSelectFinder(gPick, 'Type to find your grinder');
+  }
   const mOther = body.querySelector('#k-machine-other');
   const gOther = body.querySelector('#k-grinder-other');
   const syncOther = () => {

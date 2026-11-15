@@ -4953,6 +4953,7 @@ function openKit() {
      modified beats any list, which is why both answers stay editable
      underneath and the list only ever seeds them. */
   const gPick = body.querySelector('#k-grinder-pick');
+  if (root().lentoSelectFinder) lentoSelectFinder(gPick, 'Type to find your grinder');
   const gOther = body.querySelector('#k-grinder-other');
   const syncGrinder = () => gOther.classList.toggle('hidden', gPick.value !== '__other');
   if (k.grinder && !LentoKit.entryFor(k.grinder)) gPick.value = '__other';

@@ -133,3 +133,65 @@ function anchoredScale(opts) {
   render();
   return wrap;
 }
+
+/* ---------- small shared controls ---------- */
+
+/* "Type to find" above a long <select> (46 grinders, 27 machines): a
+   native select has no search on a phone. It rebuilds the select's options
+   to the ones that match — hiding <option>s is ignored by iOS — keeps the
+   current choice and any "Other…" entry, and picks the only match when one
+   is left so the sheet's own change handler fills in the rest. */
+function lentoSelectFinder(select, placeholder) {
+  if (!select || select.dataset.finder) return;
+  select.dataset.finder = '1';
+  const all = [...select.options].map(o => ({ value: o.value, text: o.text, disabled: o.disabled }));
+  const box = document.createElement('input');
+  box.type = 'search';
+  box.className = 'field-input select-finder';
+  box.placeholder = placeholder || 'Type to find yours';
+  box.setAttribute('aria-label', placeholder || 'Find in the list');
+  box.autocomplete = 'off';
+  select.parentNode.insertBefore(box, select);
+  box.addEventListener('input', () => {
+    const q = box.value.trim().toLowerCase();
+    const cur = select.value;
+    const keep = o => !q || !o.value || o.value === '__other' || o.value === cur || o.text.toLowerCase().includes(q);
+    const shown = all.filter(keep);
+    select.innerHTML = shown.map(o => `<option value="${String(o.value).replace(/"/g, '&quot;')}"${o.disabled ? ' disabled' : ''}>${o.text.replace(/</g, '&lt;')}</option>`).join('');
+    select.value = cur;
+    const real = shown.filter(o => o.value && o.value !== '__other' && !o.disabled);
+    if (q && real.length === 1 && real[0].value !== cur) {
+      select.value = real[0].value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+}
+
+/* Arrow keys in a row of radio chips. The chips are buttons with
+   role="radio" inside role="radiogroup", and a screen-reader or keyboard
+   user expects the arrows to move between them (a critique found focus
+   stuck on "Ran even"). One handler for every such group on the page. */
+document.addEventListener('keydown', e => {
+  const r = e.target && e.target.closest && e.target.closest('[role="radio"]');
+  if (!r) return;
+  const group = r.closest('[role="radiogroup"]');
+  if (!group) return;
+  const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  if (!(e.key in keys) && e.key !== 'Home' && e.key !== 'End') return;
+  const radios = [...group.querySelectorAll('[role="radio"]')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!radios.length) return;
+  let i = radios.indexOf(r);
+  if (e.key === 'Home') i = 0;
+  else if (e.key === 'End') i = radios.length - 1;
+  else i = (i + keys[e.key] + radios.length) % radios.length;
+  e.preventDefault();
+  const next = radios[i];
+  next.focus();
+  if (next.getAttribute('aria-checked') !== 'true') next.click();
+  // the group may have been rebuilt by the click: put focus back on the same chip
+  setTimeout(() => {
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const again = [...group.querySelectorAll('[role="radio"]')][i];
+    if (again) again.focus();
+  }, 0);
+});
