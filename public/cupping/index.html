@@ -94,6 +94,11 @@
 
       <span class="setup-or">Or set one up</span>
 
+      <!-- One console, not five cards. Each setting was its own bordered
+           card, the scoresheet's segmented control a bordered box inside
+           one of them, and a sixth card of cup dots under the lot: card in
+           card, and "Set the lineup" below the fold of a 390×844 phone.
+           The settings are rows of one card now, split by hairlines. -->
       <div class="setup-cards">
         <div class="setup-card setup-card-column">
           <div class="setup-card-label">
@@ -138,7 +143,6 @@
           </span>
         </label>
 
-        <div class="cups-preview" id="cups-preview" aria-hidden="true"></div>
       </div>
 
       <div class="setup-actions">
@@ -406,7 +410,9 @@
   <div id="help-modal" class="modal hidden">
     <div class="modal-sheet">
       <h2 id="help-title"></h2>
-      <p class="help-body" id="help-body"></p>
+      <!-- a div, not a p: it holds paragraphs and, for a section's mark,
+           the list of what each attribute asks -->
+      <div class="help-body" id="help-body"></div>
       <!-- The guided-mode switch used to exist only on the setup screen —
            which a cupper who joined by scanning a QR code never passes
            through. The one person who most needs to turn guidance ON, or a

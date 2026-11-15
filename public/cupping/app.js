@@ -190,13 +190,26 @@ const DESC_NOTE_FIELDS = ['fragrance', 'flavor', 'acidity', 'sweetness', 'mouthf
 const GUIDED_KEY = 'sca-cupping-guided-v1';
 
 const HELP = {
+  /* The welcome card on the sheet was cut to one paragraph, and what it
+     used to say beyond that — where a solo sheet goes, how the drag works —
+     lives here and in the scale's own help, one tap from the card. */
   intro: {
     title: 'How a cupping works',
-    body: 'Grind at 8.25 g of coffee per 150 mL of cup, smell the dry grounds, then pour water at 93 ± 3 °C to the rim. Let it stand, break the crust with your spoon and smell again, skim the foam, and taste as the coffee cools. Score each coffee on your own — the standard asks every cupper to score independently, without comparing notes, and the coffee’s score is the panel average. Discuss afterwards.',
+    body: 'Grind at 8.25 g of coffee per 150 mL of cup, smell the dry grounds, then pour water at 93 ± 3 °C to the rim. Let it stand, break the crust with your spoon and smell again, skim the foam, and taste as the coffee cools. Score each coffee on your own — the standard asks every cupper to score independently, without comparing notes, and the coffee’s score is the panel average. Discuss afterwards.\n\nAt a table, nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. Cupping alone, everything stays on this phone and goes to History when you open Results; invite others from the button at the top and each scores on their own device.',
   },
+  /* One mark per section, not one per attribute.
+
+     The sheet carried a "?" beside every one of its eight titles, plus the
+     section's own — fourteen on one coffee before Describe was opened, and
+     each of them a tab stop between one slider and the next. The section's
+     sheet now lists the attributes with what each one asks, so every
+     explanation is still one tap away and the keyboard goes slider to
+     slider. `items` is a function because the lists it reads are declared
+     further down the file. */
   cvaScale: {
     title: 'The 1–9 quality scale',
-    body: 'You are rating your impression of quality, not how strong something is. 5 means neither high nor low — a perfectly ordinary coffee sits there. Above 5 is where quality rises, below 5 is where it falls. Most specialty coffees land between 6 and 8; reserve 9 for something remarkable.',
+    body: 'You are rating your impression of quality, not how strong something is. 5 means neither high nor low — a perfectly ordinary coffee sits there. Above 5 is where quality rises, below 5 is where it falls. Most specialty coffees land between 6 and 8; reserve 9 for something remarkable.\n\nPress or drag anywhere on a line; the words under your thumb say what each position means.',
+    items: () => CVA_SECTIONS.map(s => HELP[`cva.${s.key}`]),
   },
   /* Results had no help at all.
 
@@ -238,6 +251,9 @@ const HELP = {
   describeVsScore: {
     title: 'Describe vs Score',
     body: 'These are two different SCA forms asking two different questions, and only one of them produces a number. Describe (Standard 103) records what the coffee is like: how intense each section is on a 0–15 scale, and which descriptors apply — no opinion about whether that is good. Score (Standard 104) records how good it is: your impression of quality for each of the eight sections on a 1–9 scale, and those eight are what add up to the score out of 100. Describing is optional and changes nothing about the score; a delicate coffee can be low intensity and still score highly. Fill the Describe card if you want the vocabulary and the history, and score every section either way.',
+    // the two marks that sat inside the card, on its sub-sections, fold in
+    // here: Describe is one section with one mark
+    items: () => [HELP.descIntensity, HELP.cata],
   },
   descIntensity: {
     title: 'Intensity, not quality',
@@ -247,7 +263,17 @@ const HELP = {
     title: 'Choosing descriptors',
     body: 'Check the descriptors that best represent the coffee — up to five in the olfactory list, and up to two main tastes. These are categories from the Coffee Taster’s Flavor Wheel, not poetic notes: check the category, then write specifics like “jasmine” or “dried apricot” in the notes beside it. Acidity and sweetness have no checklist by design — describe those in your own words.',
   },
-  'legacy.scale': { title: 'The 6–10 scale', body: 'The 2004 form scores quality from 6.00 to 10.00 in quarter-point steps: 6 is Good, 7 Very Good, 8 Excellent, 9 Outstanding. Most specialty coffees sit between 7.00 and 8.50. The ten attributes sum to a maximum of 100.' },
+  // The 2004 sheet had no section head at all, so this was repeated on all
+  // seven of its scales and the cup rows carried their own. It is the
+  // Score head's mark now, and the cup rows' explanation rides in it.
+  'legacy.scale': {
+    title: 'The 6–10 scale',
+    body: 'The 2004 form scores quality from 6.00 to 10.00 in quarter-point steps: 6 is Good, 7 Very Good, 8 Excellent, 9 Outstanding. Most specialty coffees sit between 7.00 and 8.50. The ten attributes sum to a maximum of 100.\n\nPress or drag anywhere on a line to score it.',
+    items: () => [
+      ...SCALE_ATTRS.map(a => ({ title: a.label, body: a.sub.charAt(0).toUpperCase() + a.sub.slice(1) + '.' })),
+      HELP.legacyCups,
+    ],
+  },
   legacyCups: { title: 'Uniformity, Clean Cup, Sweetness', body: 'These three are judged cup by cup rather than scored on a scale. Every cup starts with credit; tap a cup to fail it. Each cup is worth its share of 10 points, so with five cups on the table each failed cup costs 2 points.' },
   legacyDefects: { title: 'Taints and faults', body: 'A taint is an off-flavor noticeable in the aroma but not overwhelming, costing 2 points per affected cup. A fault is stronger and usually found in the taste, costing 4 points per cup. Count how many cups are affected, not how bad it seems.' },
   details: { title: 'Coffee details', body: 'Recording variety, process, altitude, farm, producer and roast profile is what makes your history useful later — it lets the app show how your scores break down by process or origin over time. When you share a cupping, these stay hidden from the table unless you choose to reveal them.' },
@@ -561,6 +587,20 @@ function openHelp(id) {
     p.textContent = para.trim();
     helpBody.appendChild(p);
   });
+  // A section's mark explains its attributes too, as a list under the
+  // section's own explanation — what each attribute's mark used to say.
+  const items = typeof entry.items === 'function' ? entry.items() : entry.items;
+  if (items && items.length) {
+    const dl = el('dl', 'help-items');
+    items.filter(Boolean).forEach(item => {
+      const dt = document.createElement('dt');
+      dt.textContent = item.title;
+      const dd = document.createElement('dd');
+      dd.textContent = item.body;
+      dl.append(dt, dd);
+    });
+    helpBody.appendChild(dl);
+  }
   openSheet(modal, () => close());
   const close = () => { closeSheet(modal); modal.onclick = null; };
   $('#help-close').onclick = close;
@@ -2722,33 +2762,17 @@ function initStepper(rootId, valueId, key, limitKey) {
     valueEl.classList.add('bump');
     haptic();
     render();
-    renderCupsPreview();
     saveSetupDefaults();
   });
 
   render();
 }
 
-function renderCupsPreview() {
-  const wrap = $('#cups-preview');
-  wrap.innerHTML = '';
-  /* The row used to open with a 7px near-black dot marking "one coffee".
-     Beside five cup shapes it read as a list bullet — a tester wrote it up
-     as a missing `list-style: none`, which it never was, and that misread
-     is the finding: the dot said nothing the row was not already saying,
-     and said it in the shape of markup. Three rows of five cups are three
-     coffees of five cups. */
-  for (let i = 0; i < setup.coffees; i++) {
-    const row = el('div', 'preview-row');
-    const cups = el('div', 'preview-cups');
-    for (let j = 0; j < setup.cups; j++) {
-      const cup = el('span', 'preview-cup');
-      cups.appendChild(cup);
-    }
-    row.appendChild(cups);
-    wrap.appendChild(row);
-  }
-}
+/* The cup-dot preview of the table is gone. It drew the two numbers the
+   steppers directly above it already state, as a grid of dots three to
+   eight rows tall, and it was the thing that pushed "Set the lineup" below
+   the fold of a 390×844 phone — decoration standing between the leader and
+   the one control on the screen that does anything. */
 
 /* ============================================================
    CUPPING SCREEN
@@ -2863,6 +2887,14 @@ function refreshTabs() {
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
 
+  /* Results is always open — it is where a sheet goes to History — so it
+     is drawn as a live control from the start, bordered like Flavors. Once
+     a sheet is finished there is something to read there, and it becomes
+     the band's primary. */
+  const sp = sessionProgress();
+  const finishedAny = state.coffees.length - sp.untouched - sp.partial > 0;
+  $('#btn-finish').classList.toggle('ready', finishedAny);
+
   refreshSubmitRows();
 
   state.coffees.forEach((c, i) => {
@@ -2934,7 +2966,7 @@ function syncActivePanel() {
 }
 
 /* What a first-timer needs in their first five seconds. Not the whole
-   method — three sentences about what is about to happen and why they are
+   method — two sentences about what is about to happen and why they are
    scoring alone — with the full version one tap away. */
 const WELCOME_KEY = 'sca-cupping-welcomed-v1';
 
@@ -2942,9 +2974,24 @@ function welcomeDismissed() {
   try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return true; }
 }
 
+/* It goes on the first rating, not on a button.
+
+   It used to wait for "Start scoring", and a cupper who simply started
+   scoring never pressed it: the card sat at 359px above a coffee whose
+   eight sections were all rated. Rating a section is the clearest
+   "I have got it" there is, so that is the dismissal. The sheet is held
+   still while the card goes, so the section just rated stays where the
+   thumb left it rather than jumping up by the card's height. */
 function dismissWelcome() {
   try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
-  document.querySelectorAll('.welcome-card').forEach(c => c.remove());
+  document.querySelectorAll('.welcome-card').forEach(c => {
+    const panel = c.closest('.panel');
+    const gap = parseFloat(getComputedStyle(c).marginBottom) || 0;
+    const h = c.getBoundingClientRect().height + gap;
+    const top = panel ? panel.scrollTop : 0;
+    c.remove();
+    if (panel && top) panel.scrollTop = Math.max(0, top - h);
+  });
 }
 
 function buildWelcome() {
@@ -2965,22 +3012,23 @@ function buildWelcome() {
      the scale was wrong. Alone, the second paragraph was about a table and
      a leader who are not there; what it says to one person is that the
      sheet is theirs. */
+  /* One paragraph. The card was 359px — two paragraphs, a how-to-drag
+     sentence and two buttons — sitting over the first section. What it
+     must say first is the scale and who sees the sheet; the rest is in
+     "How a cupping works" and in the Score head's mark. */
   const scale = usingCVA()
-    ? 'Taste each coffee and rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, which is where an ordinary cup sits.'
-    : 'Taste each coffee and rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cups that fall short on uniformity, clean cup or sweetness.';
+    ? 'Rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, where an ordinary cup sits.'
+    : 'Rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cup that falls short.';
   const others = table
-    ? '<p>Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them. That is the point: the standard asks every cupper to judge without being influenced by anyone else.</p>'
-    : '<p>Everything stays on this phone and goes to History when you open Results. Cupping with others? Invite them from the button at the top and each scores on their own device.</p>';
+    ? 'Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them.'
+    : 'Your sheet stays on this phone; to cup with others, invite them from the button at the top.';
   card.innerHTML = `
     <h2>${table ? 'Everyone scores on their own' : 'You are scoring on your own'}</h2>
-    <p>${scale} Drag anywhere on a line; the words under your thumb say what each position means.</p>
-    ${others}
+    <p>${scale} ${others}</p>
     <div class="welcome-actions">
       <button class="btn btn-ghost" type="button" data-act="method">How a cupping works</button>
-      <button class="btn btn-primary" type="button" data-act="go">Start scoring</button>
     </div>`;
   card.querySelector('[data-act="method"]').addEventListener('click', () => openHelp('intro'));
-  card.querySelector('[data-act="go"]').addEventListener('click', () => { haptic(); dismissWelcome(); });
   return card;
 }
 
@@ -3032,24 +3080,39 @@ function buildPanel(coffee, index) {
     panel.appendChild(panelHead('Score', 'how good it is · 1–9 each', 'cvaScale'));
     CVA_SECTIONS.forEach(section => panel.appendChild(buildCvaCard(coffee, section)));
     panel.appendChild(buildCvaDefectsCard(coffee));
-    // the two halves are different SCA forms asking different questions, and
-    // on one scrolling sheet they read as the same thing
-    panel.appendChild(panelHead('Describe', 'what you taste · no judgement', 'describeVsScore'));
+    /* The two halves are different SCA forms asking different questions,
+       and on one scrolling sheet they read as the same thing — so Describe
+       announces itself. It used to do it twice: a "Describe · what you
+       taste · no judgement" head directly above a toggle reading "Describe
+       OPTIONAL intensity · descriptors…". The toggle row is the head now,
+       and carries the section's mark itself. */
     panel.appendChild(buildDescriptiveCard(coffee));
   } else {
+    // The 2004 sheet had no head, so its one explanation was repeated on
+    // every scale. It gets the same head as CVA and the mark moves onto it.
+    panel.appendChild(panelHead('Score', 'quality · 6–10 each', 'legacy.scale'));
     SCALE_ATTRS.forEach(attr => panel.appendChild(buildScaleCard(coffee, attr)));
     CUP_ATTRS.forEach(attr => panel.appendChild(buildCupCard(coffee, attr)));
     panel.appendChild(buildDefectsCard(coffee));
   }
 
   // notes
+  /* Named by what they belong to. The sheet holds a note for the coffee as
+     a whole and, inside Describe, one per section; the general one was a
+     bare textarea with a placeholder, so beside "Fragrance & aroma notes"
+     it read as one more of the same. It gets a visible label. */
+  const notesWrap = el('div', 'notes-block');
   const notes = document.createElement('textarea');
   notes.className = 'notes-field';
-  notes.placeholder = 'Tasting notes — jasmine, stone fruit, cocoa…';
+  notes.id = `notes-${++fieldSeq}`;
+  notes.placeholder = 'jasmine, stone fruit, cocoa…';
   notes.setAttribute('aria-label', `Tasting notes for coffee ${index + 1}`);
   notes.value = coffee.notes;
   notes.addEventListener('input', () => { coffee.notes = notes.value; save(); });
-  panel.appendChild(notes);
+  const notesLabel = el('label', 'detail-label', 'Tasting notes');
+  notesLabel.htmlFor = notes.id;
+  notesWrap.append(notesLabel, notes);
+  panel.appendChild(notesWrap);
 
   // origin details
   panel.appendChild(buildDetailsCard(coffee));
@@ -3495,12 +3558,20 @@ function toggleCata(list, option, max) {
 
 function buildDescriptiveCard(coffee) {
   const card = el('div', 'details-card describe-card');
+  /* The toggle is the section head, so it carries the section's mark — in
+     a row beside the button rather than inside it. A mark inside the label
+     widened it until it sat under the middle of the row and swallowed the
+     tap that should open the card (and a button inside a button is not a
+     thing assistive technology can announce). Beside it, the toggle keeps
+     the whole width it had and the mark keeps its own 44px. */
   card.innerHTML = `
-    <button class="details-toggle">
-      <span class="details-toggle-label">Describe<span class="optional-pill">optional</span></span>
-      <span class="details-summary"></span>
-      <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
+    <div class="details-toggle-row">
+      <button class="details-toggle">
+        <span class="details-toggle-label">Describe<span class="optional-pill">optional</span></span>
+        <span class="details-summary"></span>
+        <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <div class="details-collapse"><div class="details-collapse-inner">
       <div class="desc-body"></div>
     </div></div>
@@ -3514,26 +3585,39 @@ function buildDescriptiveCard(coffee) {
     // same words, so the sheet said "Describe / what you taste · no
     // judgement" and then "Describe / what you taste, not how good" within
     // 100px. Same pattern as the sibling: say what is inside.
+    // Short, because the row now also holds the section's mark, and it
+    // keeps the half of the old section head that the toggle did not
+    // already say: this is about what is in the cup, not how good it is.
     summaryEl.textContent = descriptiveSummary(coffee.desc)
-      || 'intensity · descriptors · notes';
+      || 'what you taste';
   };
 
   const body = card.querySelector('.desc-body');
   const d = coffee.desc;
   // a descriptive block restored from an archive written before this build
   if (!d.touched) d.touched = {};
-  // no help button on this row: the "Describe" section head directly above
-  // already carries one, and a second widened the label until it sat under
-  // the middle of the row, swallowing the tap that should open the card
+  addHelp(card.querySelector('.details-toggle-row'), 'describeVsScore');
 
   body.appendChild(el('p', 'desc-intro',
     'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.'));
 
+  /* Every field here was named by its placeholder alone: the visible
+     label was a sibling span, so a screen reader announced "e.g.
+     light-medium, Agtron 63", and five note fields announced "freely
+     elicited notes…" three times over. Each label is a real <label for>
+     now, and says which section its notes belong to. */
+  const labelled = (text, input) => {
+    input.id = `desc-${++fieldSeq}`;
+    const label = el('label', 'detail-label', escapeHTML(text));
+    label.htmlFor = input.id;
+    return label;
+  };
+
   // roast level, recorded before tasting begins
   const roast = el('div', 'desc-field');
-  roast.innerHTML = `<span class="detail-label">Roast level</span>
-    <input class="detail-field" type="text" maxlength="40" placeholder="e.g. light-medium, Agtron 63">`;
+  roast.innerHTML = `<input class="detail-field" type="text" maxlength="40" placeholder="e.g. light-medium, Agtron 63">`;
   const roastInput = roast.querySelector('input');
+  roast.prepend(labelled('Roast level', roastInput));
   roastInput.value = d.roast || '';
   roastInput.addEventListener('input', () => { d.roast = roastInput.value; save(); });
   body.appendChild(roast);
@@ -3668,22 +3752,22 @@ function buildDescriptiveCard(coffee) {
     return wrap;
   };
 
-  const noteField = (key, placeholder) => {
+  const noteField = (key, owner, placeholder) => {
     const wrap = el('div', 'desc-field');
-    wrap.innerHTML = `<span class="detail-label">Notes</span>
-      <input class="detail-field" type="text" maxlength="80" placeholder="${escapeHTML(placeholder)}">`;
+    wrap.innerHTML = `<input class="detail-field" type="text" maxlength="80" placeholder="${escapeHTML(placeholder)}">`;
     const input = wrap.querySelector('input');
+    wrap.prepend(labelled(`${owner} notes`, input));
     input.value = d.notes[key] || '';
     input.addEventListener('input', () => { d.notes[key] = input.value; save(); });
     return wrap;
   };
 
-  const section = (title, helpId) => {
+  // No marks on these sub-heads: Describe is one section with one mark, on
+  // its toggle, and its sheet carries what these two used to explain.
+  const section = title => {
     const s = el('div', 'desc-section');
     const h = el('div', 'desc-section-head');
-    const label = el('span', 'detail-label', title);
-    h.appendChild(label);
-    if (helpId) addHelp(label, helpId);
+    h.appendChild(el('span', 'detail-label', title));
     s.appendChild(h);
     return s;
   };
@@ -3701,17 +3785,17 @@ function buildDescriptiveCard(coffee) {
   };
 
   // --- fragrance + aroma share one olfactory CATA box ---
-  const fa = section('Fragrance & aroma', 'descIntensity');
+  const fa = section('Fragrance & aroma');
   fa.appendChild(intensityRow(DESC_ATTRS[0]));
   fa.appendChild(intensityRow(DESC_ATTRS[1]));
   const aromaTree = olfactoryChips('aroma', 5);
   fa.appendChild(capRow('Orthonasal descriptors · up to 5', 'aroma'));
   fa.appendChild(aromaTree.wrap);
-  fa.appendChild(noteField('fragrance', 'freely elicited notes…'));
+  fa.appendChild(noteField('fragrance', 'Fragrance & aroma', 'freely elicited notes…'));
   body.appendChild(fa);
 
   // --- flavor + aftertaste: olfactory CATA plus main tastes ---
-  const fl = section('Flavor & aftertaste', 'cata');
+  const fl = section('Flavor & aftertaste');
   fl.appendChild(intensityRow(DESC_ATTRS[2]));
   fl.appendChild(intensityRow(DESC_ATTRS[3]));
   const flavorTree = olfactoryChips('flavor', 5);
@@ -3719,18 +3803,18 @@ function buildDescriptiveCard(coffee) {
   fl.appendChild(flavorTree.wrap);
   fl.appendChild(el('span', 'cata-cap', 'Main tastes · up to 2'));
   fl.appendChild(flatChips('tastes', CATA_TASTES, 2));
-  fl.appendChild(noteField('flavor', 'freely elicited notes…'));
+  fl.appendChild(noteField('flavor', 'Flavor & aftertaste', 'freely elicited notes…'));
   body.appendChild(fl);
 
   // --- acidity and sweetness: intensity plus the taster's own words ---
   const ac = section('Acidity');
   ac.appendChild(intensityRow(DESC_ATTRS[4]));
-  ac.appendChild(noteField('acidity', 'e.g. citric, malic, winey…'));
+  ac.appendChild(noteField('acidity', 'Acidity', 'e.g. citric, malic, winey…'));
   body.appendChild(ac);
 
   const sw = section('Sweetness');
   sw.appendChild(intensityRow(DESC_ATTRS[5]));
-  sw.appendChild(noteField('sweetness', 'e.g. honeyed, cane sugar…'));
+  sw.appendChild(noteField('sweetness', 'Sweetness', 'e.g. honeyed, cane sugar…'));
   body.appendChild(sw);
 
   // --- mouthfeel ---
@@ -3738,7 +3822,7 @@ function buildDescriptiveCard(coffee) {
   mf.appendChild(intensityRow(DESC_ATTRS[6]));
   mf.appendChild(el('span', 'cata-cap', 'Up to 2'));
   mf.appendChild(flatChips('mouthfeel', CATA_MOUTHFEEL, 2));
-  mf.appendChild(noteField('mouthfeel', 'freely elicited notes…'));
+  mf.appendChild(noteField('mouthfeel', 'Mouthfeel', 'freely elicited notes…'));
   body.appendChild(mf);
 
   // let the flavor wheel tick these boxes
@@ -3948,6 +4032,7 @@ function buildAnchoredScale(opts) {
     dragging = false;
     refresh(true);                          // snap onto the detent
     if (opts.onCommit) opts.onCommit();
+    firstRating();
   };
   track.addEventListener('pointerup', end);
   track.addEventListener('pointercancel', end);
@@ -3976,9 +4061,16 @@ function buildAnchoredScale(opts) {
     haptic();
     refresh(true);
     if (opts.onCommit) opts.onCommit();
+    firstRating();
   });
 
   return { el: wrap, refresh: refresh, track: track };
+}
+
+// The welcome card's dismissal: the first value set on any scale, by
+// pointer or by key, after the value has landed (see dismissWelcome).
+function firstRating() {
+  if (document.querySelector('.welcome-card')) dismissWelcome();
 }
 
 function buildCvaCard(coffee, section) {
@@ -4000,7 +4092,8 @@ function buildCvaCard(coffee, section) {
   `;
 
   const valueEl = card.querySelector('.attr-value');
-  addHelp(card.querySelector('.attr-title'), `cva.${section.key}`);
+  // No mark of its own: the Score head's sheet explains every section, so
+  // the tab order runs slider to slider (see HELP.cvaScale).
 
   const commit = () => {
     refresh(false);
@@ -4169,7 +4262,7 @@ function buildScaleCard(coffee, attr) {
   `;
 
   const valueEl = card.querySelector('.attr-value');
-  addHelp(card.querySelector('.attr-title'), 'legacy.scale');
+  // explained once, by the Score head's mark (see HELP['legacy.scale'])
 
   const commit = () => {
     refresh(false);
@@ -4235,7 +4328,7 @@ function buildCupCard(coffee, attr) {
   const valueEl = card.querySelector('.attr-value');
   const row = card.querySelector('.cups-row');
   const cups = coffee.cups[attr.key];
-  addHelp(card.querySelector('.attr-title'), 'legacyCups');
+  // explained by the Score head's mark, with the scales above it
 
   const attrScore = () => 10 * cups.filter(Boolean).length / cups.length;
 
@@ -4365,6 +4458,16 @@ function jumpToNextUnrated() {
   card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
   const track = card.querySelector('.scale-track');
   if (track) track.focus({ preventScroll: true });
+  /* Say where you landed. The track takes focus, but focus that arrived by
+     a tap draws no :focus-visible ring, so after the scroll nothing on the
+     screen said which of eight similar rows was the one meant. The card
+     wears a ring for a moment and lets it go; it is a mark, not a motion,
+     so under reduced motion it simply appears and disappears. */
+  card.classList.remove('landed');
+  void card.offsetWidth;
+  card.classList.add('landed');
+  clearTimeout(card._landed);
+  card._landed = setTimeout(() => card.classList.remove('landed'), 1600);
 }
 
 function updateScorebar() {
@@ -5226,11 +5329,12 @@ function buildPresent() {
        it has a number only when it is done. */
     const own = scoreProgress(coffee);
     const shown = row ? row.avg : coffeeScore(coffee);
+    // sentence case: this line is read out, and it was set in tracked caps
     const caption = row
       ? (row.n
-          ? `average of ${row.n} finished sheet${row.n > 1 ? 's' : ''}`
-          : 'no sheet finished yet')
-      : (own.complete ? 'your score' : own.done === 0 ? 'nothing rated' : `${own.done} of ${own.total} rated`);
+          ? `Average of ${row.n} finished sheet${row.n > 1 ? 's' : ''}`
+          : 'No sheet finished yet')
+      : (own.complete ? 'Your score' : own.done === 0 ? 'Nothing rated' : `${own.done} of ${own.total} rated`);
     // a warning with no size to it is not a warning; the room gets the count
     const qualifier = row && row.scoring ? ` · ${row.scoring} still scoring` : '';
 
@@ -5510,23 +5614,45 @@ function buildRadar(ranked) {
      whether that was half a point or three. A radar without a radial scale
      is a picture of data rather than a reading of it.
 
-     They go in the gap between the first spoke and the last, which with
-     seven axes is the empty wedge at the upper left, so they sit on the
-     grid rather than across an axis label. Two of them — the outer edge
-     and the middle — because five numbers up one radius is a ruler and
-     this only has to establish the units. */
-  const labelAngle = angle(0) - (Math.PI * 2) / N / 2;
-  const at = r => [CX + Math.cos(labelAngle) * r, CY + Math.sin(labelAngle) * r];
-  // Built here, drawn last: SVG has no z-index, so a label emitted with the
-  // grid is painted under every polygon that follows it. The inner one sat
-  // behind four series lines with a halo that did nothing, because the halo
-  // only holds off what is already on the canvas.
-  const ringLabels = [RINGS, mid].map(ring => {
-    const v = ringValue(ring);
-    const [x, y] = at((R * ring) / RINGS);
-    return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" class="radar-ring-label">${
-      Number.isInteger(v) ? v : v.toFixed(1)}</text>`;
-  }).join('');
+     Every ring is numbered. Two were, the outer edge and the middle, under
+     a note promising "steps of 2" that the chart then showed only once.
+     They run up the bisector of the gap between two spokes, so they sit on
+     the grid rather than across an axis label — and which gap is chosen by
+     the data: the one whose labels sit furthest from every series line.
+     A fixed upper-left gap put the 5 squarely on the line of any coffee
+     that scored around 6 on Mouthfeel and Fragrance, and a halo that wipes
+     out the line under it is not a fix for that. Placed below, once the
+     polygons are known. */
+  const ringLabelsFor = series => {
+    const segs = [];
+    series.forEach(pts => pts.forEach((a, i) => segs.push([a, pts[(i + 1) % pts.length]])));
+    const distTo = ([px, py]) => segs.reduce((best, [[ax, ay], [bx, by]]) => {
+      const dx = bx - ax, dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+    }, Infinity);
+    // gap g lies between spoke g and spoke g + 1; the upper-left gap (the
+    // last one) wins ties, which is where they always sat
+    let bestGap = N - 1, bestClear = -1;
+    for (let k = 0; k < N; k++) {
+      const g = (N - 1 + k) % N;
+      const a = angle(g) + Math.PI / N;
+      const clear = Math.min(...Array.from({ length: RINGS }, (_, j) => {
+        const r = (R * (j + 1)) / RINGS;
+        return distTo([CX + Math.cos(a) * r, CY + Math.sin(a) * r]);
+      }));
+      if (clear > bestClear + 0.5) { bestClear = clear; bestGap = g; }
+    }
+    const a = angle(bestGap) + Math.PI / N;
+    return Array.from({ length: RINGS }, (_, j) => {
+      const ring = j + 1;
+      const v = ringValue(ring);
+      const r = (R * ring) / RINGS;
+      const x = CX + Math.cos(a) * r, y = CY + Math.sin(a) * r;
+      return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="radar-ring-label">${
+        Number.isInteger(v) ? v : v.toFixed(1)}</text>`;
+    }).join('');
+  };
 
   // spokes + labels
   ATTRS.forEach((attr, i) => {
@@ -5556,12 +5682,14 @@ function buildRadar(ranked) {
   const undrawn = ranked.filter(r => !complete.includes(r));
 
   // one polygon per coffee (ranked order so winner draws last, on top)
+  const seriesPts = [];
   [...complete].reverse().forEach(r => {
-    const pts = ATTRS.map((attr, i) => {
+    const raw = ATTRS.map((attr, i) => {
       const v = Math.max(MIN, attrValue(r.coffee, attr));
-      const rr = (R * (v - MIN)) / (MAX - MIN);
-      return point(i, rr).map(n => n.toFixed(1)).join(',');
-    }).join(' ');
+      return point(i, (R * (v - MIN)) / (MAX - MIN));
+    });
+    seriesPts.push(raw);
+    const pts = raw.map(xy => xy.map(n => n.toFixed(1)).join(',')).join(' ');
     const dash = RADAR_DASHES[r.index % RADAR_DASHES.length];
     // No area fill by default. Ten translucent fills stack into mud at the
     // centre, and chasing 3:1 against that stack is what forced the old
@@ -5573,14 +5701,26 @@ function buildRadar(ranked) {
       + ` stroke-width="2" stroke-linejoin="round" stroke-dasharray="${dash}" data-coffee="${r.index}"/>`;
   });
 
-  svg += ringLabels;
+  // Built here, drawn last: SVG has no z-index, so a label emitted with the
+  // grid is painted under every polygon that follows it.
+  svg += ringLabelsFor(seriesPts);
   svg += '</svg>';
+  /* Cropped to the drawing. A seven-spoke chart is not as tall as it is
+     wide — its lowest spokes stop well short of the bottom edge — and the
+     square 320 box left about 45 units of nothing between the last axis
+     label and the legend, scaled up with the chart. */
+  const axisYs = ATTRS.map((_, i) => point(i, R + 18)[1]);
+  const top = Math.floor(Math.min(...axisYs) - 12);
+  const bottom = Math.ceil(Math.max(...axisYs) + 8);
+  svg = svg.replace(`viewBox="0 0 ${SIZE} ${SIZE}"`, `viewBox="0 ${top} ${SIZE} ${bottom - top}"`);
   $('#radar-wrap').innerHTML = svg;
 
   const note = $('#radar-note');
   if (note) {
-    const bits = [`Rings run ${MIN} at the centre to ${MAX} at the edge, in steps of ${
-      ringValue(1) - MIN}. ${radarSpokesNote()}`];
+    // says what the chart shows: every ring is numbered now
+    const marks = Array.from({ length: RINGS }, (_, j) => ringValue(j + 1));
+    const bits = [`The centre is ${MIN}; the rings mark ${marks.slice(0, -1).join(', ')} and ${
+      marks[marks.length - 1]}, out to the edge. ${radarSpokesNote()}`];
     if (undrawn.length) {
       bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
         undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${
@@ -5843,9 +5983,10 @@ function buildHistory() {
     : archive.length;
 
   // stat tiles
+  // "1 Cuppings" — the label agrees with its own count
   $('#stats-row').innerHTML = `
-    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">Cuppings</div></div>
-    <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">Coffees</div></div>
+    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">${sessionCount === 1 ? 'Cupping' : 'Cuppings'}</div></div>
+    <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">${coffees.length === 1 ? 'Coffee' : 'Coffees'}</div></div>
     <div class="stat-tile"><div class="stat-value">${allScores.length ? fmt(avg) : '–'}</div><div class="stat-label">${
       partial ? `Avg of ${allScores.length} finished` : 'Avg score'
     }</div></div>
@@ -6291,9 +6432,11 @@ function refreshResumeButton() {
   if (finished) tally.push(`${finished} of ${n} finished`);
   if (p.partial) tally.push(`${p.partial} part-scored`);
   if (p.untouched) tally.push(`${p.untouched} not started`);
+  // A sentence, so it is set as one: it was tracked capitals, which is a
+  // label's treatment, on a fifty-character line somebody has to read.
   label.textContent = p.complete
-    ? `A cupping of ${n} coffee${n > 1 ? 's' : ''}, all scored`
-    : `A cupping in progress · ${tally.join(' · ')}`;
+    ? `A cupping of ${n} coffee${n > 1 ? 's' : ''}, all scored.`
+    : `A cupping in progress: ${tally.join(', ')}.`;
   btn.textContent = p.complete ? 'Open it again' : 'Pick up where you left off';
 }
 
@@ -6336,7 +6479,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initStepper('#stepper-coffees', '#value-coffees', 'coffees', 'coffees');
   initStepper('#stepper-cups', '#value-cups', 'cups', 'cups');
-  renderCupsPreview();
 
   $('#btn-resume').addEventListener('click', () => { if (state) startCupping(); });
   refreshResumeButton();
