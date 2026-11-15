@@ -148,17 +148,38 @@ input, textarea, select { font: inherit; }
   letter-spacing: 0.01em;
 }
 
-.setup-cards { display: flex; flex-direction: column; gap: var(--space-4); }
-.setup-card { padding: var(--space-5) var(--space-5); }
-.setup-cards .cups-preview { padding: var(--space-4) var(--space-5); gap: var(--space-3); min-height: 0; }
-.setup-switch { padding: var(--space-4) var(--space-5) !important; }
+/* The leader's console is one card with hairline-separated rows. It was
+   five bordered cards stacked 12px apart — scoresheet, coffees, cups, the
+   guided switch and a card of cup dots — with the scoresheet's bordered
+   segmented control boxed inside the first: cards in cards, and on a
+   390×844 phone the primary landed 96px below the fold. One edge, rules
+   between the rows, and the rows drop to 12px of vertical padding. */
+.setup-cards {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.setup-cards > .setup-card,
+.setup-cards > .setup-switch {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+}
+.setup-cards > .setup-card + .setup-card,
+.setup-cards > .setup-card + .setup-switch { border-top: 1px solid var(--line); }
+/* A control in a row, not a box in a card: the page ground marks its
+   extent and the filled segment carries the choice. */
+.setup-cards .seg { border: 0; background: var(--bg); margin: 0; }
 .setup-actions { padding-top: var(--space-5); gap: var(--space-3); }
 .setup-actions .btn { padding: var(--space-5); }
 
 /* On short screens the decoration goes before the controls do */
 @media (max-height: 840px) {
   .hero-cup { display: none; }
-  .cups-preview { display: none; }
   .setup-hero { margin-bottom: var(--space-4); }
   .setup-hero h1 { font-size: 30px; }
   .setup-inner { padding-top: calc(var(--sat) + var(--space-6)); }
@@ -216,27 +237,6 @@ input, textarea, select { font: inherit; }
 .stepper-value.bump { animation: bump 0.3s var(--settle); }
 @keyframes bump { 50% { transform: scale(1.25); color: var(--chrome); } }
 
-/* animated table preview */
-.cups-preview {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-6);
-  min-height: 64px;
-}
-
-.preview-row { display: flex; align-items: center; gap: var(--space-3); }
-.preview-cups { display: flex; gap: var(--space-3); }
-.preview-cup {
-  width: 16px; height: 16px;
-  border-radius: 50% 50% 42% 42%;
-  background: radial-gradient(circle at 35% 30%, var(--cup-a), var(--cup-b));
-  border: 1.5px solid var(--chrome);
-}
-
 .setup-actions {
   margin-top: auto;
   padding-top: var(--space-7);
@@ -262,12 +262,13 @@ input, textarea, select { font: inherit; }
   margin-bottom: var(--space-5);
 }
 .resume-card.hidden { display: none; }
+/* A sentence, set as one. It was tracked capitals — "A CUPPING IN
+   PROGRESS · 1 OF 3 FINISHED · 2 NOT STARTED" — which is a label's
+   treatment for one to three words, not for a line someone reads. */
 .resume-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
   line-height: 1.45;
 }
 
@@ -526,12 +527,19 @@ input, textarea, select { font: inherit; }
   min-height: 44px;
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius);
-  background: var(--chrome-soft);
+  /* Drawn as the live control it is. A 6% chrome wash with no edge sat
+     beside the bordered Flavors button and read as its disabled twin — on
+     the way to the one screen every cupping ends on. Same edge as Flavors
+     (ink on card, 16:1 / 13.5:1), and filled as the band's primary once a
+     sheet is finished and Results has something to show (see .ready). */
+  background: var(--bg-card);
+  border: 1px solid var(--chrome);
   color: var(--chrome);
   font-size: 15px;
   font-weight: 700;
-  transition: transform 0.15s var(--settle);
+  transition: transform 0.15s var(--settle), background 0.15s, color 0.15s;
 }
+.finish-btn.ready { background: var(--chrome); color: var(--on-chrome); }
 .finish-btn:active { transform: scale(0.92); }
 
 /* the way into every shared-cupping feature, so it carries a label
@@ -539,6 +547,10 @@ input, textarea, select { font: inherit; }
 /* The word "Invite" left the header to make room for the score. The icon
    keeps its 44px target and the live count rides on it as a badge, which is
    the part a leader actually watches — the label was never the information. */
+/* Plain, like the back button beside it: it was the only boxed icon in
+   the header — bordered, and filled solid once a table was live — so the
+   eye went to it before the score. The 44px target and the pressed tint
+   make it a control; the glyph swap and the badge say a table is live. */
 .invite-btn {
   position: relative;
   flex: none;
@@ -547,19 +559,13 @@ input, textarea, select { font: inherit; }
   width: 44px;
   height: 44px;
   border-radius: var(--radius);
-  background: var(--bg-card);
-  border: 1px solid var(--chrome);
+  background: transparent;
   color: var(--chrome);
   font-size: 15px;
   font-weight: 700;
   transition: transform 0.15s var(--settle), background 0.15s;
 }
 .invite-btn:active { transform: scale(0.92); background: var(--chrome-soft); }
-.invite-btn.live {
-  background: var(--chrome);
-  border-color: var(--chrome);
-  color: var(--on-chrome);
-}
 /* the glyph follows the job: share when there is nobody to count, people
    once there is */
 .invite-icon-people { display: none; }
@@ -603,7 +609,7 @@ input, textarea, select { font: inherit; }
 .invite-count.all-in {
   background: var(--data);
   color: var(--bg);
-  border-color: var(--on-chrome);
+  border-color: var(--data);
 }
 
 /* horizontally swipeable panels */
@@ -672,6 +678,18 @@ input, textarea, select { font: inherit; }
   text-align: left;
 }
 .details-toggle-label { font-size: 15px; font-weight: 700; }
+/* Describe's toggle is its section head and carries the mark beside the
+   button rather than inside it. The mark's 44px target (19px + 13px each
+   side) fits in the 16px it is given from the toggle and the card edge. */
+.details-toggle-row { display: flex; align-items: center; }
+.details-toggle-row .details-toggle { flex: 1; min-width: 0; width: auto; padding-right: var(--space-3); }
+/* 16px either side, so the mark's grown 13px stays clear of the toggle on
+   one side and inside the card on the other */
+.details-toggle-row > .help-btn { margin: 0 var(--space-5); }
+/* the general notes field, with a label of its own beside the Describe
+   card's per-section ones */
+.notes-block { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.notes-block .detail-label { padding-left: var(--space-2); }
 .details-summary {
   flex: 1;
   font-size: 13px;
@@ -751,7 +769,19 @@ input, textarea, select { font: inherit; }
   border-radius: 0;
   padding: var(--space-5) 0 var(--space-4);
   margin-bottom: 0;
+  /* see .attr-card.landed */
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+  transition: outline-color 0.8s var(--ease);
 }
+/* Where "N of 8 rated" brought you. The jump focuses the track, but focus
+   that arrives from a tap draws no :focus-visible ring, so after the scroll
+   nothing marked which of eight alike rows was the one meant. The section
+   wears the focus ring's own ink — an affordance, not a value — for a
+   moment, and lets it go. It is a mark that fades, not a motion; under
+   reduced motion the fade is switched off with every other transition and
+   the ring simply goes. */
+.attr-card.landed { outline-color: var(--data); transition: none; }
 
 .attr-head {
   display: flex;
@@ -848,10 +878,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   font-size: 15px;
   line-height: 1.5;
   color: var(--text-dim);
-  margin-bottom: var(--space-4);
 }
-.welcome-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
-.welcome-actions .btn { flex: 1; min-height: 44px; padding: var(--space-4) var(--space-4); font-size: 15px; margin: 0; width: auto; }
+/* one door, to the method, at the size of what it is — not a row of two
+   full-width buttons */
+.welcome-actions { display: flex; margin-top: var(--space-4); }
+.welcome-actions .btn { flex: none; min-height: 44px; padding: var(--space-3) var(--space-5); font-size: 15px; margin: 0; width: auto; }
 
 /* the guided switch riding along with the help sheets */
 .help-switch {
@@ -897,6 +928,18 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   color: var(--text-dim);
   margin-top: var(--space-4);
 }
+/* A section's mark explains its attributes as well, so its sheet can run
+   longer than a phone is tall: it scrolls rather than leaving its button
+   below the screen. */
+#help-modal .modal-sheet { max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+.help-items { margin-top: var(--space-5); border-top: 1px solid var(--line); }
+.help-items dt {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  padding-top: var(--space-4);
+}
+.help-items dd { margin: var(--space-1) 0 0; font-size: 13px; line-height: 1.5; }
 
 .setup-switch { margin-top: 0; background: var(--bg-card); padding: var(--space-6); border-radius: var(--radius); }
 
@@ -916,11 +959,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 .desc-section-head { display: flex; align-items: center; }
 .desc-field { display: flex; flex-direction: column; gap: var(--space-2); }
 
+/* "Orthonasal descriptors · up to 5" is a phrase, not a tag, so it is
+   set in sentence case rather than tracked capitals */
 .cata-cap {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--text-faint);
 }
 
@@ -1434,6 +1477,9 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   align-items: flex-end;
   gap: var(--space-1);
   display: none;
+  /* clear of the invite glyph: on a 360px phone the header's 8px gap left
+     the figure touching the button beside it */
+  margin-left: var(--space-2);
 }
 .scorebar.visible { display: flex; }
 
@@ -1813,11 +1859,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   color: var(--chrome);
   line-height: 1.2;
 }
+/* The count is the value and takes the data ink; the word under it is
+   ink like any label. Sentence case, because "Avg of 3 finished" is a
+   phrase and the three tiles read as one row. */
 .stat-label {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--text-faint);
   margin-top: var(--space-2);
 }
@@ -2766,8 +2813,10 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   border-radius: var(--radius);
   cursor: pointer;
 }
-/* 32px drawn, 44px to the thumb */
-.toast-undo::after { content: ''; position: absolute; inset: -6px -4px; }
+/* 32px drawn, 44px to the thumb. The inset is measured from the padding
+   box, inside the 1px border, so -6px reached only 30 + 12 = 42; -7px is
+   44 and still inside the toast's own 8px padding. */
+.toast-undo::after { content: ''; position: absolute; inset: -7px -4px; }
 .toast-undo:focus-visible { outline: 2px solid var(--on-chrome); outline-offset: 2px; }
 
 /* ============================================================
@@ -2982,12 +3031,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
    markup: a sentence in a flex: none column takes the width it wants and
    the coffee's name is what pays for it. */
 .present-score { flex: none; text-align: right; }
+/* A sentence about the number — "Average of 2 finished sheets · 1 still
+   scoring" — so it is set as one rather than in tracked capitals. */
 .present-basis {
   margin-top: var(--space-3);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-faint);
   line-height: 1.4;
 }

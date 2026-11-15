@@ -348,7 +348,11 @@ input { font: inherit; color: inherit; }
 }
 .log-card:focus-visible { outline: 2px solid var(--data); outline-offset: 2px; }
 .log-card:active { background: var(--chrome-soft); }
-.log-card.is-keeper { border-color: var(--rail); background: var(--data-soft); }
+/* The tint belongs to the pinned recipe card alone: the same brew tinted
+   again in the log made two blue cards on one board, and the critique
+   could not tell which was the conclusion. The log keeps the border and
+   its "the recipe" flag. */
+.log-card.is-keeper { border-color: var(--rail); }
 /* On the tinted card the faintest ink measures 4.15:1 in light and 4.32:1
    in dark against a 4.5 threshold — it clears everywhere else and only the
    10-14% tint drops it. Nothing on this card needs to be the quietest
@@ -827,6 +831,20 @@ html.sheet-open, html.sheet-open body {
    also the order they arrive in: dose off the scale, yield off the scale,
    time off the timer. */
 .num-row { display: flex; flex-direction: column; gap: var(--space-3); }
+/* One box for the numbers, not one per number. Four bordered fields with
+   gaps between, under a row of bordered chips, made the sheet a stack of
+   boxes (critique, both apps); the group is one card and the rows inside
+   it are split by hairlines. A field on its own elsewhere keeps its box. */
+.num-row:has(> .num-field) {
+  gap: 0;
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.num-row > .num-field { border: 0; border-radius: 0; background: transparent; }
+.num-row > .num-field + .num-field { border-top: 1px solid var(--line); }
+.num-row > .num-field:focus-within { outline-offset: -2px; }
+.num-row > .num-field.bad { box-shadow: inset 0 0 0 1px var(--red); }
 
 .num-field {
   display: flex;
@@ -959,11 +977,11 @@ html.sheet-open, html.sheet-open body {
 }
 .readout-value.empty { color: var(--text-dim); }
 .readout-label { font-size: 11px; color: var(--text-faint); }
+/* A sentence ("6s longer than the window"), so the sans: mono is for the
+   figures a reader compares, and this one is read once (critique). */
 .readout-window {
   margin-top: var(--space-4);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 13px;
   color: var(--text-faint);
 }
 .readout-window.in { color: var(--text-dim); }
@@ -1781,7 +1799,9 @@ select.field-input {
 /* Over an open sheet the toast goes to the top, onto the dimmed band
    above the sheet. At the bottom it sat over the last fields of the form
    — "Keep it?", the pours — exactly where the next tap was going. */
-.toast.over-sheet { bottom: auto; top: calc(var(--sat) + var(--space-3)); }
+/* Over a sheet the toast sits under the sheet's header, not on it: at
+   the very top it covered the title and the close button (critique). */
+.toast.over-sheet { bottom: auto; top: calc(var(--sat) + 64px); }
 
 .toast-undo {
   pointer-events: auto;
