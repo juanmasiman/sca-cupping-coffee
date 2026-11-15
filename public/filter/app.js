@@ -1145,15 +1145,22 @@ function pourBacktrack(brew) {
 
 // What this pour added, for a reader who wants the weight of the pour and
 // not the total. Derived, never typed — the subtraction is the app's job.
+/* A row stamped on the clock holds its planned weight as `plan` until the
+   real one is typed; it counts here, so the difference is between the two
+   figures the rows actually show. With nothing before it there is no
+   difference to state: this returned the whole total, and mid-brew Pour 1
+   read "+144g in this pour" for a 99g pour (critique). */
 function pourAdded(brew, i) {
   const pours = brew.pours || [];
-  const w = num((pours[i] || {}).water);
+  const at = r => { const w = num((r || {}).water); return w !== null ? w : num((r || {}).plan); };
+  const w = at(pours[i]);
   if (w === null) return null;
   for (let k = i - 1; k >= 0; k--) {
-    const before = num(pours[k].water);
+    if (isValve(pours[k])) continue;
+    const before = at(pours[k]);
     if (before !== null) return w - before;
   }
-  return w;
+  return null;
 }
 
 /* Extraction yield needs a refractometer AND a weighed cup.
@@ -2152,7 +2159,7 @@ function fmtDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return sameDay ? time : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
@@ -2761,7 +2768,7 @@ function brewCard(brew, prev, c, n) {
     // Clicks are whole. "grind −5.0" on a grinder that only stops at whole
     // numbers is the app inventing a precision the kit does not have.
     const stepped = kit().steps === 'stepped';
-    if (dGrind) diffs.push(`grind ${fmtDelta(dGrind, stepped ? ' clicks' : '', stepped ? 0 : 1)}`);
+    if (dGrind) diffs.push(`grind ${fmtDelta(dGrind, stepped ? (Math.abs(dGrind) === 1 ? ' click' : ' clicks') : '', stepped ? 0 : 1)}`);
     if (byWeight()) {
       const dDose = d('dose');
       if (dDose) diffs.push(`${fmtDelta(dDose, 'g coffee')}`);
@@ -3205,6 +3212,7 @@ function openBrew(brew, resume) {
   pourSeed = resume && resume.pourSeed ? resume.pourSeed : pourSchedule(editing.pours);
   carrySeed = resume && resume.carrySeed ? resume.carrySeed : carried(editing);
   showDraftNote(c, brew, fromDraft);
+  showAdvice(c, brew ? null : last);
 
   $('#brew-title').textContent = editingIsNew ? 'This brew' : `Brew ${brewNumber(c, brew)}`;
 
@@ -3288,6 +3296,14 @@ function carried(b) {
 
 /* The line at the top of a sheet that came back from a draft, and the one
    way to let it go. */
+function showAdvice(c, last) {
+  const p = $('#brew-advice');
+  if (!p) return;
+  const move = last && c && c.target ? ((nextMove(last, c.target)[0] || {}).move || '') : '';
+  p.classList.toggle('hidden', !move);
+  p.innerHTML = move ? `<span class="sheet-advice-label">Next</span> ${escapeHTML(move)}` : '';
+}
+
 function showDraftNote(c, brew, fromDraft) {
   const note = $('#draft-note');
   if (!note) return;
@@ -3465,7 +3481,8 @@ function stopClock(c, quiet) {
   holdScreen(false);
   editing.time = secs;
   if (byWeight() && (editing.water === null || editing.water === undefined)) {
-    const total = lastPourTotal(editing);
+    // timed through to Stop, the plan was poured: its last total counts too
+    const total = lastPourTotal(editing) !== null ? lastPourTotal(editing) : pouredTotal(editing);
     if (total !== null) { editing.water = total; editing.waterAuto = true; }
   }
   buildClock(c);
@@ -3481,6 +3498,15 @@ function buildClock(c) {
   clearInterval(clockTick);
   const running = Boolean(editing.clock);
   const pours = percolates(editing);
+  /* One primary while the clock runs. "Save the brew" sat full black
+     beside "Pour 2 now", and a wet thumb on the wrong one ended the brew
+     at 1:30 with the plan recorded as poured (critique). */
+  const saveBtn = $('#brew-save');
+  if (saveBtn) {
+    saveBtn.classList.toggle('btn-primary', !running);
+    saveBtn.classList.toggle('btn-ghost', running);
+    saveBtn.textContent = running ? 'Stop and save' : 'Save the brew';
+  }
   wrap.classList.toggle('running', running);
   wrap.classList.toggle('timed', !running && num(editing.time) !== null);
   wrap.classList.toggle('idle', !running && num(editing.time) === null);
@@ -4116,7 +4142,8 @@ function buildIntent(c) {
 }
 
 const VERDICTS = [
-  { key: 'off', label: 'Off', sub: 'not drinkable' },
+  // "not drinkable" beside "Drinkable" read as one word twice (critique)
+  { key: 'off', label: 'Off', sub: 'pour it away' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
   { key: 'keeper', label: 'Current recipe', sub: 'brew it again' },
 ];
@@ -4260,9 +4287,16 @@ function saveBrew() {
   // A running clock is the time not yet written down; saving stops it.
   if (editing && editing.clock) stopClock(c, true);
   adoptPlans(editing);
+  /* THE WATER AND THE POURS NEVER DISAGREE ON A SAVED BREW.
+
+     lastPourTotal skips rows still showing exactly what they carried over,
+     so a brew poured precisely to the plan saved its pours (…240g) with no
+     water, and the recipe card then read "—g water" (critique). The pours
+     are saved as the record, so the water is their last total. */
   if (byWeight() && editing && (editing.water === null || editing.water === undefined)) {
     const total = lastPourTotal(editing);
-    if (total !== null) editing.water = total;
+    const saved = total !== null ? total : (num(editing.time) !== null ? pouredTotal(editing) : null);
+    if (saved !== null) editing.water = saved;
   }
   const wasNew = editingIsNew;
   /* A sheet with nothing on it is not a brew. Saving one put a card on
@@ -4892,7 +4926,11 @@ function openCoffee(c, opts) {
        untouched default, it starts at what the bag points to. That is the
        number the coffee sheet showed while it was being filled in; it is
        not written over anything somebody chose. */
-    if (adding || neverDescribed) {
+    /* Only on a coffee with no brews. Naming one that already had four and
+       a pinned 1:16 recipe moved its target to the roast's 1:16.7 while the
+       form still showed 16 at Save: three ratios for one coffee (critique).
+       With brews, the "Start at" offer on the sheet is the way to adopt it. */
+    if ((adding || neverDescribed) && !(c.brews || []).length) {
       const sp = startingPoint(c);
       const d = defaultTarget();
       if (sp && byWeight() && c.target.ratio === d.ratio) c.target.ratio = sp.ratio;
@@ -5140,7 +5178,9 @@ function openKit() {
   const pick = body.querySelector('#k-brewer-pick');
   const adding = body.querySelector('#k-brewer-new');
   // Sixty-odd brewers in a native select, with no search on a phone.
-  if (root().lentoSelectFinder) lentoSelectFinder(pick, 'Type to find your brewer');
+  // No auto-pick here: choosing a brewer ADDS it, and "Che" added the
+  // Chemex before "mex" was typed (critique). Type, then choose.
+  if (root().lentoSelectFinder) lentoSelectFinder(pick, 'Type to find your brewer', { autopick: false });
 
   const drawShelf = () => {
     shelf.innerHTML = '';
@@ -5274,7 +5314,7 @@ function openKit() {
       key => { k.temp = key; tempAnswered = true; redraw(); }));
 
     put('#k-steps', segRow('The grind dial',
-      'Only so the app uses your words for it. It never suggests a setting, only a direction — your numbers mean nothing on anyone else’s grinder.',
+      'Only so the app uses your words for it. It moves you from where you are — a few clicks finer — and never hands you someone else’s setting.',
       [['stepless', 'A number'], ['stepped', 'Clicks']], k.steps,
       key => { k.steps = key; redraw(); }));
 

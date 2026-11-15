@@ -141,7 +141,8 @@ function anchoredScale(opts) {
    to the ones that match — hiding <option>s is ignored by iOS — keeps the
    current choice and any "Other…" entry, and picks the only match when one
    is left so the sheet's own change handler fills in the rest. */
-function lentoSelectFinder(select, placeholder) {
+function lentoSelectFinder(select, placeholder, opts) {
+  const autopick = !(opts && opts.autopick === false);
   if (!select || select.dataset.finder) return;
   select.dataset.finder = '1';
   const all = [...select.options].map(o => ({ value: o.value, text: o.text, disabled: o.disabled }));
@@ -166,7 +167,7 @@ function lentoSelectFinder(select, placeholder) {
     select.innerHTML = shown.map(o => `<option value="${String(o.value).replace(/"/g, '&quot;')}"${o.disabled ? ' disabled' : ''}>${o.text.replace(/</g, '&lt;')}</option>`).join('');
     select.value = cur;
     const real = shown.filter(o => o.value && o.value !== '__other' && !o.disabled);
-    if (q && real.length === 1 && real[0].value !== cur) {
+    if (autopick && q && real.length === 1 && real[0].value !== cur) {
       select.value = real[0].value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }

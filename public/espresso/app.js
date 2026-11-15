@@ -2886,7 +2886,7 @@ function fmtDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString(docLocale(), { hour: 'numeric', minute: '2-digit' });
   return sameDay ? time : `${d.toLocaleDateString(docLocale(), { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
