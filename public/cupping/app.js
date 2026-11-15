@@ -846,6 +846,7 @@ async function cloudSyncAll() {
         await cloudPushEntry(e);
       }
     }
+    if (window.LentoAccountSheet && LentoAccountSheet.markSynced) LentoAccountSheet.markSynced();
     return true;
   } catch (e) {
     return false;
@@ -2281,6 +2282,13 @@ async function openInviteSheet() {
   pinWrap.classList.toggle('hidden', guest && !state.joinedCode);
   joinedWrap.classList.add('hidden');
   openSheet(modal, () => close());
+  /* Not the name field. openSheet focuses the first control, which here is
+     "Your name" — and on a phone a focused field is a keyboard, which rose
+     over the QR the leader had opened this sheet to hold up to the table.
+     The title takes focus instead: a screen reader still lands in the
+     dialog and hears what it is, and the field is one tap away. */
+  const title = $('#share-title');
+  if (title) title.focus({ preventScroll: true });
 
   const close = () => {
     closeSheet(modal);
@@ -2812,6 +2820,7 @@ function buildTabs() {
     rail.appendChild(seg);
   });
   rail.classList.toggle('dense', state.coffees.length > 6);
+  railShownIndex = null;
 }
 
 // Only the panel on screen. refreshTabs runs on every detent release, and
@@ -2909,6 +2918,29 @@ function refreshTabs() {
       `${coffeeName(c, i)}, ${p.complete ? 'rated' : `${p.done} of ${p.total} rated`}`);
     seg.setAttribute('aria-current', i === state.activeIndex ? 'true' : 'false');
   });
+  revealActiveSeg(rail);
+}
+
+/* The rail scrolls once its 44px segments outrun the band, so the coffee
+   you are on can be off its edge — swiped to coffee 8 with the rail still
+   showing 1 to 5. Only the rail is scrolled, by hand: scrollIntoView would
+   also move whichever ancestors it judged to be scrollers. Only on a
+   change of coffee, so a cupper scrolling the rail to look is not pulled
+   back on every rating. */
+let railShownIndex = null;
+function revealActiveSeg(rail) {
+  const seg = rail.children[state.activeIndex];
+  if (!seg || railShownIndex === state.activeIndex) return;
+  railShownIndex = state.activeIndex;
+  if (rail.scrollWidth <= rail.clientWidth) return;
+  const left = seg.offsetLeft - rail.offsetLeft;
+  const right = left + seg.offsetWidth;
+  let to = null;
+  if (left < rail.scrollLeft) to = left;
+  else if (right > rail.scrollLeft + rail.clientWidth) to = right - rail.clientWidth;
+  if (to === null) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  rail.scrollTo({ left: to, behavior: reduce ? 'auto' : 'smooth' });
 }
 
 let panelScrollWired = false;
@@ -2961,6 +2993,7 @@ function syncPanelInertness() {
 
 function syncActivePanel() {
   syncPanelInertness();
+  sweepDismissedWelcome();
   refreshTabs();
   updateScorebar();
 }
@@ -2979,19 +3012,53 @@ function welcomeDismissed() {
    It used to wait for "Start scoring", and a cupper who simply started
    scoring never pressed it: the card sat at 359px above a coffee whose
    eight sections were all rated. Rating a section is the clearest
-   "I have got it" there is, so that is the dismissal. The sheet is held
-   still while the card goes, so the section just rated stays where the
-   thumb left it rather than jumping up by the card's height. */
+   "I have got it" there is, so that is the dismissal.
+
+   The dismissal is recorded on the first rating; the card leaves later.
+   Removing it there and then moved the sheet: at scrollTop 0 there is no
+   scroll to give back, so everything under the card jumped up 226px and
+   the next tap landed on the section below the one aimed at. Nothing a
+   rating does may move what is under the thumb, so the card stays in the
+   layout until it can go unseen — once it is scrolled wholly out of view
+   (taken out with its height subtracted from the scroll, which is
+   invisible), or when the panel is rebuilt or the cupper moves to another
+   coffee, where the page is changing anyway. */
 function dismissWelcome() {
   try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) {}
-  document.querySelectorAll('.welcome-card').forEach(c => {
+  document.querySelectorAll('.welcome-card:not(.dismissed)').forEach(c => {
+    c.classList.add('dismissed');
     const panel = c.closest('.panel');
-    const gap = parseFloat(getComputedStyle(c).marginBottom) || 0;
-    const h = c.getBoundingClientRect().height + gap;
-    const top = panel ? panel.scrollTop : 0;
-    c.remove();
-    if (panel && top) panel.scrollTop = Math.max(0, top - h);
+    if (!panel) { c.remove(); return; }
+    const onScroll = () => {
+      if (!c.isConnected) { panel.removeEventListener('scroll', onScroll); return; }
+      const gap = parseFloat(getComputedStyle(c).marginBottom) || 0;
+      const bottom = c.offsetTop + c.offsetHeight + gap;
+      if (panel.scrollTop < bottom) return;
+      panel.removeEventListener('scroll', onScroll);
+      removeWelcomeCard(c);
+    };
+    panel.addEventListener('scroll', onScroll, { passive: true });
   });
+}
+
+/* Take a dismissed card out without moving what follows it: whatever
+   scroll the panel has, the card's height comes off it, so the content
+   below stays at the same screen position (clamped at the top, which only
+   happens when the card was on screen and the panel is not being looked at). */
+function removeWelcomeCard(c) {
+  const panel = c.closest('.panel');
+  const gap = parseFloat(getComputedStyle(c).marginBottom) || 0;
+  const h = c.offsetHeight + gap;
+  const top = panel ? panel.scrollTop : 0;
+  c.remove();
+  if (panel && top) panel.scrollTop = Math.max(0, top - h);
+}
+
+// The other way a dismissed card leaves: the cupper has moved to another
+// coffee, so panel 0 is off screen and the shift cannot be seen.
+function sweepDismissedWelcome() {
+  if (state.activeIndex === 0) return;
+  document.querySelectorAll('.welcome-card.dismissed').forEach(removeWelcomeCard);
 }
 
 function buildWelcome() {
@@ -3586,6 +3653,7 @@ function buildDescriptiveCard(coffee) {
   `;
 
   const summaryEl = card.querySelector('.details-summary');
+  const toggleBtn = card.querySelector('.details-toggle');
   const refreshSummary = () => {
     // Its sibling, the coffee-details card, names the fields it holds
     // ("variety · process · farm…"). This one explained its own purpose —
@@ -3598,6 +3666,13 @@ function buildDescriptiveCard(coffee) {
     // already say: this is about what is in the cup, not how good it is.
     summaryEl.textContent = descriptiveSummary(coffee.desc)
       || 'what you taste';
+    /* The name is said, not assembled. Built from the contents it read
+       "Describeoptional what you taste": the label and its pill are
+       adjacent inline boxes with nothing between them, and a hidden comma
+       only traded that for "Describe , optional ," because a clipped span
+       is a box of its own. Stated outright, it reads as the sentence the
+       eye gets from the layout. */
+    toggleBtn.setAttribute('aria-label', `Describe, optional, ${summaryEl.textContent}`);
   };
 
   const body = card.querySelector('.desc-body');
@@ -3671,7 +3746,8 @@ function buildDescriptiveCard(coffee) {
       const rated = Boolean(d.touched && d.touched[attr.key]);
       row.classList.toggle('unrated', !rated);
       row.classList.toggle('rated', rated);
-      valueEl.textContent = rated ? d.intensity[attr.key] : '–';
+      // empty while unrated, as on the score sections (see buildCvaCard)
+      valueEl.textContent = rated ? d.intensity[attr.key] : '';
       scale.refresh(true);
     };
 
@@ -3833,10 +3909,34 @@ function buildDescriptiveCard(coffee) {
   mf.appendChild(noteField('mouthfeel', 'Mouthfeel', 'freely elicited notes…'));
   body.appendChild(mf);
 
+  /* A way out at the bottom. Open, this card is close to 2,900px — the
+     longest thing in the product — and the only way to close it was the
+     chevron at its top, a long scroll back up past everything just filled
+     in. The button closes it and brings the toggle back into view, so the
+     cupper lands where the card began and the Details card follows. It
+     carries the count so closing also confirms what was recorded. */
+  const close = el('button', 'btn btn-ghost desc-close');
+  close.type = 'button';
+  const refreshClose = () => {
+    const n = ['aroma', 'flavor', 'tastes', 'mouthfeel'].reduce((t, k) => t + d.cata[k].length, 0);
+    close.textContent = n ? `Close Describe · ${n} descriptor${n === 1 ? '' : 's'}` : 'Close Describe';
+  };
+  close.addEventListener('click', () => {
+    const toggle = card.querySelector('.details-toggle');
+    toggle.click();
+    toggle.focus({ preventScroll: true });
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  });
+  body.appendChild(close);
+  // a chip's own handler has run by the time the tap bubbles here
+  body.addEventListener('click', e => { if (e.target.closest('.cata-chip')) refreshClose(); });
+
   // let the flavor wheel tick these boxes
-  card.syncCata = () => { aromaTree.syncAll(); flavorTree.syncAll(); refreshSummary(); };
+  card.syncCata = () => { aromaTree.syncAll(); flavorTree.syncAll(); refreshSummary(); refreshClose(); };
 
   wireCardToggle(card);
+  refreshClose();
 
   refreshSummary();
   return card;
@@ -4078,7 +4178,7 @@ function buildAnchoredScale(opts) {
 // The welcome card's dismissal: the first value set on any scale, by
 // pointer or by key, after the value has landed (see dismissWelcome).
 function firstRating() {
-  if (document.querySelector('.welcome-card')) dismissWelcome();
+  if (document.querySelector('.welcome-card:not(.dismissed)')) dismissWelcome();
 }
 
 function buildCvaCard(coffee, section) {
@@ -4126,7 +4226,11 @@ function buildCvaCard(coffee, section) {
     const rated = Boolean(coffee.touched[section.key]);
     card.classList.toggle('unrated', !rated);
     card.classList.toggle('rated', rated);
-    valueEl.textContent = rated ? v : '–';
+    // Empty, not a dash. The faint en dash read as minus or collapse next
+    // to the stepper's own "−" — three dashes, three meanings on one row.
+    // The slot keeps its width (see .attr-value:empty) and "not rated yet"
+    // under the scale, and in the slider's valuetext, says it in words.
+    valueEl.textContent = rated ? v : '';
     scale.refresh(true);
     if (popIt) {
       valueEl.classList.remove('pop');
@@ -4294,7 +4398,8 @@ function buildScaleCard(coffee, attr) {
     const rated = Boolean(coffee.touched[attr.key]);
     card.classList.toggle('unrated', !rated);
     card.classList.toggle('rated', rated);
-    valueEl.textContent = rated ? fmt(coffee.scores[attr.key]) : '–';
+    // empty while unrated, as on the score sections (see buildCvaCard)
+    valueEl.textContent = rated ? fmt(coffee.scores[attr.key]) : '';
     scale.refresh(true);
     if (popIt) {
       valueEl.classList.remove('pop');
@@ -4574,7 +4679,7 @@ function buildSummary(ranked) {
   /* Whose scores these are.
 
      This block and the ranking below it are built from the sheets on *this
-     device*. The table card between them is built from the panel. Nothing
+     device*. The table card further down is built from the panel. Nothing
      said so, and the heading said "This cupping", which at a live table is
      a claim about the room. A leader who had been pouring rather than
      scoring got "Nothing scored yet — no section of any coffee has been
@@ -4661,11 +4766,11 @@ function buildResults() {
   buildRadar(ranked.filter(r => r.prog.done > 0));
 
   // ranking cards — yours, and said to be yours when there is a table whose
-  // panel sits in the card above them
+  // panel sits in the card at the foot of the screen
   const rankHead = $('#ranking-head');
   if (rankHead) rankHead.textContent = tableCode() ? 'Your sheet, coffee by coffee' : 'Coffee by coffee';
   // The chart is built from the sheets on this device, like everything else
-  // on this screen except the card above it. Under that card it read as the
+  // on this screen except the table's card. Next to that card it read as the
   // panel's shape.
   const radarHead = $('#radar-head');
   if (radarHead) radarHead.textContent = tableCode() ? 'Your sensory profile' : 'Sensory profile';
@@ -4720,6 +4825,10 @@ function tableCode() {
   return state.liveCode || state.joinedCode || null;
 }
 
+// Once opened on this visit, a re-render (the roster poller, a pasted code)
+// must not fold the card shut under the cupper's thumb.
+let teamCardOpen = false;
+
 function renderTeamCard() {
   const card = $('#team-card');
   const live = Boolean(tableCode());
@@ -4741,8 +4850,21 @@ function renderTeamCard() {
   const scored = state.coffees.filter(c => scoreProgress(c).done > 0).length;
   const canPresent = leader || (!tableCode() && scored > 0);
 
+  /* Alone, the team tools are one quiet row.
+
+     The card now sits last, under the result it is about, but a solo
+     cupper still got a full card of name field, explanation and two
+     buttons for a table that is not there. Collapsed, it is a single ghost
+     button saying what is behind it; open it once and it stays open for
+     this visit. Anything that makes it a team — a live or joined table, or
+     a pasted score code — shows it open, because then it is the result. */
+  const collapsed = !live && !state.team.length && !teamCardOpen;
+
+  card.classList.toggle('collapsed', collapsed);
   card.innerHTML = `
-    <h2>${live ? 'The table' : 'Team scores'}</h2>
+    ${collapsed ? `<button class="btn btn-ghost team-expand" type="button" aria-expanded="false" aria-controls="team-body">Cupping with others? Share or add scores</button>` : ''}
+    <div class="team-body" id="team-body"${collapsed ? ' hidden' : ''}>
+    <h2 tabindex="-1">${live ? 'The table' : 'Team scores'}</h2>
     <p class="team-sub">${live
       ? 'Everyone here scores on their own device. Nobody sees anyone else’s numbers until the leader opens the table — that independence is what the standard asks for.'
       : 'Cupping with others? Share your scores as a code, and paste theirs to see how the table scored.'}</p>
@@ -4760,7 +4882,9 @@ function renderTeamCard() {
       : ''}</div>
     ${canPresent ? `<button class="btn btn-primary present-cta" id="btn-present">${leader
         ? 'Present to the table'
-        : 'Walk the coffees one by one'}</button>` : ''}
+        // "Walk the coffees one by one" assumed you already knew what
+        // walking a table was; this says what it does and to whom.
+        : 'Present the results, coffee by coffee'}</button>` : ''}
     <!-- The all-at-once reveal, below the recommended path rather than
          above it. It used to render inside #live-table, which puts the one
          irreversible act in this product where a thumb reaches first and
@@ -4773,7 +4897,18 @@ function renderTeamCard() {
     </div>
     <div class="team-cuppers-row" id="team-cuppers"></div>
     <div class="team-results" id="team-results"></div>
+    </div>
   `;
+
+  const expand = card.querySelector('.team-expand');
+  if (expand) expand.addEventListener('click', () => {
+    teamCardOpen = true;
+    card.classList.remove('collapsed');
+    card.querySelector('#team-body').hidden = false;
+    expand.remove();
+    // the button that had focus is gone; the heading of what opened takes it
+    card.querySelector('#team-body h2').focus();
+  });
 
   if (canPresent) card.querySelector('#btn-present').addEventListener('click', openPresent);
   // the card is fresh, so the live table has nothing rendered yet — the
@@ -5547,12 +5682,15 @@ function radarAttrs() {
 
 // The caption counts what is drawn. It said "Seven spokes" on the 2004
 // form too, under a chart with five.
+/* One line, and only what the chart cannot say. The ring labels now carry
+   their own values, so "the centre is 1; the rings mark 3, 5, 7 and 9"
+   repeated them in prose, and the run was long enough to leave "them."
+   alone on a last line at 390px. What the drawing cannot show is the
+   section that is missing from it, and why. */
 function radarSpokesNote() {
-  const n = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][radarAttrs().length];
-  const N = n.charAt(0).toUpperCase() + n.slice(1);
   return usingCVA()
-    ? `${N} spokes: Overall is a judgement about the whole cup rather than one part of it, so it is not one of them.`
-    : `${N} spokes: Balance and Overall are judgements about the whole cup, and uniformity, clean cup and sweetness are counted cup by cup, so none of them is drawn.`;
+    ? 'Overall is not a spoke: it judges the whole cup.'
+    : 'Balance and Overall judge the whole cup, and Uniformity, Clean cup and Sweetness count cups, so none is a spoke.';
 }
 
 // radar floors: enough headroom that differences read, without clipping
@@ -5725,10 +5863,8 @@ function buildRadar(ranked) {
 
   const note = $('#radar-note');
   if (note) {
-    // says what the chart shows: every ring is numbered now
-    const marks = Array.from({ length: RINGS }, (_, j) => ringValue(j + 1));
-    const bits = [`The centre is ${MIN}; the rings mark ${marks.slice(0, -1).join(', ')} and ${
-      marks[marks.length - 1]}, out to the edge. ${radarSpokesNote()}`];
+    // the rings are numbered on the chart, so the note does not restate them
+    const bits = [radarSpokesNote()];
     if (undrawn.length) {
       bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
         undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${
@@ -5990,13 +6126,36 @@ function buildHistory() {
     ? new Set(coffees.map(c => c.sessionId)).size
     : archive.length;
 
+  /* A cupping with no finished sheet is in progress, not history.
+
+     A record is written on every visit to Results, so a cupper who looked
+     at Results two sections in has an archive entry that, in the tiles, was
+     indistinguishable from a finished cupping. Dropping it from the counts
+     would make the tiles disagree with the list right under them, which
+     still shows its coffees — the more surprising of the two. So it is
+     counted, and the count says how many of those are still in progress,
+     and its coffees carry the same words in the list. */
+  const sessionsHere = historyQuery
+    ? archive.filter(s => coffees.some(c => c.sessionId === s.id))
+    : archive;
+  const inProgress = sessionsHere.filter(s =>
+    !(s.coffees || []).some(c => c.complete !== false && typeof c.score === 'number')).length;
+  const unfinishedSession = new Set(archive
+    .filter(s => !(s.coffees || []).some(c => c.complete !== false && typeof c.score === 'number'))
+    .map(s => s.id));
+
   // stat tiles
-  // "1 Cuppings" — the label agrees with its own count
+  // "1 Cuppings" — the label agrees with its own count. The two counts are
+  // counts, not values a cupper set, so they take the page's ink; only the
+  // average, which is made of scores, takes the data ink (.stat-value.score).
   $('#stats-row').innerHTML = `
-    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">${sessionCount === 1 ? 'Cupping' : 'Cuppings'}</div></div>
+    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">${sessionCount === 1 ? 'Cupping' : 'Cuppings'}${
+      inProgress ? `, ${inProgress} in progress` : ''}</div></div>
     <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">${coffees.length === 1 ? 'Coffee' : 'Coffees'}</div></div>
-    <div class="stat-tile"><div class="stat-value">${allScores.length ? fmt(avg) : '–'}</div><div class="stat-label">${
-      partial ? `Avg of ${allScores.length} finished` : 'Avg score'
+    <div class="stat-tile"><div class="stat-value${allScores.length ? ' score' : ''}">${allScores.length ? fmt(avg) : '–'}</div><div class="stat-label">${
+      // "Avg of 0 finished" is a sentence about nothing
+      !allScores.length ? 'No finished sheets yet'
+        : partial ? `Avg of ${allScores.length} finished` : 'Avg score'
     }</div></div>
   `;
 
@@ -6048,7 +6207,8 @@ function buildHistory() {
       const tags = (c.descriptors || []).slice(0, 4);
       item.innerHTML = `
         <div class="hist-item-info">
-          <div class="hist-item-name">${escapeHTML(c.name)}<span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span></div>
+          <div class="hist-item-name">${escapeHTML(c.name)}<span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span>${
+            unfinishedSession.has(c.sessionId) ? '<span class="form-tag">in progress</span>' : ''}</div>
           ${meta ? `<div class="hist-item-meta">${escapeHTML(meta)}</div>` : ''}
           ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
         </div>
@@ -6551,9 +6711,11 @@ document.addEventListener('DOMContentLoaded', () => {
       refresh: () => renderAccountButton(),
       sync: () => cloudSyncAll(),
       status: phase => {
+        // the same shape on every page (see account-sheet.js), and no "0 cuppings"
         const n = loadArchive().length;
         const word = `cupping${n === 1 ? '' : 's'}`;
-        return phase === 'synced' ? `Synced · ${n} ${word} backed up` : `${n} ${word} in your history, backed up as you finish them.`;
+        if (phase === 'synced') return n ? `Synced · ${n} ${word}` : 'Synced';
+        return n ? `${n} ${word} on this device, backed up as you finish them.` : 'Cuppings back up as you finish them.';
       },
     });
   }
