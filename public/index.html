@@ -45,7 +45,7 @@
 
     .wrap { width: 100%; max-width: 420px; text-align: center; }
 
-    /* The wordmark was a copper gradient through background-clip: text, which
+    /* The wordmark was a copper fade clipped to the letters, which
        the project's own notes flag as an anti-pattern and which no other
        surface here does. It is the ink, at the weight the app headers use. */
     /* 46px is off the eight-step ramp deliberately and is the only thing
@@ -105,21 +105,11 @@
     }
     .card-text { min-width: 0; }
     .card-title { display: block; font-size: 17px; font-weight: 700; }
+    /* A long sign-in address ran under the chevron and pushed the page 8px
+       sideways at 360px; it ends in an ellipsis, and the sheet has the rest. */
+    .account-card .card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .card-sub { display: block; font-size: 13px; color: var(--text-dim); margin-top: 1px; }
     .card-arrow { margin-left: auto; flex: none; color: var(--chrome); }
-
-    /* Not opacity. Half-strength text on this ground measures under 4.5:1,
-       and the project has already been caught doing that once with a
-       disabled button — WCAG exempts an inactive control, and a row that is
-       simply not built yet is not a control. Tertiary ink is measured and it
-       passes, so the card says what it is in words instead. */
-    .soon {
-      background: none;
-      border-style: dashed;
-    }
-    .soon .card-icon { background: none; color: var(--text-faint); }
-    .soon .card-title { color: var(--text-dim); font-weight: 600; }
-    .soon .card-sub { color: var(--text-faint); }
 
     /* The account is a row in the page, not an icon floating in the corner.
 
@@ -376,7 +366,7 @@
         </span>
         <span class="card-text">
           <span class="card-title">Cupping</span>
-          <span class="card-sub">SCA scoresheet · solo or with your table</span>
+          <span class="card-sub" id="sub-cupping">SCA scoresheet · solo or with your table</span>
         </span>
         <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
@@ -399,7 +389,7 @@
         </span>
         <span class="card-text">
           <span class="card-title">Espresso dial-in</span>
-          <span class="card-sub">dose, yield, time · and what changed</span>
+          <span class="card-sub" id="sub-espresso">dose, yield, time · and what changed</span>
         </span>
         <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
@@ -416,24 +406,11 @@
         </span>
         <span class="card-text">
           <span class="card-title">Filter brew log</span>
-          <span class="card-sub">coffee, water, time · and the pours</span>
+          <span class="card-sub" id="sub-filter">coffee, water, time · and the pours</span>
         </span>
         <svg class="card-arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
 
-      <div class="card soon">
-        <span class="card-icon">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 20h18"/>
-            <path d="M3 17c4 0 5-9 9-9 3 0 4 4 8 4"/>
-            <circle cx="12" cy="8" r="1.4" fill="currentColor" stroke="none"/>
-          </svg>
-        </span>
-        <span class="card-text">
-          <span class="card-title">Roasting log</span>
-          <span class="card-sub">not built yet</span>
-        </span>
-      </div>
     </div>
 
     <!-- Hidden until /shared/config.js says there is a project to sign in
@@ -479,7 +456,10 @@
       </button>
     </div>
 
-    <footer>lento.cafe</footer>
+    <!-- The roasting log was a tool-sized card in the tool group, for a tool
+         that does not exist yet: on a page read in a second, a dead slot
+         among three live ones (critique). It is a line down here now. -->
+    <footer>lento.cafe · a roasting log is coming</footer>
   </main>
 
   <div id="shelf-modal" class="modal hidden">

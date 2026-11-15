@@ -2245,7 +2245,7 @@ function numField(opts) {
     <span class="num-value-wrap">
       <input class="num-value" id="${id}" type="text"
              inputmode="${isTime ? 'numeric' : 'decimal'}"
-             autocomplete="off" enterkeyhint="done"
+             autocomplete="off" enterkeyhint="done"${opts.name ? ` aria-label="${escapeHTML(opts.name)}"` : ''}
              aria-describedby="${id}-unit">
       <span class="num-unit" id="${id}-unit">${escapeHTML(opts.unit || '')}</span>
     </span>
@@ -3926,6 +3926,20 @@ function buildBrewerPick(c) {
 
    Immersion gets one addition and a steep, so the block says that
    instead of drawing an empty timeline nobody will fill in. */
+let poursRebuild = null;
+function rebuildPoursKeepingFocus(c) {
+  if (poursRebuild) return;
+  poursRebuild = setTimeout(() => {
+    poursRebuild = null;
+    const wrap = $('#pours');
+    if (!wrap || !editing) return;
+    const stops = () => [...wrap.querySelectorAll('input, button')];
+    const i = stops().indexOf(document.activeElement);
+    buildPours(c);
+    if (i >= 0) { const f = stops()[i]; if (f) f.focus({ preventScroll: true }); }
+  }, 0);
+}
+
 function buildPours(c) {
   const wrap = $('#pours');
   const block = $('#pour-block');
@@ -3941,7 +3955,9 @@ function buildPours(c) {
     const label = pourLabel(editing.pours, i);
     line.innerHTML = `<span class="pour-label">${escapeHTML(label)}</span>`;
     const at = numField({
-      label: 'At', unit: '', time: true, compact: true,
+      // "At" and "To" are named for the row too: five rows of bare "At"
+      // told a screen reader nothing about which pour it was in (critique)
+      label: 'At', name: `${label}, at`, unit: '', time: true, compact: true,
       value: num(p.at), min: 0, max: 1800, step: 5, digits: 0,
       onChange: v => { p.at = v; renderReadout(c); },
     });
@@ -3953,11 +3969,20 @@ function buildPours(c) {
       const w = numField({
         // "To", because it is where the scale should read when this pour
         // finishes, not what this pour weighs.
-        label: 'To', unit: 'g', compact: true,
+        label: 'To', name: `${label}, scale reads`, unit: 'g', compact: true,
         // A stamped row shows the weight it carried over as a hint only.
         placeholder: num(p.plan) !== null && num(p.water) === null ? String(num(p.plan)) : undefined,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,
-        onChange: v => { p.water = v; syncWater(c); buildPours(c); renderReadout(c); },
+        // Rebuilt after the focus has moved, not during the blur: rebuilding
+        // in the blur removed the field Tab was going to, focus fell to
+        // the page, and the next Tab came back into the same row — a
+        // keyboard user could never get past the pours (critique).
+        onChange: v => {
+          // a blur that commits the same number is not a change; rebuilding
+          // for it looped (the removed field blurred again, and again)
+          if (p.water === v) return;
+          p.water = v; syncWater(c); rebuildPoursKeepingFocus(c); renderReadout(c);
+        },
       });
       w.classList.add('pour-field');
       line.appendChild(w);
@@ -5366,10 +5391,10 @@ function openSettings() {
 
     <label class="switch-row" for="t-tds">
       <span class="switch-text">
-        <span class="switch-title">Refractometer</span>
-        <span class="switch-sub">Adds a TDS field and a place for the weight of the cup, and shows extraction yield, here and in the dial-in, on every device you sign in on. Off, the app works on coffee, water and time — which is what most kitchens have.</span>
+        <span class="switch-title" id="t-tds-name">Refractometer</span>
+        <span class="switch-sub" id="t-tds-sub">Adds a TDS field and a place for the weight of the cup, and shows extraction yield, here and in the dial-in, on every device you sign in on. Off, the app works on coffee, water and time — which is what most kitchens have.</span>
       </span>
-      <span class="switch"><input type="checkbox" id="t-tds"><span class="switch-track"><span class="switch-knob"></span></span></span>
+      <span class="switch"><input type="checkbox" id="t-tds" aria-labelledby="t-tds-name" aria-describedby="t-tds-sub"><span class="switch-track"><span class="switch-knob"></span></span></span>
     </label>
 
     <span class="field-label section">Appearance</span>
@@ -5734,9 +5759,8 @@ function boot() {
       status: phase => {
         const n = (state.coffees || []).reduce((n, c) => n + (c.brews || []).length, 0);
         const word = n === 1 ? 'brew' : 'brews';
-        return phase === 'synced'
-          ? `Synced · ${n} ${word}`
-          : `${n} ${word}, backed up as you log them.`;
+        if (phase === 'synced') return n ? `Synced · ${n} ${word}` : 'Synced';
+        return n ? `${n} ${word} on this device, backed up as you log them.` : 'Brews back up as you log them.';
       },
     });
   }

@@ -138,6 +138,8 @@
   color: var(--text-dim);
 }
 .pour-chip i { font-style: normal; color: var(--text-faint); }
+/* On the recipe card's tint the faint ink measured 4.14:1 (4.31 dark). */
+.keeper .pour-chip i { color: var(--text-dim); }
 
 /* Brewing by eye. Not an error and not a gap — a statement about the
    kit, in the ink the app uses for things it was told rather than things

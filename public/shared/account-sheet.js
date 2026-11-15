@@ -53,17 +53,20 @@
 
   var CSS = ''
     + '.lp-modal{position:fixed;inset:0;z-index:900;display:flex;align-items:flex-end;justify-content:center;'
-    + 'background:rgba(15,17,19,.45);padding:0}'
+    + 'background:rgba(10,12,14,.45);padding:0}'
     + '.lp-modal[hidden]{display:none}'
-    + '.lp-sheet{width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;background:var(--bg-card);color:var(--text);'
+    + '.lp-sheet{width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;background:var(--bg);animation:lp-arrive .24s var(--settle,ease-out);color:var(--text);'
     + 'border:1px solid var(--line);border-bottom:0;border-radius:var(--radius) var(--radius) 0 0;font-family:var(--sans);'
     + 'padding:var(--space-5) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom,0px));'
     + 'display:flex;flex-direction:column;gap:var(--space-4)}'
-    + '@media (min-width:640px){.lp-modal{align-items:center;padding:var(--space-5)}.lp-sheet{border-radius:var(--radius);border-bottom:1px solid var(--line)}}'
-    + '.lp-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}'
-    + '.lp-head h2{margin:0;font-size:20px;font-weight:700}'
+    + '@keyframes lp-arrive{from{transform:translateY(14px)}to{transform:translateY(0)}}'
+    + '@media (prefers-reduced-motion:reduce){.lp-sheet{animation:none}}'
+    + '@media (min-width:560px){.lp-modal{align-items:center;padding:var(--space-5)}.lp-sheet{border-radius:var(--radius);border-bottom:1px solid var(--line)}}'
+    + '.lp-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);'
+    + 'margin:calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;padding:var(--space-4) var(--space-4) var(--space-4) var(--space-5);border-bottom:1px solid var(--line)}'
+    + '.lp-head h2{margin:0;font-size:17px;font-weight:800}'
     + '.lp-head h2:focus{outline:none}'
-    + '.lp-x{flex:none;width:44px;height:44px;margin-right:-10px;display:grid;place-items:center;background:none;border:0;color:var(--text);cursor:pointer;border-radius:var(--radius)}'
+    + '.lp-x{flex:none;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;color:var(--text);cursor:pointer;border-radius:var(--radius)}'
     + '.lp-note{margin:0;font-size:15px;line-height:1.45;color:var(--text-dim)}'
     + '.lp-foot{margin:0;font-size:13px;line-height:1.45;color:var(--text-faint)}'
     + '.lp-label{font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:calc(var(--space-2) * -1)}'
@@ -77,11 +80,13 @@
     + '.lp-btn.lp-primary{background:var(--chrome);color:var(--on-chrome);border-color:var(--chrome)}'
     + '.lp-btn:disabled{opacity:.6;cursor:default}'
     + '.lp-btn:focus-visible,.lp-link:focus-visible,.lp-x:focus-visible{outline:2px solid var(--data);outline-offset:2px}'
-    + '.lp-google{display:flex;align-items:center;justify-content:center;gap:var(--space-3);font-size:15px}'
+    + '.lp-google{display:flex;align-items:center;justify-content:center;gap:var(--space-3)}'
     + '.lp-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}'
     + '.lp-or{display:flex;align-items:center;gap:var(--space-3);font-size:13px;color:var(--text-faint)}'
     + '.lp-or::before,.lp-or::after{content:"";flex:1;height:1px;background:var(--line)}'
-    + '.lp-status{margin:0;min-height:1.45em;font-size:15px;line-height:1.45;color:var(--text-dim)}'
+    + '.lp-status{margin:0;font-size:15px;line-height:1.45;color:var(--text-dim)}'
+    // empty, it takes no room: a reserved line read as a hole between the field and its button
+    + '.lp-status:empty{display:none}'
     + '.lp-status.lp-bad{color:var(--red)}'
     + '.lp-link{position:relative;font:inherit;font-size:15px;color:var(--text);background:none;border:0;padding:0;'
     + 'text-decoration:underline;text-underline-offset:3px;cursor:pointer}'
@@ -91,7 +96,8 @@
     + 'background:var(--bg-raise);border:1px solid var(--line);font-size:20px;font-weight:700}'
     + '.lp-avatar img{width:100%;height:100%;object-fit:cover}'
     + '.lp-name{font-size:17px;font-weight:700;overflow-wrap:anywhere}'
-    + '.lp-mail{font-size:13px;color:var(--text-dim);overflow-wrap:anywhere}';
+    + '.lp-mail{font-size:13px;color:var(--text-dim);overflow-wrap:anywhere}'
+    + '.lp-synced{margin:calc(var(--space-3) * -1) 0 0;font-size:13px;color:var(--text-faint)}';
 
   var host = { toast: function () {}, refresh: function () {}, sync: null, status: function () { return ''; } };
   var modal = null, sheetEl = null, lastFocus = null, inerted = [];
@@ -102,6 +108,47 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  /* THE CODE STEP OUTLIVES THE SHEET.
+
+     Fetching the code means leaving for Mail, and iOS may throw the tab
+     away meanwhile; a stray tap on the backdrop did the same. Either way
+     the person came back to an empty email field, and a second code
+     invalidated the first. The address and when it was sent are kept for
+     ten minutes, and the sheet reopens on the code. */
+  var PENDING = 'lento-pending-code';
+  function pending() {
+    try {
+      var p = JSON.parse(sessionStorage.getItem(PENDING) || 'null');
+      return p && p.email && Date.now() - p.at < 10 * 60 * 1000 ? p : null;
+    } catch (e) { return null; }
+  }
+  function setPending(email) {
+    try {
+      if (email) sessionStorage.setItem(PENDING, JSON.stringify({ email: email, at: Date.now() }));
+      else sessionStorage.removeItem(PENDING);
+    } catch (e) {}
+  }
+
+  /* When this device last finished a sync, from any page. "Synced" with
+     no time made people press Sync now just to find out. */
+  var LAST = 'lento-last-sync';
+  function markSynced() { try { localStorage.setItem(LAST, String(Date.now())); } catch (e) {} }
+  function lastSyncedWords() {
+    var t = 0;
+    try { t = Number(localStorage.getItem(LAST)) || 0; } catch (e) {}
+    if (!t) return '';
+    var m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'Last synced just now';
+    if (m < 60) return 'Last synced ' + m + ' min ago';
+    var h = Math.round(m / 60);
+    if (h < 24) return 'Last synced ' + h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+    var d = Math.round(h / 24);
+    return 'Last synced ' + d + ' day' + (d === 1 ? '' : 's') + ' ago';
+  }
+
+  // An address breaks after its @ and dots, not mid-word ("exa/mple").
+  function soft(s) { return esc(s).replace(/([@.])/g, '$1<wbr>'); }
+
   function enabled() { return Boolean(root.LentoAccount && root.LentoAccount.enabled()); }
   function user() { return enabled() ? root.LentoAccount.user() : null; }
   function codeLength() { return Math.min(10, Math.max(6, root.OTP_LENGTH || 6)); }
@@ -152,7 +199,8 @@
     modal.innerHTML = '<div class="lp-sheet" role="dialog" aria-modal="true" aria-labelledby="lp-title"></div>';
     sheetEl = modal.firstChild;
     document.body.appendChild(modal);
-    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    // not in the code step: a stray tap there threw away the step the person left the page for
+    modal.addEventListener('click', function (e) { if (e.target === modal && !inCodeStep) close(); });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && modal && !modal.hidden) { e.preventDefault(); close(); }
     });
@@ -213,27 +261,30 @@
   function open() {
     if (!modal) install({});
     var u = user();
+    var p = u ? null : pending();
     if (u) profile(u);
+    else if (p) codeStep(p.email);
     else emailStep('');
     show();
-    if (!u) focusSoon('#lp-email');
-    else focusSoon('#lp-title');
+    if (u) focusSoon('#lp-title');
+    else if (!p) focusSoon('#lp-email');
   }
 
   function profile(u) {
     inCodeStep = false;
     var initial = (u.name || u.email || '?').trim().charAt(0).toUpperCase();
     frame('Your profile',
-      '<div class="lp-who"><div class="lp-avatar">'
+      '<div class="lp-who"><div class="lp-avatar" aria-hidden="true">'
       + (u.avatar ? '<img src="' + esc(u.avatar) + '" alt="">' : esc(initial)) + '</div>'
-      + '<div><div class="lp-name">' + esc(u.name || u.email) + '</div>'
-      + (u.name && u.email ? '<div class="lp-mail">' + esc(u.email) + '</div>' : '') + '</div></div>'
+      + '<div><div class="lp-name">' + soft(u.name || u.email) + '</div>'
+      + (u.name && u.email ? '<div class="lp-mail">' + soft(u.email) + '</div>' : '') + '</div></div>'
       + '<p class="lp-status" id="lp-status" role="status">' + esc(host.status('idle')) + '</p>'
+      + (lastSyncedWords() ? '<p class="lp-synced" id="lp-synced">' + lastSyncedWords() + '</p>' : '')
       + '<div class="' + (host.sync ? 'lp-row' : '') + '">'
       + '<button type="button" class="lp-btn" id="lp-signout">Sign out</button>'
       + (host.sync ? '<button type="button" class="lp-btn lp-primary" id="lp-sync">Sync now</button>' : '')
       + '</div>'
-      + '<p class="lp-foot">One account for cupping, espresso and filter. You stay signed in on this device until you sign out, and signing out leaves everything here.</p>');
+      + '<p class="lp-foot">Your cuppings, shots, brews, coffees and gear travel to any device you sign in on. Signing out leaves everything on this one.</p>');
     sheetEl.querySelector('#lp-signout').addEventListener('click', async function () {
       signingOut = true;
       await root.LentoAccount.signOut();
@@ -248,16 +299,19 @@
       status.textContent = 'Syncing…';
       var ok = await host.sync();
       if (!user()) return; // signed out meanwhile: the sheet has redrawn and said so
+      if (ok) markSynced();
       status.textContent = ok ? host.status('synced') : 'Could not reach the cloud — it will try again on its own.';
+      var when = sheetEl.querySelector('#lp-synced');
+      if (ok && when) when.textContent = lastSyncedWords();
     });
   }
 
   function emailStep(prefill) {
     inCodeStep = false;
     frame('Sign in',
-      '<p class="lp-note">One account for cupping, espresso and filter. We email you a code — no password — and you stay signed in on this device. Every tool works without it.</p>'
+      '<p class="lp-note">One account for cupping, espresso and filter, so your history is on every device you use. We email you a code — no password. Every tool works without it.</p>'
       + '<label class="lp-label" for="lp-email">Your email</label>'
-      + '<input class="lp-input" id="lp-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">'
+      + '<input class="lp-input" id="lp-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" aria-describedby="lp-status">'
       + '<p class="lp-status" id="lp-status" role="status"></p>'
       + '<button type="button" class="lp-btn lp-primary" id="lp-send">Email me a code</button>'
       + '<div class="lp-or">or</div>'
@@ -275,9 +329,11 @@
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         status.textContent = 'That does not look like an email address.';
         status.classList.add('lp-bad');
+        input.setAttribute('aria-invalid', 'true');
         input.focus();
         return;
       }
+      input.removeAttribute('aria-invalid');
       go.disabled = true;
       status.textContent = 'Sending…';
       try {
@@ -289,6 +345,7 @@
         input.focus();
         return;
       }
+      setPending(email);
       codeStep(email);
     };
     go.addEventListener('click', send);
@@ -306,7 +363,7 @@
       + '<button type="button" class="lp-link" id="lp-change">Wrong address?</button></p>'
       + '<label class="lp-label" for="lp-code">The ' + n + '-digit code from the email</label>'
       + '<input class="lp-input lp-code" id="lp-code" type="text" inputmode="numeric" autocomplete="one-time-code"'
-      + ' maxlength="12" placeholder="' + new Array(n + 1).join('0') + '">'
+      + ' maxlength="12" aria-describedby="lp-status">'
       + '<p class="lp-status" id="lp-status" role="status"></p>'
       + '<button type="button" class="lp-btn lp-primary" id="lp-verify">Sign in</button>'
       + '<p class="lp-foot">Or tap <strong>Sign in to lento</strong> in the email on this device. Nothing yet? Check junk, or '
@@ -316,6 +373,7 @@
     var go = sheetEl.querySelector('#lp-verify');
     var busy = false;
     sheetEl.querySelector('#lp-change').addEventListener('click', function () {
+      setPending(null);
       emailStep(email);
       focusSoon('#lp-email');
     });
@@ -343,6 +401,7 @@
         return;
       }
       inCodeStep = false;
+      setPending(null);
       close();
       host.toast(signedInMsg(user()));
       // the page's own account listener redraws and syncs, once
@@ -357,6 +416,7 @@
       status.textContent = 'Sending…';
       try {
         await root.LentoAccount.sendEmailCode(email);
+        setPending(email);
         status.textContent = 'A new code is on its way. Use the newest one.';
         input.value = '';
         input.focus();
@@ -375,7 +435,7 @@
     var arrived = false;
     try { arrived = await root.LentoAccount.adoptRedirect(); } catch (e) { arrived = false; }
     var err = root.LentoAccount.redirectError && root.LentoAccount.redirectError();
-    if (arrived) host.toast(signedInMsg(user()));
+    if (arrived) { setPending(null); host.toast(signedInMsg(user())); }
     else if (err) host.toast(err);
     return arrived;
   }
@@ -388,5 +448,6 @@
     enabled: enabled,
     user: user,
     adoptRedirect: adoptRedirect,
+    markSynced: markSynced,
   };
 }(window));
