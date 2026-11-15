@@ -585,6 +585,11 @@ function migrate(s) {
    is read out of them: a brand table goes stale within a year and is
    wrong about every hybrid on the shelf.                              */
 
+// The brewer a skipped or empty first setup gets: the commonest cone.
+function defaultShelf() {
+  return { brewer: 'Hario V60', brewers: [{ name: 'Hario V60', flow: 'percolation' }] };
+}
+
 function defaultKit() {
   return {
     /* A SHELF, NOT A BREWER.
@@ -1659,16 +1664,18 @@ function clockAdvice(brew, target) {
       why: `Your brewer steeps, so ${said} is the time you set the timer to rather than something the coffee did. It tells the app nothing it can act on. Sour or bitter on the sheet is what points at the grind; thin or strong is what points at the ratio.` };
   }
   if (place.time === null) return null;
-  const lo = fmtTime(target.timeLo), hi = fmtTime(target.timeHi);
+  const wLo = target.shownLo !== undefined ? target.shownLo : target.timeLo;
+  const wHi = target.shownHi !== undefined ? target.shownHi : target.timeHi;
+  const lo = fmtTime(wLo), hi = fmtTime(wHi);
   const t = num(brew.time);
 
   if (place.time === 'fast') {
-    const off = Math.round(target.timeLo - t);
+    const off = Math.round(wLo - t);
     return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
       why: `It drained ${off}s short of the ${lo}–${hi} window, so the water was through the bed before it had taken much with it. Finer slows the flow, and it is the variable that does.${grindWhyLine(brew, target, true)} Say how it tasted and the app can check the one case this does not fix: a brew that is both quick and bitter has found a channel through the bed, and finer makes that worse.` };
   }
   if (place.time === 'slow') {
-    const off = Math.round(t - target.timeHi);
+    const off = Math.round(t - wHi);
     return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
       why: `It ran ${off}s past the ${lo}–${hi} window, so the water spent longer in the bed than the recipe asks for. Coarser opens it up.${grindWhyLine(brew, target, false)} Say how it tasted and the app can check the one case this does not fix: a brew that is both slow and sour usually means the bed clogged or the water went round it.` };
   }
@@ -1789,8 +1796,31 @@ const place = placeOf(brew, target);
      - lets the extraction reading lead when it is outside 18-22%;
      - stops "hotter" at 96°C, or when the last step up did not help;
      - puts the amount in the headline. */
+const SLACK = 5; // seconds either side of the window that count as in it
+
+/* How far a brew sits from the window, in the words the advice uses. */
+function timeWords(t, target, quick, long) {
+  if (t === null || !target) return '';
+  if (t < target.timeLo) {
+    const off = Math.round(target.timeLo - t);
+    return off <= SLACK ? `${off}s quick, near enough` : `${off}s ${quick}`;
+  }
+  if (t > target.timeHi) {
+    const off = Math.round(t - target.timeHi);
+    return off <= SLACK ? `${off}s long, near enough` : `${off}s ${long}`;
+  }
+  return '';
+}
+
 function nextMove(brew, target) {
-  const loose = target ? Object.assign({}, target, { timeLo: target.timeLo - 5, timeHi: target.timeHi + 5 }) : target;
+  /* The loose window decides; the real one is what the words quote. The
+     critique caught the card saying "2s short of the 2:55–3:35 window"
+     beside a readout that said "7s quick" of 3:00–3:30: two windows for
+     one brew. The text now names the recipe's window and the readout says
+     "near enough" for the five seconds either side (see timeWords). */
+  const loose = target ? Object.assign({}, target, {
+    timeLo: target.timeLo - SLACK, timeHi: target.timeHi + SLACK,
+    shownLo: target.timeLo, shownHi: target.timeHi }) : target;
   return refineAdvice(nextMoveFromCup(brew, loose), brew, target, activeCoffee());
 }
 
@@ -1800,6 +1830,16 @@ function brewBefore(c, brew) {
   const i = rows.indexOf(brew);
   if (i < 0) return rows.length ? rows[rows.length - 1] : null;
   return i > 0 ? rows[i - 1] : null;
+}
+
+/* The water the recipe means at this dose. The ratio is stored to one
+   decimal, so 15g at 1:16.7 multiplies out to 251g while the current
+   recipe's own card says 250g — one brew, two numbers (critique). The
+   recipe's water wins when the dose is the recipe's. */
+function aimWater(dose, target, c) {
+  const recipe = c && c.brews ? c.brews.filter(b => b.verdict === 'keeper').slice(-1)[0] : null;
+  if (recipe && num(recipe.dose) === dose && num(recipe.water) !== null) return num(recipe.water);
+  return Math.round(dose * target.ratio);
 }
 
 function refineAdvice(tips, brew, target, c) {
@@ -1817,7 +1857,7 @@ function refineAdvice(tips, brew, target, c) {
   // the ratio first: a cup at the wrong strength cannot judge the grind
   if (byWeight() && wrong && dose && target.ratio && brew.verdict !== 'keeper'
       && (place.ratio === 'wide' || place.ratio === 'tight')) {
-    const water = Math.round(dose * target.ratio);
+    const water = aimWater(dose, target, c);
     return [{ sure: true, move: `Back to 1:${target.ratio} — ${water}g water on ${fmt1(dose)}g coffee, same grind.`,
       why: `This one ran at 1:${ratioOf(brew).toFixed(1)}, ${place.ratio === 'wide' ? 'more' : 'less'} water than the 1:${target.ratio} you are aiming at, so the cup is being judged at a different strength from the recipe and the grind gets blamed for it. Put the ratio back first; then the grind and the water have a fair test.` }].concat(rest);
   }
@@ -2011,7 +2051,18 @@ function beanNote(brew, c) {
   const rows = beans() && c ? beans().expect(c, fault) : [];
   if (!rows.length) return null;
   const r = rows[0];
-  return { move: `${r.head}, in particular.`, why: r.chase };
+  /* A kettle that only boils cannot take "heat removes the aromatics"
+     as advice: the critique found that sentence under a fixed kettle,
+     naming the one variable the kit setup had promised never to name.
+     Drop the sentences about heat there; if nothing is left, no note. */
+  let why = r.chase || '';
+  if (!canSetTemp()) {
+    why = (why.match(/[^.!?]+[.!?]+/g) || [why])
+      .filter(s => !/\b(heat|hotter|cooler|temperature|kettle|scorch)/i.test(s))
+      .join('').trim();
+  }
+  if (!why) return null;
+  return { move: `${r.head}, in particular.`, why };
 }
 
 /* THE MOVE, THEN ONE SENTENCE, THEN A TAP.
@@ -2350,6 +2401,11 @@ function renderBoard() {
   const logBtn = $('#btn-log');
   logBtn.textContent = !c ? 'Start brewing' : hasNewDraft(c) ? 'Continue the brew' : 'Log a brew';
   logBtn.disabled = false;
+  /* One primary on the first screen. Before the kit is answered the board
+     showed "Set up my kit" and "Start brewing", both filled, and the
+     critique could not say which was the way in. The setup question is;
+     its quieter Skip still gets somebody brewing in one tap. */
+  logBtn.closest('.board-action').classList.toggle('hidden', !kit().asked);
 
   renderKeeper(c);
   renderNext(c);
@@ -2600,15 +2656,16 @@ function renderBrews(c) {
     if (!kit().asked) {
       empty.innerHTML = `
         <div class="empty-title">What are you brewing on?</div>
-        <p class="empty-body">What you brew in, and a few things about the kettle and grinder, once. The sheet is built from the answers: there is no point in a temperature field on a kettle with one setting, and no point in a ratio if you are not brewing by weight.</p>
+        <p class="empty-body">Asked once, so the brew sheet only asks about what you can change.</p>
         <button type="button" class="btn btn-primary" id="btn-kit-start">Set up my kit</button>
-        <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a cone, a plain kettle, a scale</button>
+        <button type="button" class="btn btn-ghost" id="btn-kit-later">Skip — a V60, a plain kettle, a scale</button>
         <p class="empty-foot">${signinFoot()}</p>`;
       empty.querySelector('#btn-kit-start').addEventListener('click', openKit);
       empty.querySelector('#btn-kit-later').addEventListener('click', () => {
-        state.kit = Object.assign(defaultKit(), { asked: true });
+        state.kit = Object.assign(defaultKit(), { asked: true }, defaultShelf());
         save();
         renderBoard();
+        toast('Set to a V60 — change it in My setup');
       });
       return;
     }
@@ -2725,11 +2782,11 @@ function brewCard(brew, prev, c, n) {
     }
   }
 
-  const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
+  const timeClass = place.time === 'in' || /near enough/.test(timeWords(num(brew.time), c.target, '', '')) ? 'in'
+    : place.time === null ? '' : 'out';
   const timeNote = place.time === null ? ''
     : place.time === 'in' ? 'in the window'
-    : place.time === 'fast' ? `${Math.round(c.target.timeLo - brew.time)}s quick`
-    : `${Math.round(brew.time - c.target.timeHi)}s long`;
+    : timeWords(num(brew.time), c.target, 'quick', 'long');
 
   // The poured total and the water figure should agree. When they do not
   // the card says so rather than quietly preferring one of them.
@@ -2801,7 +2858,8 @@ function brewCard(brew, prev, c, n) {
        six weeks later is actually asking. */
     read.push(`<div class="brew-flavours">${
       brew.flavours.map(w => `<span class="brew-flavour${
-        hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}</span>`).join('')
+        hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}${
+        hasFlavour(bagWords(c), w) ? '<span class="sr-only"> (from the bag)</span>' : ''}</span>`).join('')
     }</div>`);
   }
   [back && `${back.label} says ${fmt0(back.value)}g, below ${back.prevLabel} at ${fmt0(back.prev)}g — the schedule is a running total.`,
@@ -2809,6 +2867,24 @@ function brewCard(brew, prev, c, n) {
    intentCheck(brew, prev)].filter(Boolean)
     .forEach(x => read.push(`<div class="log-mismatch">${escapeHTML(x)}</div>`));
   if (brew.notes) read.push(`<div class="log-notes">${escapeHTML(brew.notes)}</div>`);
+
+  /* The label is the whole card to a screen reader — a button's name
+     replaces its contents — so everything under the hairline goes into it
+     too: the critique heard "Brew 3, 3:05, … Edit." and nothing of how it
+     tasted, which flavours the bag promised, or the notes. */
+  {
+    const heard = [];
+    if (flavour.length) heard.push(flavour.join(', '));
+    if ((brew.flavours || []).length) {
+      heard.push('tasted ' + brew.flavours.map(w => hasFlavour(bagWords(c), w) ? `${w} (from the bag)` : w).join(', '));
+    }
+    if (diffs.length) heard.push('changed ' + diffs.join(', '));
+    if (brew.notes) heard.push(`notes: ${brew.notes}`);
+    if (heard.length) {
+      const said = heard.map(x => x.charAt(0).toUpperCase() + x.slice(1)).join('. ');
+      card.setAttribute('aria-label', card.getAttribute('aria-label').replace(/ Edit\.$/, ` ${said}. Edit.`));
+    }
+  }
 
   /* THREE BANDS AND THE SCHEDULE, AND THE SAME SHAPE ON EVERY CARD.
 
@@ -3106,6 +3182,26 @@ function openBrew(brew, resume) {
     beverage: null,
   };
   if (editing.grind === undefined) editing.grind = '';
+  /* The schedule follows the advice. When the last brew ran off the ratio
+     the board says "back to 1:16.7 — 250g", and a carried schedule still
+     ending at 280g would pour the same mistake again: scale its totals to
+     the water the advice names. */
+  if (!brew && !(resume && resume.draft) && last && byWeight() && c.target && c.target.ratio) {
+    // only when the board actually said so — the same words, not a guess at them
+    const said = (nextMove(last, c.target)[0] || {}).move || '';
+    const dose = num(editing.dose);
+    const total = pouredTotal(editing);
+    if (dose && total && /^Back to 1:/.test(said)) {
+      const aim = aimWater(dose, c.target, c);
+      const k = aim / total;
+      if (Math.abs(aim - total) > 2) {
+        editing.pours.forEach(p => {
+          if (num(p.water) !== null) p.water = Math.round(num(p.water) * k);
+          if (num(p.plan) !== null) p.plan = Math.round(num(p.plan) * k);
+        });
+      }
+    }
+  }
   pourSeed = resume && resume.pourSeed ? resume.pourSeed : pourSchedule(editing.pours);
   carrySeed = resume && resume.carrySeed ? resume.carrySeed : carried(editing);
   showDraftNote(c, brew, fromDraft);
@@ -3408,8 +3504,13 @@ function buildClock(c) {
        times, so it takes the primary weight and the thumb's side; Stop is
        pressed once, an outline at the other end of the row. It used to be
        the black button 8px from the step button. */
-    button('btn-ghost clock-stop', 'Stop', () => stopClock(c));
-    if (pours) button('btn-primary clock-step', `${nextStepLabel()} now`, () => {
+    /* Past the last planned pour the next press is almost always Stop,
+       and the big button still offered "Pour 5 now" for a pour nobody
+       planned (critique). Once the plan is used up Stop takes the primary
+       weight and an extra pour is still one quieter tap away. */
+    const planDone = pours && (editing.pours || []).length > 0 && !(editing.pours || [])[editing.clock.step];
+    button(planDone ? 'btn-primary clock-stop' : 'btn-ghost clock-stop', 'Stop', () => stopClock(c));
+    if (pours) button(planDone ? 'btn-ghost clock-step' : 'btn-primary clock-step', planDone ? 'Another pour' : `${nextStepLabel()} now`, () => {
       stampStep(c, clockSecs());
       buildClock(c);
     });
@@ -3861,7 +3962,11 @@ function buildPours(c) {
       w.classList.add('pour-field');
       line.appendChild(w);
     }
-    const rm = el('button', 'pour-remove', '−');
+    /* A cross, not a minus: the weight field beside it has its own − and
+       + steppers, and a third "−" a thumb away read as "less water" to
+       the critique rather than "delete this pour". */
+    const rm = el('button', 'pour-remove');
+    rm.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
     rm.type = 'button';
     rm.setAttribute('aria-label', isValve(p)
       ? `Remove the ${label.toLowerCase()} at ${fmtTime(num(p.at))}`
@@ -3988,7 +4093,7 @@ function buildIntent(c) {
 const VERDICTS = [
   { key: 'off', label: 'Off', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
+  { key: 'keeper', label: 'Current recipe', sub: 'brew it again' },
 ];
 
 function buildVerdict(c) {
@@ -4078,12 +4183,12 @@ function renderReadout(c) {
   const mismatch = intentCheck(editing, prevBrewOf(c));
   const back = pourBacktrack(editing);
 
-  const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
+  const timeClass = place.time === 'in' || /near enough/.test(timeWords(num(editing.time), c.target, '', '')) ? 'in'
+    : place.time === null ? '' : 'out';
   const windowNote = place.time === null
     ? `window ${fmtTime(c.target.timeLo)}–${fmtTime(c.target.timeHi)}`
     : place.time === 'in' ? `in the ${fmtTime(c.target.timeLo)}–${fmtTime(c.target.timeHi)} window`
-    : place.time === 'fast' ? `${Math.round(c.target.timeLo - editing.time)}s quicker than the window`
-    : `${Math.round(editing.time - c.target.timeHi)}s longer than the window`;
+    : timeWords(num(editing.time), c.target, 'quicker than the window', 'longer than the window');
 
   const cells = [];
   if (byWeight()) {
@@ -4298,7 +4403,7 @@ function openCoffees() {
     edit.setAttribute('aria-label', `Edit ${coffeeLabel(c)}`);
     edit.addEventListener('click', () => {
       closeModal('#coffee-modal');
-      openCoffee(c, {});
+      openCoffee(c, { from: 'coffees' });
     });
 
     row.appendChild(pick);
@@ -4335,11 +4440,14 @@ function quickStart() {
 function addCoffee() {
   const c = newCoffee('');
   closeModal('#coffee-modal');
-  openCoffee(c, { adding: true });
+  openCoffee(c, { adding: true, from: 'coffees' });
 }
 
 function openCoffee(c, opts) {
   const adding = Boolean(opts && opts.adding);
+  /* Opened from My coffees, backing out goes back there: Escape used to
+     drop you on the board, a level further out than you came in. */
+  $('#edit-modal').dataset.back = opts && opts.from === 'coffees' ? 'coffees' : '';
   // started from "Start brewing" and never described: naming it now is
   // the same moment as adding it, as far as its starting point goes
   const neverDescribed = !c.name.trim() && !c.roast && !c.roaster;
@@ -4957,11 +5065,11 @@ function openKit() {
   $('#kit-save').textContent = first ? 'Save' : 'Done';
   body.innerHTML = `
     <p class="sheet-note">${first
-      ? 'Asked once. The brew sheet then offers only what you can actually change, and nothing here suggests a variable your kit does not have.'
+      ? 'Asked once. The brew sheet then asks only about what you can change.'
       : 'What you brew on. The brew sheet is built from it, so changing something here changes what the sheet asks for next time.'}</p>
 
     <span class="field-label section">What you brew in</span>
-    <p class="sheet-note">Add every one you use. You pick which on the brew sheet, and each brew keeps the one that made it — so a press this evening does not rewrite what the V60 did this morning.</p>
+    <p class="sheet-note">Add every one you use; each brew keeps the one that made it.</p>
     <div id="k-brewers"></div>
     <label class="field"><span class="field-label sr-only">Add a brewer</span>
       <select class="field-input" id="k-brewer-pick">${brewerOptions()}</select></label>
@@ -5006,6 +5114,8 @@ function openKit() {
   const shelf = body.querySelector('#k-brewers');
   const pick = body.querySelector('#k-brewer-pick');
   const adding = body.querySelector('#k-brewer-new');
+  // Sixty-odd brewers in a native select, with no search on a phone.
+  if (root().lentoSelectFinder) lentoSelectFinder(pick, 'Type to find your brewer');
 
   const drawShelf = () => {
     shelf.innerHTML = '';
@@ -5044,6 +5154,8 @@ function openKit() {
   const resetAdd = () => {
     adding.classList.add('hidden');
     pick.value = '';
+    const box = pick.previousElementSibling;
+    if (box && box.classList.contains('select-finder')) box.value = '';
     newFlow.value = 'percolation';
     body.querySelector('#k-brewer-name').value = '';
   };
@@ -5166,6 +5278,11 @@ function openKit() {
        shelf has none, and a brewer that has been removed cannot go on
        being the default. */
     if (k.brewers.length && !k.brewers.some(b => b.name === k.brewer)) k.brewer = k.brewers[0].name;
+    /* A first setup saved with an empty shelf gets a V60, and says so:
+       a sheet with no brewer cannot pick a window, and an unexplained
+       default reads as the app having guessed behind your back. */
+    let defaulted = false;
+    if (first && !k.brewers.length) { Object.assign(k, defaultShelf()); defaulted = true; }
     if (!k.brewers.length) k.brewer = '';
     k.asked = true;
     const before = waterFlow();
@@ -5186,18 +5303,20 @@ function openKit() {
     save();
     closeModal('#kit-modal');
     renderBoard();
+    return defaulted;
   };
 
-  $('#kit-save').onclick = () => { finish(); toast('Setup saved'); };
+  $('#kit-save').onclick = () => { toast(finish() ? 'Saved — set to a V60, change it in My setup' : 'Setup saved'); };
   // Skipping is answering: the defaults are the commonest home setup — a
   // cone, a plain kettle, a scale — so a skip leaves the simplest sheet
   // rather than the fullest one. It is not asked again, and it lives in
   // Settings for ever.
   $('#kit-skip').onclick = () => {
-    state.kit = Object.assign(defaultKit(), { asked: true });
+    state.kit = Object.assign(defaultKit(), { asked: true }, defaultShelf());
     save();
     closeModal('#kit-modal');
     renderBoard();
+    toast('Set to a V60 — change it in My setup');
   };
   openModal('#kit-modal');
 }
@@ -5341,6 +5460,12 @@ function openModal(sel) {
   m.addEventListener('keydown', m._trap);
   const items = focusables(m);
   if (items.length) items[0].focus();
+}
+
+function backOutOfEdit() {
+  const back = $('#edit-modal').dataset.back === 'coffees';
+  closeModal('#edit-modal');
+  if (back) openCoffees();
 }
 
 function closeModal(sel) {
@@ -5547,7 +5672,7 @@ function wire() {
   $('#brew-save').addEventListener('click', saveBrew);
   $('#coffee-close').addEventListener('click', () => closeModal('#coffee-modal'));
   $('#btn-add-coffee').addEventListener('click', addCoffee);
-  $('#edit-close').addEventListener('click', () => closeModal('#edit-modal'));
+  $('#edit-close').addEventListener('click', () => backOutOfEdit());
   $('#kit-close').addEventListener('click', () => closeModal('#kit-modal'));
   /* The wheel opens over the brew sheet rather than replacing it: you are
      in the middle of recording one brew and the wheel is a vocabulary you
@@ -5583,6 +5708,7 @@ function wire() {
     const open = document.querySelector('.modal:not(.hidden)');
     if (!open) return;
     if (open.id === 'brew-modal') closeBrewSheet();
+    else if (open.id === 'edit-modal') backOutOfEdit();
     else closeModal('#' + open.id);
   });
   document.querySelectorAll('.modal').forEach(m => {

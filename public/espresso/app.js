@@ -4415,7 +4415,7 @@ const VERDICTS = [
   // poured away is that they poured it away.
   { key: 'off', label: 'Tipped it', sub: 'not drinkable' },
   { key: 'ok', label: 'Drinkable', sub: 'not there yet' },
-  { key: 'keeper', label: 'Current recipe', sub: 'use this from now on' },
+  { key: 'keeper', label: 'Current recipe', sub: 'brew it again' },
 ];
 
 /* What a shot is missing before it can be called the recipe.
