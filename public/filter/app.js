@@ -1581,8 +1581,11 @@ function tasteNote(brew, target) {
             why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Make it your current recipe and it pins to the top of this board.' };
     }
     if (place.time === null) return null;
-    return { sure: false, move: 'Taste says nothing is wrong.',
-      why: `It ran ${place.time === 'fast' ? 'quicker' : 'longer'} than the window but tastes of neither wall, which is worth more than the window is. Either move the window to fit this coffee, or leave it and watch whether the next one holds.` };
+    // Tastes right outside the window: the cup outranks the clock, so it
+    // is offered as the recipe (it used to stop at "Taste says nothing is
+    // wrong", which left the reader nothing to do).
+    return { sure: true, move: 'This is your recipe — mark it Current recipe.',
+      why: `It ran ${place.time === 'fast' ? 'quicker' : 'longer'} than the window but tastes of neither wall, which is worth more than the window is. Make it your current recipe; if the next one tastes the same at this time, move the window to fit this coffee.` };
   }
 
   // In immersion the clock is a decision, not a symptom, so grind is the
@@ -1772,7 +1775,122 @@ const place = placeOf(brew, target);
     why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and less water.` };
 }
 
+/* THE ADVICE, THEN A PASS OVER IT.
+
+   A simulated dial-in (a light Kenya, with and without a refractometer)
+   found the same failures the espresso log had: the reading was drawn on
+   the chart and never read; the ratio was printed ("1:18.1, aiming
+   1:16.8") and never used, so the board blamed the grind for water it had
+   itself told the reader to add; "hotter" had no ceiling and repeated at
+   100°C; and the amounts lived behind "Why this". The taste-and-clock
+   advice below is unchanged; this pass, in order:
+     - treats a brew a few seconds either side of the window as in it;
+     - puts the ratio back first when it is well off the target;
+     - lets the extraction reading lead when it is outside 18-22%;
+     - stops "hotter" at 96°C, or when the last step up did not help;
+     - puts the amount in the headline. */
 function nextMove(brew, target) {
+  const loose = target ? Object.assign({}, target, { timeLo: target.timeLo - 5, timeHi: target.timeHi + 5 }) : target;
+  return refineAdvice(nextMoveFromCup(brew, loose), brew, target, activeCoffee());
+}
+
+// The brew before this one; a brew still on the sheet follows the newest.
+function brewBefore(c, brew) {
+  const rows = (c && c.brews) || [];
+  const i = rows.indexOf(brew);
+  if (i < 0) return rows.length ? rows[rows.length - 1] : null;
+  return i > 0 ? rows[i - 1] : null;
+}
+
+function refineAdvice(tips, brew, target, c) {
+  if (!target || !brew) return tips;
+  const tip = tips[0] || null;
+  const rest = tips.slice(1);
+  const side = tasteSide(brew.taste);
+  const body = bodySide(brew.body);
+  const wrong = side === 'sour' || side === 'bitter' || body === 'weak' || body === 'strong';
+  const place = placeOf(brew, target);
+  const dose = num(brew.dose);
+  const unit = tempUnit() === 'f' ? '°F' : '°C';
+  const step = tempUnit() === 'f' ? 4 : 2;
+
+  // the ratio first: a cup at the wrong strength cannot judge the grind
+  if (byWeight() && wrong && dose && target.ratio && brew.verdict !== 'keeper'
+      && (place.ratio === 'wide' || place.ratio === 'tight')) {
+    const water = Math.round(dose * target.ratio);
+    return [{ sure: true, move: `Back to 1:${target.ratio} — ${water}g water on ${fmt1(dose)}g coffee, same grind.`,
+      why: `This one ran at 1:${ratioOf(brew).toFixed(1)}, ${place.ratio === 'wide' ? 'more' : 'less'} water than the 1:${target.ratio} you are aiming at, so the cup is being judged at a different strength from the recipe and the grind gets blamed for it. Put the ratio back first; then the grind and the water have a fair test.` }].concat(rest);
+  }
+
+  // the reading, where there is one
+  const ey = extractionOf(brew);
+  if (ey !== null) {
+    const under = ey < 18, over = ey > 22;
+    const at = `${fmt1(ey)}% extraction`;
+    if (under || over) {
+      const text = tip ? tip.move : '';
+      const agrees = under ? /finer|hotter/i.test(text) : /coarser|cooler/i.test(text);
+      if (!agrees || /^This is your recipe/.test(text)) {
+        const tasted = side === 'neither';
+        return [{ sure: !tasted,
+          move: `${tasted ? 'Tastes right, reads' : 'Reads'} ${under ? 'under' : 'over'}-extracted (${fmt1(ey)}%). Grind ${under ? 'finer' : 'coarser'}${grindMoveLine(brew, target, under)}.`,
+          why: `${at} is ${under ? 'below' : 'above'} the 18–22% a filter cup usually tastes best at. ${tasted ? 'It tasted right, so this is a test: brew the next one ' + (under ? 'finer' : 'coarser') + ' and taste them side by side.' : 'The grinder is the change that moves extraction most directly.'}` }].concat(rest);
+      }
+    }
+    if (tip) {
+      const where = under ? 'under the 18–22% band' : over ? 'over the 18–22% band' : 'inside the 18–22% band';
+      return refineAmounts([Object.assign({}, tip, { why: `${tip.why} The refractometer: ${at}, ${where}.` })].concat(rest), brew, target, c, unit, step);
+    }
+  }
+  return refineAmounts(tips, brew, target, c, unit, step);
+}
+
+function refineAmounts(tips, brew, target, c, unit, step) {
+  const tip = tips[0];
+  if (!tip) return tips;
+  const rest = tips.slice(1);
+  const t = num(Number(brew.temp));
+  const prev = brewBefore(c, brew);
+  const pt = prev ? num(Number(prev.temp)) : null;
+  const ceiling = tempUnit() === 'f' ? 205 : 96;
+  const floor = tempUnit() === 'f' ? 185 : 85;
+  if (/hotter water/i.test(tip.move)) {
+    const usedUp = (t !== null && t >= ceiling)
+      || (t !== null && pt !== null && t > pt && tasteSide(prev.taste) === 'sour' && tasteSide(brew.taste) === 'sour'
+        && prev.grind === brew.grind);
+    if (usedUp) {
+      return [{ sure: true, move: `Hotter is used up. Grind finer${grindMoveLine(brew, target, true)}.`,
+        why: `${t !== null && t >= ceiling ? `At ${t}${unit} there is little left to gain from heat` : 'The last step hotter did not take the sourness out'}, so the next variable is the grind: finer gives the water more surface to work on. Keep the water where it is.` }].concat(rest);
+    }
+    return [Object.assign({}, tip, { move: t !== null ? `${step} degrees hotter — ${t + step}${unit}, same grind.` : `${step} degrees hotter, same grind.` })].concat(rest);
+  }
+  if (/cooler water/i.test(tip.move)) {
+    if (t !== null && t <= floor) {
+      return [{ sure: true, move: `Cooler is used up. Grind coarser${grindMoveLine(brew, target, false)}.`, why: `At ${t}${unit} there is little left to take off with temperature, so the next variable is the grind.` }].concat(rest);
+    }
+    return [Object.assign({}, tip, { move: t !== null ? `${step} degrees cooler — ${t - step}${unit}, same grind.` : `${step} degrees cooler, same grind.` })].concat(rest);
+  }
+  // one measurable move instead of two vague ones, on a one-temperature kettle
+  if (/Pour more vigorously, or add water/.test(tip.move)) {
+    return [Object.assign({}, tip, { move: `Grind a touch finer${grindMoveLine(brew, target, true)}.` })].concat(rest);
+  }
+  if (/Pour more gently, or use less water/.test(tip.move)) {
+    return [Object.assign({}, tip, { move: `Grind a touch coarser${grindMoveLine(brew, target, false)}.` })].concat(rest);
+  }
+  // a diagnosis is not an instruction
+  if (/^Under-extracted — but not for want of grind/.test(tip.move)) {
+    return [Object.assign({}, tip, { move: 'Same grind — level the bed and keep the pours off the walls.' })].concat(rest);
+  }
+  if (/^Over-extracted — but not for want of grind/.test(tip.move)) {
+    return [Object.assign({}, tip, { move: 'Same grind — pour more gently onto a level bed.' })].concat(rest);
+  }
+  if (/^This is your recipe\.$/.test(tip.move)) {
+    return [Object.assign({}, tip, { move: 'This is your recipe — mark it Current recipe.' })].concat(rest);
+  }
+  return tips;
+}
+
+function nextMoveFromCup(brew, target) {
   const pair = wallPair(brew, target);
   if (pair) return [pair];
   // One wall, and it is the strength one: that note is the whole answer.
@@ -2285,7 +2403,8 @@ function renderNext(c) {
       schedule = 'Stir once when the water is in, leave it, and press or decant at the time you set.';
     }
     const grindWay = percolates()
-      ? 'Set the grinder wherever it is and brew one. If it drains in ninety seconds, go finer; if it is still dripping past four minutes, go coarser.'
+      // the window it is judged against, not two other numbers beside it
+      ? `Set the grinder wherever it is and brew one. If it is done well before ${fmtTime(t.timeLo)}, go finer; if it is still dripping after ${fmtTime(t.timeHi)}, go coarser.`
       : 'Grind is what changes the extraction here, not the clock: coarser if it comes out harsh, finer if it comes out sharp.';
     const offer = suggest
       ? `<div class="start-offer">
@@ -3228,8 +3347,19 @@ function stampValve(c, key, secs) {
   buildPours(c);
   renderReadout(c);
 }
+/* A pour stamped on the clock shows its planned weight as a placeholder,
+   so the real figure can be typed over it. Not typed over, the plan IS
+   the record: dropping it saved a brew whose pours had no weights, and
+   the board then said it "went in all at once" (dial-in test). */
+function adoptPlans(e) {
+  (e && Array.isArray(e.pours) ? e.pours : []).forEach(r => {
+    if (!isValve(r) && num(r.water) === null && num(r.plan) !== null && num(r.at) !== null) r.water = num(r.plan);
+  });
+}
+
 function stopClock(c, quiet) {
   if (!editing || !editing.clock) return;
+  adoptPlans(editing);
   const secs = clockSecs();
   /* Kept, so a Stop pressed by mistake can be taken back: Resume puts the
      same clock back, still counting from the same start, because the brew
@@ -3918,7 +4048,9 @@ function buildMore(c) {
   bind('#f-notes', 'notes', false);
 
   const more = $('#more');
-  more.open = Boolean(editing.notes || editing.tds || editing.beverage);
+  // open whenever there is a refractometer: TDS and the cup weight are
+  // asked on every brew then, and a closed drawer cost a tap each time
+  more.open = Boolean(editing.notes || editing.tds || editing.beverage || (hasTds() && byWeight()));
 }
 
 /* Everything read out of the numbers, and nothing typed.
@@ -3932,7 +4064,13 @@ function renderReadout(c) {
   const bloom = bloomOf(editing);
   const ey = extractionOf(editing);
   const place = placeOf(editing, c.target);
-  const tips = nextMove(editing, c.target);
+  /* An older brew, reopened, is not where the dial-in is: its advice
+     said "grind finer" while the board, which follows the newest brew,
+     said "that is the recipe". It says where the advice is instead. */
+  const isOld = !editingIsNew && c.brews.length && editing !== c.brews[c.brews.length - 1];
+  const tips = isOld
+    ? [{ sure: false, move: 'Advice follows your newest brew.', why: 'This is an earlier brew. What to change next is worked out from the newest one, on the board.' }]
+    : nextMove(editing, c.target);
   const bloomTip = bloomNote(editing);
 
   // Live, because the one moment this can be acted on is while the sheet
@@ -3991,6 +4129,11 @@ function saveBrew() {
   if (!c) return;
   // A running clock is the time not yet written down; saving stops it.
   if (editing && editing.clock) stopClock(c, true);
+  adoptPlans(editing);
+  if (byWeight() && editing && (editing.water === null || editing.water === undefined)) {
+    const total = lastPourTotal(editing);
+    if (total !== null) editing.water = total;
+  }
   const wasNew = editingIsNew;
   /* A sheet with nothing on it is not a brew. Saving one put a card on
      the board reading "15.0 → —g" — the carried-over dose and nothing
@@ -4197,6 +4340,9 @@ function addCoffee() {
 
 function openCoffee(c, opts) {
   const adding = Boolean(opts && opts.adding);
+  // started from "Start brewing" and never described: naming it now is
+  // the same moment as adding it, as far as its starting point goes
+  const neverDescribed = !c.name.trim() && !c.roast && !c.roaster;
   const body = $('#edit-body');
   const t = c.target;
   $('#edit-delete').classList.toggle('hidden', adding);
@@ -4613,7 +4759,7 @@ function openCoffee(c, opts) {
        untouched default, it starts at what the bag points to. That is the
        number the coffee sheet showed while it was being filled in; it is
        not written over anything somebody chose. */
-    if (adding) {
+    if (adding || neverDescribed) {
       const sp = startingPoint(c);
       const d = defaultTarget();
       if (sp && byWeight() && c.target.ratio === d.ratio) c.target.ratio = sp.ratio;
@@ -4742,7 +4888,8 @@ function brewerOptionsFor(k) {
   };
   return '<option value="" selected>Add a brewer…</option>'
     + '<option value="__other">Something else</option>'
-    + group('Pour over — the water drains through', 'percolation')
+    // "Pour over" did not describe a moka pot or a Moccamaster
+    + group('Water passes through — pour over, drip, moka', 'percolation')
     + group('Immersion — the coffee steeps', 'immersion')
     + group('Switch — a valve does both', 'switch');
 }
@@ -4953,6 +5100,7 @@ function openKit() {
      modified beats any list, which is why both answers stay editable
      underneath and the list only ever seeds them. */
   const gPick = body.querySelector('#k-grinder-pick');
+  if (root().lentoSelectFinder) lentoSelectFinder(gPick, 'Type to find your grinder');
   const gOther = body.querySelector('#k-grinder-other');
   const syncGrinder = () => gOther.classList.toggle('hidden', gPick.value !== '__other');
   if (k.grinder && !LentoKit.entryFor(k.grinder)) gPick.value = '__other';

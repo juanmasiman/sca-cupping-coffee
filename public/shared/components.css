@@ -259,10 +259,15 @@ input { font: inherit; color: inherit; }
    typing — the same words in the same shape, so the thing you read at the
    machine is the thing you read on the sheet. */
 .next-card {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-5);
+  /* ONE RAISED THING ON THE BOARD.
+
+     The board was eight bordered boxes of equal weight, so the advice read
+     no louder than shot 1 (critique, November 2026). The current recipe
+     stays the one raised card; the advice, the target and the chart are
+     sections under a hairline, and the log is the list. The advice has no
+     rule of its own: the block inside carries one, and its weight says
+     how sure the advice is (.tip.sure). */
+  padding: var(--space-2) 0 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -289,10 +294,11 @@ input { font: inherit; color: inherit; }
   align-items: center;
   gap: var(--space-3);
   min-height: 44px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-card);
+  padding: var(--space-3) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
   text-align: left;
 }
 .target-btn:active { background: var(--chrome-soft); }
@@ -1451,18 +1457,20 @@ select.field-input {
 /* Closing the gap between where you aimed and where you landed. Quiet: it
    is an offer, and the target above it is not wrong, only stale. */
 .target-adopt {
+  /* An offer, not an empty slot: it was a dashed box that read as a
+     placeholder. A link-styled line under the target. */
   display: block;
   width: 100%;
-  margin-top: var(--space-2);
   min-height: 44px;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
   font: inherit;
   font-size: 13px;
   text-align: left;
-  color: var(--text-dim);
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
   background: none;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
+  border: 0;
   cursor: pointer;
 }
 .target-adopt:active { background: var(--chrome-soft); }
@@ -1750,6 +1758,10 @@ select.field-input {
   pointer-events: none;
   transform: translateX(-50%);
   z-index: 60;
+  /* As wide as its sentence, up to the screen: centred from the middle,
+     a toast's natural width was capped at half the screen, so "Signed
+     in as …" broke onto two lines. */
+  width: max-content;
   max-width: calc(100vw - 32px);
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius);
@@ -1974,3 +1986,6 @@ select.field-input {
 .eyc-pt { fill: var(--data); }
 .eyc-recipe { fill: none; stroke: var(--text); stroke-width: 1.5; }
 .eyc-label { font-family: var(--mono); font-size: 11px; font-weight: 600; fill: var(--text); }
+
+/* "Type to find" above a long select (shared/scale.js) */
+.select-finder { margin-bottom: var(--space-2); }

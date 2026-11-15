@@ -81,12 +81,12 @@ input, textarea, select { font: inherit; }
   position: relative;
 }
 
+/* Plain header icons, as in espresso and filter: no box, no card fill —
+   the 44px target and the pressed tint are what make them controls. */
 .account-btn {
   position: absolute;
   top: calc(var(--sat) + 16px);
   right: 14px;
-  background: var(--bg-card);
-  border: 1px solid var(--line);
 }
 /* The way out to the other two instruments, opposite the profile. This app
    does not link components.css — the two surfaces were measured and every
@@ -96,17 +96,17 @@ input, textarea, select { font: inherit; }
   position: absolute;
   top: calc(var(--sat) + 16px);
   left: 14px;
-  background: var(--bg-card);
-  border: 1px solid var(--line);
   text-decoration: none;
 }
+/* The signed-in dot, drawn as espresso's .profile-dot. Its ring is the
+   ground the button now sits on, so it still separates from the glyph. */
 .account-dot {
   position: absolute;
-  top: 7px; right: 7px;
+  top: 9px; right: 9px;
   width: 9px; height: 9px;
   border-radius: 50%;
   background: var(--chrome);
-  border: 2px solid var(--bg-card);
+  border: 2px solid var(--bg);
 }
 
 /* Kept compact so "Start cupping" stays above the fold on a small phone */
@@ -525,7 +525,7 @@ input, textarea, select { font: inherit; }
   flex: none;
   min-height: 44px;
   padding: var(--space-3) var(--space-5);
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: var(--chrome-soft);
   color: var(--chrome);
   font-size: 15px;
@@ -546,7 +546,7 @@ input, textarea, select { font: inherit; }
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--chrome);
   color: var(--chrome);
@@ -972,7 +972,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   flex: none;
   height: 44px;
   padding: 0 var(--space-4) 0 var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -1002,7 +1002,7 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   content: '';
   position: absolute;
   inset: -5px;
-  border-radius: 999px;
+  border-radius: calc(var(--radius) + 5px);
   border: 1px solid var(--chrome);
   opacity: 0.45;
   pointer-events: none;
@@ -2631,7 +2631,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   font-size: 13px;
   font-weight: 700;
   padding: var(--space-3) var(--space-5);
-  border-radius: 999px;
+  border-radius: var(--radius);
   z-index: 30;
   pointer-events: none;
 }
@@ -2728,12 +2728,20 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   left: 50%;
   bottom: calc(var(--sab) + 72px);
   transform: translate(-50%, 20px);
+  /* shape, padding and type as the shared .toast in components.css;
+     the position above stays cupping's own */
+  /* As wide as its sentence, up to the screen: centred from the middle,
+     a toast's natural width was capped at half the screen, so "Signed
+     in as …" broke onto two lines. */
+  width: max-content;
+  max-width: calc(100vw - 32px);
   background: var(--chrome);
   color: var(--on-chrome);
-  font-size: 15px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-7);
-  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s var(--settle);
@@ -2742,18 +2750,20 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 /* With an undo the toast holds a button, so it takes pointer events and
    lays its sentence and button out on one line */
-.toast.has-undo { display: flex; align-items: center; gap: var(--space-4); padding-right: var(--space-4); white-space: nowrap; }
+.toast.has-undo { display: flex; align-items: center; gap: var(--space-4); white-space: nowrap; }
 .toast.has-undo.show { pointer-events: auto; }
 .toast-undo {
   position: relative;
+  flex: 0 0 auto;
   min-height: 32px;
   padding: 0 var(--space-3);
   font: inherit;
   font-size: 13px;
+  font-weight: 700;
   color: var(--on-chrome);
   background: none;
   border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   cursor: pointer;
 }
 /* 32px drawn, 44px to the thumb */
