@@ -1775,7 +1775,9 @@ select.field-input {
   bottom: calc(var(--sab) + 88px);
   pointer-events: none;
   transform: translateX(-50%);
-  z-index: 60;
+  /* above the shared profile sheet (900) too: a message fired while it
+     was open drew underneath it (critique) */
+  z-index: 960;
   /* As wide as its sentence, up to the screen: centred from the middle,
      a toast's natural width was capped at half the screen, so "Signed
      in as …" broke onto two lines. */
@@ -1799,9 +1801,9 @@ select.field-input {
 /* Over an open sheet the toast goes to the top, onto the dimmed band
    above the sheet. At the bottom it sat over the last fields of the form
    — "Keep it?", the pours — exactly where the next tap was going. */
-/* Over a sheet the toast sits under the sheet's header, not on it: at
-   the very top it covered the title and the close button (critique). */
-.toast.over-sheet { bottom: auto; top: calc(var(--sat) + 64px); }
+/* Over a sheet the toast sits just above the sheet's action bar. At the
+   top it covered the sheet's title and close button (two critiques). */
+.toast.over-sheet { bottom: calc(var(--sab) + 104px); top: auto; }
 
 .toast-undo {
   pointer-events: auto;

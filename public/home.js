@@ -292,8 +292,9 @@
     var e = countIn('lento-espresso-v1', 'shots');
     var f = filterCounts();
     if (c) bits.push(say(c, 'cupping', 'cuppings'));
-    if (e) bits.push(say(e, 'espresso', 'espressos'));
-    if (f.pour) bits.push(say(f.pour, 'pourover', 'pourovers'));
+    // the dial-in's own word, so the profile reads the same here and there
+    if (e) bits.push(say(e, 'shot', 'shots'));
+    if (f.pour) bits.push(say(f.pour, 'pour over', 'pour overs'));
     if (f.steep) bits.push(say(f.steep, 'steep', 'steeps'));
     return bits;
   }
@@ -491,9 +492,11 @@
     var btn = $('#btn-shelf');
     var list = $('#shelf-list');
     var bags = can(window.LentoCoffees, 'all') ? LentoCoffees.all().slice().sort(byName) : [];
-    if (!bags.length) { btn.classList.add('hidden'); return; }
+    /* Shown from the first visit, like the gear beside it: one rule for
+       both. Hidden until a bag existed, the page offered "Your gear ·
+       Nothing yet" alone and no way to add a bag from the front door. */
     btn.classList.remove('hidden');
-    $('#shelf-count').textContent = say(bags.length, 'bag', 'bags');
+    $('#shelf-count').textContent = bags.length ? say(bags.length, 'bag', 'bags') : 'Nothing yet';
     list.innerHTML = '';
     bags.forEach(function (c) {
       list.appendChild(stockRow({
@@ -725,8 +728,50 @@
      tells the truth about which one it was, which is the part that was
      missing: the banner used to name the last thing `start` was doing
      rather than the thing that actually broke. */
+  /* WHERE YOU LEFT OFF, ON THE DOOR YOU WILL OPEN.
+
+     Every visit was the same menu, though the page already reads every
+     tool's records for the counts (critique: "Kochere · last shot 28s" is
+     the reason people come back, and it was not on the page). Each tool
+     card says its last entry when there is one, and what the tool is
+     when there is not. */
+  var DEFAULT_SUB = {};
+  function latestWithCoffee(store, field) {
+    var v = readJSON(store);
+    if (!v || !Array.isArray(v.coffees)) return null;
+    var best = null;
+    v.coffees.forEach(function (c) {
+      (c && Array.isArray(c[field]) ? c[field] : []).forEach(function (r) {
+        if (r && (!best || (num(r.at) || 0) > (num(best.r.at) || 0))) best = { r: r, c: c };
+      });
+    });
+    return best;
+  }
+  function renderResume() {
+    var set = function (id, text) {
+      var el = $('#' + id);
+      if (!el) return;
+      if (!(id in DEFAULT_SUB)) DEFAULT_SUB[id] = el.textContent;
+      el.textContent = text || DEFAULT_SUB[id];
+    };
+    var sh = latestWithCoffee('lento-espresso-v1', 'shots');
+    set('sub-espresso', sh ? ['Last shot ' + ago(sh.r.at), sh.c.name && sh.c.name.trim(), secs(sh.r.time)]
+      .filter(Boolean).join(' · ') : '');
+    var br = latestWithCoffee('lento-filter-v1', 'brews');
+    set('sub-filter', br ? ['Last brew ' + ago(br.r.at), br.c.name && br.c.name.trim(), secs(br.r.time)]
+      .filter(Boolean).join(' · ') : '');
+    var hist = readJSON('sca-cupping-history-v1');
+    var last = Array.isArray(hist) && hist.length
+      ? hist.reduce(function (a, b) { return (num(b && b.date) || 0) > (num(a && a.date) || 0) ? b : a; })
+      : null;
+    var n = last && Array.isArray(last.coffees) ? last.coffees.length : 0;
+    set('sub-cupping', last ? ['Last cupping ' + ago(last.date), n ? say(n, 'coffee', 'coffees') : '']
+      .filter(Boolean).join(' · ') : '');
+  }
+
   function renderAll() {
-    [['the account row', renderAccount],
+    [['the tools', renderResume],
+     ['the account row', renderAccount],
      ['your coffees', renderShelf],
      ['your gear', renderGear]].forEach(function (job) {
       try { job[1](); } catch (e) { fail('Could not draw ' + job[0], e); }
@@ -1651,7 +1696,9 @@
       renderAll();
       // Half a sync is not a sync: the sheet's "synced" line has to mean
       // both records went over.
-      return results.length > 0 && results.every(Boolean);
+      var ok = results.length > 0 && results.every(Boolean);
+      if (ok && can(window.LentoAccountSheet, 'markSynced')) LentoAccountSheet.markSynced();
+      return ok;
     });
   }
 
@@ -1668,9 +1715,12 @@
      tap says what happened instead of nothing. And an error anywhere in
      the boot reaches the toast, because a message a person can read to me
      is worth more than a silence that is tidier. */
+  /* In words, not the engine's: "Cannot read properties of undefined"
+     told a person nothing they could act on (critique). The reason goes to
+     the console, where whoever reads it to me can find it. */
   function fail(what, e) {
-    var why = (e && (e.message || e.name)) || 'no reason given';
-    try { toast(what + ' — ' + why); } catch (ignored) {}
+    try { console.error(what, e); } catch (ignored) {}
+    try { toast(what + '. Your tools still work — reload to try again.'); } catch (ignored) {}
   }
 
   function boot() {
@@ -1719,7 +1769,15 @@
          exactly the two that are worth having before you open a tool on
          a phone you have just signed in on. */
       sync: syncMine,
-      status: function (phase) { return (phase === 'synced' ? 'Synced · ' : '') + deviceLine(); },
+      /* What this page synced, and only that. It used to read "Synced ·
+         2 cuppings · 3 shots on this device" after pushing only the shelf
+         and the gear, which reads as "my shots are backed up" when this
+         page had not touched them (critique). */
+      status: function (phase) {
+        return phase === 'synced'
+          ? 'Synced · your coffees and gear. Cuppings, shots and brews sync from their own tools.'
+          : deviceLine();
+      },
     });
 
     LentoAccount.onChange(function () { renderAll(); syncMine(); });
@@ -1753,7 +1811,7 @@
      boot at all, and on a phone that is completely silent. */
   window.addEventListener('error', function (e) {
     if (!e || !e.message) return;
-    fail('Something on this page broke', { message: e.message });
+    fail('Part of this page did not load', { message: e.message });
   });
 
   if (document.readyState === 'loading') {

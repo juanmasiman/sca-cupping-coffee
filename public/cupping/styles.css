@@ -344,6 +344,28 @@ input, textarea, select { font: inherit; }
   color: var(--red);
 }
 
+/* Clear history: a text control, red because it destroys, small because it
+   is rare. The visual is a word; the target is a real 44px. */
+.history-danger { display: flex; justify-content: center; margin-top: var(--space-7); }
+.btn-text-danger {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  background: none;
+  border: 0;
+  color: var(--red);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* A heading that takes focus only so a sheet or a card can land a reader
+   on it (the invite sheet, the opened team card) is not a control, so it
+   draws no ring for a pointer — keyboard focus still gets one. */
+h2[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+
 /* ============================================================
    CUPPING
    ============================================================ */
@@ -440,16 +462,24 @@ input, textarea, select { font: inherit; }
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* When the segments do not fit, the rail scrolls and comes to rest on a
+     whole segment rather than half of one. */
+  scroll-snap-type: x proximity;
 }
 .coffee-rail::-webkit-scrollbar { display: none; }
 
+/* 44px is the floor and it does not flex. min-width: 34px with flex: 1
+   let three coffees shrink to 42px and eight to 40 at 360px — the rail's
+   segments were the band's only targets under the floor. They grow to share
+   spare width and never shrink below 44; past that the rail scrolls. */
 .rail-seg {
   position: relative;
   user-select: none;
   -webkit-user-select: none;
-  flex: 1;
-  min-width: 34px;
+  flex: 1 0 44px;
+  min-width: 44px;
   height: 44px;
+  scroll-snap-align: start;
   border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--line);
@@ -517,7 +547,7 @@ input, textarea, select { font: inherit; }
    the height — it is still a target under a thumb — and scrolls sideways
    inside the band instead of shrinking below the floor. */
 .coffee-rail.dense { gap: var(--space-2); }
-.coffee-rail.dense .rail-seg { min-width: 40px; border-radius: var(--radius); }
+.coffee-rail.dense .rail-seg { border-radius: var(--radius); }
 .coffee-rail.dense .rail-num { font-size: 11px; }
 
 /* DESIGN.md:225 says every segment of this bar is 44px. The rail and the
@@ -690,14 +720,25 @@ input, textarea, select { font: inherit; }
    card's per-section ones */
 .notes-block { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
 .notes-block .detail-label { padding-left: var(--space-2); }
-.details-summary {
+/* The summary sits under the title, not beside it. Beside it, a 360px
+   phone had room for "what yo…" once the title, the OPTIONAL pill, the
+   chevron and the help mark had taken theirs; under it, the whole line
+   fits and wraps to a second line before it is ever cut. */
+.details-toggle-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.details-summary {
   font-size: 13px;
   color: var(--text-faint);
-  text-align: right;
-  white-space: nowrap;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .details-chevron {
   flex: none;
@@ -859,6 +900,11 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
   transition: transform 0.2s var(--settle);
 }
 .attr-value.pop { animation: bump 0.25s var(--settle); }
+/* Unrated is an empty slot, not a dash (see buildCvaCard). A no-break
+   space holds one figure's width and the line's height, so the head row
+   neither narrows nor shortens, and nothing moves when the first value
+   lands in it. */
+.attr-value:empty::before { content: '\00a0'; }
 
 /* ------------------------------------------------------------
    The first sheet a newcomer sees
@@ -947,6 +993,9 @@ body.plain .describe-card:not(.open) .details-toggle { padding: var(--space-3) v
 
 .desc-body { padding: var(--space-1) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
 .desc-intro { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+/* The bottom exit of the open card: secondary, full width, a real 44px. */
+.desc-close { width: 100%; min-height: 44px; font-size: 15px; }
+
 .desc-intro strong { color: var(--text); font-weight: 700; }
 
 .desc-section {
@@ -1354,6 +1403,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 
 
 .scorebar.provisional .scorebar-score { color: var(--text-dim); }
+/* The unrated em dash at the score's 30px was a heavy black bar in the
+   header's right corner and read as a minimise control. At 20px it reads
+   as a mark in a slot. Only the glyph shrinks: the 30px parent keeps its
+   strut, so the header is the same height before and after the score
+   arrives and the sheet below it never moves. */
+.scorebar.provisional #scorebar-value { font-size: 20px; }
 .scorebar.provisional .scorebar-sub { color: var(--text-faint); font-weight: 500; }
 
 .form-tag {
@@ -1659,7 +1714,8 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 #radar-wrap svg { width: 100%; height: auto; display: block; }
 
 .radar-note { margin-top: var(--space-4); }
-.radar-note p { font-size: 13px; color: var(--text-dim); }
+/* pretty: no single word stranded on the last line of a two-line note */
+.radar-note p { font-size: 13px; color: var(--text-dim); text-wrap: pretty; }
 .radar-note p + p { margin-top: var(--space-2); }
 
 /* The radial scale. Smaller and fainter than an axis name, and on the
@@ -1856,10 +1912,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   font-weight: 800;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--chrome);
+  color: var(--text);
   line-height: 1.2;
 }
-/* The count is the value and takes the data ink; the word under it is
+/* A count is not a value a cupper set, so it is ink; only the average,
+   which is made of scores, takes the data ink (.stat-value.score). The
+   word under it is
    ink like any label. Sentence case, because "Avg of 3 finished" is a
    phrase and the three tiles read as one row. */
 .stat-label {
@@ -1993,6 +2051,12 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   padding: var(--space-5);
   margin-bottom: var(--space-5);
 }
+/* Solo, folded: one ghost row, not a card. A border round a single button
+   is a box round a box. */
+.team-card.collapsed { background: none; border: 0; padding: 0; }
+/* 13px and medium weight: the row is an offer, not the screen's next step,
+   and at 15px bold it wrapped to two lines at 390px. */
+.team-expand { width: 100%; min-height: 44px; font-size: 13px; font-weight: 600; }
 .team-card h2, .team-card h3 { font-size: 15px; font-weight: 800; }
 .team-sub { font-size: 13px; color: var(--text-faint); margin-top: var(--space-2); margin-bottom: var(--space-4); }
 
@@ -2792,7 +2856,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s var(--settle);
-  z-index: 50;
+  z-index: 960; /* above the shared profile sheet (900) */
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 /* With an undo the toast holds a button, so it takes pointer events and
@@ -3295,7 +3359,7 @@ body.plain .desc-section > .attr-card { padding: var(--space-3) 0; }
 .present-final-score,
 .team-coffee-avg,
 .hist-item-score,
-.stat-value,
+.stat-value.score,
 .cupper-score.me { color: var(--data); }
 
 /* A part-scored figure is not a number you can rely on, so it does not get

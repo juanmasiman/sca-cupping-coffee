@@ -555,6 +555,8 @@
       if ((remote.get(id2) || 0) > at2) continue;
       await bury(tool, id2, at2);
     }
+    // Read by the profile sheet: "Last synced 3 min ago", from any page.
+    try { localStorage.setItem('lento-last-sync', String(Date.now())); } catch (e) {}
     return true;
   }
 

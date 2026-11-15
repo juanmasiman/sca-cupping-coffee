@@ -141,7 +141,8 @@ function anchoredScale(opts) {
    to the ones that match — hiding <option>s is ignored by iOS — keeps the
    current choice and any "Other…" entry, and picks the only match when one
    is left so the sheet's own change handler fills in the rest. */
-function lentoSelectFinder(select, placeholder) {
+function lentoSelectFinder(select, placeholder, opts) {
+  const autopick = !(opts && opts.autopick === false);
   if (!select || select.dataset.finder) return;
   select.dataset.finder = '1';
   const all = [...select.options].map(o => ({ value: o.value, text: o.text, disabled: o.disabled }));
@@ -149,7 +150,13 @@ function lentoSelectFinder(select, placeholder) {
   box.type = 'search';
   box.className = 'field-input select-finder';
   box.placeholder = placeholder || 'Type to find yours';
-  box.setAttribute('aria-label', placeholder || 'Find in the list');
+  /* The box went in before the select inside the same <label>, and a
+     label names its first control: the select was left with no name at
+     all (critique). Both are named from the label's text now. */
+  const lab = select.closest('label');
+  const labText = (lab && lab.querySelector('.field-label') ? lab.querySelector('.field-label').textContent : '').trim();
+  if (labText && !select.getAttribute('aria-label')) select.setAttribute('aria-label', labText);
+  box.setAttribute('aria-label', placeholder || (labText ? `Find ${labText.toLowerCase()}` : 'Find in the list'));
   box.autocomplete = 'off';
   select.parentNode.insertBefore(box, select);
   box.addEventListener('input', () => {
@@ -160,7 +167,7 @@ function lentoSelectFinder(select, placeholder) {
     select.innerHTML = shown.map(o => `<option value="${String(o.value).replace(/"/g, '&quot;')}"${o.disabled ? ' disabled' : ''}>${o.text.replace(/</g, '&lt;')}</option>`).join('');
     select.value = cur;
     const real = shown.filter(o => o.value && o.value !== '__other' && !o.disabled);
-    if (q && real.length === 1 && real[0].value !== cur) {
+    if (autopick && q && real.length === 1 && real[0].value !== cur) {
       select.value = real[0].value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -176,6 +183,21 @@ document.addEventListener('keydown', e => {
   if (!r) return;
   const group = r.closest('[role="radiogroup"]');
   if (!group) return;
+  /* Space and Enter choose by clicking, and the click rebuilds the group:
+     focus fell to the page and the next Tab started again from the top
+     (critique). Put it back on the same chip once the group is redrawn. */
+  if (e.key === ' ' || e.key === 'Enter') {
+    const at = [...group.querySelectorAll('[role="radio"]')].indexOf(r);
+    const gid = group.id;
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const g = group.isConnected ? group : (gid && document.getElementById(gid));
+      if (!g) return;
+      const again = [...g.querySelectorAll('[role="radio"]')][at];
+      if (again) again.focus();
+    }, 0);
+    return;
+  }
   const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
   if (!(e.key in keys) && e.key !== 'Home' && e.key !== 'End') return;
   const radios = [...group.querySelectorAll('[role="radio"]')].filter(x => !x.disabled && x.offsetParent !== null);

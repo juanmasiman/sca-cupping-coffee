@@ -138,6 +138,8 @@
   color: var(--text-dim);
 }
 .pour-chip i { font-style: normal; color: var(--text-faint); }
+/* On the recipe card's tint the faint ink measured 4.14:1 (4.31 dark). */
+.keeper .pour-chip i { color: var(--text-dim); }
 
 /* Brewing by eye. Not an error and not a gap — a statement about the
    kit, in the ink the app uses for things it was told rather than things
@@ -354,3 +356,22 @@
 .field-error { margin: calc(-1 * var(--space-2)) 0 0; font-size: 13px; line-height: 1.35; color: var(--red); }
 .field-error:empty { display: none; }
 .field-input[aria-invalid="true"] { border-color: var(--red); }
+
+/* The board's Next, on the sheet it is about. A line, not a card. */
+.sheet-advice {
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  text-wrap: pretty;
+}
+.sheet-advice-label {
+  margin-right: var(--space-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}

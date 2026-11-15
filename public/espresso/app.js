@@ -2886,7 +2886,7 @@ function fmtDate(ts) {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString(docLocale(), { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString(docLocale(), { hour: 'numeric', minute: '2-digit' });
   return sameDay ? time : `${d.toLocaleDateString(docLocale(), { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
@@ -5860,10 +5860,10 @@ function openSettings() {
 
     <label class="switch-row" for="t-tds">
       <span class="switch-text">
-        <span class="switch-title">Refractometer</span>
-        <span class="switch-sub">Adds a TDS field and shows extraction yield, here and in the brew log, on every device you sign in on. Off, the app works on dose, yield and time — which is what most bars have.</span>
+        <span class="switch-title" id="t-tds-name">Refractometer</span>
+        <span class="switch-sub" id="t-tds-sub">Adds a TDS field and shows extraction yield, here and in the brew log, on every device you sign in on. Off, the app works on dose, yield and time — which is what most bars have.</span>
       </span>
-      <span class="switch"><input type="checkbox" id="t-tds"><span class="switch-track"><span class="switch-knob"></span></span></span>
+      <span class="switch"><input type="checkbox" id="t-tds" aria-labelledby="t-tds-name" aria-describedby="t-tds-sub"><span class="switch-track"><span class="switch-knob"></span></span></span>
     </label>
 
     <span class="field-label section">Appearance</span>
@@ -6358,9 +6358,8 @@ function boot() {
       status: phase => {
         const n = (state.coffees || []).reduce((n, c) => n + (c.shots || []).length, 0);
         const word = n === 1 ? 'shot' : 'shots';
-        return phase === 'synced'
-          ? `Synced · ${n} ${word}`
-          : `${n} ${word}, backed up as you log them.`;
+        if (phase === 'synced') return n ? `Synced · ${n} ${word}` : 'Synced';
+        return n ? `${n} ${word} on this device, backed up as you log them.` : 'Shots back up as you log them.';
       },
     });
   }

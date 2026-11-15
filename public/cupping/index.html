@@ -266,27 +266,30 @@
            against a standard; the first thing the table sees is now where
            this lineup fell on that standard, and the ranking follows. -->
       <div class="summary" id="summary"></div>
-      <!-- The table comes before the chart. Submitting is the participant's
-           terminal act in the protocol and it lives in this card; it used to
-           sit third, below a radar, on a screen reached by a button that says
-           "Results". -->
-      <div class="team-card" id="team-card"></div>
-      <div class="radar-card">
-        <!-- Whose scores. It sits directly under the table's card, so a
-             leader reading down the screen took it for the panel's shape —
-             it is this device's sheet, like the summary and the ranking
-             either side of it, and only the title can say so. -->
-        <h2 id="radar-head">Sensory profile</h2>
-        <div id="radar-wrap"></div>
-        <div class="radar-legend" id="radar-legend"></div>
-        <!-- Why there are seven spokes, and which sheets are not on the
-             chart because they have holes in them. -->
-        <div class="radar-note" id="radar-note"></div>
-      </div>
-      <!-- Named, because the card above it is the table's and this one is
+      <!-- The result, then the tools. Summary, ranking and radar are one
+           reading of this device's sheets and now run unbroken; the team
+           card used to sit between the summary and the ranking, so a solo
+           cupper scrolled past a name field and two share buttons to reach
+           the coffee-by-coffee result the button they pressed promised.
+           Sending to a live table is done from the sheet's own submit row,
+           so nothing a participant must do is lost by moving it down. -->
+      <!-- Named, because the table's card is further down and this one is
            yours, and nothing used to say which was which. -->
       <h2 class="ranking-head" id="ranking-head">Coffee by coffee</h2>
       <div class="ranking" id="ranking"></div>
+      <div class="radar-card">
+        <!-- Whose scores. At a live table a leader reading down the screen
+             took it for the panel's shape — it is this device's sheet, like
+             the summary and the ranking above it, and only the title can
+             say so. -->
+        <h2 id="radar-head">Sensory profile</h2>
+        <div id="radar-wrap"></div>
+        <div class="radar-legend" id="radar-legend"></div>
+        <!-- Which sheets are not on the chart because they have holes in
+             them. -->
+        <div class="radar-note" id="radar-note"></div>
+      </div>
+      <div class="team-card" id="team-card"></div>
       <!-- One stack, one measure. These two used to be loose siblings: the
            first carried .export-btn (its own margins and width) and the
            second carried nothing, so it rendered inline-block at its text
@@ -356,7 +359,14 @@
 
         <div class="page-actions">
           <button id="btn-export-csv" class="btn btn-ghost">Export all cuppings as CSV</button>
-          <button id="btn-clear-history" class="btn btn-danger-ghost">Clear history</button>
+        </div>
+        <!-- A quiet text control on its own row, not a full-width red button.
+             Full width put the one destructive act on this screen across
+             the whole thumb zone at the foot of the list, styled louder than
+             the export that is what people come here to do. It still asks
+             first (see btn-clear-history in app.js), and its target is 44px. -->
+        <div class="history-danger">
+          <button id="btn-clear-history" class="btn-text-danger" type="button">Clear history</button>
         </div>
       </div>
       <div class="results-footpad"></div>
@@ -467,7 +477,7 @@
 
   <div id="share-modal" class="modal hidden">
     <div class="modal-sheet">
-      <h2 id="share-title">Invite cuppers</h2>
+      <h2 id="share-title" tabindex="-1">Invite cuppers</h2>
       <!-- Asked here because this is the moment the leader becomes a name on
            everyone else's screen. It used to live only on Results, which is
            after the cupping: the roster read "Host" for the whole session
