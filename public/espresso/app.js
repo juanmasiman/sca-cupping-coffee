@@ -666,7 +666,7 @@ const grindUnit = () => (kit().steps === 'stepped' ? 'clicks' : 'setting');
 const grindThing = () => (kit().steps === 'stepped' ? tr("the grinder") : tr("the dial"));
 // A distance on the grinder, in the reader's units. Mirrors grind.js.
 const fmtSteps = v => (kit().steps === 'stepped'
-  ? `${Math.round(v)} ${Math.round(v) === 1 ? 'click' : 'clicks'}`
+  ? trn(Math.round(v), '{n} click', '{n} clicks')
   : tr("{0} on the dial", [(Math.round(v * 10) / 10).toFixed(1)]));
 // A grinder that holds grounds makes every grind change cost a purge.
 const retains = () => kit().retains !== false;
@@ -1184,7 +1184,7 @@ function notThePuck(shot, target, c, over) {
   const e = c ? roastEntry(c.roast) : null;
   if (e && over && e.dose >= 0) bag.push(tr("a {0} roast is friable and extracts easily", [e.label.toLowerCase()]));
   if (e && !over && e.dose < 0) bag.push(tr("a {0} roast is dense and hard to extract", [e.label.toLowerCase()]));
-  const because = bag.length ? ` — ${bag.join(', and ')}` : '';
+  const because = bag.length ? ` — ${bag.join(tr(', and '))}` : '';
 
   if (over) {
     return canSetTemp()
@@ -1451,7 +1451,7 @@ function intentCheck(shot, prev) {
       .filter(f => { const a = read(shot, f), b = read(prev, f); return a !== null && b !== null && a !== b; });
     return moved.length
       ? tr("Marked “same again”, but {0} changed since the last shot.", [moved.length > 1
-          ? `${moved.slice(0, -1).join(', ')} and ${moved[moved.length - 1]}`
+          ? tr('{0} and {1}', [moved.slice(0, -1).join(', '), moved[moved.length - 1]])
           : moved[0]])
       : null;
   }
@@ -2266,12 +2266,12 @@ function basketFault(shot) {
   // "a 18g basket" — an article chosen by a developer who knew the number
   // would always start with a one.
   const article = /^[aeiou18]/i.test(fmtDose(want)) ? 'an' : 'a';
-  const named = basket ? `your ${basket}` : `${article} ${fmtDose(want)}g basket`;
+  const named = basket ? tr('your {0}', [basket]) : tr(article === 'an' ? 'an {0}g basket' : 'a {0}g basket', [fmtDose(want)]);
   // Where the coin test found the figure, it is the authority, and saying
   // so is the difference between the app citing the hardware and the app
   // citing the reader's own measurement.
   const ceilingSaid = measured
-    ? tr("over the {0}g you found fits{1}", [fmtDose(want), basket ? ` ${basket}` : ' it'])
+    ? (basket ? tr("over the {0}g you found fits {1}", [fmtDose(want), basket]) : tr("over the {0}g you found fits it", [fmtDose(want)]))
     : tr("over what {0} is built for", [named]);
 
   /* Over the basket's figure is a real fault and it outranks the grinder:
@@ -3053,7 +3053,7 @@ function numField(opts) {
     if (v < opts.min || v > hi) {
       const unit = opts.unit ? ' ' + opts.unit : '';
       // A field with no ceiling cannot print one.
-      const range = hi === Infinity ? tr("{0}{1} or more", [opts.min, unit]) : `${opts.min} to ${hi}${unit}`;
+      const range = hi === Infinity ? tr("{0}{1} or more", [opts.min, unit]) : tr('{0} to {1}{2}', [opts.min, hi, unit]);
       return take(null, tr("{0} takes {1}. Nothing is recorded until it is.", [opts.label, range]));
     }
     take(round(v), '');
@@ -3130,7 +3130,7 @@ function renderBoard() {
   renderHeading(c);
   $('#coffee-name').textContent = coffeeLabel(c);
   $('#coffee-sub').textContent = c
-    ? `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : (" " + tr("· tap to name it"))}`
+    ? `${trn(c.shots.length, '{n} shot', '{n} shots')}${c.roaster ? ` · ${c.roaster}` : ''}${c.name.trim() ? '' : (" " + tr("· tap to name it"))}`
     : tr("tap to add one");
 
   /* No dead control on the front door.
@@ -3887,7 +3887,7 @@ function stopClock(c, quiet) {
   buildVerdict(c);
   renderReadout(c);
   sayClock(tr("Stopped at {0} seconds", [secs]));
-  if (!quiet) toast(`${secs}s recorded`);
+  if (!quiet) toast(tr('{0}s recorded', [secs]));
   // the shot is in the cup: the next question is how it tastes
   syncTasteStep();
 }
@@ -4796,7 +4796,7 @@ function openCoffees() {
     const bag = bagLine(c);
     const roast = roastEntry(c.roast);
     const counts = [
-      `${c.shots.length} shot${c.shots.length === 1 ? '' : 's'}`,
+      trn(c.shots.length, '{n} shot', '{n} shots'),
       keeper ? tr("dialled at {0}", [fmtRatio(ratioOf(keeper))]) : '',
       roast ? roast.label.toLowerCase() : '',
     ].filter(Boolean).join(' · ');
@@ -5076,7 +5076,7 @@ function openEdit(c, opts) {
                 18 offering "Start at 16.5g" after six shots and a keeper —
                 one tap from throwing the dial-in away, with no warning. */
              ? tr("<p class=\"baseline-body\"><strong>{0}1:{1}{2}, {3}–{4}s</strong> is where this bag starts from cold.{5}</p>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, sp.ratio, withTemp ? `, ${escapeHTML(degrees(sp.temp))}` : '', Math.round(sp.timeLo), Math.round(sp.timeHi), c.shots.length ? (" " + trn(c.shots.length, "You are {n} shot past that — the target below is what the board is judging against, and it is yours to edit.", "You are {n} shots past that — the target below is what the board is judging against, and it is yours to edit.")) : (" " + tr("That is what the target below is set to. Change any of it and it stays changed."))])
-             : tr("<button class=\"btn btn-ghost\" type=\"button\" id=\"btn-apply-baseline\">Start at {0}{1}1:{2}, {3}–{4}s</button>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, withTemp ? `${escapeHTML(degrees(sp.temp))} and ` : '', sp.ratio, Math.round(sp.timeLo), Math.round(sp.timeHi)])}
+             : tr("<button class=\"btn btn-ghost\" type=\"button\" id=\"btn-apply-baseline\">Start at {0}{1}1:{2}, {3}–{4}s</button>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, withTemp ? tr('{0} and ', [escapeHTML(degrees(sp.temp))]) : '', sp.ratio, Math.round(sp.timeLo), Math.round(sp.timeHi)])}
          </div>`
       : '';
     const apply = baseWrap.querySelector('#btn-apply-baseline');

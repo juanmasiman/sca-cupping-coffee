@@ -245,8 +245,9 @@
     "Short of the window and heavy is the ratio rather than the grind: the shot was stopped before the water had finished, and what it did take is packed into a small cup. Leave the grinder where it is and let it run longer.": "Antes de la ventana y pesada es la proporción y no la molienda: la extracción se cortó antes de que el agua terminara, y lo que sí se llevó está concentrado en una taza pequeña. Deja el molino donde está y déjala correr más.",
     "Stop it shorter.": "Córtala antes.",
     "Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and stop it shorter.": "Pasada de la ventana y delgada es la proporción y no la molienda: el final solo añadía agua y aspereza. Deja el molino donde está y córtala antes.",
-    "over the {0}g you found fits{1}": "por encima de los {0} g que viste que caben{1}",
-    "over what {0} is built for": "por encima de aquello para lo que está hecha {0}",
+    "over the {0}g you found fits {1}": "por encima de los {0} g que comprobaste que caben en {1}",
+    "over the {0}g you found fits it": "por encima de los {0} g que comprobaste que le caben",
+    "over what {0} is built for": "por encima de la capacidad de {0}",
     "Drop the dose to about {0}g.": "Baja la dosis a unos {0} g.",
     "{0}g is {1}g {2}, and that figure is an upper limit. Overfilled, the puck meets the shower screen before the pump gets going and channels around the edge however the grinder is set, which makes the clock and the cup both untrustworthy. This one is worth fixing before anything else.": "{0} g son {1} g {2}, y esa cifra es un límite superior. Sobrellena, la pastilla toca la ducha antes de que la bomba arranque y se canaliza por el borde, esté como esté el molino, lo que hace que ni el reloj ni la taza sean fiables. Vale la pena arreglar esto antes que nada.",
     "just outside": "justo fuera de",
@@ -660,7 +661,17 @@
     "Bottomless": "Sin fondo",
     "A number": "Un número",
     "Clicks": "Clics",
-    "s": "s"
+    "s": "s",
+    "{n} shot": "{n} extracción",
+    "{n} shots": "{n} extracciones",
+    ", and ": " y ",
+    "your {0}": "tu {0}",
+    "an {0}g basket": "una canasta de {0} g",
+    "a {0}g basket": "una canasta de {0} g",
+    "{0} to {1}{2}": "de {0} a {1}{2}",
+    "{0}s recorded": "{0} s registrados",
+    "{0} and ": "{0} y ",
+    "Shot time": "Tiempo de extracción"
   };
   for (var k in T) if (!(k in ES)) ES[k] = T[k];
   LentoI18n.add(ES);
