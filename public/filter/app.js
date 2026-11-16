@@ -35,6 +35,9 @@ function andList(items) {
   return tr('{a} and {b}', { a: items.slice(0, -1).join(', '), b: items[items.length - 1] });
 }
 const fieldWord = f => ctx('field|' + f, f);
+/* A flavour is stored as the wheel's English descriptor (or the bag's own
+   word); this is the word as drawn. */
+const flavourShown = w => (window.LentoWheel && typeof LentoWheel.label === 'function' ? LentoWheel.label(w) : w);
 
 const STORE = 'lento-filter-v1';
 const PREF = 'lento-filter-prefs-v1';
@@ -1415,8 +1418,8 @@ const GRIND = makeGrind({
      "a tenth": moves are quoted in tenths, but 2.0s is what a whole point
      is worth, and naming the smaller unit would understate the grinder
      tenfold in the one sentence the reader checks the estimate against. */
-  unitWord: () => (grindUnit() === 'clicks' ? tr('click') : tr('point on your dial')),
-  itemWord: () => tr('brew'),
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'), // English: grind.js translates it
+  itemWord: () => 'brew', // English: grind.js makes the plural, then translates
   /* WHICH BREWER THIS ANSWER IS ABOUT.
 
      `enabled` gates the seconds-per-step figure and the promise to learn
@@ -2951,7 +2954,7 @@ function brewCard(brew, prev, c, n) {
        six weeks later is actually asking. */
     read.push(`<div class="brew-flavours" translate="no">${
       brew.flavours.map(w => `<span class="brew-flavour${
-        hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(w)}${
+        hasFlavour(bagWords(c), w) ? ' from-bag' : ''}">${escapeHTML(flavourShown(w))}${
         hasFlavour(bagWords(c), w) ? `<span class="sr-only"> ${tr('(from the bag)')}</span>` : ''}</span>`).join('')
     }</div>`);
   }
@@ -2969,7 +2972,7 @@ function brewCard(brew, prev, c, n) {
     const heard = [];
     if (flavour.length) heard.push(flavour.join(', '));
     if ((brew.flavours || []).length) {
-      heard.push(tr('tasted {list}', { list: brew.flavours.map(w => hasFlavour(bagWords(c), w) ? `${w} ${tr('(from the bag)')}` : w).join(', ') }));
+      heard.push(tr('tasted {list}', { list: brew.flavours.map(w => hasFlavour(bagWords(c), w) ? `${flavourShown(w)} ${tr('(from the bag)')}` : flavourShown(w)).join(', ') }));
     }
     if (diffs.length) heard.push(tr('changed {list}', { list: diffs.join(', ') }));
     if (brew.notes) heard.push(tr('notes: {notes}', { notes: brew.notes }));
@@ -3890,11 +3893,11 @@ function flavourChip(c, word, on, fromBag) {
   const b = el('button', 'chip' + (on ? ' on' : '') + (fromBag ? ' chip-bag' : ''));
   b.type = 'button';
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  b.innerHTML = escapeHTML(word) + (fromBag ? '' : ' <b aria-hidden="true">×</b>');
+  b.innerHTML = escapeHTML(flavourShown(word)) + (fromBag ? '' : ' <b aria-hidden="true">×</b>');
   b.setAttribute('translate', 'no');
   b.setAttribute('aria-label', fromBag
-    ? (on ? tr('{word}, from the bag — tasted', { word }) : tr('{word}, from the bag', { word }))
-    : tr('{word} — remove', { word }));
+    ? (on ? tr('{word}, from the bag — tasted', { word: flavourShown(word) }) : tr('{word}, from the bag', { word: flavourShown(word) }))
+    : tr('{word} — remove', { word: flavourShown(word) }));
   b.addEventListener('click', () => {
     haptic();
     editing.flavours = on
@@ -3938,12 +3941,13 @@ function openWheel(c) {
     (editing.flavours || []).forEach(word => {
       const chip = el('button', 'wheel-pick note');
       chip.type = 'button';
-      chip.innerHTML = `${escapeHTML(word)} <b aria-hidden="true">×</b>`;
-      chip.setAttribute('aria-label', tr('{word} — remove', { word }));
+      chip.innerHTML = `${escapeHTML(flavourShown(word))} <b aria-hidden="true">×</b>`;
+      chip.setAttribute('translate', 'no');
+      chip.setAttribute('aria-label', tr('{word} — remove', { word: flavourShown(word) }));
       chip.onclick = () => {
         haptic();
         editing.flavours = dropFlavour(editing.flavours, word);
-        sync(tr('“{word}” removed', { word }));
+        sync(tr('“{word}” removed', { word: flavourShown(word) }));
       };
       picked.appendChild(chip);
     });
@@ -3969,17 +3973,17 @@ function openWheel(c) {
     if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
         && holder.zoomToRead && holder.zoomToRead(seg)) {
       haptic();
-      sync(tr('Zoomed in — tap “{word}” again to write it down', { word: seg.dataset.desc }));
+      sync(tr('Zoomed in — tap “{word}” again to write it down', { word: flavourShown(seg.dataset.desc) }));
       return;
     }
     haptic();
     const word = seg.dataset.desc || seg.dataset.cat;
     if (hasFlavour(editing.flavours, word)) {
       editing.flavours = dropFlavour(editing.flavours, word);
-      sync(tr('“{word}” removed', { word }));
+      sync(tr('“{word}” removed', { word: flavourShown(word) }));
     } else {
       editing.flavours = (editing.flavours || []).concat([word]);
-      sync(tr('“{word}” written down', { word }));
+      sync(tr('“{word}” written down', { word: flavourShown(word) }));
     }
   };
 
@@ -4089,7 +4093,7 @@ function buildPours(c) {
       const w = numField({
         // "To", because it is where the scale should read when this pour
         // finishes, not what this pour weighs.
-        label: 'To', name: tr('{label}, scale reads', { label }), unit: 'g', compact: true,
+        label: ctx('pour|To', 'To'), name: tr('{label}, scale reads', { label }), unit: 'g', compact: true,
         // A stamped row shows the weight it carried over as a hint only.
         placeholder: num(p.plan) !== null && num(p.water) === null ? String(num(p.plan)) : undefined,
         value: num(p.water), min: 0, max: 2000, step: 10, digits: 0,

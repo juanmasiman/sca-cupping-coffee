@@ -3190,7 +3190,7 @@ function renderEyCard(c) {
     say = tr("Shot {0}: {1}% extraction at {2}% TDS — {3}", [shotNumber(c, latest), fmt1(r.ey), num(latest.tds).toFixed(2), where]);
   }
   wrap.innerHTML = `
-    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target · dashed line: 1:${fmt1(box.ratio)}${recipe ? (" " + tr("· ring: current recipe")) : ''}</span></div>
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">${tr("box: target · dashed line: 1:{0}", [fmt1(box.ratio)])}${recipe ? (" " + tr("· ring: current recipe")) : ''}</span></div>
     ${LentoEyChart.render({ points, box, ratio: box.ratio, x: [14, 26], y: [5, 14], yStep: 1, label: 'Shot' })}
     <p class="ey-say">${say}</p>`;
   wrap.classList.remove('hidden');
@@ -3312,9 +3312,9 @@ function renderKeeper(c) {
       <span class="keeper-big">${fmt1(num(keeper.yield))}<small>g out</small></span>
       <span class="keeper-big">${keeper.time === null ? '—' : Math.round(keeper.time)}<small>s</small></span>
     </div>
-    <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · grind ${escapeHTML(String(keeper.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}` : ''}${
+    <div class="keeper-meta">${fmtRatio(r)}${keeper.grind ? ` · ${tr('grind {0}', [escapeHTML(String(keeper.grind))])}${grindUnit() === 'clicks' ? ' ' + tr('clicks') : ''}` : ''}${
       keeper.temp ? ` · ${escapeHTML(degrees(keeper.temp))}` : ''}${
-      ey !== null ? ` · ${fmt1(ey)}% extraction` : ''}</div>
+      ey !== null ? ` · ${tr('{0}% extraction', [fmt1(ey)])}` : ''}</div>
     ${/* The recipe is not rewritten as the coffee ages. Beans degas, the
           same setting starts running faster, and the answer is a small
           move on the grinder — not a new recipe. So the dialled-in figure
@@ -3471,17 +3471,17 @@ function shotCard(shot, prev, c, n) {
   const card = el('button', 'log-card');
   card.type = 'button';
   card.setAttribute('aria-label', (() => {
-    const bits = [`Shot ${n}`];
-    if (num(shot.time) !== null) bits.push(`${Math.round(num(shot.time))} seconds`);
+    const bits = [tr('Shot {0}', [n])];
+    if (num(shot.time) !== null) bits.push(tr('{0} seconds', [Math.round(num(shot.time))]));
     /* The ratio used to be announced here because the card printed it.
        The card does not any more, and a label that describes a different
        card than the one on screen is the failure the label exists to
        prevent — two people looking at the same row and told two things. */
     if (shot.grind !== '' && shot.grind !== null && shot.grind !== undefined) {
-      bits.push(`grind ${shot.grind}${grindUnit() === 'clicks' ? ' clicks' : ''}`);
+      bits.push(tr('grind {0}', [shot.grind]) + (grindUnit() === 'clicks' ? ' ' + tr('clicks') : ''));
     }
     if (shot.verdict === 'keeper') bits.push(tr("current recipe"));
-    return `${bits.join(', ')}. Edit.`;
+    return tr('{0}. Edit.', [bits.join(', ')]);
   })());
   const ey = extractionOf(shot);
   const place = placeOf(shot, c.target);
@@ -3531,16 +3531,16 @@ function shotCard(shot, prev, c, n) {
          of deltas beside "+2s". */
       const d = Math.abs(dGrind);
       const dist = grindUnit() === 'clicks'
-        ? `${Math.round(d)} ${Math.round(d) === 1 ? 'click' : 'clicks'}`
+        ? trn(Math.round(d), '{n} click', '{n} clicks')
         : (Math.round(d * 10) / 10).toFixed(1);
       diffs.push(sens
-        ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? 'finer' : 'coarser'}`
-        : `grind ${fmtDelta(dGrind, '', 1)}`);
+        ? `${dist} ${(dGrind > 0) === sens.finerIsUp ? tr('finer') : tr('coarser')}`
+        : tr('grind {0}', [fmtDelta(dGrind, '', 1)]));
     }
     const dDose = d('dose');
-    if (dDose) diffs.push(`${fmtDelta(dDose, 'g in')}`);
+    if (dDose) diffs.push(`${fmtDelta(dDose, tr('g in'))}`);
     const dYield = d('yield');
-    if (dYield) diffs.push(`${fmtDelta(dYield, 'g out')}`);
+    if (dYield) diffs.push(`${fmtDelta(dYield, tr('g out'))}`);
     const dTime = d('time');
     if (dTime) diffs.push(`${fmtDelta(dTime, 's', 0)}`);
     const dTemp = d('temp');
@@ -3556,8 +3556,8 @@ function shotCard(shot, prev, c, n) {
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const timeNote = place.time === null ? ''
     : place.time === 'in' ? tr("in the window")
-    : place.time === 'fast' ? `${Math.round(c.target.timeLo - shot.time)}s fast`
-    : `${Math.round(shot.time - c.target.timeHi)}s slow`;
+    : place.time === 'fast' ? tr('{0}s fast', [Math.round(c.target.timeLo - shot.time)])
+    : tr('{0}s slow', [Math.round(shot.time - c.target.timeHi)]);
 
   /* THE CARD IS A RECORD OF ONE SHOT, SO IT LEADS WITH THE SHOT.
 
@@ -3604,7 +3604,7 @@ function shotCard(shot, prev, c, n) {
      somebody who owns one turned the setting on deliberately. */
   const support = [];
   if (num(Number(shot.grind)) !== null && shot.grind !== '') {
-    support.push(`<span class="is-set">grind ${escapeHTML(String(shot.grind))}${grindUnit() === 'clicks' ? ' clicks' : ''}</span>`);
+    support.push(`<span class="is-set">${tr('grind {0}', [escapeHTML(String(shot.grind))])}${grindUnit() === 'clicks' ? ' ' + tr('clicks') : ''}</span>`);
   }
   if (ey !== null) support.push(`${fmt1(ey)}% EY`);
   const flags = [];
@@ -3639,7 +3639,7 @@ function shotCard(shot, prev, c, n) {
   if (flavour.length) read.push(`<div class="log-flavour">${escapeHTML(flavour.join(' · '))}</div>`);
   if (flags.length) read.push(`<div class="log-run">${escapeHTML(flags.join(' · '))}</div>`);
   notes.forEach(x => read.push(`<div class="log-mismatch">${escapeHTML(x)}</div>`));
-  if (shot.notes) read.push(`<div class="log-notes">${escapeHTML(shot.notes)}</div>`);
+  if (shot.notes) read.push(`<div class="log-notes" translate="no">${escapeHTML(shot.notes)}</div>`);
 
   /* THREE BANDS, AND THE SAME THREE ON EVERY CARD.
 
@@ -4595,7 +4595,7 @@ function renderReadout(c) {
 
   const timeClass = place.time === 'in' ? 'in' : place.time === null ? '' : 'out';
   const windowNote = place.time === null
-    ? `window ${c.target.timeLo}–${c.target.timeHi}s`
+    ? tr('window {0}–{1}s', [c.target.timeLo, c.target.timeHi])
     : place.time === 'in' ? tr("in the {0}–{1}s window", [c.target.timeLo, c.target.timeHi])
     : place.time === 'fast' ? tr("{0}s under the window", [Math.round(c.target.timeLo - editing.time)])
     : tr("{0}s over the window", [Math.round(editing.time - c.target.timeHi)]);
@@ -4604,7 +4604,7 @@ function renderReadout(c) {
     <div class="readout-row">
       <div class="readout-cell">
         <span class="readout-value${r === null ? ' empty' : ''}">${fmtRatio(r)}</span>
-        <span class="readout-label">${bandDrift(r, c.target.ratio) ? `${bandDrift(r, c.target.ratio)} · ` : ''}ratio${r !== null ? ` · aiming 1:${c.target.ratio}` : ''}</span>
+        <span class="readout-label">${bandDrift(r, c.target.ratio) ? `${bandDrift(r, c.target.ratio)} · ` : ''}${tr('ratio')}${r !== null ? ' · ' + tr('aiming 1:{0}', [c.target.ratio]) : ''}</span>
       </div>
       <div class="readout-cell">
         <span class="readout-value${flow === null ? ' empty' : ''}">${fmt2(flow)}</span>
@@ -4806,7 +4806,7 @@ function openCoffees() {
 
     const pick = el('button', 'coffee-pick', `
       <span class="coffee-row-text">
-        <span class="coffee-row-name">${escapeHTML(coffeeLabel(c))}</span>
+        <span class="coffee-row-name" translate="no">${escapeHTML(coffeeLabel(c))}</span>
         ${bag ? `<span class="coffee-row-bag">${escapeHTML(bag)}</span>` : ''}
         ${/* A bag the other tool brews too. Worth a word on the row: what
               is written on it is shared, so a correction here is a
@@ -4817,7 +4817,7 @@ function openCoffees() {
       </span>
     `);
     pick.type = 'button';
-    pick.setAttribute('aria-label', `Pull ${coffeeLabel(c)}`);
+    pick.setAttribute('aria-label', tr('Pull {0}', [coffeeLabel(c)]));
     pick.addEventListener('click', () => {
       state.activeId = c.id;
       save();
@@ -4832,7 +4832,7 @@ function openCoffees() {
       + '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>'
       + '</svg>');
     edit.type = 'button';
-    edit.setAttribute('aria-label', `Edit ${coffeeLabel(c)}`);
+    edit.setAttribute('aria-label', tr('Edit {0}', [coffeeLabel(c)]));
     edit.addEventListener('click', () => {
       closeModal('#coffee-modal');
       openEdit(c, {});
@@ -5063,11 +5063,11 @@ function openEdit(c, opts) {
                 a hundred and five words of unbroken prose with the one
                 actionable line at the bottom, which is the shape a reader
                 skips. */ ''}
-           <p class="baseline-body">${escapeHTML(e.label)} roasts usually take ${withTemp ? `<strong>${escapeHTML(tempBand(e))}</strong>, ` : ''}<strong>${e.ratioRange}</strong> and <strong>${Math.round(e.timeLo)}–${Math.round(e.timeHi)}s</strong>.</p>
+           <p class="baseline-body">${tr('{0} roasts usually take {1}<strong>{2}</strong> and <strong>{3}–{4}s</strong>.', [escapeHTML(e.label), withTemp ? `<strong>${escapeHTML(tempBand(e))}</strong>, ` : '', e.ratioRange, Math.round(e.timeLo), Math.round(e.timeHi)])}</p>
            <details class="tip-more"><summary>Why these</summary>
-             <p class="baseline-body">Roast level is the strongest thing a bag tells you about extraction.${shifted}${
-               e.timeLo < 25 ? (" " + tr("The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.")) : ''}${
-               withTemp ? '' : (" " + tr("Your machine holds one temperature, so the rest of this is the part you can take."))} Your grinder, water and palate finish the job.</p>
+             <p class="baseline-body">${tr("Roast level is the strongest thing a bag tells you about extraction.{0}{1}{2} Your grinder, water and palate finish the job.", [shifted, 
+               e.timeLo < 25 ? (" " + tr("The window starts earlier than the usual 25–30 because a lighter roast is often at its best pulled faster and longer, and it should not be told off for it.")) : '', 
+               withTemp ? '' : (" " + tr("Your machine holds one temperature, so the rest of this is the part you can take."))])}</p>
              ${sp.extra.map(x => `<p class="baseline-body">${escapeHTML(x)}</p>`).join('')}
            </details>
            ${(startApplied(sp, spDose) || c.shots.length)
@@ -5627,7 +5627,7 @@ function coffeeShelfLine() {
   const n = (state.coffees || []).length;
   if (!n) return tr("Nothing on the shelf yet");
   const active = activeCoffee();
-  return `${n} coffee${n === 1 ? '' : 's'}${active ? ` · on ${coffeeLabel(active)}` : ''}`;
+  return trn(n, '{n} coffee', '{n} coffees') + (active ? ' · ' + tr('on {0}', [coffeeLabel(active)]) : '');
 }
 
 function kitLine() {
@@ -5789,9 +5789,12 @@ function openSettings() {
     <span class="field-label section">Appearance</span>
     <div class="seg" id="theme-seg" role="radiogroup" aria-label="Appearance"></div>
 
+    <span class="field-label section">Language</span>
+    <div id="lang-seg"></div>
+
     <button class="btn btn-ghost kit-btn" id="btn-pinch">
       <span class="kit-btn-title">Find a starting grind</span>
-      <span class="kit-btn-sub">The pinch test — where to set ${grindThing()} before spending a shot</span>
+      <span class="kit-btn-sub">${tr("The pinch test — where to set {0} before spending a shot", [grindThing()])}</span>
     </button>
 
     <button class="btn btn-ghost kit-btn" id="btn-salami">
@@ -5842,6 +5845,11 @@ function openSettings() {
     b.addEventListener('click', () => { prefs.theme = key; savePrefs(); applyTheme(); openSettings(); });
     seg.appendChild(b);
   });
+
+  /* The language switch is the shared one: each language named in itself,
+     and changing it reloads, because every screen is drawn from state. */
+  const langWrap = body.querySelector('#lang-seg');
+  if (langWrap && window.LentoI18n) langWrap.replaceWith(LentoI18n.toggle());
 
   const acc = body.querySelector('#btn-account');
   if (acc) acc.addEventListener('click', () => { closeModal('#settings-modal'); LentoAccountSheet.open(); });

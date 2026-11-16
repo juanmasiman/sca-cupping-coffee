@@ -332,6 +332,8 @@
    the row with two thirds empty. */
 .pour-row.is-valve .pour-field { flex: 1; }
 .pour-row.is-valve .pour-label { color: var(--chrome); }
+/* Spanish says Vertido 1 and Apertura, which do not fit the English gutter. */
+html[lang="es"] .pour-label { width: 62px; letter-spacing: 0.02em; }
 
 .pour-valves { display: flex; gap: var(--space-3); margin-top: var(--space-3); }
 .pour-valve-add { flex: 1; }
