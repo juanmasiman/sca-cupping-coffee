@@ -94,8 +94,8 @@
      neither is invented here. */
   function buildSVG(opts) {
     opts = opts || {};
-    var catDoes = opts.categoryHint || 'category';
-    var wordDoes = opts.wordHint || 'descriptor';
+    var catDoes = tr(opts.categoryHint || 'category');
+    var wordDoes = tr(opts.wordHint || 'descriptor');
 
     var SIZE = 340, C = SIZE / 2;
     var R_IN = 52, R_MID = 108, R_OUT = 164;
@@ -117,7 +117,7 @@
        The host passes its own word, so the hub agrees with the screen
        around it. */
     var word = (opts && opts.word) || 'flavor';
-    var svg = '<svg viewBox="0 0 ' + SIZE + ' ' + SIZE + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coffee ' + word + ' wheel">';
+    var svg = '<svg viewBox="0 0 ' + SIZE + ' ' + SIZE + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + esc(tr('Coffee {word} wheel', { word: word })) + '">';
     var angle = -Math.PI / 2;
     var outerAngle = -Math.PI / 2;
 
@@ -127,7 +127,7 @@
       var mid = (a0 + a1) / 2;
 
       svg += '<path class="wheel-seg wheel-cat ink-' + inkOn(cat.color) + '" d="' + arc(R_IN, R_MID, a0, a1) + '" fill="' + cat.color + '" tabindex="-1" role="button"'
-        + ' aria-label="' + esc(cat.name) + ' — ' + esc(catDoes) + '" data-cat="' + esc(cat.name) + '"/>';
+        + ' aria-label="' + esc(tr(cat.name)) + ' — ' + esc(catDoes) + '" data-cat="' + esc(cat.name) + '"/>';
 
       // category label, rotated to sit along its wedge
       var lx = C + ((R_IN + R_MID) / 2) * Math.cos(mid);
@@ -139,12 +139,13 @@
          of its own wedge and into the descriptors. The compound names break
          at their slash instead, which is where they already read as two
          things: no line exceeds about 40 units. */
-      var parts = cat.name.split('/');
+      var shown = tr(cat.name);
+      var parts = shown.split('/');
       var label = parts.length > 1
         ? parts.map(function (t, i) {
           return '<tspan x="' + lx.toFixed(1) + '" dy="' + (i === 0 ? '-0.55em' : '1.1em') + '">' + esc(t.trim()) + '</tspan>';
         }).join('')
-        : esc(cat.name);
+        : esc(shown);
       svg += '<text class="wheel-cat-label ink-' + inkOn(cat.color) + '" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + deg.toFixed(1) + ' ' + lx.toFixed(1) + ' ' + ly.toFixed(1) + ')">' + label + '</text>';
 
       cat.children.forEach(function (child) {
@@ -152,7 +153,7 @@
         var c0 = outerAngle, c1 = outerAngle + cSpan;
         var cMid = (c0 + c1) / 2;
         svg += '<path class="wheel-seg wheel-child ink-' + inkOn(cat.color) + '" d="' + arc(R_MID, R_OUT, c0, c1) + '" fill="' + cat.color + '" fill-opacity="0.45" tabindex="-1" role="button"'
-          + ' aria-label="' + esc(child) + ' — ' + esc(cat.name) + ', ' + esc(wordDoes) + '" data-desc="' + esc(child) + '" data-cat="' + esc(cat.name) + '"/>';
+          + ' aria-label="' + esc(tr(child)) + ' — ' + esc(tr(cat.name)) + ', ' + esc(wordDoes) + '" data-desc="' + esc(child) + '" data-cat="' + esc(cat.name) + '"/>';
         var tx = C + ((R_MID + R_OUT) / 2 - 2) * Math.cos(cMid);
         var ty = C + ((R_MID + R_OUT) / 2 - 2) * Math.sin(cMid);
         var cDeg = (cMid * 180) / Math.PI;
@@ -161,7 +162,7 @@
            being the card and becomes the hue — which took the label with it,
            to 2.94:1 in light and 1.55:1 in dark. The label carries the ink its
            own hue needs, and switches to it exactly when the wedge fills. */
-        svg += '<text class="wheel-child-label ink-' + inkOn(cat.color) + '" data-desc="' + esc(child) + '" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + cDeg.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' + esc(child) + '</text>';
+        svg += '<text class="wheel-child-label ink-' + inkOn(cat.color) + '" data-desc="' + esc(child) + '" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + cDeg.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' + esc(tr(child)) + '</text>';
         outerAngle = c1;
       });
 
@@ -169,8 +170,12 @@
     });
 
     svg += '<circle cx="' + C + '" cy="' + C + '" r="' + (R_IN - 2) + '" class="wheel-hub"/>';
-    svg += '<text x="' + C + '" y="' + (C - 5) + '" text-anchor="middle" class="wheel-hub-label">' + word + '</text>';
-    svg += '<text x="' + C + '" y="' + (C + 11) + '" text-anchor="middle" class="wheel-hub-label">wheel</text>';
+    /* Two lines, split at the first space of the whole phrase: "flavor" /
+       "wheel" in English, "rueda" / "de sabores" in Spanish. */
+    var hub = tr('{word} wheel', { word: word });
+    var cut = hub.indexOf(' ');
+    svg += '<text x="' + C + '" y="' + (C - 5) + '" text-anchor="middle" class="wheel-hub-label">' + esc(cut < 0 ? hub : hub.slice(0, cut)) + '</text>';
+    svg += '<text x="' + C + '" y="' + (C + 11) + '" text-anchor="middle" class="wheel-hub-label">' + esc(cut < 0 ? '' : hub.slice(cut + 1)) + '</text>';
     svg += '</svg>';
     return svg;
   }
@@ -269,7 +274,7 @@
     if (!cats.length) return;
 
     svg.setAttribute('role', 'group');
-    svg.setAttribute('aria-label', 'Flavor wheel — arrow keys move between wedges, Enter takes one');
+    svg.setAttribute('aria-label', tr('Flavor wheel — arrow keys move between wedges, Enter takes one'));
 
     var setCurrent = function (seg) {
       if (!seg) return;
@@ -367,6 +372,10 @@
     CATEGORIES: CATEGORIES,
     WORDS: WORDS,
     categoryOf: categoryOf,
+    /* What a descriptor or category is called on screen. The stored word
+       stays English (data-desc, data-cat, the CATA keys); this is only
+       the drawing. */
+    label: function (word) { return tr(word); },
     inkOn: inkOn,
     noteItems: noteItems,
     buildSVG: buildSVG,

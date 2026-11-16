@@ -454,7 +454,7 @@ function helpBtn(id) {
   if (!guidedOn() && id !== 'intro') return null;
   const btn = el('button', 'help-btn', '?');
   btn.type = 'button';
-  btn.setAttribute('aria-label', `About ${HELP[id].title}`);
+  btn.setAttribute('aria-label', tr('About {title}', { title: tr(HELP[id].title) }));
   btn.addEventListener('click', e => {
     e.stopPropagation();
     openHelp(id);
@@ -705,7 +705,7 @@ function archiveSession() {
     // the record was written, and the history average quietly mixed
     // finished sheets with abandoned ones.
     coffees: state.coffees.map((c, i) => ({
-      name: coffeeName(c, i),
+      name: coffeeNameRaw(c, i),
       meta: { ...c.meta },
       notes: c.notes,
       score: coffeeScore(c),
@@ -871,7 +871,7 @@ function renderAccountButton() {
   // no account backend on this deploy: no door to one
   btn.classList.toggle('hidden', !(window.LentoAccountSheet && LentoAccountSheet.enabled()));
   $('#account-dot').classList.toggle('hidden', !u);
-  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
+  btn.setAttribute('aria-label', u ? tr('Your profile, signed in as {who}', { who: u.email || u.name }) : tr('Your profile, signed out'));
 }
 
 function openAccountSheet() {
@@ -1016,7 +1016,7 @@ function panelAverage(entries) {
 
 // "2 of 8" for a sheet still being scored, empty for a finished one.
 function ratedNote(entry) {
-  return entry.partial ? `${entry.rated} of ${entry.total}` : '';
+  return entry.partial ? tr('{a} of {b}', { a: entry.rated, b: entry.total }) : '';
 }
 
 // One cupper's chip: a score, or the mark for its absence and the count
@@ -1098,7 +1098,14 @@ function gradeFor(score) {
   return g.note ? `${g.name} · ${g.note}` : g.name;
 }
 
+// What a coffee is called on screen. The stored name — in History, in a
+// session code — is always coffeeNameRaw, so a record reads the same on a
+// phone in either language.
 function coffeeName(c, i) {
+  return c.name.trim() || tr('Coffee {n}', { n: i + 1 });
+}
+
+function coffeeNameRaw(c, i) {
   return c.name.trim() || `Coffee ${i + 1}`;
 }
 
@@ -1107,7 +1114,7 @@ function metaSummary(meta) {
   if (meta.variety) bits.push(meta.variety);
   if (meta.process) bits.push(meta.process);
   if (meta.roast) bits.push(meta.roast);
-  if (meta.altitude) bits.push(`${meta.altitude} masl`);
+  if (meta.altitude) bits.push(tr('{n} masl', { n: meta.altitude }));
   if (meta.country) bits.push(meta.country);
   if (meta.farm) bits.push(meta.farm);
   return bits.join(' · ');
@@ -1284,7 +1291,7 @@ function buildSessionPayload() {
       // Blind means blind: the standard has cuppers work from coded samples,
       // and a name is the identity the leader reveals at the end. Until they
       // share details the table sees Coffee 1, 2, 3.
-      const entry = state.shareDetails ? { n: coffeeName(c, i) } : {};
+      const entry = state.shareDetails ? { n: coffeeNameRaw(c, i) } : {};
       if (state.shareDetails) {
         entry.m = Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim()));
       }
@@ -1572,7 +1579,7 @@ async function pollCuppingRoster() {
     const fresh = names.filter(n => !seenCuppers.includes(n));
     if (fresh.length) {
       arrivalHaptic();
-      toast(fresh.length === 1 ? `${fresh[0]} joined` : `${fresh.length} more joined`);
+      toast(fresh.length === 1 ? tr('{name} joined', { name: fresh[0] }) : tr('{n} more joined', { n: fresh.length }));
     }
   }
   seenCuppers = names;
@@ -1696,7 +1703,7 @@ async function buildScoreCode() {
     s: myScores(),
     // how much of each sheet is real, so the receiving table can weigh it
     r: myRated(),
-    t: state.coffees.map((c, i) => coffeeName(c, i)),
+    t: state.coffees.map((c, i) => coffeeNameRaw(c, i)),
   });
 }
 
@@ -1704,7 +1711,7 @@ async function addTeamScoresFromCode(text) {
   const obj = await decodeCode('SCR', text);
   if (!obj || !Array.isArray(obj.s) || !obj.s.length) return { ok: false, error: 'That doesn’t look like a score code.' };
   if (obj.s.length !== state.coffees.length) {
-    return { ok: false, error: `That code has ${obj.s.length} coffee${obj.s.length > 1 ? 's' : ''}, this session has ${state.coffees.length}.` };
+    return { ok: false, error: trn(obj.s.length, 'That code has {n} coffee, this session has {m}.', 'That code has {n} coffees, this session has {m}.', { m: state.coffees.length }) };
   }
   const scores = obj.s.map(v =>
     typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null);
@@ -1751,7 +1758,9 @@ async function askToReveal() {
     effects.push('The coffees get their names, and their origin details — farm, variety, process, altitude. The table has been cupping them as Coffee 1, 2, 3; that stops here.');
   }
   if (waiting > 0) {
-    effects.push(`${waiting} cupper${waiting > 1 ? 's have' : ' has'} not submitted yet. ${waiting > 1 ? 'Their sheets' : 'Their sheet'} can still be added afterwards, but ${waiting > 1 ? 'they' : 'that cupper'} will be scoring with the table’s scores already on screen.`);
+    effects.push(trn(waiting,
+      '{n} cupper has not submitted yet. Their sheet can still be added afterwards, but that cupper will be scoring with the table’s scores already on screen.',
+      '{n} cuppers have not submitted yet. Their sheets can still be added afterwards, but they will be scoring with the table’s scores already on screen.'));
   }
   effects.push('It cannot be undone.');
   return confirmSheet({
@@ -1995,7 +2004,7 @@ function openJoinSheet() {
         // joiner takes a seat there rather than starting a rival table
         if (joined.code) await takeSeat(joined.code);
         startCupping();
-        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+        toast(trn(state.coffees.length, 'Joined · {n} coffee', 'Joined · {n} coffees'));
         return true;
       },
     });
@@ -2086,12 +2095,12 @@ async function joinWouldDestroyWork(code) {
      send line and missed here. */
   const finished = state.coffees.length - p.untouched - p.partial;
   const tally = [];
-  if (finished) tally.push(`${finished} finished`);
-  if (p.partial) tally.push(`${p.partial} part-scored`);
+  if (finished) tally.push(tr('{n} finished', { n: finished }));
+  if (p.partial) tally.push(tr('{n} part-scored', { n: p.partial }));
   return !(await confirmSheet({
     title: 'Join this table and leave your cupping?',
-    body: `You have a cupping that has not been finished — ${tally.join(' and ')} of ${
-      state.coffees.length} — so it is not in History yet.`,
+    body: tr('You have a cupping that has not been finished — {tally} of {n} — so it is not in History yet.', {
+      tally: tally.join(` ${tr('and')} `), n: state.coffees.length }),
     effects: ['Joining replaces it. That scoring is discarded.'],
     cta: 'Leave it and join',
     danger: true,
@@ -2122,7 +2131,7 @@ function askNameThenJoin(payload, code) {
     // a link made before the leader's code existed carries the lineup only
     await takeSeat(code || (payload && payload.lc) || null);
     startCupping();
-    toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+    toast(trn(state.coffees.length, 'Joined · {n} coffee', 'Joined · {n} coffees'));
     // Someone arriving by QR never passes the setup screen, so they land on
     // eight sections of a form they may never have seen, with no idea what a
     // cupping is or why they score alone first. "How a cupping works" was
@@ -2165,11 +2174,13 @@ function askNameThenJoin(payload, code) {
     const cups = payload && payload.c ? payload.c : null;
     const form = payload && payload.f === 'legacy' ? 'SCA 2004 form' : 'SCA CVA';
     const bits = [];
-    if (n) bits.push(`${n} coffee${n > 1 ? 's' : ''}`);
-    if (cups) bits.push(`${cups} cup${cups > 1 ? 's' : ''} each`);
-    bits.push(form);
+    if (n) bits.push(trn(n, '{n} coffee', '{n} coffees'));
+    if (cups) bits.push(trn(cups, '{n} cup each', '{n} cups each'));
+    bits.push(tr(form));
     const table = code || (payload && payload.lc);
-    what.textContent = `You are joining ${bits.join(' · ')}${table ? ` · table ${table}` : ''}.`;
+    if (table) bits.push(tr('table {code}', { code: table }));
+    what.textContent = tr('You are joining {what}.', { what: bits.join(' · ') });
+
     what.classList.toggle('hidden', !n);
   }
   openSheet(modal, () => close());
@@ -2301,7 +2312,8 @@ async function openInviteSheet() {
   $('#share-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
   link.onclick = () => shareUrl && shareText(
-    `Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
+    tr('Join my cupping: {url}', { url: shareUrl }) + '\n\n'
+      + tr('Or open {app}, tap “Join a cupping” and enter the code.', { app: APP_URL }),
     'Join link copied'
   );
 
@@ -2315,7 +2327,7 @@ async function openInviteSheet() {
 
     joinedWrap.classList.remove('hidden');
     $('#joined-title').textContent = people.length
-      ? `At the table · ${done} of ${people.length} submitted`
+      ? tr('At the table · {a} of {b} submitted', { a: done, b: people.length })
       : 'At the table';
 
     /* Which chip is you, and what to do when nobody can tell.
@@ -2351,7 +2363,7 @@ async function openInviteSheet() {
     if (clash) {
       clash.classList.toggle('hidden', sameName < 2);
       if (sameName >= 2) {
-        clash.textContent = `${sameName} cuppers here are called ${myName}, so neither the leader nor this screen can tell which seat is yours. Add an initial to your name on the Results screen and it will show on the roster.`;
+        clash.textContent = tr('{n} cuppers here are called {name}, so neither the leader nor this screen can tell which seat is yours. Add an initial to your name on the Results screen and it will show on the roster.', { n: sameName, name: myName });
       }
     }
 
@@ -2364,7 +2376,8 @@ async function openInviteSheet() {
     } else {
       revealBtn.disabled = false;
       revealBtn.textContent = done < people.length
-        ? `Reveal scores now (${people.length - done} still cupping)`
+        ? tr('Reveal scores now ({n} still cupping)', { n: people.length - done })
+
         : 'Reveal scores to the table';
     }
 
@@ -2511,8 +2524,8 @@ function buildLineup() {
   state.coffees.forEach((coffee, i) => list.appendChild(buildLineupRow(coffee, i, locked)));
 
   $('#lineup-intro').innerHTML = locked
-    ? 'This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.'
-    : 'Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.';
+    ? tr('This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.')
+    : tr('Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.');
 
   $('#btn-lineup-add').classList.toggle('hidden', locked);
   $('#btn-lineup-paste').classList.toggle('hidden', locked);
@@ -2539,12 +2552,12 @@ function buildLineupRow(coffee, index, locked) {
            dare press it and so never found out which it was. It has always
            confirmed when there is scoring behind it; the icon now says what
            it is asking about. -->
-      <button class="lineup-icon remove" type="button" aria-label="Remove coffee ${index + 1} from the lineup">
+      <button class="lineup-icon remove" type="button" aria-label="${tr('Remove coffee {n} from the lineup', { n: index + 1 })}">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"/>
         </svg>
       </button>
-      <button class="lineup-icon chev" type="button" aria-label="Details for coffee ${index + 1}">
+      <button class="lineup-icon chev" type="button" aria-label="${tr('Details for coffee {n}', { n: index + 1 })}">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
@@ -2552,8 +2565,8 @@ function buildLineupRow(coffee, index, locked) {
   `;
 
   const nameInput = row.querySelector('.lineup-name');
-  nameInput.placeholder = `Coffee ${index + 1} — name…`;
-  nameInput.setAttribute('aria-label', `Name of coffee ${index + 1}`);
+  nameInput.placeholder = tr('Coffee {n} — name…', { n: index + 1 });
+  nameInput.setAttribute('aria-label', tr('Name of coffee {n}', { n: index + 1 }));
   nameInput.value = coffee.name;
   nameInput.readOnly = locked;
 
@@ -2616,8 +2629,8 @@ function buildLineupRow(coffee, index, locked) {
     if (state.coffees.length <= 1) return;
     const p = scoreProgress(coffee);
     if (p.done > 0 && !(await confirmSheet({
-      title: `Remove ${coffeeName(coffee, index)}?`,
-      effects: [`${p.done} of its ${p.total} sections ${p.done > 1 ? 'have' : 'has'} been scored. That scoring is discarded.`],
+      title: tr('Remove {name}?', { name: coffeeName(coffee, index) }),
+      effects: [trn(p.done, '{n} of its {total} sections has been scored. That scoring is discarded.', '{n} of its {total} sections have been scored. That scoring is discarded.', { total: p.total })],
       cta: 'Remove it',
       danger: true,
     }))) return;
@@ -2665,7 +2678,7 @@ function openLineupPaste() {
       const scored = state.coffees.slice(names.length).filter(c => scoreProgress(c).done > 0).length;
       if (scored > 0 && !(await confirmSheet({
         title: 'Shorten the lineup?',
-        effects: [`${scored} coffee${scored > 1 ? 's that already have' : ' that already has'} scores would be dropped, and that scoring is discarded.`],
+        effects: [trn(scored, '{n} coffee that already has scores would be dropped, and that scoring is discarded.', '{n} coffees that already have scores would be dropped, and that scoring is discarded.')],
         cta: 'Shorten it',
         danger: true,
       }))) return false;
@@ -2676,7 +2689,8 @@ function openLineupPaste() {
       state.activeIndex = Math.min(state.activeIndex, state.coffees.length - 1);
       save();
       buildLineup();
-      toast(`${names.length} coffee${names.length > 1 ? 's' : ''} in the lineup`);
+      toast(trn(names.length, '{n} coffee in the lineup', '{n} coffees in the lineup'));
+
       return true;
     },
   });
@@ -2862,12 +2876,12 @@ function refreshTabs() {
      meaning, on top of the two a tester had already counted. The label
      says what the badge counts. */
   invite.setAttribute('aria-label', live
-    ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined
+    ? (counts && counts.joined
         ? (counts.submitted
-            ? `, ${counts.submitted} of ${counts.joined} at the table have sent their scores`
-            : `, ${counts.joined} at the table, nobody has sent scores yet`)
-        : ''} — open the code`
-    : 'Invite cuppers to this session');
+            ? tr('Cupping code {code}, {a} of {b} at the table have sent their scores — open the code', { code: code.split('').join(' '), a: counts.submitted, b: counts.joined })
+            : tr('Cupping code {code}, {b} at the table, nobody has sent scores yet — open the code', { code: code.split('').join(' '), b: counts.joined }))
+        : tr('Cupping code {code} — open the code', { code: code.split('').join(' ') }))
+    : tr('Invite cuppers to this session'));
 
   // The score and the progress moved into the header's own score block, so
   // this line stops repeating them. What it says instead is the thing that
@@ -2890,9 +2904,9 @@ function refreshTabs() {
      every coffee and marks the one you are on, and the coffee's own name is
      the line directly above this one. */
   const parts = [];
-  if (code) parts.push(state.submittedAt ? 'sent' : 'not sent');
-  if (live) parts.push(`code ${code}`);
-  if (!code && state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
+  if (code) parts.push(state.submittedAt ? tr('sent') : tr('not sent'));
+  if (live) parts.push(tr('code {code}', { code }));
+  if (!code && state.coffees.length > 1) parts.push(tr('{a} of {b}', { a: state.activeIndex + 1, b: state.coffees.length }));
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
 
@@ -2915,7 +2929,9 @@ function refreshTabs() {
     seg.classList.toggle('active', i === state.activeIndex);
     seg.classList.toggle('done', p.complete);
     seg.setAttribute('aria-label',
-      `${coffeeName(c, i)}, ${p.complete ? 'rated' : `${p.done} of ${p.total} rated`}`);
+      p.complete ? tr('{name}, rated', { name: coffeeName(c, i) })
+        : tr('{name}, {a} of {b} rated', { name: coffeeName(c, i), a: p.done, b: p.total }));
+
     seg.setAttribute('aria-current', i === state.activeIndex ? 'true' : 'false');
   });
   revealActiveSeg(rail);
@@ -3084,11 +3100,11 @@ function buildWelcome() {
      must say first is the scale and who sees the sheet; the rest is in
      "How a cupping works" and in the Score head's mark. */
   const scale = usingCVA()
-    ? 'Rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, where an ordinary cup sits.'
-    : 'Rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cup that falls short.';
+    ? tr('Rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, where an ordinary cup sits.')
+    : tr('Rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cup that falls short.');
   const others = table
-    ? 'Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them.'
-    : 'Your sheet stays on this phone; to cup with others, invite them from the button at the top.';
+    ? tr('Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them.')
+    : tr('Your sheet stays on this phone; to cup with others, invite them from the button at the top.');
   card.innerHTML = `
     <h2>${table ? 'Everyone scores on their own' : 'You are scoring on your own'}</h2>
     <p>${scale} ${others}</p>
@@ -3115,7 +3131,7 @@ function buildPanel(coffee, index) {
   const name = document.createElement('input');
   name.className = 'name-field';
   name.type = 'text';
-  name.placeholder = `Coffee ${index + 1} — name…`;
+  name.placeholder = tr('Coffee {n} — name…', { n: index + 1 });
   name.value = coffee.name;
   name.maxLength = 40;
   name.setAttribute('aria-label', `Name of coffee ${index + 1}`);
@@ -3173,7 +3189,7 @@ function buildPanel(coffee, index) {
   notes.className = 'notes-field';
   notes.id = `notes-${++fieldSeq}`;
   notes.placeholder = 'jasmine, stone fruit, cocoa…';
-  notes.setAttribute('aria-label', `Tasting notes for coffee ${index + 1}`);
+  notes.setAttribute('aria-label', tr('Tasting notes for coffee {n}', { n: index + 1 }));
   notes.value = coffee.notes;
   notes.addEventListener('input', () => { coffee.notes = notes.value; save(); });
   const notesLabel = el('label', 'detail-label', 'Tasting notes');
@@ -3215,23 +3231,25 @@ function buildSubmitRow() {
        sent one finished and one three-eighths done, and said so afterwards.
        Started is not finished, so the line says both. */
     const finished = n - p.untouched - p.partial;
-    const tally = [`${finished} of ${n} finished`];
-    if (p.partial) tally.push(`${p.partial} part-scored`);
-    if (p.untouched) tally.push(`${p.untouched} not started`);
+    const tally = [tr('{a} of {b} finished', { a: finished, b: n })];
+    if (p.partial) tally.push(tr('{n} part-scored', { n: p.partial }));
+    if (p.untouched) tally.push(tr('{n} not started', { n: p.untouched }));
     /* The button sits under one coffee's panel and sends every sheet on
        the device. "Submit my scores" left which scores to inference; a
        cupper part-way down the lineup read it as this coffee's. Naming the
        count is the whole fix. */
-    const all = n === 1 ? 'my sheet' : `all ${n} sheets`;
+    const update = n === 1 ? tr('Update my sheet') : tr('Update all {n} sheets', { n });
+    const send = n === 1 ? tr('Send my sheet') : tr('Send all {n} sheets', { n });
     row.innerHTML = sent
-      ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
-         <button class="btn btn-ghost" type="button">Update ${all}</button>`
+      ? `<p class="submit-note done">${tr('Your scores are with the table. You can keep editing and send them again.')}</p>
+         <button class="btn btn-ghost" type="button">${update}</button>`
       : `<p class="submit-note">${rated === 0
-            ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
+            ? tr('Nothing rated yet. Your sheet reaches the table when you send it.')
             : `${p.complete
-                ? 'Every coffee is scored.'
-                : `${tally.join(' · ')}.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
-         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Send ${all}</button>`;
+                ? tr('Every coffee is scored.')
+                : `${tally.join(' · ')}.`} ${tr('Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table’s scores until the leader opens them.')}`}</p>
+         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>${send}</button>`;
+
     const btn = row.querySelector('button');
     btn.addEventListener('click', async () => {
       btn.disabled = true;
@@ -3283,7 +3301,7 @@ function buildDetailsCard(coffee) {
       <button class="details-toggle">
         <span class="details-toggle-text">
           <span class="details-toggle-label">Details</span>
-          <span class="details-summary"></span>
+          <span class="details-summary" translate="no"></span>
         </span>
         <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -3298,7 +3316,8 @@ function buildDetailsCard(coffee) {
   addHelp(card.querySelector('.details-toggle-row'), 'details');
 
   const refreshSummary = () => {
-    summaryEl.textContent = metaSummary(coffee.meta) || 'variety · process · farm…';
+    summaryEl.textContent = metaSummary(coffee.meta) || tr('variety · process · farm…');
+
   };
 
   META_FIELDS.forEach(f => {
@@ -3442,8 +3461,8 @@ function openFlavorWheel(listKey) {
     toggle: $('#wheel-zoom-toggle'),
     level: $('#wheel-zoom-level'),
     haptic: haptic,
-    categoryHint: 'category, checks it on the Describe form',
-    wordHint: 'adds the word to your tasting notes',
+    categoryHint: tr('category, checks it on the Describe form'),
+    wordHint: tr('adds the word to your tasting notes'),
   });
 
   const coffee = state && state.coffees[state.activeIndex];
@@ -3451,18 +3470,22 @@ function openFlavorWheel(listKey) {
   const cataList = () => coffee.desc.cata[target];
   const hint = $('#wheel-hint');
   if (hint) {
-    hint.innerHTML = `Inner ring ticks a descriptor under <strong>${target === 'aroma'
-      ? 'Fragrance &amp; aroma' : 'Flavor &amp; aftertaste'}</strong> — up to 5, as the standard allows. `
-      + 'Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.';
+    hint.innerHTML = tr('Inner ring ticks a descriptor under <strong>{section}</strong> — up to 5, as the standard allows.', {
+      section: target === 'aroma' ? tr('Fragrance &amp; aroma') : tr('Flavor &amp; aftertaste') })
+      + ' ' + tr('Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.');
   }
+  /* The notes are the cupper's own words, so a word taken from the wheel
+     goes in in the language on screen — and is recognised as the wheel's in
+     either language, so a sheet started on another phone still unticks. */
+  const sameWord = (a, w) => a === w.toLowerCase() || a === tr(w).toLowerCase();
   const notesFromWheel = () => {
     const items = noteItems(coffee.notes).map(s => s.toLowerCase());
-    return WHEEL_WORDS.filter(w => items.includes(w.toLowerCase()));
+    return WHEEL_WORDS.filter(w => items.some(s => sameWord(s, w)));
   };
 
   const dropNote = word => {
     coffee.notes = noteItems(coffee.notes)
-      .filter(s => s.toLowerCase() !== word.toLowerCase())
+      .filter(s => !sameWord(s.toLowerCase(), word))
       .join(', ');
   };
 
@@ -3490,26 +3513,27 @@ function openFlavorWheel(listKey) {
         const at = cataList().indexOf(name);
         if (at >= 0) cataList().splice(at, 1);
         save();
-        sync(`${name} unchecked`);
+        sync(tr('{name} unchecked', { name: tr(name) }));
         refreshOpenPanel();
       };
       pickedWrap.appendChild(chip);
     });
     words.forEach(word => {
-      const chip = el('button', 'wheel-pick note', `${escapeHTML(word)} <b>×</b>`);
+      const chip = el('button', 'wheel-pick note', `${escapeHTML(tr(word))} <b>×</b>`);
       chip.type = 'button';
       chip.onclick = () => {
         haptic();
         dropNote(word);
         save();
-        sync(`“${word}” removed from your notes`);
+        sync(tr('“{word}” removed from your notes', { word: tr(word) }));
         refreshOpenPanel();
       };
       pickedWrap.appendChild(chip);
     });
 
     status.textContent = message
-      || `${cataList().length} of 5 descriptors checked${words.length ? ` · ${words.length} word${words.length > 1 ? 's' : ''} in your notes` : ''}`;
+      || tr('{n} of 5 descriptors checked', { n: cataList().length })
+        + (words.length ? ' · ' + trn(words.length, '{n} word in your notes', '{n} words in your notes') : '');
   };
 
   if (!coffee) {
@@ -3528,7 +3552,7 @@ function openFlavorWheel(listKey) {
     if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
         && holder.zoomToRead && holder.zoomToRead(seg)) {
       haptic();
-      sync(`Zoomed in — tap “${seg.dataset.desc}” again to add it to your notes`);
+      sync(tr('Zoomed in — tap “{word}” again to add it to your notes', { word: tr(seg.dataset.desc) }));
       return;
     }
 
@@ -3543,18 +3567,19 @@ function openFlavorWheel(listKey) {
         return;
       }
       message = cataList().includes(name)
-        ? `${name} checked · ${cataList().length} of 5`
-        : `${name} unchecked · ${cataList().length} of 5`;
+        ? tr('{name} checked · {n} of 5', { name: tr(name), n: cataList().length })
+        : tr('{name} unchecked · {n} of 5', { name: tr(name), n: cataList().length });
     } else {
       const word = seg.dataset.desc;
       if (notesFromWheel().some(w => w.toLowerCase() === word.toLowerCase())) {
         dropNote(word);
-        message = `“${word}” removed from your notes`;
+        message = tr('“{word}” removed from your notes', { word: tr(word) });
       } else {
         const existing = coffee.notes.trim();
-        coffee.notes = existing ? `${existing}, ${word}` : word;
-        message = `“${word}” added to your notes`;
+        coffee.notes = existing ? `${existing}, ${tr(word)}` : tr(word);
+        message = tr('“{word}” added to your notes', { word: tr(word) });
       }
+
     }
     save();
     sync(message);
@@ -3617,7 +3642,7 @@ function emptyDescriptive() {
 
 function descriptiveSummary(desc) {
   const unique = [...new Set([...desc.cata.aroma, ...desc.cata.flavor])];
-  return unique.length ? unique.slice(0, 3).join(' · ') + (unique.length > 3 ? '…' : '') : '';
+  return unique.length ? unique.slice(0, 3).map(n => tr(n)).join(' · ') + (unique.length > 3 ? '…' : '') : '';
 }
 
 // Toggle a descriptor in a capped CATA list; returns false when full.
@@ -3665,14 +3690,14 @@ function buildDescriptiveCard(coffee) {
     // keeps the half of the old section head that the toggle did not
     // already say: this is about what is in the cup, not how good it is.
     summaryEl.textContent = descriptiveSummary(coffee.desc)
-      || 'what you taste';
+      || tr('what you taste');
     /* The name is said, not assembled. Built from the contents it read
        "Describeoptional what you taste": the label and its pill are
        adjacent inline boxes with nothing between them, and a hidden comma
        only traded that for "Describe , optional ," because a clipped span
        is a box of its own. Stated outright, it reads as the sentence the
        eye gets from the layout. */
-    toggleBtn.setAttribute('aria-label', `Describe, optional, ${summaryEl.textContent}`);
+    toggleBtn.setAttribute('aria-label', tr('Describe, optional, {what}', { what: summaryEl.textContent }));
   };
 
   const body = card.querySelector('.desc-body');
@@ -3682,7 +3707,8 @@ function buildDescriptiveCard(coffee) {
   addHelp(card.querySelector('.details-toggle-row'), 'describeVsScore');
 
   body.appendChild(el('p', 'desc-intro',
-    'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.'));
+    tr('This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.')));
+
 
   /* Every field here was named by its placeholder alone: the visible
      label was a sibling span, so a screen reader announced "e.g.
@@ -3724,7 +3750,7 @@ function buildDescriptiveCard(coffee) {
         <div class="attr-head-right">
           <div class="attr-value-row">
             <div class="attr-value"></div>
-            <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} intensity">×</button>
+            <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} intensity', { name: tr(attr.label) })}">×</button>
           </div>
         </div>
       </div>
@@ -3732,7 +3758,7 @@ function buildDescriptiveCard(coffee) {
     const valueEl = row.querySelector('.attr-value');
 
     const scale = buildAnchoredScale({
-      label: `${attr.label} — intensity, 0 to 15`,
+      label: tr('{name} — intensity, 0 to 15', { name: tr(attr.label) }),
       ...INTENSITY_SCALE,
       read: () => d.intensity[attr.key],
       isSet: () => Boolean(d.touched && d.touched[attr.key]),
@@ -3759,7 +3785,7 @@ function buildDescriptiveCard(coffee) {
       haptic();
       refresh();
       save();
-      toast(`${attr.label} intensity cleared`, {
+      toast(tr('{name} intensity cleared', { name: tr(attr.label) }), {
         restore: () => { d.touched[attr.key] = true; d.intensity[attr.key] = was; refresh(); save(); },
       });
     });
@@ -3789,7 +3815,7 @@ function buildDescriptiveCard(coffee) {
           chip.setAttribute('aria-pressed', on ? 'true' : 'false');
         };
         chip.addEventListener('click', () => {
-          if (!toggleCata(list(), name, max)) { toast(`Up to ${max} descriptors here`); return; }
+          if (!toggleCata(list(), name, max)) { toast(tr('Up to {n} descriptors here', { n: max })); return; }
           haptic();
           chips.forEach(c => c.sync());
           refreshSummary();
@@ -3824,7 +3850,7 @@ function buildDescriptiveCard(coffee) {
         chip.setAttribute('aria-pressed', on ? 'true' : 'false');
       };
       chip.addEventListener('click', () => {
-        if (!toggleCata(list(), name, max)) { toast(`Up to ${max} here`); return; }
+        if (!toggleCata(list(), name, max)) { toast(tr('Up to {n} here', { n: max })); return; }
         haptic();
         chips.forEach(c => c());
         save();
@@ -3840,7 +3866,7 @@ function buildDescriptiveCard(coffee) {
     const wrap = el('div', 'desc-field');
     wrap.innerHTML = `<input class="detail-field" type="text" maxlength="80" placeholder="${escapeHTML(placeholder)}">`;
     const input = wrap.querySelector('input');
-    wrap.prepend(labelled(`${owner} notes`, input));
+    wrap.prepend(labelled(tr('{section} notes', { section: tr(owner) }), input));
     input.value = d.notes[key] || '';
     input.addEventListener('input', () => { d.notes[key] = input.value; save(); });
     return wrap;
@@ -3919,7 +3945,8 @@ function buildDescriptiveCard(coffee) {
   close.type = 'button';
   const refreshClose = () => {
     const n = ['aroma', 'flavor', 'tastes', 'mouthfeel'].reduce((t, k) => t + d.cata[k].length, 0);
-    close.textContent = n ? `Close Describe · ${n} descriptor${n === 1 ? '' : 's'}` : 'Close Describe';
+    close.textContent = n ? trn(n, 'Close Describe · {n} descriptor', 'Close Describe · {n} descriptors') : tr('Close Describe');
+
   };
   close.addEventListener('click', () => {
     const toggle = card.querySelector('.details-toggle');
@@ -4026,9 +4053,9 @@ function buildAnchoredScale(opts) {
      word is placed without repeating it. An intensity has no word, only a
      number, so it says nothing; "not rated yet" still shows, because that
      one says something the value cannot. */
-  const say = i => wordAt(i) || '';
+  const say = i => tr(wordAt(i) || '');
   const sayAria = i => {
-    const word = wordAt(i);
+    const word = tr(wordAt(i) || '');
     return format(valueAt(i)) + (word ? `, ${word}` : '');
   };
   const paintKnob = i => {
@@ -4193,7 +4220,7 @@ function buildCvaCard(coffee, section) {
       <div class="attr-head-right">
         <div class="attr-value-row">
           <div class="attr-value">${coffee.cva[section.key]}</div>
-          <button class="cva-clear" type="button" aria-label="Clear the ${section.label} rating">×</button>
+          <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} rating', { name: tr(section.label) })}">×</button>
         </div>
       </div>
     </div>
@@ -4211,7 +4238,7 @@ function buildCvaCard(coffee, section) {
   };
 
   const scale = buildAnchoredScale({
-    label: `${section.label} — impression of quality`,
+    label: tr('{name} — impression of quality', { name: tr(section.label) }),
     ...CVA_SCALE,
     read: () => coffee.cva[section.key],
     isSet: () => Boolean(coffee.touched[section.key]),
@@ -4251,7 +4278,7 @@ function buildCvaCard(coffee, section) {
     coffee.cva[section.key] = 5;
     haptic();
     sync();
-    toast(`${section.label} cleared`, {
+    toast(tr('{name} cleared', { name: tr(section.label) }), {
       restore: () => { coffee.touched[section.key] = true; coffee.cva[section.key] = was; sync(); },
     });
   });
@@ -4282,9 +4309,9 @@ function buildCvaDefectsCard(coffee) {
                steppers were labelled; the ones that move a coffee's score
                were not. -->
           <div class="stepper">
-            <button class="stepper-btn" data-action="dec" aria-label="One fewer ${d.label.toLowerCase()} cup">−</button>
-            <span class="stepper-value" aria-live="polite" aria-label="${d.label} cups">0</span>
-            <button class="stepper-btn" data-action="inc" aria-label="One more ${d.label.toLowerCase()} cup">+</button>
+            <button class="stepper-btn" data-action="dec" aria-label="${tr('One fewer: {name}', { name: tr(d.label) })}">−</button>
+            <span class="stepper-value" aria-live="polite" aria-label="${tr(d.label)}">0</span>
+            <button class="stepper-btn" data-action="inc" aria-label="${tr('One more: {name}', { name: tr(d.label) })}">+</button>
           </div>
         </div>`).join('')}
     </div>
@@ -4302,7 +4329,7 @@ function buildCvaDefectsCard(coffee) {
       rowEl.querySelector('[data-action="inc"]').disabled = coffee[kind] >= state.cupsPerCoffee;
     });
     const p = defectPenalty(coffee);
-    penaltyEl.textContent = p > 0 ? `−${fmt(p)} points` : '';
+    penaltyEl.textContent = p > 0 ? tr('−{n} points', { n: fmt(p) }) : '';
   };
 
   card.addEventListener('click', e => {
@@ -4367,7 +4394,7 @@ function buildScaleCard(coffee, attr) {
       <div class="attr-head-right">
         <div class="attr-value-row">
           <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
-          <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} rating">×</button>
+          <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} rating', { name: tr(attr.label) })}">×</button>
         </div>
       </div>
     </div>
@@ -4384,7 +4411,7 @@ function buildScaleCard(coffee, attr) {
   };
 
   const scale = buildAnchoredScale({
-    label: `${attr.label} — quality, 6.00 to 10.00`,
+    label: tr('{name} — quality, 6.00 to 10.00', { name: tr(attr.label) }),
     ...LEGACY_SCALE,
     read: () => coffee.scores[attr.key],
     isSet: () => Boolean(coffee.touched[attr.key]),
@@ -4431,7 +4458,7 @@ function buildCupCard(coffee, attr) {
     <div class="attr-head">
       <div>
         <div class="attr-title">${attr.label}</div>
-        <div class="attr-sub">${attr.sub} · tap a cup to fail it</div>
+        <div class="attr-sub">${tr('{sub} · tap a cup to fail it', { sub: tr(attr.sub) })}</div>
       </div>
       <div class="attr-value"></div>
     </div>
@@ -4458,7 +4485,10 @@ function buildCupCard(coffee, attr) {
       // its accessible name was the bare digit, so a reader announced
       // "button, 1" whether the cup passed or failed — and on the 2004 form
       // these fifteen controls carry 30 of the 100 points
-      btn.setAttribute('aria-label', `Cup ${i + 1} — ${cups[i] ? 'passes' : 'fails'} ${attr.label}`);
+      btn.setAttribute('aria-label', cups[i]
+        ? tr('Cup {n} — passes {name}', { n: i + 1, name: tr(attr.label) })
+        : tr('Cup {n} — fails {name}', { n: i + 1, name: tr(attr.label) }));
+
     });
   };
 
@@ -4528,7 +4558,7 @@ function buildDefectsCard(coffee) {
       rowEl.querySelector('[data-action="inc"]').disabled = coffee[kind] >= state.cupsPerCoffee;
     });
     const p = defectPenalty(coffee);
-    penaltyEl.textContent = p > 0 ? `−${fmt(p)} points` : '';
+    penaltyEl.textContent = p > 0 ? tr('−{n} points', { n: fmt(p) }) : '';
   };
 
   card.addEventListener('click', e => {

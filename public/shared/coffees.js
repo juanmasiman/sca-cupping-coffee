@@ -141,10 +141,9 @@
   function ageWord(c) {
     var days = age(c);
     if (days === null) return '';
-    if (days < 0) return 'dated ahead';
-    if (days === 0) return 'roasted today';
-    if (days === 1) return '1 day off roast';
-    return days + ' days off roast';
+    if (days < 0) return tr('dated ahead');
+    if (days === 0) return tr('roasted today');
+    return trn(days, '{n} day off roast', '{n} days off roast');
   }
 
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -157,7 +156,7 @@
     if (!c || !c.roastDate) return '';
     var d = new Date(c.roastDate + 'T00:00:00');
     if (isNaN(d.getTime())) return '';
-    return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    return tr('{d} {month} {y}', { d: d.getDate(), month: tr(MONTHS[d.getMonth()]), y: d.getFullYear() });
   }
 
   /* The date read back in words, from the raw `yyyy-mm-dd` an input
@@ -176,7 +175,7 @@
     if (!when) return '';
     var days = age(as);
     if (days === null) return when;
-    if (days < 0) return when + ' \u2014 that is ahead of today';
+    if (days < 0) return tr('{when} — that is ahead of today', { when: when });
     return when + ' \u00b7 ' + ageWord(as);
   }
 

@@ -99,11 +99,11 @@
     });
 
     var desc = (o.points || []).map(function (p) {
-      return o.label + ' ' + p.n + ': ' + fmt(p.ey, 1) + '% extraction, ' + fmt(p.tds, 2) + '% TDS';
+      return tr('{label} {n}: {ey}% extraction, {tds}% TDS', { label: o.label, n: p.n, ey: fmt(p.ey, 1), tds: fmt(p.tds, 2) });
     }).join('; ');
-    return '<svg class="eyc" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Extraction chart. Target '
-      + fmt(b.eyLo, 1) + '–' + fmt(b.eyHi, 1) + '% extraction, ' + fmt(b.tdsLo, yd) + '–' + fmt(b.tdsHi, yd) + '% TDS. '
-      + esc(desc) + '">' + s + '</svg>';
+    return '<svg class="eyc" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="'
+      + esc(tr('Extraction chart. Target {ey}% extraction, {tds}% TDS.', { ey: fmt(b.eyLo, 1) + '–' + fmt(b.eyHi, 1), tds: fmt(b.tdsLo, yd) + '–' + fmt(b.tdsHi, yd) }))
+      + ' ' + esc(desc) + '">' + s + '</svg>';
   }
 
   /* Where a point sits against the box, in words the board can print. */

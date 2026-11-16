@@ -21,6 +21,21 @@
    on the counter.
    ============================================================ */
 
+/* Language. English is the source and the key; /shared/i18n.js holds the
+   Spanish and the global tr()/trn(). Stored values stay English — only what
+   is drawn goes through these. ctx() is for an English word that is two
+   words in Spanish ("Close" the sheet, "Close" the valve): the key carries
+   the context, and English never sees it. */
+function ctx(key, en, vars) {
+  const L = window.LentoI18n;
+  return L && L.lang !== 'en' && L.has(key) ? tr(key, vars) : tr(en, vars);
+}
+function andList(items) {
+  if (items.length < 2) return items[0] || '';
+  return tr('{a} and {b}', { a: items.slice(0, -1).join(', '), b: items[items.length - 1] });
+}
+const fieldWord = f => ctx('field|' + f, f);
+
 const STORE = 'lento-filter-v1';
 const PREF = 'lento-filter-prefs-v1';
 
@@ -195,8 +210,9 @@ function buildUse(c, adding) {
     b.addEventListener('click', () => {
       haptic();
       if (key === 'filter' && on && logged) {
-        note.textContent = `There ${logged === 1 ? 'is' : 'are'} ${logged} ${
-          logged === 1 ? 'brew' : 'brews'} logged here. Use Remove below, which says what goes with it.`;
+        note.textContent = trn(logged,
+          'There is {n} brew logged here. Use Remove below, which says what goes with it.',
+          'There are {n} brews logged here. Use Remove below, which says what goes with it.');
         return;
       }
       commitBag(c);
@@ -772,6 +788,16 @@ function pourLabel(pours, i) {
   for (let k = 0; k < i; k++) if (!isValve(pours[k])) n++;
   return n === 0 ? 'Bloom' : `Pour ${n}`;
 }
+/* pourLabel is compared in code ('Bloom'), so it stays English; this is
+   the same label as drawn. */
+function pourName(pours, i) {
+  const en = pourLabel(pours, i);
+  if (en === 'Open') return ctx('valve|Open', 'Open');
+  if (en === 'Close') return ctx('valve|Close', 'Close');
+  if (en === 'Bloom') return tr('Bloom');
+  return tr('Pour {n}', { n: en.slice(5) });
+}
+const valveWord = v => (v === 'open' ? ctx('valve|open', 'open') : ctx('valve|close', 'close'));
 
 /* ---------- the model ---------- */
 
@@ -889,9 +915,9 @@ function startingPoint(c) {
      about WHICH WAY TO MOVE when the cup disappoints, which is the part
      a shift cannot carry. */
   const extra = [];
-  if (sol.flags.decaf) extra.push('Decaf drinks fast: the bean is opened up by the process, so it gives up flavour sooner and drains sooner. Expect a shorter brew than the grind suggests, and tighten the ratio before you chase it finer.');
-  if (sol.flags.processed) extra.push('With a lot this heavily processed, the flavour you paid for is the one the process put there, and pushing extraction burns it off. If it comes out sour, going coarser is as likely to fix it as going finer.');
-  if (sol.flags.aged) extra.push('This bag has lost the gas that gave the bed its resistance, so it will drain fast and taste thin. That is the bag, not the grinder.');
+  if (sol.flags.decaf) extra.push(tr('Decaf drinks fast: the bean is opened up by the process, so it gives up flavour sooner and drains sooner. Expect a shorter brew than the grind suggests, and tighten the ratio before you chase it finer.'));
+  if (sol.flags.processed) extra.push(tr('With a lot this heavily processed, the flavour you paid for is the one the process put there, and pushing extraction burns it off. If it comes out sour, going coarser is as likely to fix it as going finer.'));
+  if (sol.flags.aged) extra.push(tr('This bag has lost the gas that gave the bed its resistance, so it will drain fast and taste thin. That is the bag, not the grinder.'));
 
   return { e, sol, ratio, temp, extra };
 }
@@ -1130,13 +1156,14 @@ function pourBacktrack(brew) {
   // Named the way the rows are named, which counts pours and not rows —
   // see pourLabel. A valve moment between two pours must not rename them.
   const name = i => pourLabel(pours, i);
+  const shown = i => pourName(pours, i);
   let high = null, highIdx = 0;
   for (let i = 0; i < pours.length; i++) {
     const w = num(pours[i].water);
     if (w === null) continue;
     if (high !== null && w < high) {
-      return { at: i, label: name(i) === 'Bloom' ? 'The bloom' : name(i), value: w,
-               prev: high, prevLabel: name(highIdx) === 'Bloom' ? 'the bloom' : name(highIdx).toLowerCase() };
+      return { at: i, label: name(i) === 'Bloom' ? tr('The bloom') : shown(i), value: w,
+               prev: high, prevLabel: name(highIdx) === 'Bloom' ? tr('the bloom') : shown(highIdx).toLowerCase() };
     }
     high = w; highIdx = i;
   }
@@ -1205,19 +1232,21 @@ function renderEyCard(c) {
   const points = read.map(b => ({ ey: extractionOf(b), tds: num(b.tds), n: brewNumber(c, b), recipe: b === recipe }));
   let say;
   if (!latest) {
-    say = 'Add a TDS reading and the weight in the cup to a brew and it lands here, against the usual filter box: 18–22% extraction at 1.15–1.45% TDS.';
+    say = tr('Add a TDS reading and the weight in the cup to a brew and it lands here, against the usual filter box: 18–22% extraction at 1.15–1.45% TDS.');
   } else {
     const ey = extractionOf(latest), tds = num(latest.tds);
     const v = LentoEyChart.verdict(ey, tds, FILTER_BOX);
     // Where it landed; what to do is the advice card's job.
-    const where = v.extraction === 'under' ? '<strong>under-extracted</strong>, below 18%.'
-      : v.extraction === 'over' ? '<strong>over-extracted</strong>, above 22%.'
-      : `<strong>in the band</strong>${v.strength === 'weak' ? ', on the weak side' : v.strength === 'strong' ? ', on the strong side' : ''}.`;
-    say = `Brew ${brewNumber(c, latest)}: ${fmt1(ey)}% extraction at ${tds.toFixed(2)}% TDS — ${where}`;
+    const where = v.extraction === 'under' ? tr('<strong>under-extracted</strong>, below 18%.')
+      : v.extraction === 'over' ? tr('<strong>over-extracted</strong>, above 22%.')
+      : v.strength === 'weak' ? tr('<strong>in the band</strong>, on the weak side.')
+      : v.strength === 'strong' ? tr('<strong>in the band</strong>, on the strong side.')
+      : tr('<strong>in the band</strong>.');
+    say = tr('Brew {n}: {ey}% extraction at {tds}% TDS — {where}', { n: brewNumber(c, latest), ey: fmt1(ey), tds: tds.toFixed(2), where });
   }
   wrap.innerHTML = `
-    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">box: target${recipe ? ' · ring: current recipe' : ''}</span></div>
-    ${LentoEyChart.render({ points, box: FILTER_BOX, x: [14, 26], y: [0.9, 1.7], yStep: 0.1, label: 'Brew' })}
+    <div class="ey-head"><span class="ey-title">Extraction</span><span class="ey-key">${tr('box: target')}${recipe ? ' · ' + tr('ring: current recipe') : ''}</span></div>
+    ${LentoEyChart.render({ points, box: FILTER_BOX, x: [14, 26], y: [0.9, 1.7], yStep: 0.1, label: tr('Brew') })}
     <p class="ey-say">${say}</p>`;
   wrap.classList.remove('hidden');
 }
@@ -1318,27 +1347,26 @@ function intentCheck(brew, prev) {
     const a = JSON.stringify((brew.pours || []).map(p => [num(p.at), num(p.water)]));
     const b = JSON.stringify((prev.pours || []).map(p => [num(p.at), num(p.water)]));
     return a === b && a !== '[]'
-      ? 'Marked “different pours”, but the schedule is the same as the last brew.'
+      ? tr('Marked “different pours”, but the schedule is the same as the last brew.')
       : null;
   }
   if (!intent.field) {
     const moved = ['grind', 'temp', 'dose', 'water']
       .filter(f => { const a = read(brew, f), b = read(prev, f); return a !== null && b !== null && a !== b; });
     return moved.length
-      ? `Marked “same again”, but ${moved.length > 1
-          ? `${moved.slice(0, -1).join(', ')} and ${moved[moved.length - 1]}`
-          : moved[0]} changed since the last brew.`
+      ? tr('Marked “same again”, but {list} changed since the last brew.', { list: andList(moved.map(fieldWord)), n: moved.length })
       : null;
   }
 
   const now = read(brew, intent.field), was = read(prev, intent.field);
+  const said = { intent: tr(intent.label).toLowerCase(), field: fieldWord(intent.field) };
   if (now === null || was === null) {
-    return `Marked “${intent.label.toLowerCase()}”, but no ${intent.field} is recorded on both brews, so there is nothing to compare.`;
+    return tr('Marked “{intent}”, but no {field} is recorded on both brews, so there is nothing to compare.', said);
   }
   const delta = now - was;
-  if (delta === 0) return `Marked “${intent.label.toLowerCase()}”, but the ${intent.field} is the same as the last brew.`;
+  if (delta === 0) return tr('Marked “{intent}”, but the {field} is the same as the last brew.', said);
   if (Math.sign(delta) !== intent.dir) {
-    return `Marked “${intent.label.toLowerCase()}”, but the ${intent.field} moved the other way.`;
+    return tr('Marked “{intent}”, but the {field} moved the other way.', said);
   }
   return null;
 }
@@ -1387,8 +1415,8 @@ const GRIND = makeGrind({
      "a tenth": moves are quoted in tenths, but 2.0s is what a whole point
      is worth, and naming the smaller unit would understate the grinder
      tenfold in the one sentence the reader checks the estimate against. */
-  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'),
-  itemWord: () => 'brew',
+  unitWord: () => (grindUnit() === 'clicks' ? tr('click') : tr('point on your dial')),
+  itemWord: () => tr('brew'),
   /* WHICH BREWER THIS ANSWER IS ABOUT.
 
      `enabled` gates the seconds-per-step figure and the promise to learn
@@ -1481,8 +1509,8 @@ const BODY_WORDS = {
   '1': 'a little strong', '2': 'strong', '3': 'thick, syrupy',
 };
 
-const tasteWord = v => TASTE_WORDS[String(v)] || '';
-const bodyWord = v => BODY_WORDS[String(v)] || '';
+const tasteWord = v => ctx('taste|' + (TASTE_WORDS[String(v)] || ''), TASTE_WORDS[String(v)] || '');
+const bodyWord = v => ctx('body|' + (BODY_WORDS[String(v)] || ''), BODY_WORDS[String(v)] || '');
 
 function tasteSide(v) {
   if (v === null || typeof v !== 'number') return null;
@@ -1545,8 +1573,8 @@ function wallPair(brew, target) {
 
   if (t === 'sour' && b === 'weak') {
     if (clock && place.time === 'slow') {
-      return { sure: false, move: 'Under-extracted — but not for want of grind.',
-        why: 'Sour and thin is the picture of an under-extracted brew and finer is the usual answer, except this one already ran past the window: finer would only slow it further. Water that sits that long and still takes little with it is going round the bed rather than through it — look at how level the bed is and at whether the pours are cutting a channel in it.' };
+      return { sure: false, move: tr('Under-extracted — but not for want of grind.'),
+        why: tr('Sour and thin is the picture of an under-extracted brew and finer is the usual answer, except this one already ran past the window: finer would only slow it further. Water that sits that long and still takes little with it is going round the bed rather than through it — look at how level the bed is and at whether the pours are cutting a channel in it.') };
     }
     return { sure: true, move: `Grind finer${grindMoveLine(brew, target, true)}.`,
       why: `Sour and thin together are one fault, not two — not enough came out of the bed, so the cup is sharp and weak at the same time. Finer is the single change that moves both${
@@ -1555,8 +1583,8 @@ function wallPair(brew, target) {
   }
   if (t === 'bitter' && b === 'strong') {
     if (clock && place.time === 'fast') {
-      return { sure: false, move: 'Over-extracted — but not for want of grind.',
-        why: 'Bitter and strong is the picture of an over-extracted brew and coarser is the usual answer, except this one already came in short of the window: coarser would only make it faster. Water that drains that quickly and still takes too much is running through part of the bed and not the rest — a gentler pour and a flatter bed before anything else.' };
+      return { sure: false, move: tr('Over-extracted — but not for want of grind.'),
+        why: tr('Bitter and strong is the picture of an over-extracted brew and coarser is the usual answer, except this one already came in short of the window: coarser would only make it faster. Water that drains that quickly and still takes too much is running through part of the bed and not the rest — a gentler pour and a flatter bed before anything else.') };
     }
     return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
       why: `Bitter and strong together are one fault, not two — too much came out of the bed, so the cup is harsh and heavy with it. Coarser is the single change that moves both${
@@ -1587,16 +1615,16 @@ function tasteNote(brew, target) {
   if (side === 'neither') {
     if (place.time === 'in' || !clock) {
       return brew.verdict === 'keeper'
-        ? { sure: true, move: 'This is the recipe.',
-            why: 'Tasting of neither wall. It is pinned at the top of the board; brew the next one to it and change nothing.' }
-        : { sure: true, move: 'This is your recipe.',
-            why: 'Tasting of neither wall, and nothing about the cup is asking to be moved. Make it your current recipe and it pins to the top of this board.' };
+        ? { sure: true, move: tr('This is the recipe.'),
+            why: tr('Tasting of neither wall. It is pinned at the top of the board; brew the next one to it and change nothing.') }
+        : { sure: true, move: tr('This is your recipe.'),
+            why: tr('Tasting of neither wall, and nothing about the cup is asking to be moved. Make it your current recipe and it pins to the top of this board.') };
     }
     if (place.time === null) return null;
     // Tastes right outside the window: the cup outranks the clock, so it
     // is offered as the recipe (it used to stop at "Taste says nothing is
     // wrong", which left the reader nothing to do).
-    return { sure: true, move: 'This is your recipe — mark it Current recipe.',
+    return { sure: true, move: tr('This is your recipe — mark it Current recipe.'),
       why: `It ran ${place.time === 'fast' ? 'quicker' : 'longer'} than the window but tastes of neither wall, which is worth more than the window is. Make it your current recipe; if the next one tastes the same at this time, move the window to fit this coffee.` };
   }
 
@@ -1609,25 +1637,25 @@ function tasteNote(brew, target) {
   }
 
   if (side === 'sour' && place.time === 'fast') {
-    return { sure: true, move: 'Grind finer.',
-      why: 'It drained short of the window and tasted sour — the water was through the bed before it had taken enough with it. Grind is the variable that fixes both at once.' };
+    return { sure: true, move: tr('Grind finer.'),
+      why: tr('It drained short of the window and tasted sour — the water was through the bed before it had taken enough with it. Grind is the variable that fixes both at once.') };
   }
   if (side === 'bitter' && place.time === 'slow') {
-    return { sure: true, move: 'Grind coarser.',
-      why: 'It ran past the window and tasted bitter — the water spent too long in the bed. Grind is the variable that fixes both at once.' };
+    return { sure: true, move: tr('Grind coarser.'),
+      why: tr('It ran past the window and tasted bitter — the water spent too long in the bed. Grind is the variable that fixes both at once.') };
   }
   if (side === 'sour' && place.time === 'slow') {
-    return { sure: false, move: 'Not grind, this time.',
+    return { sure: false, move: tr('Not grind, this time.'),
       why: `Sour and slow together do not point at grind: going finer would slow it further. That pattern is usually the bed — a channel down one side, or fines choking the base. ${
         canSetTemp() ? 'Look at the water temperature too, and at' : 'Look also at'} how long ago the bag was roasted.` };
   }
   if (side === 'bitter' && place.time === 'fast') {
-    return { sure: false, move: 'Not grind, this time.',
-      why: 'Bitter and fast together do not point at grind: going coarser would make it faster still. Water that gets through quickly and still over-extracts has found a short path through the bed, so look at how the pours land and how level the bed is before you touch the grinder.' };
+    return { sure: false, move: tr('Not grind, this time.'),
+      why: tr('Bitter and fast together do not point at grind: going coarser would make it faster still. Water that gets through quickly and still over-extracts has found a short path through the bed, so look at how the pours land and how level the bed is before you touch the grinder.') };
   }
   if (place.time === null) {
     return { sure: false, move: `Tastes ${side}.`,
-      why: 'Add the brew time and the app can say whether that is the grind or something else — sour and quick is a different problem from sour and slow, and they have opposite answers.' };
+      why: tr('Add the brew time and the app can say whether that is the grind or something else — sour and quick is a different problem from sour and slow, and they have opposite answers.') };
   }
   // in the window and still tasting of one of the walls
   // The move names the next thing to change. "Grind has done its job."
@@ -1667,7 +1695,7 @@ function clockAdvice(brew, target) {
     // timer to" is the app showing its seams.
     const t = num(brew.time);
     const said = t === null ? 'the steep' : `the ${fmtTime(t)}`;
-    return { sure: false, move: 'Taste it — the clock cannot help here.',
+    return { sure: false, move: tr('Taste it — the clock cannot help here.'),
       why: `Your brewer steeps, so ${said} is the time you set the timer to rather than something the coffee did. It tells the app nothing it can act on. Sour or bitter on the sheet is what points at the grind; thin or strong is what points at the ratio.` };
   }
   if (place.time === null) return null;
@@ -1686,7 +1714,7 @@ function clockAdvice(brew, target) {
     return { sure: true, move: `Grind coarser${grindMoveLine(brew, target, false)}.`,
       why: `It ran ${off}s past the ${lo}–${hi} window, so the water spent longer in the bed than the recipe asks for. Coarser opens it up.${grindWhyLine(brew, target, false)} Say how it tasted and the app can check the one case this does not fix: a brew that is both slow and sour usually means the bed clogged or the water went round it.` };
   }
-  return { sure: false, move: 'The clock is right. Now taste it.',
+  return { sure: false, move: tr('The clock is right. Now taste it.'),
     why: `${fmtTime(t)} is inside the ${lo}–${hi} window, which is the part the grinder controls and the part this app can measure. Whether it is any good is the other half, and nothing but your mouth answers that. Mark it sour or bitter and the next move gets specific; mark it neither and this is your recipe.` };
 }
 
@@ -1699,8 +1727,8 @@ function bodyNote(brew) {
   const at = r === null ? '' : ` at 1:${r.toFixed(1)}`;
   if (!byWeight()) {
     return side === 'weak'
-      ? { move: 'More coffee, or less water.', why: 'Thin is about how much coffee is in the cup, not how much came out of the bed. One more scoop, or a smaller cup — one at a time, so you can read which did it.' }
-      : { move: 'Less coffee, or more water.', why: 'Strong is about how much coffee is in the cup, not how much came out of the bed. Half a scoop less, or a bigger cup — one at a time, so you can read which did it.' };
+      ? { move: tr('More coffee, or less water.'), why: tr('Thin is about how much coffee is in the cup, not how much came out of the bed. One more scoop, or a smaller cup — one at a time, so you can read which did it.') }
+      : { move: tr('Less coffee, or more water.'), why: tr('Strong is about how much coffee is in the cup, not how much came out of the bed. Half a scoop less, or a bigger cup — one at a time, so you can read which did it.') };
   }
   /* The same words the pair advice uses for the same act.
 
@@ -1709,9 +1737,9 @@ function bodyNote(brew) {
      they are two. The verb is what you do with the kettle; the ratio is
      the explanation behind it. */
   return side === 'weak'
-    ? { move: 'Less water.',
+    ? { move: tr('Less water.'),
         why: `Thin${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the variable — it is the ratio. Stop ${pourStep(brew)}g earlier on the same dose, or put a gram or two more coffee under the same water.` }
-    : { move: 'More water.',
+    : { move: tr('More water.'),
         why: `Strong${at} is about how much coffee ended up in the cup rather than how much came out of the bed, so the grinder is not the variable — it is the ratio. Pour ${pourStep(brew)}g more on the same dose, or put a gram less coffee under the same water.` };
 }
 
@@ -1724,7 +1752,7 @@ function bloomNote(brew) {
   const b = bloomOf(brew);
   if (b === null || !percolates(brew)) return null;
   if (b < 1.8) {
-    return { move: 'The bloom was short.', why: `${b.toFixed(1)}× the dose leaves part of the bed dry through the bloom, and dry grounds do not degas. Two to three times the dose is the usual range — the point is to wet all of it, not to brew any of it yet.` };
+    return { move: tr('The bloom was short.'), why: `${b.toFixed(1)}× the dose leaves part of the bed dry through the bloom, and dry grounds do not degas. Two to three times the dose is the usual range — the point is to wet all of it, not to brew any of it yet.` };
   }
   /* "The bloom was long" is a fault on a cone and a recipe on a switch.
 
@@ -1739,7 +1767,7 @@ function bloomNote(brew) {
      tell a mistake from an intention here, and where it cannot tell, it
      says nothing. */
   if (b > 3.5 && !hasValve(brew)) {
-    return { move: 'The bloom was long.', why: `${b.toFixed(1)}× the dose is a pour rather than a bloom: enough water to start drawing through before the bed has finished degassing. Two to three times the dose wets everything without brewing it.` };
+    return { move: tr('The bloom was long.'), why: `${b.toFixed(1)}× the dose is a pour rather than a bloom: enough water to start drawing through before the bed has finished degassing. Two to three times the dose wets everything without brewing it.` };
   }
   return null;
 }
@@ -1782,10 +1810,10 @@ const place = placeOf(brew, target);
       why: `It ran past the window and you called it strong. Those are one fault: the water sat in the bed taking more than it should, and what it took is all in the cup. Coarser moves both, and brings the time back on the way.` };
   }
   if (quick && !light) {
-    return { sure: true, move: 'More water.',
+    return { sure: true, move: tr('More water.'),
       why: `Short of the window and strong is the ratio rather than the grind: the brew was stopped before the water had finished, and what it did take is packed into a small cup. Leave the grinder where it is and more water.` };
   }
-  return { sure: true, move: 'Less water.',
+  return { sure: true, move: tr('Less water.'),
     why: `Past the window and thin is the ratio rather than the grind: the end of it was adding water and harshness and nothing else. Leave the grinder where it is and less water.` };
 }
 
@@ -1926,13 +1954,13 @@ function refineAmounts(tips, brew, target, c, unit, step) {
   }
   // a diagnosis is not an instruction
   if (/^Under-extracted — but not for want of grind/.test(tip.move)) {
-    return [Object.assign({}, tip, { move: 'Same grind — level the bed and keep the pours off the walls.' })].concat(rest);
+    return [Object.assign({}, tip, { move: tr('Same grind — level the bed and keep the pours off the walls.') })].concat(rest);
   }
   if (/^Over-extracted — but not for want of grind/.test(tip.move)) {
-    return [Object.assign({}, tip, { move: 'Same grind — pour more gently onto a level bed.' })].concat(rest);
+    return [Object.assign({}, tip, { move: tr('Same grind — pour more gently onto a level bed.') })].concat(rest);
   }
   if (/^This is your recipe\.$/.test(tip.move)) {
-    return [Object.assign({}, tip, { move: 'This is your recipe — mark it Current recipe.' })].concat(rest);
+    return [Object.assign({}, tip, { move: tr('This is your recipe — mark it Current recipe.') })].concat(rest);
   }
   return tips;
 }
@@ -1977,7 +2005,7 @@ function methodNote(brew) {
      one the figure falls back to the last pour — which reports two
      minutes for a bed that drained in forty seconds. */
   if (waterFlow(brew) === 'switch' && rows.length && !rows.some(isValve)) {
-    return { move: 'Record when you opened it.',
+    return { move: tr('Record when you opened it.'),
       why: `A ${m.brewer} brews closed and then drains, and this schedule has no open or close in it. Without one the drawdown is measured from your last pour, which counts the whole steep as drawdown — so the number above is longer than anything that actually happened in the bed.` };
   }
 
@@ -2024,11 +2052,11 @@ function ageNote(c) {
   if (age === null) return null;
   if (age <= 3) {
     return { move: age === 0 ? 'Roasted today.' : `${age === 1 ? 'One day' : `${age} days`} off roast.`,
-      why: 'Still full of gas, which lifts the bed, runs the water round it rather than through it, and makes the clock read short. Expect it to keep moving for a few days yet, and do not chase it far with the grinder — you would only have to walk it back.' };
+      why: tr('Still full of gas, which lifts the bed, runs the water round it rather than through it, and makes the clock read short. Expect it to keep moving for a few days yet, and do not chase it far with the grinder — you would only have to walk it back.') };
   }
   if (age >= (root().LentoBeans ? LentoBeans.AGED_DAYS : 42)) {
     return { move: `${age} days off roast.`,
-      why: 'Past six weeks the carbon dioxide that gave the bed its resistance has gone, so it drains fast and tastes flat however it is ground. That is the bag rather than the grinder, and going finer mostly buys bitterness on top of it.' };
+      why: tr('Past six weeks the carbon dioxide that gave the bed its resistance has gone, so it drains fast and tastes flat however it is ground. That is the bag rather than the grinder, and going finer mostly buys bitterness on top of it.') };
   }
   return null;
 }
@@ -4226,7 +4254,7 @@ function renderReadout(c) {
      said "that is the recipe". It says where the advice is instead. */
   const isOld = !editingIsNew && c.brews.length && editing !== c.brews[c.brews.length - 1];
   const tips = isOld
-    ? [{ sure: false, move: 'Advice follows your newest brew.', why: 'This is an earlier brew. What to change next is worked out from the newest one, on the board.' }]
+    ? [{ sure: false, move: tr('Advice follows your newest brew.'), why: tr('This is an earlier brew. What to change next is worked out from the newest one, on the board.') }]
     : nextMove(editing, c.target);
   const bloomTip = bloomNote(editing);
 

@@ -41,16 +41,16 @@
   // What the flow means, in the words the apps use for it. One clause,
   // because it goes on a line beside the brewer's name.
   function flowLine(flow) {
-    if (flow === 'immersion') return 'Immersion — the coffee steeps';
-    if (flow === 'switch') return 'Switch — it steeps, then it drains';
-    return 'Pour over — the water drains as you pour';
+    if (flow === 'immersion') return tr('Immersion — the coffee steeps');
+    if (flow === 'switch') return tr('Switch — it steeps, then it drains');
+    return tr('Pour over — the water drains as you pour');
   }
 
   // The single word, for a row that has no space for the clause.
   function flowWord(flow) {
-    if (flow === 'immersion') return 'immersion';
-    if (flow === 'switch') return 'switch';
-    return 'pour over';
+    if (flow === 'immersion') return tr('immersion');
+    if (flow === 'switch') return tr('switch');
+    return tr('pour over');
   }
 
   /* A brewer somebody owns, described. Their own record first — it is
@@ -75,7 +75,7 @@
       // Only where the person has not contradicted it. A note explaining
       // how a valve works, under a brewer its owner has told us never
       // steeps, is the table arguing with the person.
-      note: base && base.flow === flow ? base.note : '',
+      note: base && base.flow === flow && base.note ? tr(base.note) : '',
     };
   }
 

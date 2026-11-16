@@ -213,8 +213,8 @@ function makeGrind(env) {
   const grain = () => (env.stepped() ? 1 : 0.5);
 
   const fmtSteps = v => (env.stepped()
-    ? `${v} ${v === 1 ? 'click' : 'clicks'}`
-    : `${v.toFixed(1)} on the dial`);
+    ? trn(v, '{n} click', '{n} clicks')
+    : tr('{v} on the dial', { v: v.toFixed(1) }));
 
   /* How far to move the grinder to buy a given number of seconds, in the
      units the hand on the dial is actually turning.
@@ -280,7 +280,9 @@ function makeGrind(env) {
      under sixty words of physics. */
   function parts(opts) {
     const { wantSeconds, currentGrind, currentTime, lo, hi } = opts;
-    const unit = env.unitWord();
+    /* The host's words are English ('click', 'shot'); they are said in
+       the page's language here, where the sentence around them is. */
+    const unit = tr(env.unitWord());
     if (wantSeconds === null || wantSeconds === undefined) return { move: '', why: '' };
 
     const m = move(wantSeconds, currentGrind);
@@ -292,7 +294,9 @@ function makeGrind(env) {
          true one; it just arrives without a prospectus. */
       const willLearn = !env.enabled || env.enabled();
       const small = stall() === 'small';
-      const item = env.itemWord ? env.itemWord() : 'brew';
+      const itemEn = env.itemWord ? env.itemWord() : 'brew';
+      const item = tr(itemEn);
+      const items = tr(itemEn + 's');
       /* A stepless dial has no smallest move, and telling somebody with a
          numeric collar to make "one step, the smallest your grinder makes"
          hands them back the guess this whole file exists to remove. What is
@@ -322,11 +326,12 @@ function makeGrind(env) {
            dial", which means nothing across grinders, but how far the
            clock should move. A dial-in test went 2 numbers on "a decisive
            move", gained 8 seconds and overshot the window. */
-        move: env.stepped()
-          ? ` — two or three clicks`
+        move: ' — ' + (env.stepped()
+          ? tr('two or three clicks')
           : (Math.abs(wantSeconds) >= 2
-            ? ` — enough to make it about ${Math.round(Math.abs(wantSeconds))}s ${wantSeconds > 0 ? 'slower' : 'faster'}`
-            : ` — a small, decisive move`),
+            ? tr(wantSeconds > 0 ? 'enough to make it about {s}s slower' : 'enough to make it about {s}s faster',
+              { s: Math.round(Math.abs(wantSeconds)) })
+            : tr('a small, decisive move'))),
         /* Cut from sixty words to thirty-five, and the condition made
            honest: it used to promise a number "once two brews differ only
            in grind" without the clause that actually gates it — the clock
@@ -342,10 +347,14 @@ function makeGrind(env) {
         why: !willLearn
           ? ''
           : small
-            ? ` The moves so far are too small for the clock to tell from ordinary ${item}-to-${item} variation. Make this one big enough to show in the time${
-                env.stepped() ? '' : ', and note where the dial is so you can get back'} — then the board can say what a ${unit} is worth on your grinder.`
-            : ` How far, it cannot say yet${
-                env.stepped() ? '' : ' — so make it big enough to see, and note where the dial is'}. Once two ${item}s differ only in grind and the clock moves several seconds with it, the board works out what a ${unit} is worth and tells you how many.`,
+            ? ' ' + tr(env.stepped()
+                ? 'The moves so far are too small for the clock to tell from ordinary {item}-to-{item} variation. Make this one big enough to show in the time — then the board can say what a {unit} is worth on your grinder.'
+                : 'The moves so far are too small for the clock to tell from ordinary {item}-to-{item} variation. Make this one big enough to show in the time, and note where the dial is so you can get back — then the board can say what a {unit} is worth on your grinder.',
+              { item, unit })
+            : ' ' + tr(env.stepped()
+                ? 'How far, it cannot say yet. Once two {items} differ only in grind and the clock moves several seconds with it, the board works out what a {unit} is worth and tells you how many.'
+                : 'How far, it cannot say yet — so make it big enough to see, and note where the dial is. Once two {items} differ only in grind and the clock moves several seconds with it, the board works out what a {unit} is worth and tells you how many.',
+              { items, unit }),
       };
     }
 
@@ -356,26 +365,37 @@ function makeGrind(env) {
        everywhere else should not predict "219s", and a dial-in that
        counts in seconds should not be given "0:27". */
     const clock = v => (env.fmtTime ? env.fmtTime(v) : `${v}s`);
-    const why = [` Your grinder has been worth about ${m.secPerStep.toFixed(1)}s a ${unit} over ${m.n} grind ${m.n === 1 ? 'change' : 'changes'}${
-      m.mixed ? ', though it has not been consistent about it' : ''}.`];
+    const why = [' ' + (m.mixed
+      ? trn(m.n, 'Your grinder has been worth about {s}s a {unit} over {n} grind change, though it has not been consistent about it.',
+        'Your grinder has been worth about {s}s a {unit} over {n} grind changes, though it has not been consistent about it.',
+        { s: m.secPerStep.toFixed(1), unit })
+      : trn(m.n, 'Your grinder has been worth about {s}s a {unit} over {n} grind change.',
+        'Your grinder has been worth about {s}s a {unit} over {n} grind changes.',
+        { s: m.secPerStep.toFixed(1), unit }))];
     if (m.halve) {
-      why.push(` That is deliberately half the distance: grind stops behaving in a straight line far from where you are, so expect around ${land === null ? 'a partial move' : clock(land)}${
-        outside ? ' — still outside the window, but close enough that the next move is measured from nearby' : ''}, and the board re-measures from there.`);
+      why.push(' ' + (land === null
+        ? tr('That is deliberately half the distance: grind stops behaving in a straight line far from where you are, so expect a partial move, and the board re-measures from there.')
+        : tr(outside
+          ? 'That is deliberately half the distance: grind stops behaving in a straight line far from where you are, so expect around {land} — still outside the window, but close enough that the next move is measured from nearby, and the board re-measures from there.'
+          : 'That is deliberately half the distance: grind stops behaving in a straight line far from where you are, so expect around {land}, and the board re-measures from there.',
+          { land: clock(land) })));
     } else if (land !== null) {
       /* A predicted landing outside the window it is aiming at is worth a
          word. The board told a tester to go coarser and predicted 24s with
          "AIMING AT 25–32s" printed directly underneath — a move it expected
          to miss, presented as the move. Where the grinder cannot get there
          in one honest step, that is information, not an error. */
-      why.push(outside
-        ? ` That should land near ${clock(land)} — outside the ${clock(lo)}–${clock(hi)} window, which is as close as one grind move gets from here; the rest comes off the yield.`
-        : ` That should land near ${clock(land)}.`);
+      why.push(' ' + (outside
+        ? tr('That should land near {land} — outside the {lo}–{hi} window, which is as close as one grind move gets from here; the rest comes off the yield.',
+          { land: clock(land), lo: clock(lo), hi: clock(hi) })
+        : tr('That should land near {land}.', { land: clock(land) })));
     }
     return {
       // No direction word: the instruction it attaches to already opens
       // with "Grind finer", and "Grind finer — about 3 clicks finer"
       // says it twice.
-      move: ` — about ${m.words}${m.to ? `, ${m.dialUp ? 'up' : 'down'} to ${m.to}` : ''}`,
+      move: ' — ' + tr(m.to ? (m.dialUp ? 'about {words}, up to {to}' : 'about {words}, down to {to}') : 'about {words}',
+        { words: m.words, to: m.to }),
       why: why.join(''),
     };
   }

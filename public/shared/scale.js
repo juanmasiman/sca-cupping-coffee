@@ -47,7 +47,7 @@ function anchoredScale(opts) {
     knob.style.left = `${pct}%`;
     knob.classList.toggle('untouched', v === null);
     track.setAttribute('aria-valuenow', shown);
-    track.setAttribute('aria-valuetext', v === null ? empty : words(v));
+    track.setAttribute('aria-valuetext', tr(v === null ? empty : words(v)));
     readout.textContent = v === null ? empty : words(v);
     readout.classList.toggle('untouched', v === null);
   };
@@ -156,7 +156,7 @@ function lentoSelectFinder(select, placeholder, opts) {
   const lab = select.closest('label');
   const labText = (lab && lab.querySelector('.field-label') ? lab.querySelector('.field-label').textContent : '').trim();
   if (labText && !select.getAttribute('aria-label')) select.setAttribute('aria-label', labText);
-  box.setAttribute('aria-label', placeholder || (labText ? `Find ${labText.toLowerCase()}` : 'Find in the list'));
+  box.setAttribute('aria-label', placeholder || (labText ? tr('Find {what}', { what: labText.toLowerCase() }) : 'Find in the list'));
   box.autocomplete = 'off';
   select.parentNode.insertBefore(box, select);
   box.addEventListener('input', () => {

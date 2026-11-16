@@ -443,11 +443,11 @@
 
   // One noun per kind, since four sheets and a picker all need it.
   var NOUNS = {
-    grinder: { one: 'grinder', many: 'grinders', add: 'Add a grinder' },
-    brewer: { one: 'brewer', many: 'brewers', add: 'Add a brewer' },
-    kettle: { one: 'kettle', many: 'kettles', add: 'Add a kettle' },
-    machine: { one: 'espresso machine', many: 'espresso machines', add: 'Add a machine' },
-    refractometer: { one: 'refractometer', many: 'refractometers', add: 'Add a refractometer' },
+    grinder: { one: tr('grinder'), many: tr('grinders'), add: tr('Add a grinder') },
+    brewer: { one: tr('brewer'), many: tr('brewers'), add: tr('Add a brewer') },
+    kettle: { one: tr('kettle'), many: tr('kettles'), add: tr('Add a kettle') },
+    machine: { one: tr('espresso machine'), many: tr('espresso machines'), add: tr('Add a machine') },
+    refractometer: { one: tr('refractometer'), many: tr('refractometers'), add: tr('Add a refractometer') },
   };
 
   function entry(kind, name) {

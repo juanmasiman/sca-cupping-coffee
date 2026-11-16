@@ -337,6 +337,22 @@
     .stock-add .stock-name { color: var(--text-dim); }
     .stock-plus { flex: none; color: var(--text-faint); }
 
+    /* ---------- the language ----------
+       A label and the shared segmented switch, at the vault's tier: it
+       is a setting, not a place, so it carries no card. It sits closer
+       to the vault than the footer does, so the launcher grows by as
+       little as it can. */
+    .lang-row {
+      margin-top: var(--space-5);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      text-align: left;
+    }
+    .lang-label { font-size: 13px; color: var(--text-dim); }
+    #lang-slot { flex: 0 1 220px; }
+    #lang-slot .seg-btn { padding: 0 var(--space-3); }
     @media (prefers-reduced-motion: reduce) {
       /* Every element on this page that declares one. The vault buttons
          were left off the list while declaring the identical 0.18s
@@ -462,6 +478,13 @@
     <!-- The roasting log was a tool-sized card in the tool group, for a tool
          that does not exist yet: on a page read in a second, a dead slot
          among three live ones (critique). It is a line down here now. -->
+    <!-- The language, chosen once. Hidden until /shared/i18n.js has drawn
+         the switch, so a page without it shows no empty row. -->
+    <div class="lang-row hidden" id="lang-row">
+      <span class="lang-label" id="lang-label">Language</span>
+      <div id="lang-slot"></div>
+    </div>
+
     <footer>lento.cafe · a roasting log is coming</footer>
   </main>
 

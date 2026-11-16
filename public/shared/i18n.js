@@ -147,11 +147,17 @@
     }
     if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
     var start = root.nodeType === 9 ? root.documentElement : root;
+    if (start.nodeType === 1 && start.tagName === 'TEXTAREA' && !skipped(start.parentNode)) {
+      doAttrs(start);
+      return;
+    }
     if (start.nodeType === 1 && skipped(start)) return;
     if (start.nodeType === 1) doAttrs(start);
     var walker = document.createTreeWalker(start, 5 /* elements + text */, {
       acceptNode: function (n) {
         if (n.nodeType === 1) {
+          /* A textarea's text is the user's, but its placeholder is ours. */
+          if (n.tagName === 'TEXTAREA' && !skipped(n.parentNode)) doAttrs(n);
           if (SKIP_TAGS[n.tagName] || n.getAttribute('translate') === 'no' ||
               n.hasAttribute('data-i18n-skip') || n.isContentEditable) return 2; /* reject subtree */
           return 1;
@@ -179,7 +185,8 @@
           } else if (m.type === 'characterData') {
             apply(m.target);
           } else if (m.type === 'attributes') {
-            if (!skipped(m.target)) doAttrs(m.target);
+            var host = m.target.tagName === 'TEXTAREA' ? m.target.parentNode : m.target;
+            if (!skipped(host)) doAttrs(m.target);
           }
         }
       } finally {
