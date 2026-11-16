@@ -46,9 +46,9 @@
 
   // The same words on every page. They used to differ by page: "your
   // log stays on this device" on a front door that has no log.
-  var SIGNED_OUT = 'Signed out — everything stays on this device';
+  var SIGNED_OUT = tr('Signed out — everything stays on this device');
   var signedInMsg = function (u) {
-    return 'Signed in' + (u && u.email ? ' as ' + u.email : '');
+    return u && u.email ? tr('Signed in as {email}', { email: u.email }) : tr('Signed in');
   };
 
   var CSS = ''
@@ -138,12 +138,12 @@
     try { t = Number(localStorage.getItem(LAST)) || 0; } catch (e) {}
     if (!t) return '';
     var m = Math.round((Date.now() - t) / 60000);
-    if (m < 1) return 'Last synced just now';
-    if (m < 60) return 'Last synced ' + m + ' min ago';
+    if (m < 1) return tr('Last synced just now');
+    if (m < 60) return tr('Last synced {n} min ago', { n: m });
     var h = Math.round(m / 60);
-    if (h < 24) return 'Last synced ' + h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+    if (h < 24) return trn(h, 'Last synced {n} hour ago', 'Last synced {n} hours ago');
     var d = Math.round(h / 24);
-    return 'Last synced ' + d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    return trn(d, 'Last synced {n} day ago', 'Last synced {n} days ago');
   }
 
   // An address breaks after its @ and dots, not mid-word ("exa/mple").
@@ -159,27 +159,27 @@
      they already have. */
   function whySendFailed(e) {
     var status = e && e.status;
-    if (status === 429) return 'Too many codes requested in the last hour. Wait a few minutes, or continue with Google.';
+    if (status === 429) return tr('Too many codes requested in the last hour. Wait a few minutes, or continue with Google.');
     if (status === 422 || status === 400) {
       return (e && e.detail)
         ? e.detail.charAt(0).toUpperCase() + e.detail.slice(1)
-        : 'That address was refused. Check it, or continue with Google.';
+        : tr('That address was refused. Check it, or continue with Google.');
     }
-    if (status >= 500) return 'Sign-in is down at the moment. Everything else still works — try again in a few minutes.';
-    return 'No connection. Check your signal and try again.';
+    if (status >= 500) return tr('Sign-in is down at the moment. Everything else still works — try again in a few minutes.');
+    return tr('No connection. Check your signal and try again.');
   }
   function whyCodeFailed(status) {
-    if (!status) return 'No connection — your code is still good. Try again when you have signal.';
-    if (status === 429) return 'Too many tries. Wait a minute, then try again.';
-    if (status >= 500) return 'Sign-in is down at the moment. Try the same code again in a few minutes.';
-    return 'That code is wrong or has expired. Check it, or send a new one.';
+    if (!status) return tr('No connection — your code is still good. Try again when you have signal.');
+    if (status === 429) return tr('Too many tries. Wait a minute, then try again.');
+    if (status >= 500) return tr('Sign-in is down at the moment. Try the same code again in a few minutes.');
+    return tr('That code is wrong or has expired. Check it, or send a new one.');
   }
 
   // What a row that opens this sheet says (Settings, the front door).
   function line() {
     var u = user();
-    if (u) return u.email || u.name || 'Signed in';
-    return 'One account for cupping, espresso and filter';
+    if (u) return u.email || u.name || tr('Signed in');
+    return tr('One account for cupping, espresso and filter');
   }
 
   /* ---------- the dialog ---------- */
@@ -225,7 +225,7 @@
           if (u) profile(u); else emailStep('');
           focusSoon('#lp-title'); // the old focus went with the old contents
         }
-        if (was && !u && !signingOut) host.toast('You were signed out. Sign in again to keep syncing.');
+        if (was && !u && !signingOut) host.toast(tr('You were signed out. Sign in again to keep syncing.'));
         was = u;
       });
     }
@@ -248,7 +248,7 @@
     if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
   }
   function frame(title, inner) {
-    sheetEl.innerHTML = '<div class="lp-head"><h2 id="lp-title" tabindex="-1">' + title + '</h2>'
+    sheetEl.innerHTML = '<div class="lp-head"><h2 id="lp-title" tabindex="-1">' + tr(title) + '</h2>'
       + '<button type="button" class="lp-x" data-close aria-label="Close">' + CLOSE_ICON + '</button></div>' + inner;
     sheetEl.querySelector('[data-close]').addEventListener('click', close);
   }
@@ -276,7 +276,7 @@
     frame('Your profile',
       '<div class="lp-who"><div class="lp-avatar" aria-hidden="true">'
       + (u.avatar ? '<img src="' + esc(u.avatar) + '" alt="">' : esc(initial)) + '</div>'
-      + '<div><div class="lp-name">' + soft(u.name || u.email) + '</div>'
+      + '<div translate="no"><div class="lp-name">' + soft(u.name || u.email) + '</div>'
       + (u.name && u.email ? '<div class="lp-mail">' + soft(u.email) + '</div>' : '') + '</div></div>'
       + '<p class="lp-status" id="lp-status" role="status">' + esc(host.status('idle')) + '</p>'
       + (lastSyncedWords() ? '<p class="lp-synced" id="lp-synced">' + lastSyncedWords() + '</p>' : '')
@@ -296,11 +296,11 @@
     if (!host.sync) return;
     sheetEl.querySelector('#lp-sync').addEventListener('click', async function () {
       var status = sheetEl.querySelector('#lp-status');
-      status.textContent = 'Syncing…';
+      status.textContent = tr('Syncing…');
       var ok = await host.sync();
       if (!user()) return; // signed out meanwhile: the sheet has redrawn and said so
       if (ok) markSynced();
-      status.textContent = ok ? host.status('synced') : 'Could not reach the cloud — it will try again on its own.';
+      status.textContent = ok ? host.status('synced') : tr('Could not reach the cloud — it will try again on its own.');
       var when = sheetEl.querySelector('#lp-synced');
       if (ok && when) when.textContent = lastSyncedWords();
     });
@@ -327,7 +327,7 @@
       var email = input.value.trim();
       status.classList.remove('lp-bad');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        status.textContent = 'That does not look like an email address.';
+        status.textContent = tr('That does not look like an email address.');
         status.classList.add('lp-bad');
         input.setAttribute('aria-invalid', 'true');
         input.focus();
@@ -335,7 +335,7 @@
       }
       input.removeAttribute('aria-invalid');
       go.disabled = true;
-      status.textContent = 'Sending…';
+      status.textContent = tr('Sending…');
       try {
         await root.LentoAccount.sendEmailCode(email);
       } catch (e) {
@@ -359,15 +359,15 @@
     inCodeStep = true;
     var n = codeLength();
     frame('Enter your code',
-      '<p class="lp-note">Sent to <strong>' + esc(email) + '</strong>. '
+      '<p class="lp-note">' + tr('Sent to {email}.', { email: '<strong translate="no">' + esc(email) + '</strong>' }) + ' '
       + '<button type="button" class="lp-link" id="lp-change">Wrong address?</button></p>'
-      + '<label class="lp-label" for="lp-code">The ' + n + '-digit code from the email</label>'
+      + '<label class="lp-label" for="lp-code">' + tr('The {n}-digit code from the email', { n: n }) + '</label>'
       + '<input class="lp-input lp-code" id="lp-code" type="text" inputmode="numeric" autocomplete="one-time-code"'
       + ' maxlength="12" aria-describedby="lp-status">'
       + '<p class="lp-status" id="lp-status" role="status"></p>'
       + '<button type="button" class="lp-btn lp-primary" id="lp-verify">Sign in</button>'
-      + '<p class="lp-foot">Or tap <strong>Sign in to lento</strong> in the email on this device. Nothing yet? Check junk, or '
-      + '<button type="button" class="lp-link" id="lp-resend">send a new code</button>.</p>');
+      + '<p class="lp-foot">' + tr('Or tap <strong>Sign in to lento</strong> in the email on this device. Nothing yet? Check junk, or {resend}.', {
+        resend: '<button type="button" class="lp-link" id="lp-resend">' + tr('send a new code') + '</button>' }) + '</p>');
     var input = sheetEl.querySelector('#lp-code');
     var status = sheetEl.querySelector('#lp-status');
     var go = sheetEl.querySelector('#lp-verify');
@@ -382,14 +382,14 @@
       var code = input.value.replace(/\D/g, '');
       status.classList.remove('lp-bad');
       if (code.length < n) {
-        status.textContent = 'The code is ' + n + ' digits.';
+        status.textContent = tr('The code is {n} digits.', { n: n });
         status.classList.add('lp-bad');
         input.focus();
         return;
       }
       busy = true;
       go.disabled = true;
-      status.textContent = 'Checking…';
+      status.textContent = tr('Checking…');
       var res = await root.LentoAccount.verifyCode(email, code);
       busy = false;
       go.disabled = false;
@@ -413,11 +413,11 @@
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); verify(); } });
     sheetEl.querySelector('#lp-resend').addEventListener('click', async function () {
       status.classList.remove('lp-bad');
-      status.textContent = 'Sending…';
+      status.textContent = tr('Sending…');
       try {
         await root.LentoAccount.sendEmailCode(email);
         setPending(email);
-        status.textContent = 'A new code is on its way. Use the newest one.';
+        status.textContent = tr('A new code is on its way. Use the newest one.');
         input.value = '';
         input.focus();
       } catch (e) {
