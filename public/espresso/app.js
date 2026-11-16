@@ -121,7 +121,7 @@ function buildUse(c, adding) {
     b.addEventListener('click', () => {
       haptic();
       if (key === 'espresso' && on && logged) {
-        note.textContent = tr("There {0} {1} {2} logged here. Use Remove below, which says what goes with it.", [logged === 1 ? 'is' : 'are', logged, logged === 1 ? 'shot' : 'shots']);
+        note.textContent = trn(logged, "There is {n} shot logged here. Use Remove below, which says what goes with it.", "There are {n} shots logged here. Use Remove below, which says what goes with it.");
         return;
       }
       commitBag(c);
@@ -3687,8 +3687,8 @@ function missingLine(missing) {
   if (missing.includes('dose') || missing.includes('yield')) lost.push('ratio');
   if (missing.includes('yield') || missing.includes('time')) lost.push('flow');
   if (missing.length === 3) return tr("Nothing recorded on this shot yet.");
-  const names = missing.length === 2 ? tr("{0} and no {1}", [missing[0], missing[1]]) : missing[0];
-  const cost = lost.length === 2 ? tr("ratio and no flow") : lost[0];
+  const names = missing.length === 2 ? tr("{0} and no {1}", [tr(missing[0]), tr(missing[1])]) : tr(missing[0]);
+  const cost = lost.length === 2 ? tr("ratio and no flow") : tr(lost[0]);
   return tr("No {0} recorded, so this shot has no {1}.", [names, cost]);
 }
 
@@ -4420,7 +4420,7 @@ function buildVerdict(c) {
     /* Not hidden, and not silently inert. A control that is there and does
        nothing is the same lie as the pinch-test cards were: it says what
        it needs and comes back the moment it has it. */
-    const sub = blocked ? `needs ${listWords(missing)}` : v.sub;
+    const sub = blocked ? tr('needs {0}', [listWords(missing.map(f => tr(f)))]) : v.sub;
     const b = el('button', 'verdict-btn' + (editing.verdict === v.key ? ' on' : '') + (blocked ? ' is-blocked' : ''),
       `<span class="verdict-label">${v.label}</span><span class="verdict-sub">${escapeHTML(sub)}</span>`);
     b.type = 'button';
@@ -4430,7 +4430,7 @@ function buildVerdict(c) {
     b.addEventListener('click', () => {
       if (blocked) {
         haptic();
-        toast(tr("A recipe needs {0} — fill {1} in and this comes back", [listWords(missing), missing.length === 1 ? 'it' : 'them']));
+        toast((missing.length === 1 ? tr("A recipe needs {0} — fill it in and this comes back", [listWords(missing.map(f => tr(f)))]) : tr("A recipe needs {0} — fill them in and this comes back", [listWords(missing.map(f => tr(f)))])));
         return;
       }
       // tapping the chosen one again clears it: a verdict you did not give
@@ -4449,7 +4449,7 @@ function buildVerdict(c) {
 // "a yield", "a yield and a time", "a dose, a yield and a time"
 function listWords(xs) {
   if (xs.length <= 1) return xs[0] || '';
-  return xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
+  return tr('{0} and {1}', [xs.slice(0, -1).join(', '), xs[xs.length - 1]]);
 }
 
 /* The drawer holds what your machine can change, and nothing else.
@@ -4657,7 +4657,7 @@ function saveShot() {
   const bad = badFields('#shot-modal');
   if (bad.length) {
     haptic();
-    toast(tr("{0} {1} something in {2} the app cannot read — fix or clear {3} first", [listWords(bad), bad.length === 1 ? 'has' : 'have', bad.length === 1 ? 'it' : 'them', bad.length === 1 ? 'it' : 'them']));
+    toast((bad.length === 1 ? tr("{0} has something in it the app cannot read — fix or clear it first", [listWords(bad)]) : tr("{0} have something in them the app cannot read — fix or clear them first", [listWords(bad)])));
     return;
   }
   /* A sheet with nothing on it is not a shot. The carried-over dose and
@@ -4677,7 +4677,7 @@ function saveShot() {
   // either way the save is said, because the toast is the live region.
   const saidSaved = isComplete(editing)
     ? tr("Shot {0} saved", [n])
-    : tr("Shot {0} saved without {1}", [n, missingFields(editing).join(' or ')]);
+    : tr("Shot {0} saved without {1}", [n, missingFields(editing).map(f => tr(f)).join(' ' + tr('or') + ' ')]);
   delete editing.clockWas; // working state of the sheet, never the record
   if (wasNew) c.shots.push(editing);
   /* One recipe to a coffee.
@@ -5075,7 +5075,7 @@ function openEdit(c, opts) {
                 against it has started. It sat above a DOSE field reading
                 18 offering "Start at 16.5g" after six shots and a keeper —
                 one tap from throwing the dial-in away, with no warning. */
-             ? tr("<p class=\"baseline-body\"><strong>{0}1:{1}{2}, {3}–{4}s</strong> is where this bag starts from cold.{5}</p>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, sp.ratio, withTemp ? `, ${escapeHTML(degrees(sp.temp))}` : '', Math.round(sp.timeLo), Math.round(sp.timeHi), c.shots.length ? (" " + tr("You are {0} shot{1} past that — the target below is what the board is judging against, and it is yours to edit.", [c.shots.length, c.shots.length === 1 ? '' : 's'])) : (" " + tr("That is what the target below is set to. Change any of it and it stays changed."))])
+             ? tr("<p class=\"baseline-body\"><strong>{0}1:{1}{2}, {3}–{4}s</strong> is where this bag starts from cold.{5}</p>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, sp.ratio, withTemp ? `, ${escapeHTML(degrees(sp.temp))}` : '', Math.round(sp.timeLo), Math.round(sp.timeHi), c.shots.length ? (" " + trn(c.shots.length, "You are {n} shot past that — the target below is what the board is judging against, and it is yours to edit.", "You are {n} shots past that — the target below is what the board is judging against, and it is yours to edit.")) : (" " + tr("That is what the target below is set to. Change any of it and it stays changed."))])
              : tr("<button class=\"btn btn-ghost\" type=\"button\" id=\"btn-apply-baseline\">Start at {0}{1}1:{2}, {3}–{4}s</button>", [spDose === null ? '' : `${fmtDose(spDose)}g, `, withTemp ? `${escapeHTML(degrees(sp.temp))} and ` : '', sp.ratio, Math.round(sp.timeLo), Math.round(sp.timeHi)])}
          </div>`
       : '';
@@ -5192,7 +5192,7 @@ function openEdit(c, opts) {
     const bad = badFields('#edit-modal');
     if (bad.length) {
       haptic();
-      toast(tr("{0} {1} something the app cannot read — fix or clear {2} first", [listWords(bad), bad.length === 1 ? 'has' : 'have', bad.length === 1 ? 'it' : 'them']));
+      toast((bad.length === 1 ? tr("{0} has something the app cannot read — fix or clear it first", [listWords(bad)]) : tr("{0} have something the app cannot read — fix or clear them first", [listWords(bad)])));
       return;
     }
     commit();
@@ -5219,7 +5219,7 @@ function openEdit(c, opts) {
        happen, because that is a different promise in each case. */
     const bag = window.LentoCoffees ? LentoCoffees.get(c.id) : null;
     const alsoFilter = bag && bag.use.filter && bag.use.espresso;
-    const what = n ? tr("Its {0} shot{1} go with it", [n, n === 1 ? '' : 's']) : tr("Nothing has been pulled with it");
+    const what = n ? trn(n, "Its {n} shot goes with it", "Its {n} shots go with it") : tr("Nothing has been pulled with it");
     const fate = alsoFilter
       ? tr("The bag stays on the shelf — the brew log still brews it.")
       : tr("The bag goes off the shelf too, and there is no undo.");
@@ -6246,9 +6246,8 @@ function boot() {
       sync: () => syncNow(),
       status: phase => {
         const n = (state.coffees || []).reduce((n, c) => n + (c.shots || []).length, 0);
-        const word = n === 1 ? 'shot' : 'shots';
-        if (phase === 'synced') return n ? `Synced · ${n} ${word}` : 'Synced';
-        return n ? tr("{0} {1} on this device, backed up as you log them.", [n, word]) : tr("Shots back up as you log them.");
+        if (phase === 'synced') return n ? trn(n, 'Synced · {n} shot', 'Synced · {n} shots') : tr('Synced');
+        return n ? trn(n, "{n} shot on this device, backed up as you log them.", "{n} shots on this device, backed up as you log them.") : tr("Shots back up as you log them.");
       },
     });
   }
