@@ -1311,7 +1311,7 @@ const GRIND = makeGrind({
      "a tenth": moves are quoted in tenths, but 2.0s is what a whole point
      is worth, and naming the smaller unit would understate the grinder
      tenfold in the one sentence the reader checks the estimate against. */
-  unitWord: () => (grindUnit() === 'clicks' ? 'click' : tr("point on your dial")),
+  unitWord: () => (grindUnit() === 'clicks' ? 'click' : 'point on your dial'),
   itemWord: () => 'shot',
   timeOf: sh => num(sh.time),
   grindOf: sh => (sh.grind === '' ? null : num(Number(sh.grind))),
@@ -1349,7 +1349,7 @@ function grindMoveParts(shot, target, finer) {
 const holdLine = (shot, field) => {
   if (field === 'grind') {
     const y = num(shot && shot.yield);
-    return y === null ? tr(", same yield") : `, same ${fmtDose(y)}g out`;
+    return y === null ? tr(", same yield") : tr(", same {0}g out", [fmtDose(y)]);
   }
   return tr(", same grind");
 };
@@ -2105,7 +2105,7 @@ function cornerPastWindow(shot, target, c, over) {
       ? (over ? tr("and a degree cooler") : tr("and a degree hotter"))
       : (over ? tr("and half a gram less coffee") : tr("and half a gram more coffee"));
     return { sure: false, noGrind: true,
-      move: tr("That did not help. Back to {0}, {1}.", [back !== null ? fmtDose(back) + 'g out' : tr("the last yield"), extra]),
+      move: tr("That did not help. Back to {0}, {1}.", [back !== null ? tr("{0}g out", [fmtDose(back)]) : tr("the last yield"), extra]),
       why: over
         ? tr("Stopping it shorter did not take the bitterness out, and the cup got heavier. Go back to where it was and change the next thing instead: {0}.", [canSetTemp() ? tr("cooler extracts a little less without touching the clock") : tr("a little less coffee under the same water extracts a little more gently and lightens the cup")])
         : tr("Running it longer did not take the sourness out, and the cup got thinner: more water dilutes as much as it extracts. Go back to where it was and change the next thing instead: {0}.", [canSetTemp() ? tr("hotter extracts more without touching the clock") : tr("a little more coffee at the same ratio makes the cup stronger and slows the shot enough to extract a touch more")]) };
@@ -2122,7 +2122,7 @@ function cornerPastWindow(shot, target, c, over) {
     && Math.abs((num(prev.yield) || 0) - (num(shot.yield) || 0)) < 0.5;
   if (evenSeen(shot) || repeatOfPrev) {
     return { sure: false, noGrind: true,
-      move: over ? tr("Stop it shorter — {0}, same grind.", [to !== null ? fmtDose(to) + 'g out' : '2 to 3g less']) : tr("Let it run longer — {0}, same grind.", [to !== null ? fmtDose(to) + 'g out' : '2 to 3g more']),
+      move: over ? tr("Stop it shorter — {0}, same grind.", [to !== null ? tr("{0}g out", [fmtDose(to)]) : tr("2 to 3g less")]) : tr("Let it run longer — {0}, same grind.", [to !== null ? tr("{0}g out", [fmtDose(to)]) : tr("2 to 3g more")]),
       why: tr("{0} is the picture of an {1}-extracted shot, and {2} is the usual answer — except this one is already {3} the window, so the grinder would only push the clock further the wrong way.{4}", [over ? tr("Bitter and heavy") : tr("Sour and thin"), over ? 'over' : 'under', over ? 'coarser' : 'finer', over ? tr("short of") : 'past', notThePuck(shot, target, c, over)]) };
   }
   return { sure: false, noGrind: true, move: tr("Check the puck first: distribution and tamp, then pull it again unchanged."),
@@ -2534,7 +2534,7 @@ function withExtraction(tips, shot, target, c) {
   const r = eyReading(c, shot);
   if (!r) return tips;
   const tip = tips[0];
-  const at = `${fmt1(r.ey)}% extraction`;
+  const at = tr("{0}% extraction", [fmt1(r.ey)]);
   const sweet = tasteFault(shot) === 'neither';
   /* Taste wins in the end. Once three shots of this coffee have tasted
      right while reading outside the band, the band has been tested and
@@ -2566,7 +2566,7 @@ function withExtraction(tips, shot, target, c) {
     if (byYield && yieldMoved && barely) byYield = false;
     const to = yieldTo(shot, under ? 2 : -2);
     const move = byYield
-      ? tr("{0} — {1}, same grind.", [under ? tr("Let it run longer") : tr("Stop it shorter"), to !== null ? fmtDose(to) + 'g out' : (under ? '2g more' : '2g less')])
+      ? tr("{0} — {1}, same grind.", [under ? tr("Let it run longer") : tr("Stop it shorter"), to !== null ? tr("{0}g out", [fmtDose(to)]) : (under ? tr("2g more") : tr("2g less"))])
       : tr("Try it a touch {0}{1}.", [under ? 'finer' : 'coarser', holdLine(shot, 'grind')]);
     return [{ sure: false,
       move: tr("Tastes right, reads {0}-extracted. {1}", [under ? 'under' : 'over', move]),
@@ -2963,7 +2963,7 @@ function numField(opts) {
      on the phone this was drawn for. A row each is also how they arrive,
      one at a time off the scale and the timer. */
   wrap.innerHTML = `
-    <label class="num-label" for="${id}">${escapeHTML(opts.label)}</label>
+    <label class="num-label" for="${id}">${escapeHTML(tr(opts.label))}</label>
     <span class="num-value-wrap">
       <input class="num-value" id="${id}" type="text" inputmode="decimal"
              autocomplete="off" enterkeyhint="done"
@@ -2971,8 +2971,8 @@ function numField(opts) {
       <span class="num-unit" id="${id}-unit">${escapeHTML(opts.unit)}</span>
     </span>
     <span class="num-steps">
-      <button type="button" class="num-step" data-dir="-1" aria-label="Less ${escapeHTML(opts.label)}">−</button>
-      <button type="button" class="num-step" data-dir="1" aria-label="More ${escapeHTML(opts.label)}">+</button>
+      <button type="button" class="num-step" data-dir="-1" aria-label="${escapeHTML(tr('Less {0}', [tr(opts.label)]))}">−</button>
+      <button type="button" class="num-step" data-dir="1" aria-label="${escapeHTML(tr('More {0}', [tr(opts.label)]))}">+</button>
     </span>
     <span class="num-note" id="${id}-note" role="status"></span>
   `;
@@ -3179,7 +3179,7 @@ function renderEyCard(c) {
   const points = read.map(sh => ({ ey: extractionOf(sh), tds: num(sh.tds), n: shotNumber(c, sh), recipe: sh === recipe, latest: sh === latest }));
   let say;
   if (!latest) {
-    say = tr("Add a TDS reading to a shot and it lands here, against the box {0}: {1}–{2}% extraction.", [box.roast ? `for a ${box.roast} roast` : tr("for espresso"), fmt1(box.eyLo), fmt1(box.eyHi)]);
+    say = tr("Add a TDS reading to a shot and it lands here, against the box {0}: {1}–{2}% extraction.", [box.roast ? tr("for a {0} roast", [box.roast]) : tr("for espresso"), fmt1(box.eyLo), fmt1(box.eyHi)]);
   } else {
     const r = eyReading(c, latest);
     // Where it landed, and nothing about what to do: the advice card above
@@ -4007,7 +4007,7 @@ function openShot(shot) {
   showDraftNote(shot, Boolean(d));
   showStartNote(c);
 
-  $('#shot-title').textContent = editingIsNew ? tr("This shot") : `Shot ${shotNumber(c, shot)}`;
+  $('#shot-title').textContent = editingIsNew ? tr("This shot") : tr("Shot {0}", [shotNumber(c, shot)]);
   /* Remove this shot.
 
      There was no way to. A mis-logged shot is not a small problem in a
