@@ -3446,6 +3446,12 @@ function maybeShowWheelCoach() {
    Opened from the corner, with no section around it, it still writes to
    flavor — that is the list most of a session is spent in. Which one it is
    writing to is printed at the top either way. */
+/* A wheel descriptor as the cupper reads it: what goes into their own
+   notes is in their language. The stored CATA keys stay English. */
+function wheelWord(w) {
+  return LentoWheel && typeof LentoWheel.label === 'function' ? LentoWheel.label(w) : tr(w);
+}
+
 function openFlavorWheel(listKey) {
   const target = listKey === 'aroma' ? 'aroma' : 'flavor';
   markWheelSeen();
@@ -3477,7 +3483,7 @@ function openFlavorWheel(listKey) {
   /* The notes are the cupper's own words, so a word taken from the wheel
      goes in in the language on screen — and is recognised as the wheel's in
      either language, so a sheet started on another phone still unticks. */
-  const sameWord = (a, w) => a === w.toLowerCase() || a === tr(w).toLowerCase();
+  const sameWord = (a, w) => a === w.toLowerCase() || a === wheelWord(w).toLowerCase();
   const notesFromWheel = () => {
     const items = noteItems(coffee.notes).map(s => s.toLowerCase());
     return WHEEL_WORDS.filter(w => items.some(s => sameWord(s, w)));
@@ -3519,13 +3525,13 @@ function openFlavorWheel(listKey) {
       pickedWrap.appendChild(chip);
     });
     words.forEach(word => {
-      const chip = el('button', 'wheel-pick note', `${escapeHTML(tr(word))} <b>×</b>`);
+      const chip = el('button', 'wheel-pick note', `${escapeHTML(wheelWord(word))} <b>×</b>`);
       chip.type = 'button';
       chip.onclick = () => {
         haptic();
         dropNote(word);
         save();
-        sync(tr('“{word}” removed from your notes', { word: tr(word) }));
+        sync(tr('“{word}” removed from your notes', { word: wheelWord(word) }));
         refreshOpenPanel();
       };
       pickedWrap.appendChild(chip);
@@ -3552,7 +3558,7 @@ function openFlavorWheel(listKey) {
     if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
         && holder.zoomToRead && holder.zoomToRead(seg)) {
       haptic();
-      sync(tr('Zoomed in — tap “{word}” again to add it to your notes', { word: tr(seg.dataset.desc) }));
+      sync(tr('Zoomed in — tap “{word}” again to add it to your notes', { word: wheelWord(seg.dataset.desc) }));
       return;
     }
 
@@ -3573,11 +3579,11 @@ function openFlavorWheel(listKey) {
       const word = seg.dataset.desc;
       if (notesFromWheel().some(w => w.toLowerCase() === word.toLowerCase())) {
         dropNote(word);
-        message = tr('“{word}” removed from your notes', { word: tr(word) });
+        message = tr('“{word}” removed from your notes', { word: wheelWord(word) });
       } else {
         const existing = coffee.notes.trim();
-        coffee.notes = existing ? `${existing}, ${tr(word)}` : tr(word);
-        message = tr('“{word}” added to your notes', { word: tr(word) });
+        coffee.notes = existing ? `${existing}, ${wheelWord(word)}` : wheelWord(word);
+        message = tr('“{word}” added to your notes', { word: wheelWord(word) });
       }
 
     }

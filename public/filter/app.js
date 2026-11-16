@@ -3039,10 +3039,11 @@ function missingLine(missing) {
   if (missing.includes('time')) lost.push('drawdown');
   /* Both lists are "no X and no Y" in English; Spanish says "sin X ni Y",
      so the joining word is part of what is translated. */
-  const nor = list => list.map(fieldWord).join(tr(' and no '));
+  const word = f => ctx('missing|' + f, f);
+  const nor = list => list.map(word).join(' ' + ctx('join-lost|and no', 'and no') + ' ');
   const names = missing.length > 1
-    ? `${missing.slice(0, -1).map(fieldWord).join(', ')}${tr(' and no ')}${fieldWord(missing[missing.length - 1])}`
-    : fieldWord(missing[0]);
+    ? `${missing.slice(0, -1).map(word).join(', ')} ${tr('and no')} ${word(missing[missing.length - 1])}`
+    : word(missing[0]);
   return lost.length
     ? tr('No {names} recorded, so this brew has no {lost}.', { names, lost: nor(lost) })
     : tr('No {names} recorded.', { names });
@@ -4430,7 +4431,7 @@ function saveBrew() {
     const saved = editing;
     const said = isComplete(saved)
       ? tr('Brew {n} saved', { n })
-      : tr('Brew {n} saved without {what}', { n, what: missingFields(saved).map(fieldWord).join(tr(' or ')) });
+      : tr('Brew {n} saved without {what}', { n, what: missingFields(saved).map(f => ctx('missing|' + f, f)).join(' ' + tr('or') + ' ') });
     // The second moment: if the cup has not been described yet, the toast
     // that confirms the save is also the way back to it.
     const tasted = ['taste', 'body', 'verdict'].some(k => saved[k] !== null && saved[k] !== undefined)

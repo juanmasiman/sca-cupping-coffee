@@ -755,11 +755,11 @@ const ROASTS = [
   // `eyLo`/`eyHi`: the extraction band a shot of this roast is aiming at.
   // Light roasts are harder to extract and taste right higher up; dark
   // roasts turn harsh sooner. Used by the extraction chart and the advice.
-  { key: 'light',  label: 'Light',        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5', eyLo: 19.5, eyHi: 22.5 },
+  { key: 'light',  label: tr('Light'),        temp: 93, lo: 90, hi: 95, ratio: 2.4, dose: -1.5, timeLo: 20, timeHi: 28, ratioRange: '1:2.2–1:2.5', eyLo: 19.5, eyHi: 22.5 },
   { key: 'mlight', label: tr("Medium-light"), temp: 92, lo: 90, hi: 94, ratio: 2.2, dose: -1,   timeLo: 22, timeHi: 29, ratioRange: '1:2.1–1:2.3', eyLo: 19, eyHi: 22 },
-  { key: 'medium', label: 'Medium',       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1', eyLo: 18.5, eyHi: 21.5 },
+  { key: 'medium', label: tr('Medium'),       temp: 90, lo: 88, hi: 92, ratio: 2.0, dose: -0.5, timeLo: 25, timeHi: 30, ratioRange: '1:1.9–1:2.1', eyLo: 18.5, eyHi: 21.5 },
   { key: 'mdark',  label: tr("Medium-dark"),  temp: 89, lo: 87, hi: 91, ratio: 1.9, dose: 0,    timeLo: 25, timeHi: 31, ratioRange: '1:1.8–1:2.0', eyLo: 18, eyHi: 21 },
-  { key: 'dark',   label: 'Dark',         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9', eyLo: 17.5, eyHi: 20.5 },
+  { key: 'dark',   label: tr('Dark'),         temp: 87, lo: 85, hi: 90, ratio: 1.8, dose: 0,    timeLo: 25, timeHi: 32, ratioRange: '1:1.7–1:1.9', eyLo: 17.5, eyHi: 20.5 },
 ];
 
 /* The box a shot of this coffee is aiming at on the extraction chart:
@@ -780,7 +780,7 @@ function eyReading(c, shot) {
   const box = eyBox(c);
   const v = LentoEyChart.verdict(ey, num(shot.tds), box);
   const band = `${fmt1(box.eyLo)}–${fmt1(box.eyHi)}%`;
-  const what = box.roast ? `a ${box.roast} roast` : 'espresso';
+  const what = box.roast ? tr('a {0} roast', [box.roast]) : tr('espresso');
   return { ey, box, v, band, what };
 }
 
@@ -1378,10 +1378,10 @@ function yieldTo(shot, grams) {
 
    Optional throughout. A shot with no intention recorded is not wrong. */
 const INTENTS = [
-  { key: 'finer',    label: 'Finer',        field: 'grind', dir: -1 },
-  { key: 'coarser',  label: 'Coarser',      field: 'grind', dir: 1 },
-  { key: 'hotter',   label: 'Hotter',       field: 'temp',  dir: 1 },
-  { key: 'cooler',   label: 'Cooler',       field: 'temp',  dir: -1 },
+  { key: 'finer',    label: tr('Finer'),        field: 'grind', dir: -1 },
+  { key: 'coarser',  label: tr('Coarser'),      field: 'grind', dir: 1 },
+  { key: 'hotter',   label: tr('Hotter'),       field: 'temp',  dir: 1 },
+  { key: 'cooler',   label: tr('Cooler'),       field: 'temp',  dir: -1 },
   { key: 'longer',   label: tr("Longer ratio"), field: 'yield', dir: 1 },
   { key: 'shorter',  label: tr("Shorter ratio"), field: 'yield', dir: -1 },
   { key: 'same',     label: tr("Same again"),   field: null,    dir: 0 },
@@ -1981,7 +1981,7 @@ function suggest(shot, target, c) {
      on to the next variable rather than round the same one. */
   const tried = yieldTried(c, shot, side);
   if (tried) {
-    const took = tried.grams ? `${fmtDose(tried.grams)}g` : `from 1:${tried.from.toFixed(1)} to 1:${tried.to.toFixed(1)}`;
+    const took = tried.grams ? `${fmtDose(tried.grams)}g` : tr('from 1:{0} to 1:{1}', [tried.from.toFixed(1), tried.to.toFixed(1)]);
     const e = roastEntry(c && c.roast);
     const lighter = e && e.dose <= -1;
     const next = side === 'sour'
@@ -2337,7 +2337,7 @@ function tempFault(shot, c) {
   const gap = Math.abs(t - aim);
   return { sure: true,
     move: tr("Bring the temperature {0} to about {1}.", [hot ? 'down' : 'up', degrees(aim)]),
-    why: tr("You are brewing at {0} and a {1} roast sits in {2}. That is {3} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because {4}. Move the whole way, not a degree: a small temperature tweak rarely answers anything, and a correction this size can change the shot completely.", [degrees(t), e.label.toLowerCase(), tempBand(e), gap < 1.5 ? tr("just outside") : `${Math.round(root().LentoTemp ? LentoTemp.delta(gap, tempUnit()) : gap)}${root().LentoTemp ? LentoTemp.unitWord(tempUnit()) : '°'} outside`, hot
+    why: tr("You are brewing at {0} and a {1} roast sits in {2}. That is {3} the band, which is the kind of thing that gets left behind by the last bag rather than chosen for this one — and it is worth fixing before reading anything else into the cup, because {4}. Move the whole way, not a degree: a small temperature tweak rarely answers anything, and a correction this size can change the shot completely.", [degrees(t), e.label.toLowerCase(), tempBand(e), gap < 1.5 ? tr("just outside") : tr('{0}{1} outside', [Math.round(root().LentoTemp ? LentoTemp.delta(gap, tempUnit()) : gap), root().LentoTemp ? LentoTemp.unitWord(tempUnit()) : '°']), hot
       ? tr("too hot extracts more than the roast wants and puts a rough, aggressive bitterness up front")
       : tr("too cool cannot reach what is in the bean, and no grind setting makes up for it")]) };
 }
