@@ -518,5 +518,8 @@ LentoI18n.add({
   'This is the SCA cupping protocol rather than a method anybody chose: 8.25g per 150ml, water off the boil, crust broken at four minutes. It is here so the ratio and the clock are the standard ones when you are scoring rather than drinking.': 'Este es el protocolo de catación de la SCA, no un método que alguien eligió: 8.25 g por 150 ml, agua recién hervida, costra rota a los cuatro minutos. Está aquí para que la proporción y el reloj sean los estándar cuando estás puntuando y no tomando.',
   'Pour to the rim': 'Vierte hasta el borde',
   'Break the crust and smell': 'Rompe la costra y huele',
-  'Taste as it cools': 'Prueba a medida que se enfría'
+  'Taste as it cools': 'Prueba a medida que se enfría',
+  /* Catalogue gear whose name is a description rather than a model. */
+  'Cold brew steeper': 'Macerador de cold brew',
+  'Breville/Sage built-in grinder': 'Molino integrado Breville/Sage'
 });

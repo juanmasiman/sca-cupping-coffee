@@ -3005,7 +3005,7 @@ function brewCard(brew, prev, c, n) {
   card.innerHTML = `
     <div class="log-meta">
       <span>${n}<span class="log-dot">·</span>${
-        multiBrewer() && brew.brewer ? `<span translate="no">${escapeHTML(brew.brewer)}</span><span class="log-dot">·</span>` : ''
+        multiBrewer() && brew.brewer ? `<span translate="no">${escapeHTML(tr(brew.brewer))}</span><span class="log-dot">·</span>` : ''
       }${fmtDate(brew.at)}</span>
       ${brew.verdict === 'keeper' ? '<span class="log-flag">the recipe</span>' : ''}
     </div>
@@ -5297,7 +5297,7 @@ function openKit() {
       const head = el('button', 'shelf-name');
       head.type = 'button';
       head.setAttribute('aria-expanded', open ? 'true' : 'false');
-      head.innerHTML = `<span class="shelf-title" translate="no">${escapeHTML(b.name)}</span>`
+      head.innerHTML = `<span class="shelf-title" translate="no">${escapeHTML(tr(b.name))}</span>`
         + `<span class="shelf-flow">${escapeHTML((FLOWS[b.flow] || FLOWS.percolation).short)}</span>`;
       head.addEventListener('click', () => { openFlow = open ? null : i; drawShelf(); });
       const kill = el('button', 'icon-btn shelf-kill');
