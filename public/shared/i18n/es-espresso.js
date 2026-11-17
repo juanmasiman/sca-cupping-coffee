@@ -621,8 +621,8 @@
     "The pinch test — where to set {0} before spending a shot": "La prueba del pellizco: dónde poner {0} antes de gastar una extracción",
     "One shot into three glasses, so the taste question means something": "Una extracción en tres vasos, para que la pregunta del sabor signifique algo",
     "box: target · dashed line: 1:{0}": "caja: objetivo · línea discontinua: 1:{0}",
-    "Less {0}": "Menos {0}",
-    "More {0}": "Más {0}",
+    "Less {0}": function (v) { return 'Menos ' + String(v[0]).toLowerCase(); },
+    "More {0}": function (v) { return 'Más ' + String(v[0]).toLowerCase(); },
     ", same {0}g out": ", mismos {0} g de salida",
     "{0}g out": "{0} g de salida",
     "2 to 3g less": "de 2 a 3 g menos",
@@ -671,7 +671,9 @@
     "{0} to {1}{2}": "de {0} a {1}{2}",
     "{0}s recorded": "{0} s registrados",
     "{0} and ": "{0} y ",
-    "Shot time": "Tiempo de extracción"
+    "Shot time": "Tiempo de extracción",
+    "In": "Entrada",
+    "To": "Hasta"
   };
   for (var k in T) if (!(k in ES)) ES[k] = T[k];
   LentoI18n.add(ES);
