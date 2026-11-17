@@ -1458,12 +1458,12 @@ function intentCheck(shot, prev) {
 
   const now = read(shot, intent.field), was = read(prev, intent.field);
   if (now === null || was === null) {
-    return tr("Marked “{0}”, but no {1} is recorded on both shots, so there is nothing to compare.", [intent.label.toLowerCase(), intent.field]);
+    return tr("Marked “{0}”, but no {1} is recorded on both shots, so there is nothing to compare.", [intent.label.toLowerCase(), tr(intent.field)]);
   }
   const delta = now - was;
-  if (delta === 0) return tr("Marked “{0}”, but the {1} is the same as the last shot.", [intent.label.toLowerCase(), intent.field]);
+  if (delta === 0) return tr("Marked “{0}”, but the {1} is the same as the last shot.", [intent.label.toLowerCase(), tr(intent.field)]);
   if (Math.sign(delta) !== intent.dir) {
-    return tr("Marked “{0}”, but the {1} moved the other way.", [intent.label.toLowerCase(), intent.field]);
+    return tr("Marked “{0}”, but the {1} moved the other way.", [intent.label.toLowerCase(), tr(intent.field)]);
   }
   return null;
 }

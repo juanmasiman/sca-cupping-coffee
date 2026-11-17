@@ -136,9 +136,16 @@
       if (v[1] > 1) return 'Marcado “igual otra vez”, pero desde la última extracción cambiaron ' + v[0] + '.';
       return 'Marcado “igual otra vez”, pero ' + (v[0] === 'rendimiento' ? 'el ' : 'la ') + v[0] + ' cambió desde la última extracción.';
     },
-    "Marked “{0}”, but no {1} is recorded on both shots, so there is nothing to compare.": "Marcado “{0}”, pero no hay {1} registrado en ambas extracciones, así que no hay nada que comparar.",
-    "Marked “{0}”, but the {1} is the same as the last shot.": "Marcado “{0}”, pero {1} es igual que en la última extracción.",
-    "Marked “{0}”, but the {1} moved the other way.": "Marcado “{0}”, pero {1} se movió en la otra dirección.",
+    "Marked “{0}”, but no {1} is recorded on both shots, so there is nothing to compare.": function (v) {
+      var m = v[1] === 'rendimiento' ? 'registrado' : 'registrada';
+      return 'Marcado “' + v[0] + '”, pero no hay ' + v[1] + ' ' + m + ' en ambas extracciones, así que no hay nada que comparar.';
+    },
+    "Marked “{0}”, but the {1} is the same as the last shot.": function (v) {
+      return 'Marcado “' + v[0] + '”, pero ' + (v[1] === 'rendimiento' ? 'el ' : 'la ') + v[1] + ' es igual que en la última extracción.';
+    },
+    "Marked “{0}”, but the {1} moved the other way.": function (v) {
+      return 'Marcado “' + v[0] + '”, pero ' + (v[1] === 'rendimiento' ? 'el ' : 'la ') + v[1] + ' se movió en la otra dirección.';
+    },
     "sharp, sour": "punzante, ácido",
     "a little sour": "un poco ácido",
     "sweet, balanced": "dulce, equilibrado",
