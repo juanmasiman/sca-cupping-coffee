@@ -11,7 +11,7 @@
    its auth file did not arrive is not an offline app.
    ============================================================ */
 
-const VERSION = 'v43';
+const VERSION = 'v44';
 const SHELL_CACHE = `lento-filter-shell-${VERSION}`;
 
 const SHELL = [
@@ -31,6 +31,9 @@ const SHELL = [
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
   '/shared/config.js',
+  '/shared/i18n.js',
+  '/shared/i18n/es-shared.js',
+  '/shared/i18n/es-filter.js',
   '/shared/account.js',
   '/shared/account-sheet.js',
   '/shared/gear-db.js',

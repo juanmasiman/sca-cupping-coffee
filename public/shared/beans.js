@@ -380,9 +380,12 @@
       if (!row.chase) return false;
       return row.when === 'any' || row.when === fault;
     };
-    if (o && fits(o)) out.push({ key: o.key, head: o.label, expect: o.expect, chase: o.chase, when: o.when });
+    /* Translated on the way out: the tables stay English so the
+       comparison above is between the same words on every phone. */
+    var said = function (x) { return x ? tr(x) : x; };
+    if (o && fits(o)) out.push({ key: o.key, head: said(o.label), expect: said(o.expect), chase: said(o.chase), when: o.when });
     if (v && fits(v) && (!o || v.chase !== o.chase)) {
-      out.push({ key: v.key, head: v.label, expect: v.expect, chase: v.chase, when: v.when });
+      out.push({ key: v.key, head: said(v.label), expect: said(v.expect), chase: said(v.chase), when: v.when });
     }
     return out;
   }
@@ -400,14 +403,14 @@
     var pr = processEntry(c.processKey || matchProcess(c.process));
     if (pr) {
       shift += pr.shift;
-      if (pr.why) out.why.push(pr.why);
+      if (pr.why) out.why.push(tr(pr.why));
       if (pr.key === 'fermented') out.flags.processed = true;
     }
 
     var al = altitudeEntry(c.altKey || matchAltitude(c.altitude));
     if (al) {
       shift += al.shift;
-      if (al.why) out.why.push(al.why);
+      if (al.why) out.why.push(tr(al.why));
     }
 
     /* The seed itself, where the bag named it and this table knows it.
@@ -419,22 +422,22 @@
     if (v && v.shift) {
       shift += v.shift;
       out.why.push(v.shift < 0
-        ? v.label + ' is a hard, dense seed'
+        ? tr('{variety} is a hard, dense seed', { variety: v.label })
         : (v.key === 'robusta'
-          ? 'robusta is a different species and far more soluble than arabica'
-          : v.label + ' is a softer seed than most'));
+          ? tr('robusta is a different species and far more soluble than arabica')
+          : tr('{variety} is a softer seed than most', { variety: v.label })));
     }
 
     if (c.decaf) {
       shift += DECAF_SHIFT;
       out.flags.decaf = true;
-      out.why.push('decaffeination opens the bean up, so it extracts much more readily and flows faster with it');
+      out.why.push(tr('decaffeination opens the bean up, so it extracts much more readily and flows faster with it'));
     }
 
     if (typeof age === 'number' && age >= AGED_DAYS) {
       shift += AGED_SHIFT;
       out.flags.aged = true;
-      out.why.push('past six weeks the carbon dioxide that gave the bed its resistance has gone, so it will run fast whatever the grinder says');
+      out.why.push(tr('past six weeks the carbon dioxide that gave the bed its resistance has gone, so it will run fast whatever the grinder says'));
     }
 
     out.shift = Math.round(shift * 100) / 100;

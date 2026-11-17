@@ -132,7 +132,7 @@
      to somebody whose kettle steps in °F is advice to move half as far
      as it means. */
   function nudgeWords(unit) {
-    return isF(unit) ? 'two or three degrees' : 'a degree or two';
+    return isF(unit) ? tr('two or three degrees') : tr('a degree or two');
   }
 
   // The word itself, for a label or a heading.

@@ -206,7 +206,7 @@
     });
     out.use = mine ? mine.use : { espresso: false, filter: false };
     // The catalogue's sentence, for the kinds that have one.
-    out.note = base && base.note ? base.note : '';
+    out.note = base && base.note ? tr(base.note) : '';
     out.sizes = base && base.sizes ? base.sizes : null;
     return out;
   }

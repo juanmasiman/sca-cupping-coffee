@@ -454,7 +454,7 @@ function helpBtn(id) {
   if (!guidedOn() && id !== 'intro') return null;
   const btn = el('button', 'help-btn', '?');
   btn.type = 'button';
-  btn.setAttribute('aria-label', `About ${HELP[id].title}`);
+  btn.setAttribute('aria-label', tr('About {title}', { title: tr(HELP[id].title) }));
   btn.addEventListener('click', e => {
     e.stopPropagation();
     openHelp(id);
@@ -705,7 +705,7 @@ function archiveSession() {
     // the record was written, and the history average quietly mixed
     // finished sheets with abandoned ones.
     coffees: state.coffees.map((c, i) => ({
-      name: coffeeName(c, i),
+      name: coffeeNameRaw(c, i),
       meta: { ...c.meta },
       notes: c.notes,
       score: coffeeScore(c),
@@ -871,7 +871,7 @@ function renderAccountButton() {
   // no account backend on this deploy: no door to one
   btn.classList.toggle('hidden', !(window.LentoAccountSheet && LentoAccountSheet.enabled()));
   $('#account-dot').classList.toggle('hidden', !u);
-  btn.setAttribute('aria-label', u ? `Your profile, signed in as ${u.email || u.name}` : 'Your profile, signed out');
+  btn.setAttribute('aria-label', u ? tr('Your profile, signed in as {who}', { who: u.email || u.name }) : tr('Your profile, signed out'));
 }
 
 function openAccountSheet() {
@@ -1016,7 +1016,7 @@ function panelAverage(entries) {
 
 // "2 of 8" for a sheet still being scored, empty for a finished one.
 function ratedNote(entry) {
-  return entry.partial ? `${entry.rated} of ${entry.total}` : '';
+  return entry.partial ? tr('{a} of {b}', { a: entry.rated, b: entry.total }) : '';
 }
 
 // One cupper's chip: a score, or the mark for its absence and the count
@@ -1090,15 +1090,22 @@ function gradeEntry(score) {
 }
 
 function shortGrade(score) {
-  return gradeEntry(score).name;
+  return tr(gradeEntry(score).name);
 }
 
 function gradeFor(score) {
   const g = gradeEntry(score);
-  return g.note ? `${g.name} · ${g.note}` : g.name;
+  return g.note ? `${tr(g.name)} · ${tr(g.note)}` : tr(g.name);
 }
 
+// What a coffee is called on screen. The stored name — in History, in a
+// session code — is always coffeeNameRaw, so a record reads the same on a
+// phone in either language.
 function coffeeName(c, i) {
+  return c.name.trim() || tr('Coffee {n}', { n: i + 1 });
+}
+
+function coffeeNameRaw(c, i) {
   return c.name.trim() || `Coffee ${i + 1}`;
 }
 
@@ -1107,7 +1114,7 @@ function metaSummary(meta) {
   if (meta.variety) bits.push(meta.variety);
   if (meta.process) bits.push(meta.process);
   if (meta.roast) bits.push(meta.roast);
-  if (meta.altitude) bits.push(`${meta.altitude} masl`);
+  if (meta.altitude) bits.push(tr('{n} masl', { n: meta.altitude }));
   if (meta.country) bits.push(meta.country);
   if (meta.farm) bits.push(meta.farm);
   return bits.join(' · ');
@@ -1284,7 +1291,7 @@ function buildSessionPayload() {
       // Blind means blind: the standard has cuppers work from coded samples,
       // and a name is the identity the leader reveals at the end. Until they
       // share details the table sees Coffee 1, 2, 3.
-      const entry = state.shareDetails ? { n: coffeeName(c, i) } : {};
+      const entry = state.shareDetails ? { n: coffeeNameRaw(c, i) } : {};
       if (state.shareDetails) {
         entry.m = Object.fromEntries(Object.entries(c.meta).filter(([, v]) => v && v.trim()));
       }
@@ -1572,7 +1579,7 @@ async function pollCuppingRoster() {
     const fresh = names.filter(n => !seenCuppers.includes(n));
     if (fresh.length) {
       arrivalHaptic();
-      toast(fresh.length === 1 ? `${fresh[0]} joined` : `${fresh.length} more joined`);
+      toast(fresh.length === 1 ? tr('{name} joined', { name: fresh[0] }) : tr('{n} more joined', { n: fresh.length }));
     }
   }
   seenCuppers = names;
@@ -1696,7 +1703,7 @@ async function buildScoreCode() {
     s: myScores(),
     // how much of each sheet is real, so the receiving table can weigh it
     r: myRated(),
-    t: state.coffees.map((c, i) => coffeeName(c, i)),
+    t: state.coffees.map((c, i) => coffeeNameRaw(c, i)),
   });
 }
 
@@ -1704,7 +1711,7 @@ async function addTeamScoresFromCode(text) {
   const obj = await decodeCode('SCR', text);
   if (!obj || !Array.isArray(obj.s) || !obj.s.length) return { ok: false, error: 'That doesn’t look like a score code.' };
   if (obj.s.length !== state.coffees.length) {
-    return { ok: false, error: `That code has ${obj.s.length} coffee${obj.s.length > 1 ? 's' : ''}, this session has ${state.coffees.length}.` };
+    return { ok: false, error: trn(obj.s.length, 'That code has {n} coffee, this session has {m}.', 'That code has {n} coffees, this session has {m}.', { m: state.coffees.length }) };
   }
   const scores = obj.s.map(v =>
     typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100, v)) : null);
@@ -1751,7 +1758,9 @@ async function askToReveal() {
     effects.push('The coffees get their names, and their origin details — farm, variety, process, altitude. The table has been cupping them as Coffee 1, 2, 3; that stops here.');
   }
   if (waiting > 0) {
-    effects.push(`${waiting} cupper${waiting > 1 ? 's have' : ' has'} not submitted yet. ${waiting > 1 ? 'Their sheets' : 'Their sheet'} can still be added afterwards, but ${waiting > 1 ? 'they' : 'that cupper'} will be scoring with the table’s scores already on screen.`);
+    effects.push(trn(waiting,
+      '{n} cupper has not submitted yet. Their sheet can still be added afterwards, but that cupper will be scoring with the table’s scores already on screen.',
+      '{n} cuppers have not submitted yet. Their sheets can still be added afterwards, but they will be scoring with the table’s scores already on screen.'));
   }
   effects.push('It cannot be undone.');
   return confirmSheet({
@@ -1995,7 +2004,7 @@ function openJoinSheet() {
         // joiner takes a seat there rather than starting a rival table
         if (joined.code) await takeSeat(joined.code);
         startCupping();
-        toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+        toast(trn(state.coffees.length, 'Joined · {n} coffee', 'Joined · {n} coffees'));
         return true;
       },
     });
@@ -2086,12 +2095,12 @@ async function joinWouldDestroyWork(code) {
      send line and missed here. */
   const finished = state.coffees.length - p.untouched - p.partial;
   const tally = [];
-  if (finished) tally.push(`${finished} finished`);
-  if (p.partial) tally.push(`${p.partial} part-scored`);
+  if (finished) tally.push(tr('{n} finished', { n: finished }));
+  if (p.partial) tally.push(tr('{n} part-scored', { n: p.partial }));
   return !(await confirmSheet({
     title: 'Join this table and leave your cupping?',
-    body: `You have a cupping that has not been finished — ${tally.join(' and ')} of ${
-      state.coffees.length} — so it is not in History yet.`,
+    body: tr('You have a cupping that has not been finished — {tally} of {n} — so it is not in History yet.', {
+      tally: tally.join(` ${tr('and')} `), n: state.coffees.length }),
     effects: ['Joining replaces it. That scoring is discarded.'],
     cta: 'Leave it and join',
     danger: true,
@@ -2122,7 +2131,7 @@ function askNameThenJoin(payload, code) {
     // a link made before the leader's code existed carries the lineup only
     await takeSeat(code || (payload && payload.lc) || null);
     startCupping();
-    toast(`Joined · ${state.coffees.length} coffee${state.coffees.length > 1 ? 's' : ''}`);
+    toast(trn(state.coffees.length, 'Joined · {n} coffee', 'Joined · {n} coffees'));
     // Someone arriving by QR never passes the setup screen, so they land on
     // eight sections of a form they may never have seen, with no idea what a
     // cupping is or why they score alone first. "How a cupping works" was
@@ -2165,11 +2174,13 @@ function askNameThenJoin(payload, code) {
     const cups = payload && payload.c ? payload.c : null;
     const form = payload && payload.f === 'legacy' ? 'SCA 2004 form' : 'SCA CVA';
     const bits = [];
-    if (n) bits.push(`${n} coffee${n > 1 ? 's' : ''}`);
-    if (cups) bits.push(`${cups} cup${cups > 1 ? 's' : ''} each`);
-    bits.push(form);
+    if (n) bits.push(trn(n, '{n} coffee', '{n} coffees'));
+    if (cups) bits.push(trn(cups, '{n} cup each', '{n} cups each'));
+    bits.push(tr(form));
     const table = code || (payload && payload.lc);
-    what.textContent = `You are joining ${bits.join(' · ')}${table ? ` · table ${table}` : ''}.`;
+    if (table) bits.push(tr('table {code}', { code: table }));
+    what.textContent = tr('You are joining {what}.', { what: bits.join(' · ') });
+
     what.classList.toggle('hidden', !n);
   }
   openSheet(modal, () => close());
@@ -2301,7 +2312,8 @@ async function openInviteSheet() {
   $('#share-close').onclick = close;
   modal.onclick = e => { if (e.target === modal) close(); };
   link.onclick = () => shareUrl && shareText(
-    `Join my cupping: ${shareUrl}\n\nOr open ${APP_URL}, tap “Join a cupping” and enter the code.`,
+    tr('Join my cupping: {url}', { url: shareUrl }) + '\n\n'
+      + tr('Or open {app}, tap “Join a cupping” and enter the code.', { app: APP_URL }),
     'Join link copied'
   );
 
@@ -2315,7 +2327,7 @@ async function openInviteSheet() {
 
     joinedWrap.classList.remove('hidden');
     $('#joined-title').textContent = people.length
-      ? `At the table · ${done} of ${people.length} submitted`
+      ? tr('At the table · {a} of {b} submitted', { a: done, b: people.length })
       : 'At the table';
 
     /* Which chip is you, and what to do when nobody can tell.
@@ -2351,7 +2363,7 @@ async function openInviteSheet() {
     if (clash) {
       clash.classList.toggle('hidden', sameName < 2);
       if (sameName >= 2) {
-        clash.textContent = `${sameName} cuppers here are called ${myName}, so neither the leader nor this screen can tell which seat is yours. Add an initial to your name on the Results screen and it will show on the roster.`;
+        clash.textContent = tr('{n} cuppers here are called {name}, so neither the leader nor this screen can tell which seat is yours. Add an initial to your name on the Results screen and it will show on the roster.', { n: sameName, name: myName });
       }
     }
 
@@ -2364,7 +2376,8 @@ async function openInviteSheet() {
     } else {
       revealBtn.disabled = false;
       revealBtn.textContent = done < people.length
-        ? `Reveal scores now (${people.length - done} still cupping)`
+        ? tr('Reveal scores now ({n} still cupping)', { n: people.length - done })
+
         : 'Reveal scores to the table';
     }
 
@@ -2511,8 +2524,8 @@ function buildLineup() {
   state.coffees.forEach((coffee, i) => list.appendChild(buildLineupRow(coffee, i, locked)));
 
   $('#lineup-intro').innerHTML = locked
-    ? 'This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.'
-    : 'Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.';
+    ? tr('This lineup comes from the cupping leader. The samples stay coded until they reveal them at the end.')
+    : tr('Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.');
 
   $('#btn-lineup-add').classList.toggle('hidden', locked);
   $('#btn-lineup-paste').classList.toggle('hidden', locked);
@@ -2539,12 +2552,12 @@ function buildLineupRow(coffee, index, locked) {
            dare press it and so never found out which it was. It has always
            confirmed when there is scoring behind it; the icon now says what
            it is asking about. -->
-      <button class="lineup-icon remove" type="button" aria-label="Remove coffee ${index + 1} from the lineup">
+      <button class="lineup-icon remove" type="button" aria-label="${tr('Remove coffee {n} from the lineup', { n: index + 1 })}">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"/>
         </svg>
       </button>
-      <button class="lineup-icon chev" type="button" aria-label="Details for coffee ${index + 1}">
+      <button class="lineup-icon chev" type="button" aria-label="${tr('Details for coffee {n}', { n: index + 1 })}">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
@@ -2552,8 +2565,8 @@ function buildLineupRow(coffee, index, locked) {
   `;
 
   const nameInput = row.querySelector('.lineup-name');
-  nameInput.placeholder = `Coffee ${index + 1} — name…`;
-  nameInput.setAttribute('aria-label', `Name of coffee ${index + 1}`);
+  nameInput.placeholder = tr('Coffee {n} — name…', { n: index + 1 });
+  nameInput.setAttribute('aria-label', tr('Name of coffee {n}', { n: index + 1 }));
   nameInput.value = coffee.name;
   nameInput.readOnly = locked;
 
@@ -2616,8 +2629,8 @@ function buildLineupRow(coffee, index, locked) {
     if (state.coffees.length <= 1) return;
     const p = scoreProgress(coffee);
     if (p.done > 0 && !(await confirmSheet({
-      title: `Remove ${coffeeName(coffee, index)}?`,
-      effects: [`${p.done} of its ${p.total} sections ${p.done > 1 ? 'have' : 'has'} been scored. That scoring is discarded.`],
+      title: tr('Remove {name}?', { name: coffeeName(coffee, index) }),
+      effects: [trn(p.done, '{n} of its {total} sections has been scored. That scoring is discarded.', '{n} of its {total} sections have been scored. That scoring is discarded.', { total: p.total })],
       cta: 'Remove it',
       danger: true,
     }))) return;
@@ -2665,7 +2678,7 @@ function openLineupPaste() {
       const scored = state.coffees.slice(names.length).filter(c => scoreProgress(c).done > 0).length;
       if (scored > 0 && !(await confirmSheet({
         title: 'Shorten the lineup?',
-        effects: [`${scored} coffee${scored > 1 ? 's that already have' : ' that already has'} scores would be dropped, and that scoring is discarded.`],
+        effects: [trn(scored, '{n} coffee that already has scores would be dropped, and that scoring is discarded.', '{n} coffees that already have scores would be dropped, and that scoring is discarded.')],
         cta: 'Shorten it',
         danger: true,
       }))) return false;
@@ -2676,7 +2689,8 @@ function openLineupPaste() {
       state.activeIndex = Math.min(state.activeIndex, state.coffees.length - 1);
       save();
       buildLineup();
-      toast(`${names.length} coffee${names.length > 1 ? 's' : ''} in the lineup`);
+      toast(trn(names.length, '{n} coffee in the lineup', '{n} coffees in the lineup'));
+
       return true;
     },
   });
@@ -2862,12 +2876,12 @@ function refreshTabs() {
      meaning, on top of the two a tester had already counted. The label
      says what the badge counts. */
   invite.setAttribute('aria-label', live
-    ? `Cupping code ${code.split('').join(' ')}${counts && counts.joined
+    ? (counts && counts.joined
         ? (counts.submitted
-            ? `, ${counts.submitted} of ${counts.joined} at the table have sent their scores`
-            : `, ${counts.joined} at the table, nobody has sent scores yet`)
-        : ''} — open the code`
-    : 'Invite cuppers to this session');
+            ? tr('Cupping code {code}, {a} of {b} at the table have sent their scores — open the code', { code: code.split('').join(' '), a: counts.submitted, b: counts.joined })
+            : tr('Cupping code {code}, {b} at the table, nobody has sent scores yet — open the code', { code: code.split('').join(' '), b: counts.joined }))
+        : tr('Cupping code {code} — open the code', { code: code.split('').join(' ') }))
+    : tr('Invite cuppers to this session'));
 
   // The score and the progress moved into the header's own score block, so
   // this line stops repeating them. What it says instead is the thing that
@@ -2890,9 +2904,9 @@ function refreshTabs() {
      every coffee and marks the one you are on, and the coffee's own name is
      the line directly above this one. */
   const parts = [];
-  if (code) parts.push(state.submittedAt ? 'sent' : 'not sent');
-  if (live) parts.push(`code ${code}`);
-  if (!code && state.coffees.length > 1) parts.push(`${state.activeIndex + 1} of ${state.coffees.length}`);
+  if (code) parts.push(state.submittedAt ? tr('sent') : tr('not sent'));
+  if (live) parts.push(tr('code {code}', { code }));
+  if (!code && state.coffees.length > 1) parts.push(tr('{a} of {b}', { a: state.activeIndex + 1, b: state.coffees.length }));
   $('#cupping-name').textContent = coffeeName(active, state.activeIndex);
   $('#cupping-position').textContent = parts.join(' · ');
 
@@ -2915,7 +2929,9 @@ function refreshTabs() {
     seg.classList.toggle('active', i === state.activeIndex);
     seg.classList.toggle('done', p.complete);
     seg.setAttribute('aria-label',
-      `${coffeeName(c, i)}, ${p.complete ? 'rated' : `${p.done} of ${p.total} rated`}`);
+      p.complete ? tr('{name}, rated', { name: coffeeName(c, i) })
+        : tr('{name}, {a} of {b} rated', { name: coffeeName(c, i), a: p.done, b: p.total }));
+
     seg.setAttribute('aria-current', i === state.activeIndex ? 'true' : 'false');
   });
   revealActiveSeg(rail);
@@ -3084,11 +3100,11 @@ function buildWelcome() {
      must say first is the scale and who sees the sheet; the rest is in
      "How a cupping works" and in the Score head's mark. */
   const scale = usingCVA()
-    ? 'Rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, where an ordinary cup sits.'
-    : 'Rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cup that falls short.';
+    ? tr('Rate the eight sections from 1&nbsp;to&nbsp;9 — 5 is “neither high nor low”, where an ordinary cup sits.')
+    : tr('Rate the seven attributes from 6.00 to 10.00 in quarter points, then mark any cup that falls short.');
   const others = table
-    ? 'Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them.'
-    : 'Your sheet stays on this phone; to cup with others, invite them from the button at the top.';
+    ? tr('Nobody sees your scores until you send them, and nobody sees the table’s until the cupping leader opens them.')
+    : tr('Your sheet stays on this phone; to cup with others, invite them from the button at the top.');
   card.innerHTML = `
     <h2>${table ? 'Everyone scores on their own' : 'You are scoring on your own'}</h2>
     <p>${scale} ${others}</p>
@@ -3115,10 +3131,10 @@ function buildPanel(coffee, index) {
   const name = document.createElement('input');
   name.className = 'name-field';
   name.type = 'text';
-  name.placeholder = `Coffee ${index + 1} — name…`;
+  name.placeholder = tr('Coffee {n} — name…', { n: index + 1 });
   name.value = coffee.name;
   name.maxLength = 40;
-  name.setAttribute('aria-label', `Name of coffee ${index + 1}`);
+  name.setAttribute('aria-label', tr('Name of coffee {n}', { n: index + 1 }));
   // The comment above described this and the fix never landed: `locked` was
   // computed and then not read by anything, so the panel kept accepting a
   // guest's rename that adoptRevealedLineup threw away at the reveal.
@@ -3173,7 +3189,7 @@ function buildPanel(coffee, index) {
   notes.className = 'notes-field';
   notes.id = `notes-${++fieldSeq}`;
   notes.placeholder = 'jasmine, stone fruit, cocoa…';
-  notes.setAttribute('aria-label', `Tasting notes for coffee ${index + 1}`);
+  notes.setAttribute('aria-label', tr('Tasting notes for coffee {n}', { n: index + 1 }));
   notes.value = coffee.notes;
   notes.addEventListener('input', () => { coffee.notes = notes.value; save(); });
   const notesLabel = el('label', 'detail-label', 'Tasting notes');
@@ -3215,23 +3231,25 @@ function buildSubmitRow() {
        sent one finished and one three-eighths done, and said so afterwards.
        Started is not finished, so the line says both. */
     const finished = n - p.untouched - p.partial;
-    const tally = [`${finished} of ${n} finished`];
-    if (p.partial) tally.push(`${p.partial} part-scored`);
-    if (p.untouched) tally.push(`${p.untouched} not started`);
+    const tally = [tr('{a} of {b} finished', { a: finished, b: n })];
+    if (p.partial) tally.push(tr('{n} part-scored', { n: p.partial }));
+    if (p.untouched) tally.push(tr('{n} not started', { n: p.untouched }));
     /* The button sits under one coffee's panel and sends every sheet on
        the device. "Submit my scores" left which scores to inference; a
        cupper part-way down the lineup read it as this coffee's. Naming the
        count is the whole fix. */
-    const all = n === 1 ? 'my sheet' : `all ${n} sheets`;
+    const update = n === 1 ? tr('Update my sheet') : tr('Update all {n} sheets', { n });
+    const send = n === 1 ? tr('Send my sheet') : tr('Send all {n} sheets', { n });
     row.innerHTML = sent
-      ? `<p class="submit-note done">Your scores are with the table. You can keep editing and send them again.</p>
-         <button class="btn btn-ghost" type="button">Update ${all}</button>`
+      ? `<p class="submit-note done">${tr('Your scores are with the table. You can keep editing and send them again.')}</p>
+         <button class="btn btn-ghost" type="button">${update}</button>`
       : `<p class="submit-note">${rated === 0
-            ? 'Nothing rated yet. Your sheet reaches the table when you send it.'
+            ? tr('Nothing rated yet. Your sheet reaches the table when you send it.')
             : `${p.complete
-                ? 'Every coffee is scored.'
-                : `${tally.join(' · ')}.`} Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table's scores until the leader opens them.`}</p>
-         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>Send ${all}</button>`;
+                ? tr('Every coffee is scored.')
+                : `${tally.join(' · ')}.`} ${tr('Your sheet is not with the table yet — nobody sees it until you send it, and nobody sees the table’s scores until the leader opens them.')}`}</p>
+         <button class="btn btn-primary" type="button"${rated === 0 ? ' disabled' : ''}>${send}</button>`;
+
     const btn = row.querySelector('button');
     btn.addEventListener('click', async () => {
       btn.disabled = true;
@@ -3283,7 +3301,7 @@ function buildDetailsCard(coffee) {
       <button class="details-toggle">
         <span class="details-toggle-text">
           <span class="details-toggle-label">Details</span>
-          <span class="details-summary"></span>
+          <span class="details-summary" translate="no"></span>
         </span>
         <svg class="details-chevron" viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -3298,7 +3316,8 @@ function buildDetailsCard(coffee) {
   addHelp(card.querySelector('.details-toggle-row'), 'details');
 
   const refreshSummary = () => {
-    summaryEl.textContent = metaSummary(coffee.meta) || 'variety · process · farm…';
+    summaryEl.textContent = metaSummary(coffee.meta) || tr('variety · process · farm…');
+
   };
 
   META_FIELDS.forEach(f => {
@@ -3427,6 +3446,12 @@ function maybeShowWheelCoach() {
    Opened from the corner, with no section around it, it still writes to
    flavor — that is the list most of a session is spent in. Which one it is
    writing to is printed at the top either way. */
+/* A wheel descriptor as the cupper reads it: what goes into their own
+   notes is in their language. The stored CATA keys stay English. */
+function wheelWord(w) {
+  return LentoWheel && typeof LentoWheel.label === 'function' ? LentoWheel.label(w) : tr(w);
+}
+
 function openFlavorWheel(listKey) {
   const target = listKey === 'aroma' ? 'aroma' : 'flavor';
   markWheelSeen();
@@ -3442,8 +3467,8 @@ function openFlavorWheel(listKey) {
     toggle: $('#wheel-zoom-toggle'),
     level: $('#wheel-zoom-level'),
     haptic: haptic,
-    categoryHint: 'category, checks it on the Describe form',
-    wordHint: 'adds the word to your tasting notes',
+    categoryHint: tr('category, checks it on the Describe form'),
+    wordHint: tr('adds the word to your tasting notes'),
   });
 
   const coffee = state && state.coffees[state.activeIndex];
@@ -3451,18 +3476,22 @@ function openFlavorWheel(listKey) {
   const cataList = () => coffee.desc.cata[target];
   const hint = $('#wheel-hint');
   if (hint) {
-    hint.innerHTML = `Inner ring ticks a descriptor under <strong>${target === 'aroma'
-      ? 'Fragrance &amp; aroma' : 'Flavor &amp; aftertaste'}</strong> — up to 5, as the standard allows. `
-      + 'Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.';
+    hint.innerHTML = tr('Inner ring ticks a descriptor under <strong>{section}</strong> — up to 5, as the standard allows.', {
+      section: target === 'aroma' ? tr('Fragrance &amp; aroma') : tr('Flavor &amp; aftertaste') })
+      + ' ' + tr('Outer ring drops the word into your tasting notes. Anything you have picked is outlined on the wheel and listed below it.');
   }
+  /* The notes are the cupper's own words, so a word taken from the wheel
+     goes in in the language on screen — and is recognised as the wheel's in
+     either language, so a sheet started on another phone still unticks. */
+  const sameWord = (a, w) => a === w.toLowerCase() || a === wheelWord(w).toLowerCase();
   const notesFromWheel = () => {
     const items = noteItems(coffee.notes).map(s => s.toLowerCase());
-    return WHEEL_WORDS.filter(w => items.includes(w.toLowerCase()));
+    return WHEEL_WORDS.filter(w => items.some(s => sameWord(s, w)));
   };
 
   const dropNote = word => {
     coffee.notes = noteItems(coffee.notes)
-      .filter(s => s.toLowerCase() !== word.toLowerCase())
+      .filter(s => !sameWord(s.toLowerCase(), word))
       .join(', ');
   };
 
@@ -3490,26 +3519,27 @@ function openFlavorWheel(listKey) {
         const at = cataList().indexOf(name);
         if (at >= 0) cataList().splice(at, 1);
         save();
-        sync(`${name} unchecked`);
+        sync(tr('{name} unchecked', { name: tr(name) }));
         refreshOpenPanel();
       };
       pickedWrap.appendChild(chip);
     });
     words.forEach(word => {
-      const chip = el('button', 'wheel-pick note', `${escapeHTML(word)} <b>×</b>`);
+      const chip = el('button', 'wheel-pick note', `${escapeHTML(wheelWord(word))} <b>×</b>`);
       chip.type = 'button';
       chip.onclick = () => {
         haptic();
         dropNote(word);
         save();
-        sync(`“${word}” removed from your notes`);
+        sync(tr('“{word}” removed from your notes', { word: wheelWord(word) }));
         refreshOpenPanel();
       };
       pickedWrap.appendChild(chip);
     });
 
     status.textContent = message
-      || `${cataList().length} of 5 descriptors checked${words.length ? ` · ${words.length} word${words.length > 1 ? 's' : ''} in your notes` : ''}`;
+      || tr('{n} of 5 descriptors checked', { n: cataList().length })
+        + (words.length ? ' · ' + trn(words.length, '{n} word in your notes', '{n} words in your notes') : '');
   };
 
   if (!coffee) {
@@ -3528,7 +3558,7 @@ function openFlavorWheel(listKey) {
     if (seg.classList.contains('wheel-child') && holder.dataset.zoom === 'whole'
         && holder.zoomToRead && holder.zoomToRead(seg)) {
       haptic();
-      sync(`Zoomed in — tap “${seg.dataset.desc}” again to add it to your notes`);
+      sync(tr('Zoomed in — tap “{word}” again to add it to your notes', { word: wheelWord(seg.dataset.desc) }));
       return;
     }
 
@@ -3543,18 +3573,19 @@ function openFlavorWheel(listKey) {
         return;
       }
       message = cataList().includes(name)
-        ? `${name} checked · ${cataList().length} of 5`
-        : `${name} unchecked · ${cataList().length} of 5`;
+        ? tr('{name} checked · {n} of 5', { name: tr(name), n: cataList().length })
+        : tr('{name} unchecked · {n} of 5', { name: tr(name), n: cataList().length });
     } else {
       const word = seg.dataset.desc;
       if (notesFromWheel().some(w => w.toLowerCase() === word.toLowerCase())) {
         dropNote(word);
-        message = `“${word}” removed from your notes`;
+        message = tr('“{word}” removed from your notes', { word: wheelWord(word) });
       } else {
         const existing = coffee.notes.trim();
-        coffee.notes = existing ? `${existing}, ${word}` : word;
-        message = `“${word}” added to your notes`;
+        coffee.notes = existing ? `${existing}, ${wheelWord(word)}` : wheelWord(word);
+        message = tr('“{word}” added to your notes', { word: wheelWord(word) });
       }
+
     }
     save();
     sync(message);
@@ -3617,7 +3648,7 @@ function emptyDescriptive() {
 
 function descriptiveSummary(desc) {
   const unique = [...new Set([...desc.cata.aroma, ...desc.cata.flavor])];
-  return unique.length ? unique.slice(0, 3).join(' · ') + (unique.length > 3 ? '…' : '') : '';
+  return unique.length ? unique.slice(0, 3).map(n => tr(n)).join(' · ') + (unique.length > 3 ? '…' : '') : '';
 }
 
 // Toggle a descriptor in a capped CATA list; returns false when full.
@@ -3665,14 +3696,14 @@ function buildDescriptiveCard(coffee) {
     // keeps the half of the old section head that the toggle did not
     // already say: this is about what is in the cup, not how good it is.
     summaryEl.textContent = descriptiveSummary(coffee.desc)
-      || 'what you taste';
+      || tr('what you taste');
     /* The name is said, not assembled. Built from the contents it read
        "Describeoptional what you taste": the label and its pill are
        adjacent inline boxes with nothing between them, and a hidden comma
        only traded that for "Describe , optional ," because a clipped span
        is a box of its own. Stated outright, it reads as the sentence the
        eye gets from the layout. */
-    toggleBtn.setAttribute('aria-label', `Describe, optional, ${summaryEl.textContent}`);
+    toggleBtn.setAttribute('aria-label', tr('Describe, optional, {what}', { what: summaryEl.textContent }));
   };
 
   const body = card.querySelector('.desc-body');
@@ -3682,7 +3713,8 @@ function buildDescriptiveCard(coffee) {
   addHelp(card.querySelector('.details-toggle-row'), 'describeVsScore');
 
   body.appendChild(el('p', 'desc-intro',
-    'This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.'));
+    tr('This half records <strong>what the coffee is like</strong> — intensity from 0 to 15, and which descriptors apply. None of it changes the score; the 1–9 sections above do that.')));
+
 
   /* Every field here was named by its placeholder alone: the visible
      label was a sibling span, so a screen reader announced "e.g.
@@ -3724,7 +3756,7 @@ function buildDescriptiveCard(coffee) {
         <div class="attr-head-right">
           <div class="attr-value-row">
             <div class="attr-value"></div>
-            <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} intensity">×</button>
+            <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} intensity', { name: tr(attr.label) })}">×</button>
           </div>
         </div>
       </div>
@@ -3732,7 +3764,7 @@ function buildDescriptiveCard(coffee) {
     const valueEl = row.querySelector('.attr-value');
 
     const scale = buildAnchoredScale({
-      label: `${attr.label} — intensity, 0 to 15`,
+      label: tr('{name} — intensity, 0 to 15', { name: tr(attr.label) }),
       ...INTENSITY_SCALE,
       read: () => d.intensity[attr.key],
       isSet: () => Boolean(d.touched && d.touched[attr.key]),
@@ -3759,7 +3791,7 @@ function buildDescriptiveCard(coffee) {
       haptic();
       refresh();
       save();
-      toast(`${attr.label} intensity cleared`, {
+      toast(tr('{name} intensity cleared', { name: tr(attr.label) }), {
         restore: () => { d.touched[attr.key] = true; d.intensity[attr.key] = was; refresh(); save(); },
       });
     });
@@ -3789,7 +3821,7 @@ function buildDescriptiveCard(coffee) {
           chip.setAttribute('aria-pressed', on ? 'true' : 'false');
         };
         chip.addEventListener('click', () => {
-          if (!toggleCata(list(), name, max)) { toast(`Up to ${max} descriptors here`); return; }
+          if (!toggleCata(list(), name, max)) { toast(tr('Up to {n} descriptors here', { n: max })); return; }
           haptic();
           chips.forEach(c => c.sync());
           refreshSummary();
@@ -3824,7 +3856,7 @@ function buildDescriptiveCard(coffee) {
         chip.setAttribute('aria-pressed', on ? 'true' : 'false');
       };
       chip.addEventListener('click', () => {
-        if (!toggleCata(list(), name, max)) { toast(`Up to ${max} here`); return; }
+        if (!toggleCata(list(), name, max)) { toast(tr('Up to {n} here', { n: max })); return; }
         haptic();
         chips.forEach(c => c());
         save();
@@ -3840,7 +3872,7 @@ function buildDescriptiveCard(coffee) {
     const wrap = el('div', 'desc-field');
     wrap.innerHTML = `<input class="detail-field" type="text" maxlength="80" placeholder="${escapeHTML(placeholder)}">`;
     const input = wrap.querySelector('input');
-    wrap.prepend(labelled(`${owner} notes`, input));
+    wrap.prepend(labelled(tr('{section} notes', { section: tr(owner) }), input));
     input.value = d.notes[key] || '';
     input.addEventListener('input', () => { d.notes[key] = input.value; save(); });
     return wrap;
@@ -3919,7 +3951,8 @@ function buildDescriptiveCard(coffee) {
   close.type = 'button';
   const refreshClose = () => {
     const n = ['aroma', 'flavor', 'tastes', 'mouthfeel'].reduce((t, k) => t + d.cata[k].length, 0);
-    close.textContent = n ? `Close Describe · ${n} descriptor${n === 1 ? '' : 's'}` : 'Close Describe';
+    close.textContent = n ? trn(n, 'Close Describe · {n} descriptor', 'Close Describe · {n} descriptors') : tr('Close Describe');
+
   };
   close.addEventListener('click', () => {
     const toggle = card.querySelector('.details-toggle');
@@ -4026,9 +4059,9 @@ function buildAnchoredScale(opts) {
      word is placed without repeating it. An intensity has no word, only a
      number, so it says nothing; "not rated yet" still shows, because that
      one says something the value cannot. */
-  const say = i => wordAt(i) || '';
+  const say = i => tr(wordAt(i) || '');
   const sayAria = i => {
-    const word = wordAt(i);
+    const word = tr(wordAt(i) || '');
     return format(valueAt(i)) + (word ? `, ${word}` : '');
   };
   const paintKnob = i => {
@@ -4193,7 +4226,7 @@ function buildCvaCard(coffee, section) {
       <div class="attr-head-right">
         <div class="attr-value-row">
           <div class="attr-value">${coffee.cva[section.key]}</div>
-          <button class="cva-clear" type="button" aria-label="Clear the ${section.label} rating">×</button>
+          <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} rating', { name: tr(section.label) })}">×</button>
         </div>
       </div>
     </div>
@@ -4211,7 +4244,7 @@ function buildCvaCard(coffee, section) {
   };
 
   const scale = buildAnchoredScale({
-    label: `${section.label} — impression of quality`,
+    label: tr('{name} — impression of quality', { name: tr(section.label) }),
     ...CVA_SCALE,
     read: () => coffee.cva[section.key],
     isSet: () => Boolean(coffee.touched[section.key]),
@@ -4251,7 +4284,7 @@ function buildCvaCard(coffee, section) {
     coffee.cva[section.key] = 5;
     haptic();
     sync();
-    toast(`${section.label} cleared`, {
+    toast(tr('{name} cleared', { name: tr(section.label) }), {
       restore: () => { coffee.touched[section.key] = true; coffee.cva[section.key] = was; sync(); },
     });
   });
@@ -4282,9 +4315,9 @@ function buildCvaDefectsCard(coffee) {
                steppers were labelled; the ones that move a coffee's score
                were not. -->
           <div class="stepper">
-            <button class="stepper-btn" data-action="dec" aria-label="One fewer ${d.label.toLowerCase()} cup">−</button>
-            <span class="stepper-value" aria-live="polite" aria-label="${d.label} cups">0</span>
-            <button class="stepper-btn" data-action="inc" aria-label="One more ${d.label.toLowerCase()} cup">+</button>
+            <button class="stepper-btn" data-action="dec" aria-label="${tr('One fewer: {name}', { name: tr(d.label) })}">−</button>
+            <span class="stepper-value" aria-live="polite" aria-label="${tr(d.label)}">0</span>
+            <button class="stepper-btn" data-action="inc" aria-label="${tr('One more: {name}', { name: tr(d.label) })}">+</button>
           </div>
         </div>`).join('')}
     </div>
@@ -4302,7 +4335,7 @@ function buildCvaDefectsCard(coffee) {
       rowEl.querySelector('[data-action="inc"]').disabled = coffee[kind] >= state.cupsPerCoffee;
     });
     const p = defectPenalty(coffee);
-    penaltyEl.textContent = p > 0 ? `−${fmt(p)} points` : '';
+    penaltyEl.textContent = p > 0 ? tr('−{n} points', { n: fmt(p) }) : '';
   };
 
   card.addEventListener('click', e => {
@@ -4367,7 +4400,7 @@ function buildScaleCard(coffee, attr) {
       <div class="attr-head-right">
         <div class="attr-value-row">
           <div class="attr-value">${fmt(coffee.scores[attr.key])}</div>
-          <button class="cva-clear" type="button" aria-label="Clear the ${attr.label} rating">×</button>
+          <button class="cva-clear" type="button" aria-label="${tr('Clear the {name} rating', { name: tr(attr.label) })}">×</button>
         </div>
       </div>
     </div>
@@ -4384,7 +4417,7 @@ function buildScaleCard(coffee, attr) {
   };
 
   const scale = buildAnchoredScale({
-    label: `${attr.label} — quality, 6.00 to 10.00`,
+    label: tr('{name} — quality, 6.00 to 10.00', { name: tr(attr.label) }),
     ...LEGACY_SCALE,
     read: () => coffee.scores[attr.key],
     isSet: () => Boolean(coffee.touched[attr.key]),
@@ -4431,7 +4464,7 @@ function buildCupCard(coffee, attr) {
     <div class="attr-head">
       <div>
         <div class="attr-title">${attr.label}</div>
-        <div class="attr-sub">${attr.sub} · tap a cup to fail it</div>
+        <div class="attr-sub">${tr('{sub} · tap a cup to fail it', { sub: tr(attr.sub) })}</div>
       </div>
       <div class="attr-value"></div>
     </div>
@@ -4458,7 +4491,10 @@ function buildCupCard(coffee, attr) {
       // its accessible name was the bare digit, so a reader announced
       // "button, 1" whether the cup passed or failed — and on the 2004 form
       // these fifteen controls carry 30 of the 100 points
-      btn.setAttribute('aria-label', `Cup ${i + 1} — ${cups[i] ? 'passes' : 'fails'} ${attr.label}`);
+      btn.setAttribute('aria-label', cups[i]
+        ? tr('Cup {n} — passes {name}', { n: i + 1, name: tr(attr.label) })
+        : tr('Cup {n} — fails {name}', { n: i + 1, name: tr(attr.label) }));
+
     });
   };
 
@@ -4528,7 +4564,7 @@ function buildDefectsCard(coffee) {
       rowEl.querySelector('[data-action="inc"]').disabled = coffee[kind] >= state.cupsPerCoffee;
     });
     const p = defectPenalty(coffee);
-    penaltyEl.textContent = p > 0 ? `−${fmt(p)} points` : '';
+    penaltyEl.textContent = p > 0 ? tr('−{n} points', { n: fmt(p) }) : '';
   };
 
   card.addEventListener('click', e => {
@@ -4596,7 +4632,7 @@ function updateScorebar() {
   const grade = $('#scorebar-grade');
   grade.textContent = progress.complete
     ? shortGrade(score)
-    : `${progress.done} of ${progress.total} rated`;
+    : tr('{a} of {b} rated', { a: progress.done, b: progress.total });
   // the count is also the way to what is left; finished, it is just a word
   grade.disabled = progress.complete;
   $('#scorebar').classList.toggle('provisional', !progress.complete);
@@ -4701,9 +4737,10 @@ function buildSummary(ranked) {
   // a scale, and the figures below are claims about a set of numbers.
   if (!scored.length) {
     const started = touched.length;
-    wrap.innerHTML = `<div class="summary-head">${live ? 'Your sheet' : 'This cupping'}</div>
-      <p class="summary-note">${started} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${
-        started === 1 ? 'is' : 'are'} part-scored and none is finished, so there is nothing to place on the scale yet. A sheet gets its score when its last section is rated.</p>`;
+    wrap.innerHTML = `<div class="summary-head">${live ? tr('Your sheet') : tr('This cupping')}</div>
+      <p class="summary-note">${started === 1
+        ? trn(ranked.length, '{a} of {n} sheet is part-scored and none is finished, so there is nothing to place on the scale yet. A sheet gets its score when its last section is rated.', '{a} of {n} sheets is part-scored and none is finished, so there is nothing to place on the scale yet. A sheet gets its score when its last section is rated.', { a: started })
+        : tr('{a} of {n} sheets are part-scored and none is finished, so there is nothing to place on the scale yet. A sheet gets its score when its last section is rated.', { a: started, n: ranked.length })}</p>`;
     return;
   }
 
@@ -4726,13 +4763,13 @@ function buildSummary(ranked) {
     : (values[values.length / 2 - 1] + values[values.length / 2]) / 2;
   const above = values.filter(v => v >= SPECIALTY).length;
 
-  const form = usingCVA() ? 'CVA · SCA 104-2024' : 'SCA cupping form (2004)';
+  const form = tr(usingCVA() ? 'CVA · SCA 104-2024' : 'SCA cupping form (2004)');
   const cups = state.cupsPerCoffee;
   const complete = ranked.filter(r => r.prog.complete).length;
 
   wrap.innerHTML = `
-    <div class="summary-head">${live ? 'Your sheet' : 'This cupping'}</div>
-    <p class="summary-meta">${ranked.length} coffee${ranked.length > 1 ? 's' : ''} · ${cups} cup${cups > 1 ? 's' : ''} each · ${escapeHTML(form)}${live ? ' · your own scores, not the table’s' : ''}</p>
+    <div class="summary-head">${live ? tr('Your sheet') : tr('This cupping')}</div>
+    <p class="summary-meta">${trn(ranked.length, '{n} coffee', '{n} coffees')} · ${trn(cups, '{n} cup each', '{n} cups each')} · ${escapeHTML(form)}${live ? ' · ' + tr('your own scores, not the table’s') : ''}</p>
 
     <div class="summary-scale">
       <div class="summary-rail"></div>
@@ -4747,10 +4784,12 @@ function buildSummary(ranked) {
     <dl class="summary-facts">
       <div><dt>Range</dt><dd>${values.length > 1 ? `${fmt(low)} – ${fmt(high)}` : fmt(low)}</dd></div>
       <div><dt>Median</dt><dd>${fmt(mid)}</dd></div>
-      <div><dt>At or above 80</dt><dd>${above} of ${values.length}</dd></div>
+      <div><dt>At or above 80</dt><dd>${tr('{a} of {b}', { a: above, b: values.length })}</dd></div>
     </dl>
     ${complete < ranked.length
-      ? `<p class="summary-note">${complete} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} ${complete === 1 ? 'is' : 'are'} finished, and the figures above describe ${complete === 1 ? 'that one' : 'those'}. The rest are not on the scale: an unfinished sheet has no score until its last section is rated, because the sections you have not reached would go into the total at a default nobody chose.</p>`
+      ? `<p class="summary-note">${complete === 1
+          ? tr('{a} of {n} sheets is finished, and the figures above describe that one. The rest are not on the scale: an unfinished sheet has no score until its last section is rated, because the sections you have not reached would go into the total at a default nobody chose.', { a: complete, n: ranked.length })
+          : tr('{a} of {n} sheets are finished, and the figures above describe those. The rest are not on the scale: an unfinished sheet has no score until its last section is rated, because the sections you have not reached would go into the total at a default nobody chose.', { a: complete, n: ranked.length })}</p>`
       : ''}
   `;
 }
@@ -4786,18 +4825,19 @@ function buildResults() {
       <div class="rank-top">
         <div class="rank-position">${pos + 1}</div>
         <div class="rank-info">
-          <div class="rank-name">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
+          <div class="rank-name" translate="no">${escapeHTML(coffeeName(r.coffee, r.index))}</div>
           <div class="rank-grade">${r.prog.complete
             ? gradeFor(r.score)
             : r.prog.done === 0
-              ? 'not rated'
-              : `${r.prog.done} of ${r.prog.total} rated`}</div>
+              ? tr('not rated')
+              : tr('{a} of {b} rated', { a: r.prog.done, b: r.prog.total })}</div>
         </div>
         <div class="rank-score${r.prog.complete ? '' : ' partial'}">${fmt(r.score)}</div>
       </div>
       <div class="rank-bar"><div class="rank-bar-fill"></div></div>
-      ${meta ? `<div class="rank-meta">${escapeHTML(meta)}</div>` : ''}
-      ${descriptors ? `<div class="rank-tags">${descriptors.map(d => `<span class="rank-tag">${escapeHTML(d)}</span>`).join('')}</div>` : ''}
+      ${meta ? `<div class="rank-meta" translate="no">${escapeHTML(meta)}</div>` : ''}
+      ${descriptors ? `<div class="rank-tags">${descriptors.map(d => `<span class="rank-tag">${escapeHTML(tr(d))}</span>`).join('')}</div>` : ''}
+
       ${r.coffee.notes.trim() ? `<div class="rank-notes">${escapeHTML(r.coffee.notes.trim())}</div>` : ''}
     `;
     ranking.appendChild(card);
@@ -4877,7 +4917,7 @@ function renderTeamCard() {
          where the table goes — no spinner, no word — and read it as nobody
          having joined. -->
     <div class="live-table${live ? '' : ' hidden'}" id="live-table">${live
-      ? `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(tableCode())}</span></div>
+      ? `<div class="live-head"><span class="detail-label">${tr('Live table · code {code}', { code: escapeHTML(tableCode()) })}</span></div>
          <p class="live-note live-waiting">Checking the table…</p>`
       : ''}</div>
     ${canPresent ? `<button class="btn btn-primary present-cta" id="btn-present">${leader
@@ -4925,7 +4965,7 @@ function renderTeamCard() {
   card.querySelector('#btn-share-scores').addEventListener('click', async () => {
     const code = await buildScoreCode();
     shareText(
-      `My cupping scores — in SCA Cupping open Results → “Add cupper’s scores” and paste:\n\n${code}`,
+      tr('My cupping scores — in SCA Cupping open Results → “Add cupper’s scores” and paste:') + `\n\n${code}`,
       'Score code copied'
     );
   });
@@ -5028,7 +5068,7 @@ function refreshLiveTable(data) {
   // which of the two it is, and keeps the button.
   if (!data) {
     wrap.innerHTML = `
-      <div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>
+      <div class="live-head"><span class="detail-label">${tr('Live table · code {code}', { code: escapeHTML(code) })}</span></div>
       <p class="live-note">${state.participantId
         ? 'Can’t reach the table right now. Your scores are saved on this device — submitting will retry.'
         : 'Your seat at this table was never confirmed. Submitting will claim one.'}</p>
@@ -5043,7 +5083,7 @@ function refreshLiveTable(data) {
   const myName = getCupperName() || (state.liveCode ? 'Host' : state.joinedCode ? 'Cupper' : 'You');
   const submittedMine = Boolean(state.submittedAt);
 
-  let html = `<div class="live-head"><span class="detail-label">Live table · code ${escapeHTML(code)}</span></div>`;
+  let html = `<div class="live-head"><span class="detail-label">${tr('Live table · code {code}', { code: escapeHTML(code) })}</span></div>`;
 
   // Someone who joined late, or who never got as far as Results before the
   // leader opened the table, still has to be able to put their scores in —
@@ -5052,7 +5092,7 @@ function refreshLiveTable(data) {
   const lateSubmit = () => {
     return (submittedMine
       ? `<p class="live-note">Your scores are in the panel above.</p>`
-      : `<p class="live-note">Your scores are <strong>not in this panel</strong>. The table is already open, so submit only what you scored on your own.</p>`)
+      : `<p class="live-note">${tr('Your scores are <strong>not in this panel</strong>. The table is already open, so submit only what you scored on your own.')}</p>`)
       + `<button class="btn btn-ghost" id="btn-submit-scores">${submittedMine ? 'Update my scores' : 'Submit my scores'}</button>`;
   };
 
@@ -5066,7 +5106,7 @@ function refreshLiveTable(data) {
        the screen not knowing whether she was waiting for something or had
        missed it. The leader decides when; the device is already polling, so
        the answer to "do I need to do anything" is no. */
-    html += `<p class="live-note">Scores stay sealed until the leader opens the table — the protocol asks every cupper to score independently first. <strong>${done} of ${data.participants.length}</strong> submitted.</p>`;
+    html += `<p class="live-note">${tr('Scores stay sealed until the leader opens the table — the protocol asks every cupper to score independently first. <strong>{a} of {b}</strong> submitted.', { a: done, b: data.participants.length })}</p>`;
     if (!isTableLeader()) {
       html += `<p class="live-note">The leader chooses the moment, usually once everyone is in. This screen opens by itself when they do — you do not have to watch it or refresh anything.</p>`;
     }
@@ -5094,7 +5134,7 @@ function refreshLiveTable(data) {
         })
         .join('')}</div>`;
       if (sameName >= 2) {
-        html += `<p class="live-note">${sameName} cuppers here are called ${escapeHTML(myName)}, so nothing on this screen can tell which seat is yours — and the leader cannot either. The “Your name” field at the top of this card is what the roster follows.</p>`;
+        html += `<p class="live-note">${tr('{n} cuppers here are called {name}, so nothing on this screen can tell which seat is yours — and the leader cannot either. The “Your name” field at the top of this card is what the roster follows.', { n: sameName, name: escapeHTML(myName) })}</p>`;
       }
     }
     // Anyone at a live table can submit: a seat that never arrived is claimed
@@ -5188,22 +5228,22 @@ function refreshLiveTable(data) {
       wrap.innerHTML = html + `<p class="live-note">No scores submitted yet.</p>` + lateSubmit();
     } else {
       html += counted.size
-        ? `<p class="live-note">Panel score is the average of ${counted.size} finished sheet${counted.size > 1 ? 's' : ''}.</p>`
+        ? `<p class="live-note">${trn(counted.size, 'Panel score is the average of {n} finished sheet.', 'Panel score is the average of {n} finished sheets.')}</p>`
         : `<p class="live-note">No sheet is finished yet, so there is no panel score.</p>`;
       if (scoring.size) {
         const l = [...scoring];
-        html += `<p class="live-note">${names(l)} ${l.length > 1 ? 'are' : 'is'} still scoring. A sheet joins the average when its last section is rated — until then its untouched sections would enter the total at a default nobody chose.</p>`;
+        html += `<p class="live-note">${trn(l.length, '{names} is still scoring. A sheet joins the average when its last section is rated — until then its untouched sections would enter the total at a default nobody chose.', '{names} are still scoring. A sheet joins the average when its last section is rated — until then its untouched sections would enter the total at a default nobody chose.', { names: names(l) })}</p>`;
       }
       if (idle.length) {
-        html += `<p class="live-note">${names(idle)} ${idle.length > 1 ? 'have' : 'has'} not rated any section yet.</p>`;
+        html += `<p class="live-note">${trn(idle.length, '{names} has not rated any section yet.', '{names} have not rated any section yet.', { names: names(idle) })}</p>`;
       }
       html += perCoffee.map(row => `
         <div class="team-coffee-row">
           <div class="team-coffee-top">
-            <span class="team-coffee-name">${escapeHTML(row.name)}</span>
+            <span class="team-coffee-name" translate="no">${escapeHTML(row.name)}</span>
             <span class="team-coffee-avg">${fmt(row.avg)}<small>${row.n
-              ? `PANEL · ${row.n} sheet${row.n > 1 ? 's' : ''}`
-              : 'PANEL'}</small></span>
+              ? trn(row.n, 'PANEL · {n} sheet', 'PANEL · {n} sheets')
+              : tr('PANEL')}</small></span>
           </div>
           <div class="team-coffee-cuppers">${row.entries.map(e => cupperChip(e, row.n > 1 ? row.avg : null, 'cupper-score')).join('')
             || '<span class="cupper-score">nobody has rated this one</span>'}</div>
@@ -5255,7 +5295,7 @@ function refreshLiveTable(data) {
           const frac = Math.max(-1, Math.min(1, c.mean / span));
           const w = Math.abs(frac) * 50;
           const left = c.mean >= 0 ? 50 : 50 - w;
-          const over = c.n < perCoffee.length ? ` <i>${c.n} of ${perCoffee.length}</i>` : '';
+          const over = c.n < perCoffee.length ? ` <i>${tr('{a} of {b}', { a: c.n, b: perCoffee.length })}</i>` : '';
           return `<div class="calib-row${c.me ? ' me' : ''}">
             <span class="calib-name">${escapeHTML(c.name)}${over}</span>
             <span class="calib-bar">
@@ -5265,8 +5305,9 @@ function refreshLiveTable(data) {
             <span class="calib-val">${c.mean >= 0 ? '+' : '−'}${fmt(Math.abs(c.mean))}</span>
           </div>`;
         }).join('')}
-        <p class="calib-note">Cuppers on a calibrated panel usually sit within ±${NORMAL} of the panel score. Direction is a habit, not a verdict. Only finished sheets are measured — a part-scored one would describe the sheet rather than the palate.${
-          unmeasured.length ? ` ${unmeasured.map(escapeHTML).join(', ')} ${unmeasured.length > 1 ? 'have' : 'has'} not finished a sheet in this lineup yet.` : ''}</p>
+        <p class="calib-note">${tr('Cuppers on a calibrated panel usually sit within ±{n} of the panel score. Direction is a habit, not a verdict. Only finished sheets are measured — a part-scored one would describe the sheet rather than the palate.', { n: NORMAL })}${
+          unmeasured.length ? ' ' + trn(unmeasured.length, '{names} has not finished a sheet in this lineup yet.', '{names} have not finished a sheet in this lineup yet.', { names: unmeasured.map(escapeHTML).join(', ') }) : ''}</p>
+
       </div>` : `<p class="live-note">Nobody has finished a whole sheet yet, so there is nothing to calibrate against. Calibration is measured over finished sheets only.</p>`;
       wrap.innerHTML = html + lateSubmit();
     }
@@ -5475,18 +5516,18 @@ function buildPresent() {
     // sentence case: this line is read out, and it was set in tracked caps
     const caption = row
       ? (row.n
-          ? `Average of ${row.n} finished sheet${row.n > 1 ? 's' : ''}`
-          : 'No sheet finished yet')
-      : (own.complete ? 'Your score' : own.done === 0 ? 'Nothing rated' : `${own.done} of ${own.total} rated`);
+          ? trn(row.n, 'Average of {n} finished sheet', 'Average of {n} finished sheets')
+          : tr('No sheet finished yet'))
+      : (own.complete ? tr('Your score') : own.done === 0 ? tr('Nothing rated') : tr('{a} of {b} rated', { a: own.done, b: own.total }));
     // a warning with no size to it is not a warning; the room gets the count
-    const qualifier = row && row.scoring ? ` · ${row.scoring} still scoring` : '';
+    const qualifier = row && row.scoring ? ' · ' + tr('{n} still scoring', { n: row.scoring }) : '';
 
     card.innerHTML = `
       <div class="present-top">
         <span class="present-num">${i + 1}</span>
         <div class="present-id">
-          <div class="present-name">${stage ? escapeHTML(coffeeName(coffee, i)) : `Coffee ${i + 1}`}</div>
-          ${stage && meta ? `<div class="present-meta">${escapeHTML(meta)}</div>` : ''}
+          <div class="present-name" translate="no">${stage ? escapeHTML(coffeeName(coffee, i)) : tr('Coffee {n}', { n: i + 1 })}</div>
+          ${stage && meta ? `<div class="present-meta" translate="no">${escapeHTML(meta)}</div>` : ''}
         </div>
         ${stage === 2 ? `<div class="present-score">
           <span class="present-avg${shown === null ? ' partial' : ''}">${fmt(shown)}</span>
@@ -5550,7 +5591,7 @@ function buildPresentFinal(panel) {
         empty: score === null,
         // The grey ink said "not reliable" and then declined to say how much
         // of the sheet was real. Every other ranking carries the count.
-        note: panel ? '' : (own[i].done > 0 && !own[i].complete ? `${own[i].done} of ${own[i].total}` : ''),
+        note: panel ? '' : (own[i].done > 0 && !own[i].complete ? tr('{a} of {b}', { a: own[i].done, b: own[i].total }) : ''),
         // how many finished sheets stand behind this row, and how many
         // cuppers are still working on it
         n: panel ? panel[i].n : 0,
@@ -5580,18 +5621,19 @@ function buildPresentFinal(panel) {
     <h2>The table’s ranking</h2>
     <p class="team-sub">${panel
       ? (nLow === nHigh
-          ? `Panel scores — each the average of ${nHigh} finished sheet${nHigh > 1 ? 's' : ''}, as the standard prescribes.`
-          : `Panel scores — each the average of the sheets finished for that coffee, ${nLow} to ${nHigh} of them. The count is beside every score.`)
-      : 'Your own scores — no other cuppers have submitted.'}</p>
+          ? trn(nHigh, 'Panel scores — each the average of {n} finished sheet, as the standard prescribes.', 'Panel scores — each the average of {n} finished sheets, as the standard prescribes.')
+          : tr('Panel scores — each the average of the sheets finished for that coffee, {a} to {b} of them. The count is beside every score.', { a: nLow, b: nHigh }))
+      : tr('Your own scores — no other cuppers have submitted.')}</p>
     ${rows.map((r, pos) => `
       <div class="present-final-row">
         <span class="present-final-pos">${pos + 1}</span>
-        <span class="present-final-name">${escapeHTML(r.name)}</span>
-        <span class="present-final-score${r.empty ? ' partial' : ''}">${r.empty ? 'no score yet' : fmt(r.score)}</span>
+        <span class="present-final-name" translate="no">${escapeHTML(r.name)}</span>
+        <span class="present-final-score${r.empty ? ' partial' : ''}">${r.empty ? tr('no score yet') : fmt(r.score)}</span>
         ${(() => {
           const bits = [];
           if (r.note) bits.push(r.note);
-          if (r.n) bits.push(`${r.n} sheet${r.n > 1 ? 's' : ''}${r.scoring ? ` · ${r.scoring} still scoring` : ''}`);
+          if (r.n) bits.push(trn(r.n, '{n} sheet', '{n} sheets') + (r.scoring ? ' · ' + tr('{n} still scoring', { n: r.scoring }) : ''));
+
           return bits.length ? `<span class="present-final-note">${bits.join(' · ')}</span>` : '';
         })()}
       </div>`).join('')}
@@ -5640,8 +5682,8 @@ function renderTeamTable() {
     const row = el('div', 'team-coffee-row');
     row.innerHTML = `
       <div class="team-coffee-top">
-        <span class="team-coffee-name">${escapeHTML(r.name)}</span>
-        <span class="team-coffee-avg">${fmt(r.avg)}<small>AVG</small></span>
+        <span class="team-coffee-name" translate="no">${escapeHTML(r.name)}</span>
+        <span class="team-coffee-avg">${fmt(r.avg)}<small>${tr('AVG')}</small></span>
       </div>
       <div class="team-coffee-cuppers">${r.values.length
         ? r.values.map(v => cupperChip(v, null, 'cupper-score')).join('')
@@ -5689,8 +5731,9 @@ function radarAttrs() {
    section that is missing from it, and why. */
 function radarSpokesNote() {
   return usingCVA()
-    ? 'Overall is not a spoke: it judges the whole cup.'
-    : 'Balance and Overall judge the whole cup, and Uniformity, Clean cup and Sweetness count cups, so none is a spoke.';
+    ? tr('Overall is not a spoke: it judges the whole cup.')
+    : tr('Balance and Overall judge the whole cup, and Uniformity, Clean cup and Sweetness count cups, so none is a spoke.');
+
 }
 
 // radar floors: enough headroom that differences read, without clipping
@@ -5805,7 +5848,7 @@ function buildRadar(ranked) {
     const [x, y] = point(i, R);
     svg += `<line x1="${CX}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="radar-grid" stroke-width="0.6"/>`;
     const [lx, ly] = point(i, R + 18);
-    const short = attr.label.split(' / ')[0].split(' ')[0];
+    const short = tr(attr.label).split(' / ')[0].split(' ')[0];
     svg += `<text x="${lx.toFixed(1)}" y="${(ly + 3).toFixed(1)}" text-anchor="middle" class="radar-axis-label">${short}</text>`;
   });
 
@@ -5866,9 +5909,10 @@ function buildRadar(ranked) {
     // the rings are numbered on the chart, so the note does not restate them
     const bits = [radarSpokesNote()];
     if (undrawn.length) {
-      bits.push(`${undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ')} ${
-        undrawn.length > 1 ? 'are' : 'is'} not drawn — a profile needs all seven, and ${
-        undrawn.length > 1 ? 'these sheets have' : 'this sheet has'} sections nobody rated.`);
+      bits.push(trn(undrawn.length,
+        '{names} is not drawn — a profile needs all seven, and this sheet has sections nobody rated.',
+        '{names} are not drawn — a profile needs all seven, and these sheets have sections nobody rated.',
+        { names: undrawn.map(r => escapeHTML(coffeeName(r.coffee, r.index))).join(', ') }));
     }
     note.innerHTML = bits.map(t => `<p>${t}</p>`).join('');
   }
@@ -5946,29 +5990,29 @@ function buildShareText() {
   const ranked = rankedCoffees();
   const panel = sharedPanel();
 
-  const lines = [`SCA cupping results — ${usingCVA() ? 'CVA (SCA 2024)' : '2004 form'}`, ''];
+  const lines = [tr('SCA cupping results — {form}', { form: tr(usingCVA() ? 'CVA (SCA 2024)' : '2004 form') }), ''];
 
   if (panel) {
     const rated = panel.filter(r => r.avg !== null).sort((a, b) => b.avg - a.avg);
     const none = panel.filter(r => r.avg === null);
-    lines.push('THE TABLE — panel scores');
+    lines.push(tr('THE TABLE — panel scores'));
     rated.forEach((r, pos) => {
-      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · average of ${r.n} finished sheet${r.n > 1 ? 's' : ''}${
-        r.scoring ? `, ${r.scoring} more still scoring` : ''}`);
+      lines.push(`${pos + 1}. ${r.name} — ${fmt(r.avg)} (${gradeFor(r.avg)}) · ${trn(r.n, 'average of {n} finished sheet', 'average of {n} finished sheets')}${
+        r.scoring ? ', ' + tr('{n} more still scoring', { n: r.scoring }) : ''}`);
     });
     none.forEach(r => lines.push(`— ${r.name} — ${r.scoring
-      ? `${r.scoring} sheet${r.scoring > 1 ? 's' : ''} in progress, none finished`
-      : 'not rated by anyone at the table'}`));
+      ? trn(r.scoring, '{n} sheet in progress, none finished', '{n} sheets in progress, none finished')
+      : tr('not rated by anyone at the table')}`));
     lines.push('');
-    lines.push('MY OWN SHEET');
+    lines.push(tr('MY OWN SHEET'));
   }
 
   ranked.forEach((r, pos) => {
     lines.push(r.prog.complete
       ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${fmt(r.score)} (${gradeFor(r.score)})`
       : r.prog.done === 0
-        ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — not rated`
-        : `${pos + 1}. ${coffeeName(r.coffee, r.index)} — no score yet · ${r.prog.done} of ${r.prog.total} rated`);
+        ? `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${tr('not rated')}`
+        : `${pos + 1}. ${coffeeName(r.coffee, r.index)} — ${tr('no score yet · {a} of {b} rated', { a: r.prog.done, b: r.prog.total })}`);
     const meta = metaSummary(r.coffee.meta);
     if (meta) lines.push(`   ${meta}`);
     if (r.coffee.notes.trim()) lines.push(`   ${r.coffee.notes.trim()}`);
@@ -5983,7 +6027,8 @@ async function shareResults() {
   }
   try {
     await navigator.clipboard.writeText(text);
-    toast('Results copied to clipboard');
+    toast(tr('Results copied to clipboard'));
+
   } catch (e) {
     showForCopying(text);
   }
@@ -6014,6 +6059,8 @@ function matchesQuery(c, q) {
     c.name,
     c.notes,
     ...(c.descriptors || []),
+    // descriptors are stored in English; search them as they are drawn too
+    ...(c.descriptors || []).map(d => tr(d)),
     ...Object.values(c.meta || {}),
   ].join(' ').toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(term => hay.includes(term));
@@ -6050,7 +6097,14 @@ function roastBucket(raw) {
   if (/\bfrench\b|\bitalian\b|\bvienna\b|\bdark\b/.test(s)) return 'Dark';
   if (/\bcity\b|\bmedium\b/.test(s)) return 'Medium';
   if (/\bcinnamon\b|\bblonde\b|\blight\b/.test(s)) return 'Light';
+  // the same levels as a Spanish-speaking roaster writes them
+  if (/medio[\s-]*claro|claro[\s-]*medio/.test(s)) return 'Medium-light';
+  if (/medio[\s-]*oscuro|oscuro[\s-]*medio/.test(s)) return 'Medium-dark';
+  if (/\boscuro\b|\bfranc[eé]s\b|\bitaliano\b/.test(s)) return 'Dark';
+  if (/\bmedio\b/.test(s)) return 'Medium';
+  if (/\bclaro\b|\brubio\b/.test(s)) return 'Light';
   return null;
+
 }
 
 function altitudeBucket(raw) {
@@ -6149,13 +6203,13 @@ function buildHistory() {
   // counts, not values a cupper set, so they take the page's ink; only the
   // average, which is made of scores, takes the data ink (.stat-value.score).
   $('#stats-row').innerHTML = `
-    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">${sessionCount === 1 ? 'Cupping' : 'Cuppings'}${
-      inProgress ? `, ${inProgress} in progress` : ''}</div></div>
-    <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">${coffees.length === 1 ? 'Coffee' : 'Coffees'}</div></div>
+    <div class="stat-tile"><div class="stat-value">${sessionCount}</div><div class="stat-label">${sessionCount === 1 ? tr('Cupping') : tr('Cuppings')}${
+      inProgress ? ', ' + tr('{n} in progress', { n: inProgress }) : ''}</div></div>
+    <div class="stat-tile"><div class="stat-value">${coffees.length}</div><div class="stat-label">${coffees.length === 1 ? tr('Coffee') : tr('Coffees')}</div></div>
     <div class="stat-tile"><div class="stat-value${allScores.length ? ' score' : ''}">${allScores.length ? fmt(avg) : '–'}</div><div class="stat-label">${
       // "Avg of 0 finished" is a sentence about nothing
-      !allScores.length ? 'No finished sheets yet'
-        : partial ? `Avg of ${allScores.length} finished` : 'Avg score'
+      !allScores.length ? tr('No finished sheets yet')
+        : partial ? tr('Avg of {n} finished', { n: allScores.length }) : tr('Avg score')
     }</div></div>
   `;
 
@@ -6168,7 +6222,7 @@ function buildHistory() {
     search._t = setTimeout(buildHistory, 200);
   };
   $('#history-hits').textContent = historyQuery
-    ? `${coffees.length} of ${allCoffees.length} coffees match`
+    ? tr('{a} of {b} coffees match', { a: coffees.length, b: allCoffees.length })
     : '';
 
   // dimension segmented control
@@ -6203,19 +6257,19 @@ function buildHistory() {
     .forEach(c => {
       const item = el('div', 'hist-item');
       const meta = metaSummary(c.meta || {});
-      const date = new Date(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const date = new Date(c.date).toLocaleDateString(LentoI18n.locale, { month: 'short', day: 'numeric' });
       const tags = (c.descriptors || []).slice(0, 4);
       item.innerHTML = `
         <div class="hist-item-info">
-          <div class="hist-item-name">${escapeHTML(c.name)}<span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span>${
-            unfinishedSession.has(c.sessionId) ? '<span class="form-tag">in progress</span>' : ''}</div>
-          ${meta ? `<div class="hist-item-meta">${escapeHTML(meta)}</div>` : ''}
-          ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
+          <div class="hist-item-name"><span translate="no">${escapeHTML(/^Coffee \d+$/.test(c.name) ? tr('Coffee {n}', { n: c.name.slice(7) }) : c.name)}</span><span class="form-tag">${c.form === 'legacy' ? '2004' : 'CVA'}</span>${
+            unfinishedSession.has(c.sessionId) ? `<span class="form-tag">${tr('in progress')}</span>` : ''}</div>
+          ${meta ? `<div class="hist-item-meta" translate="no">${escapeHTML(meta)}</div>` : ''}
+          ${tags.length ? `<div class="hist-item-tags">${tags.map(t => `<span class="rank-tag">${escapeHTML(tr(t))}</span>`).join('')}</div>` : ''}
         </div>
         <div class="hist-item-right">
           <div class="hist-item-score${typeof c.score === 'number' ? '' : ' partial'}">${fmt(c.score)}</div>
           <div class="hist-item-date">${c.complete === false
-            ? `${c.rated} of ${c.sections} rated`
+            ? tr('{a} of {b} rated', { a: c.rated, b: c.sections })
             : date}</div>
         </div>
       `;
@@ -6227,12 +6281,15 @@ function renderGroups(coffees) {
   const wrap = $('#group-list');
   wrap.innerHTML = '';
   const groups = aggregateBy(coffees, activeDim);
-  const dimLabel = DIMENSIONS.find(d => d.key === activeDim).label.toLowerCase();
+  const dimLabel = tr(DIMENSIONS.find(d => d.key === activeDim).label).toLowerCase();
+  // descriptors, roast levels and altitude bands are the app's own words;
+  // everything else in a group name is what somebody typed
+  const ownWords = ['flavor', 'roast', 'altitude'].includes(activeDim);
 
   if (!groups.length) {
     wrap.appendChild(el('div', 'group-empty', activeDim === 'flavor'
-      ? 'No flavor descriptors yet — check them on the Describe card while cupping.'
-      : `No ${escapeHTML(dimLabel)} data yet — fill in coffee details while cupping.`));
+      ? tr('No flavor descriptors yet — check them on the Describe card while cupping.')
+      : tr('No {dim} data yet — fill in coffee details while cupping.', { dim: escapeHTML(dimLabel) })));
     return;
   }
 
@@ -6240,8 +6297,8 @@ function renderGroups(coffees) {
     const row = el('div', 'group-row');
     row.innerHTML = `
       <div class="group-row-top">
-        <span class="group-name">${escapeHTML(g.name)}</span>
-        <span class="group-count">${g.count} coffee${g.count > 1 ? 's' : ''} · best ${fmt(g.best)}</span>
+        <span class="group-name" translate="no">${escapeHTML(ownWords ? tr(g.name) : g.name)}</span>
+        <span class="group-count">${trn(g.count, '{n} coffee · best {best}', '{n} coffees · best {best}', { best: fmt(g.best) })}</span>
         <span class="group-avg">${fmt(g.avg)}</span>
       </div>
       <div class="group-bar"><div class="group-bar-fill"></div></div>
@@ -6276,14 +6333,14 @@ function historyCSV() {
     'date', 'form', 'cups per coffee', 'coffee', 'sections rated', 'sections total', 'score', 'grade',
     'variety', 'process', 'roast profile', 'altitude', 'origin', 'farm', 'producer',
     'descriptors', 'notes',
-  ];
+  ].map(h => tr(h));
   const rows = [head];
   archive.forEach(session => {
     session.coffees.forEach(c => {
       const m = c.meta || {};
       rows.push([
         new Date(session.date).toISOString().slice(0, 10),
-        (session.form || 'legacy') === 'cva' ? 'CVA (SCA 104-2024)' : 'Legacy 2004',
+        tr((session.form || 'legacy') === 'cva' ? 'CVA (SCA 104-2024)' : 'Legacy 2004'),
         session.cupsPerCoffee,
         c.name,
         // older archive rows carry no counts; an empty cell is honest about
@@ -6295,7 +6352,8 @@ function historyCSV() {
         typeof c.score === 'number' ? fmt(c.score) : '',
         typeof c.score === 'number' ? gradeFor(c.score) : '',
         m.variety, m.process, m.roast, m.altitude, m.country, m.farm, m.producer,
-        (c.descriptors || []).join('; '),
+        (c.descriptors || []).map(d => tr(d)).join('; '),
+
         c.notes,
       ]);
     });
@@ -6361,8 +6419,9 @@ function printResults() {
 
   const sheet = document.createElement('div');
   sheet.id = 'print-sheet';
-  const when = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const formName = usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)';
+  const when = new Date().toLocaleDateString(LentoI18n.locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  const formName = tr(usingCVA() ? 'Coffee Value Assessment · SCA 104-2024' : 'SCA cupping form (2004)');
+  const L = a => tr(a.label);
   const who = getCupperName();
 
   // Same rule as the on-screen summary: a range is a claim about a set of
@@ -6378,45 +6437,46 @@ function printResults() {
   sheet.innerHTML = `
     <div class="p-head">
       <div>
-        <h1>Cupping results</h1>
-        <p>${escapeHTML(formName)} · ${escapeHTML(when)} · ${cups} cup${cups > 1 ? 's' : ''} per coffee${who ? ` · ${escapeHTML(who)}` : ''}</p>
+        <h1>${tr('Cupping results')}</h1>
+        <p>${escapeHTML(formName)} · ${escapeHTML(when)} · ${trn(cups, '{n} cup per coffee', '{n} cups per coffee')}${who ? ` · <span translate="no">${escapeHTML(who)}</span>` : ''}</p>
       </div>
       <div class="p-mark">lento.cafe</div>
     </div>
 
     ${scored.length
-      ? `<p class="p-summary">${scored.length} of ${ranked.length} sheet${ranked.length > 1 ? 's' : ''} finished ·
-         ${scored.length > 1 ? `range ${fmt(scored[0])}–${fmt(scored[scored.length - 1])}` : `score ${fmt(scored[0])}`} ·
-         ${scored.filter(v => v >= 80).length} of ${scored.length} at or above 80</p>`
-      : `<p class="p-summary">No sheet is finished, so there is no range to state.</p>`}
+      ? `<p class="p-summary">${trn(ranked.length, '{a} of {n} sheet finished', '{a} of {n} sheets finished', { a: scored.length })} ·
+         ${scored.length > 1 ? tr('range {a}–{b}', { a: fmt(scored[0]), b: fmt(scored[scored.length - 1]) }) : tr('score {a}', { a: fmt(scored[0]) })} ·
+         ${tr('{a} of {b} at or above 80', { a: scored.filter(v => v >= 80).length, b: scored.length })}</p>`
+      : `<p class="p-summary">${tr('No sheet is finished, so there is no range to state.')}</p>`}
 
     <table>
       <thead>
         <tr>
           <th>#</th>
-          <th>Coffee</th>
-          ${sections.map(a => `<th class="num" title="${escapeHTML(a.label)}">${escapeHTML(printAbbrev(a.label))}</th>`).join('')}
-          ${cupAttrs.map(a => `<th class="num" title="${escapeHTML(a.label)}">${escapeHTML(printAbbrev(a.label))}</th>`).join('')}
-          <th class="num">Def</th>
-          <th class="num">Score</th>
+          <th>${tr('Coffee')}</th>
+          ${sections.map(a => `<th class="num" title="${escapeHTML(L(a))}">${escapeHTML(printAbbrev(L(a)))}</th>`).join('')}
+          ${cupAttrs.map(a => `<th class="num" title="${escapeHTML(L(a))}">${escapeHTML(printAbbrev(L(a)))}</th>`).join('')}
+          <th class="num">${tr('Def')}</th>
+          <th class="num">${tr('Score')}</th>
         </tr>
       </thead>
       <tbody>
         ${ranked.map((r, pos) => {
           const c = r.coffee;
           const d = usingCVA() && c.desc
-            ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor])].join(', ')
+            ? [...new Set([...c.desc.cata.aroma, ...c.desc.cata.flavor])].map(n => tr(n)).join(', ')
             : '';
           const meta = metaSummary(c.meta);
+          const ab = k => tr(k);
           const deductions = usingCVA()
-            ? [c.nonUniform ? `${c.nonUniform}nu` : '', c.defective ? `${c.defective}df` : ''].filter(Boolean).join(' ')
-            : [c.taintCups ? `${c.taintCups}t` : '', c.faultCups ? `${c.faultCups}f` : ''].filter(Boolean).join(' ');
+            ? [c.nonUniform ? `${c.nonUniform}${ab('nu')}` : '', c.defective ? `${c.defective}${ab('df')}` : ''].filter(Boolean).join(' ')
+            : [c.taintCups ? `${c.taintCups}${ab('t')}` : '', c.faultCups ? `${c.faultCups}${ab('f')}` : ''].filter(Boolean).join(' ');
           return `<tr>
             <td>${pos + 1}</td>
-            <td><strong>${escapeHTML(coffeeName(c, r.index))}</strong>
-              ${meta ? `<div class="p-sub">${escapeHTML(meta)}</div>` : ''}
+            <td><strong translate="no">${escapeHTML(coffeeName(c, r.index))}</strong>
+              ${meta ? `<div class="p-sub" translate="no">${escapeHTML(meta)}</div>` : ''}
               ${d ? `<div class="p-sub">${escapeHTML(d)}</div>` : ''}
-              ${c.notes.trim() ? `<div class="p-sub">${escapeHTML(c.notes.trim())}</div>` : ''}</td>
+              ${c.notes.trim() ? `<div class="p-sub" translate="no">${escapeHTML(c.notes.trim())}</div>` : ''}</td>
             ${sections.map(a => {
               const v = sectionValue(c, a);
               // CVA sections are whole numbers 1–9; only the 2004 form's
@@ -6439,16 +6499,15 @@ function printResults() {
       </tbody>
     </table>
 
-    <p class="p-foot">${sections.map(a => `${printAbbrev(a.label)} ${a.label}`).join(' · ')}${
-      cupAttrs.length ? ' · ' + cupAttrs.map(a => `${printAbbrev(a.label)} ${a.label}, cups passed`).join(' · ') : ''
-    } · Def deductions${usingCVA() ? ' (nu non-uniform, df defective)' : ' (t tainted, f faulty)'}.
-    Sections are scored ${usingCVA() ? '1–9' : '6.00–10.00'}.</p>
+    <p class="p-foot">${sections.map(a => `${printAbbrev(L(a))} ${L(a)}`).join(' · ')}${
+      cupAttrs.length ? ' · ' + cupAttrs.map(a => tr('{abbr} {name}, cups passed', { abbr: printAbbrev(L(a)), name: L(a) })).join(' · ') : ''
+    } · ${tr(usingCVA() ? 'Def deductions (nu non-uniform, df defective).' : 'Def deductions (t tainted, f faulty).')}
+    ${tr('Sections are scored {range}.', { range: usingCVA() ? '1–9' : '6.00–10.00' })}</p>
 
-    ${anyPartial ? `<p class="p-foot">A dash means not rated. A sheet that is not finished has no total: the sections
-      nobody reached would enter it at a default nobody chose, so the count of rated sections stands there instead,
-      out of ${sectionCount()}.</p>` : ''}
+    ${anyPartial ? `<p class="p-foot">${tr('A dash means not rated. A sheet that is not finished has no total: the sections nobody reached would enter it at a default nobody chose, so the count of rated sections stands there instead, out of {n}.', { n: sectionCount() })}</p>` : ''}
 
-    <p class="p-foot">Scores recorded with lento.cafe/cupping</p>
+    <p class="p-foot">${tr('Scores recorded with lento.cafe/cupping')}</p>
+
   `;
 
   document.body.appendChild(sheet);
@@ -6597,14 +6656,14 @@ function refreshResumeButton() {
   const p = sessionProgress();
   const finished = n - p.untouched - p.partial;
   const tally = [];
-  if (finished) tally.push(`${finished} of ${n} finished`);
-  if (p.partial) tally.push(`${p.partial} part-scored`);
-  if (p.untouched) tally.push(`${p.untouched} not started`);
+  if (finished) tally.push(tr('{a} of {b} finished', { a: finished, b: n }));
+  if (p.partial) tally.push(tr('{n} part-scored', { n: p.partial }));
+  if (p.untouched) tally.push(tr('{n} not started', { n: p.untouched }));
   // A sentence, so it is set as one: it was tracked capitals, which is a
   // label's treatment, on a fifty-character line somebody has to read.
   label.textContent = p.complete
-    ? `A cupping of ${n} coffee${n > 1 ? 's' : ''}, all scored.`
-    : `A cupping in progress: ${tally.join(', ')}.`;
+    ? trn(n, 'A cupping of {n} coffee, all scored.', 'A cupping of {n} coffees, all scored.')
+    : tr('A cupping in progress: {tally}.', { tally: tally.join(', ') });
   btn.textContent = p.complete ? 'Open it again' : 'Pick up where you left off';
 }
 
@@ -6632,6 +6691,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initFormPicker();
 
+  // English | Español, in this sheet's own segmented look (.active, not .on)
+  const langSlot = $('#lang-slot');
+  if (langSlot && window.LentoI18n) {
+    const langSeg = LentoI18n.toggle();
+    langSeg.querySelectorAll('.seg-btn.on').forEach(b => b.classList.add('active'));
+    langSlot.appendChild(langSeg);
+  }
+
   // Two switches, one setting: the one on setup and the one that rides with
   // the help sheets, so a cupper who joined by QR can reach it too.
   const guidedSwitches = [$('#toggle-guided'), $('#toggle-guided-help')].filter(Boolean);
@@ -6658,7 +6725,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const scored = state.coffees.length - p.untouched;
       if (scored > 0 && !(await confirmSheet({
         title: 'Replace the cupping in progress?',
-        body: `${scored} coffee${scored > 1 ? 's have' : ' has'} been scored and this cupping has not been finished, so it is not in History yet.`,
+        body: trn(scored, '{n} coffee has been scored and this cupping has not been finished, so it is not in History yet.', '{n} coffees have been scored and this cupping has not been finished, so it is not in History yet.'),
+
         effects: ['Starting a new lineup discards it.'],
         cta: 'Start a new one',
         danger: true,
@@ -6713,9 +6781,8 @@ document.addEventListener('DOMContentLoaded', () => {
       status: phase => {
         // the same shape on every page (see account-sheet.js), and no "0 cuppings"
         const n = loadArchive().length;
-        const word = `cupping${n === 1 ? '' : 's'}`;
-        if (phase === 'synced') return n ? `Synced · ${n} ${word}` : 'Synced';
-        return n ? `${n} ${word} on this device, backed up as you finish them.` : 'Cuppings back up as you finish them.';
+        if (phase === 'synced') return n ? trn(n, 'Synced · {n} cupping', 'Synced · {n} cuppings') : tr('Synced');
+        return n ? trn(n, '{n} cupping on this device, backed up as you finish them.', '{n} cuppings on this device, backed up as you finish them.') : tr('Cuppings back up as you finish them.');
       },
     });
   }
@@ -6796,7 +6863,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-clear-history').addEventListener('click', async () => {
     const signedIn = Boolean(loadAuth() && loadAuth().user);
     const kept = loadArchive().length;
-    const effects = [`${kept} cupping${kept === 1 ? '' : 's'} deleted from this device.`];
+    const effects = [trn(kept, '{n} cupping deleted from this device.', '{n} cuppings deleted from this device.')];
+
     if (signedIn) effects.push('Your cloud backup is deleted too, on every device signed in to this account.');
     effects.push('It cannot be undone.');
     if (!(await confirmSheet({

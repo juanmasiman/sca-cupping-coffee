@@ -322,7 +322,7 @@
     var text = decodeURIComponent(String(err).replace(/\+/g, ' '));
     redirectErr = /expired|invalid/i.test(text)
       ? 'That sign-in link was already used or has expired. Sign in again to get a new code.'
-      : 'Sign-in did not finish: ' + text.slice(0, 80);
+      : tr('Sign-in did not finish: {why}', { why: text.slice(0, 80) });
     return true;
   }
 

@@ -27,6 +27,9 @@
        anything here can still be overridden below. -->
   <link rel="stylesheet" href="/shared/wheel.css">
   <link rel="stylesheet" href="styles.css">
+  <script src="/shared/i18n.js"></script>
+  <script src="/shared/i18n/es-shared.js"></script>
+  <script src="/shared/i18n/es-cupping.js"></script>
 </head>
 <body>
 
@@ -143,6 +146,16 @@
           </span>
         </label>
 
+        <!-- Language. Last, because it is set once: a phone in Spanish gets
+             Spanish on its first visit, and this row is for the phone whose
+             owner wants the other one. -->
+        <div class="setup-card">
+          <div class="setup-card-label">
+            <span class="setup-card-title">Language</span>
+          </div>
+          <div id="lang-slot"></div>
+        </div>
+
       </div>
 
       <div class="setup-actions">
@@ -167,7 +180,7 @@
     </header>
 
     <div class="results-scroll">
-      <p class="lineup-intro" id="lineup-intro">Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.</p>
+      <p class="lineup-intro" id="lineup-intro" data-i18n-html>Name the coffees for your own sheet. The table cups them blind — as <strong>Coffee 1</strong>, <strong>Coffee 2</strong> — until you reveal them at the end, unless you turn on “Share coffee details” when you invite. Leave a card blank and it stays Coffee 1 here too; you can fill it in later.</p>
       <div class="lineup-list" id="lineup-list"></div>
       <button id="btn-lineup-add" class="btn btn-ghost lineup-add">＋ Add a coffee</button>
 

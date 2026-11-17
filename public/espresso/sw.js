@@ -11,7 +11,7 @@
    because its auth file did not arrive is not.
    ============================================================ */
 
-const VERSION = 'v48';
+const VERSION = 'v49';
 const SHELL_CACHE = `lento-espresso-shell-${VERSION}`;
 
 const SHELL = [
@@ -30,6 +30,9 @@ const SHELL = [
   // arrives with signal is a stylesheet the bar never sees.
   '/shared/components.css',
   '/shared/config.js',
+  '/shared/i18n.js',
+  '/shared/i18n/es-shared.js',
+  '/shared/i18n/es-espresso.js',
   '/shared/account.js',
   '/shared/account-sheet.js',
   '/shared/gear-db.js',

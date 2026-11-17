@@ -606,29 +606,30 @@
     };
     var when = step.at === null ? '' : t(step.at);
     var what;
+    // Said in the page's language; the table stays English.
+    var say = step.say ? tr(step.say) : '';
+    var style = step.style && STYLES[step.style] ? ', ' + tr(STYLES[step.style]) : '';
     if (step.do === 'bloom') {
-      what = 'Bloom with ' + step.water + ' g';
-      if (step.style && STYLES[step.style]) what += ', ' + STYLES[step.style];
+      what = tr('Bloom with {g} g', { g: step.water }) + style;
     } else if (step.do === 'pour') {
-      what = 'Pour to ' + step.total + ' g';
-      if (step.style && STYLES[step.style]) what += ', ' + STYLES[step.style];
+      what = tr('Pour to {g} g', { g: step.total }) + style;
     } else if (step.do === 'agitate') {
-      what = AGITATE[step.how] || 'Agitate';
+      what = tr(AGITATE[step.how] || 'Agitate');
     } else if (step.do === 'close') {
-      what = 'Close the valve';
+      what = tr('Close the valve');
     } else if (step.do === 'open') {
-      what = 'Open the valve';
+      what = tr('Open the valve');
     } else if (step.do === 'press') {
-      what = 'Press';
+      what = tr('Press');
     } else if (step.do === 'wait') {
-      what = step.say || 'Wait';
+      what = say || tr('Wait');
     } else {
-      what = 'Done';
+      what = tr('Done');
     }
     // `say` replaces the generated phrase where a step carries one,
     // except on the two that build a number into it.
-    if (step.say && step.do !== 'bloom' && step.do !== 'pour' && step.do !== 'wait') what = step.say;
-    else if (step.say && (step.do === 'bloom' || step.do === 'pour')) what += ' — ' + step.say;
+    if (say && step.do !== 'bloom' && step.do !== 'pour' && step.do !== 'wait') what = say;
+    else if (say && (step.do === 'bloom' || step.do === 'pour')) what += ' — ' + say;
     return { when: when, what: what };
   }
 

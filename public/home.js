@@ -49,6 +49,19 @@
 
   var $ = function (sel) { return document.querySelector(sel); };
 
+  /* Language. /shared/i18n.js defines both; if it did not arrive, the
+     page is English, which is what it was before there was a choice. */
+  var tr = window.tr || function (str, vars) {
+    return String(str).replace(/\{(\w+)\}/g, function (m, k) {
+      return vars && k in vars ? String(vars[k]) : m;
+    });
+  };
+  var trn = window.trn || function (n, one, other, vars) {
+    var v = { n: n };
+    if (vars) for (var k in vars) v[k] = vars[k];
+    return tr(n === 1 ? one : other, v);
+  };
+
   /* ---------- asking a shared module for a function, not for a name ----------
 
      This page loads eight files out of /shared and calls into all of
@@ -245,7 +258,9 @@
   // some, and where it wraps it should break between the counts — which
   // is what the separator is for — and never inside one.
   function say(n, one, many) {
-    return n + '\u00a0' + (n === 1 ? one : many);
+    /* Through the dictionary as '{n} bag' / '{n} bags', then the space
+       after the number made unbreakable, as it always was. */
+    return trn(n, '{n} ' + one, '{n} ' + many).replace(/^(\S+) /, '$1\u00a0');
   }
 
   /* WHAT A FILTER BREW IS CALLED, WHICH DEPENDS ON THE BREWER.
@@ -303,7 +318,7 @@
   function deviceLine() {
     var bits = counts();
     if (!bits.length) return 'Your history follows you to any device you sign in on.';
-    return bits.join(' · ') + ' on this device.';
+    return tr('{list} on this device.', { list: bits.join(' · ') });
   }
 
   /* ---------- the account row ---------- */
@@ -415,7 +430,7 @@
      list is something the eye can compare without reading. */
   function bagSub(c) {
     var age = can(window.LentoCoffees, 'ageWord') ? LentoCoffees.ageWord(c) : '';
-    return [age, c.roaster, c.origin, c.process, c.decaf ? 'decaf' : '']
+    return [age, c.roaster, c.origin, c.process, c.decaf ? tr('decaf') : '']
       .map(function (x) { return (x || '').trim(); })
       .filter(Boolean)
       .join(' · ');
@@ -437,8 +452,8 @@
   function marksWords(use) {
     var on = TOOLS.filter(function (t) { return use && use[t.key]; })
       .map(function (t) { return t.there; });
-    if (!on.length) return 'not marked for either tool';
-    return 'for ' + on.join(' and ');
+    if (!on.length) return tr('not marked for either tool');
+    return tr('for ' + on.join(' and '));
   }
 
   var CHEVRON = '<path d="M9 6l6 6-6 6"/>';
@@ -627,9 +642,18 @@
     'machine.basketDose': 'Basket dose',
   };
 
+  /* A chip's word, with room for the one place English uses a word
+     twice where Spanish needs two: "Flat" burrs are planas, a "Flat"
+     filter is plano. The dictionary may carry '[field] Word' to say so. */
+  function optWord(key, label) {
+    var ctx = '[' + key + '] ' + label;
+    var hit = tr(ctx);
+    return hit === ctx ? tr(label) : hit;
+  }
+
   function word(key, value) {
     var list = OPTS[key] || [];
-    for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
+    for (var i = 0; i < list.length; i++) if (list[i][0] === value) return optWord(key, list[i][1]);
     return '';
   }
 
@@ -640,22 +664,22 @@
     var d = (can(window.LentoGear, 'describe') && LentoGear.describe(g.kind, g.name)) || g;
     var bits;
     if (g.kind === 'grinder') {
-      bits = [word('grinder.drive', d.drive), word('grinder.burr', d.burr) &&
-        (word('grinder.burr', d.burr) + ' burrs'), d.burrSize ? d.burrSize + ' mm' : '',
+      bits = [word('grinder.drive', d.drive), said('grinder', 'burr', d.burr),
+        d.burrSize ? d.burrSize + ' mm' : '',
         word('grinder.adjust', d.adjust)];
     } else if (g.kind === 'brewer') {
       bits = [can(window.LentoBrewers, 'flowWord') ? LentoBrewers.flowWord(d.flow) : '',
         [word('brewer.filter', d.filter), d.filterSize].filter(Boolean).join(' ')];
     } else if (g.kind === 'kettle') {
       bits = [word('kettle.power', d.power), word('kettle.spout', d.spout),
-        d.control === 'variable' ? 'set the temperature' : (d.control === 'boil' ? 'boils' : '')];
+        d.control === 'variable' ? tr('set the temperature') : (d.control === 'boil' ? tr('boils') : '')];
     } else if (g.kind === 'refractometer') {
       // Returned as written: the line below lower-cases, and "tds" is not
       // a word anybody reads.
-      return 'TDS and extraction in both tools';
+      return tr('TDS and extraction in both tools');
     } else {
-      bits = [word('machine.boiler', d.boiler) && (word('machine.boiler', d.boiler) + ' boiler'),
-        d.pf ? d.pf + ' mm' : '', d.portafilter === 'bottomless' ? 'bottomless' : ''];
+      bits = [said('machine', 'boiler', d.boiler),
+        d.pf ? d.pf + ' mm' : '', d.portafilter === 'bottomless' ? tr('bottomless') : ''];
     }
     return bits.filter(Boolean).join(' · ').toLowerCase();
   }
@@ -755,17 +779,17 @@
       el.textContent = text || DEFAULT_SUB[id];
     };
     var sh = latestWithCoffee('lento-espresso-v1', 'shots');
-    set('sub-espresso', sh ? ['Last shot ' + ago(sh.r.at), sh.c.name && sh.c.name.trim(), secs(sh.r.time)]
+    set('sub-espresso', sh ? [tr('Last shot {ago}', { ago: ago(sh.r.at) }), sh.c.name && sh.c.name.trim(), secs(sh.r.time)]
       .filter(Boolean).join(' · ') : '');
     var br = latestWithCoffee('lento-filter-v1', 'brews');
-    set('sub-filter', br ? ['Last brew ' + ago(br.r.at), br.c.name && br.c.name.trim(), secs(br.r.time)]
+    set('sub-filter', br ? [tr('Last brew {ago}', { ago: ago(br.r.at) }), br.c.name && br.c.name.trim(), secs(br.r.time)]
       .filter(Boolean).join(' · ') : '');
     var hist = readJSON('sca-cupping-history-v1');
     var last = Array.isArray(hist) && hist.length
       ? hist.reduce(function (a, b) { return (num(b && b.date) || 0) > (num(a && a.date) || 0) ? b : a; })
       : null;
     var n = last && Array.isArray(last.coffees) ? last.coffees.length : 0;
-    set('sub-cupping', last ? ['Last cupping ' + ago(last.date), n ? say(n, 'coffee', 'coffees') : '']
+    set('sub-cupping', last ? [tr('Last cupping {ago}', { ago: ago(last.date) }), n ? say(n, 'coffee', 'coffees') : '']
       .filter(Boolean).join(' · ') : '');
   }
 
@@ -774,7 +798,7 @@
      ['the account row', renderAccount],
      ['your coffees', renderShelf],
      ['your gear', renderGear]].forEach(function (job) {
-      try { job[1](); } catch (e) { fail('Could not draw ' + job[0], e); }
+      try { job[1](); } catch (e) { fail(tr('Could not draw {what}', { what: tr(job[0]) }), e); }
     });
     // Gear is always there, so the row always is. The shelf button is
     // the one that comes and goes, and a row of one button is a row.
@@ -876,7 +900,7 @@
          and a placeholder measuring 2.43:1 in dark mode against a 4.5
          floor. It was the only one missing the class. */
       + '<textarea class="field-input notes-input" id="bag-notes" rows="2"'
-      + ' placeholder="peach, jasmine, black tea">' + esc(c.bagNotes) + '</textarea>'
+      + ' placeholder="' + esc(tr('peach, jasmine, black tea')) + '">' + esc(c.bagNotes) + '</textarea>'
       + '</div>'
       + '<div class="bag-group">'
       + switchRow('bag-decaf', 'Decaf', '', c.decaf, false)
@@ -971,9 +995,9 @@
       v.coffees.forEach(function (c) {
         if (c && c.id === id && Array.isArray(c[t.log])) n = c[t.log].length;
       });
-      if (n) bits.push(n + ' ' + (n === 1 ? t.log.slice(0, -1) : t.log));
+      if (n) bits.push(t.log === 'shots' ? trn(n, '{n} shot', '{n} shots') : trn(n, '{n} brew', '{n} brews'));
     });
-    return bits.join(' and ');
+    return bits.length === 2 ? tr('{a} and {b}', { a: bits[0], b: bits[1] }) : (bits[0] || '');
   }
 
   function removeBag(c) {
@@ -983,8 +1007,10 @@
     closeModal('#bag-modal');
     renderAll();
     syncSoon();
-    toast(went ? 'Off the shelf — ' + went + (/^1 \w+$/.test(went) ? ' goes' : ' go') + ' with it' : 'Off the shelf', {
-      after: nameOf(c) + ' is back',
+    var one = /^1 \S+$/.test(went);
+    toast(went ? tr(one ? 'Off the shelf — {logs} goes with it' : 'Off the shelf — {logs} go with it', { logs: went })
+      : tr('Off the shelf'), {
+      after: tr('{name} is back', { name: nameOf(c) }),
       restore: function () {
         if (was) LentoCoffees.put(was);
         renderAll();
@@ -1008,7 +1034,7 @@
 
   function fieldBlock(label, inner, id) {
     return '<div class="gear-field">'
-      + '<span class="field-label"' + (id ? ' id="' + id + '"' : '') + '>' + esc(label) + '</span>'
+      + '<span class="field-label"' + (id ? ' id="' + id + '"' : '') + '>' + esc(tr(label)) + '</span>'
       + inner + '</div>';
   }
 
@@ -1022,7 +1048,7 @@
   function numFor(kind, field, unit, value) {
     var key = kind + '.' + field;
     return '<div class="field">'
-      + '<label class="field-label" for="gf-' + field + '">' + esc(LABEL[key])
+      + '<label class="field-label" for="gf-' + field + '">' + esc(tr(LABEL[key]))
       + (unit ? ' (' + esc(unit) + ')' : '') + '</label>'
       + '<input class="field-input" id="gf-' + field + '" type="text" inputmode="decimal"'
       + ' value="' + esc(value === null || typeof value === 'undefined' ? '' : value) + '">'
@@ -1192,9 +1218,9 @@
     if (value === null || typeof value === 'undefined' || value === '') return '';
     var t = SAYS[kind + '.' + field];
     if (!t) return '';
-    if (value === true) return t.yes || '';
-    if (value === false) return t.no || '';
-    return t[value] || '';
+    if (value === true) return t.yes ? tr(t.yes) : '';
+    if (value === false) return t.no ? tr(t.no) : '';
+    return t[value] ? tr(t[value]) : '';
   }
 
   /* The record in one line. Flow leads a brewer because it decides what
@@ -1218,7 +1244,7 @@
     return bits.map(function (f) {
       if (f === 'burrSize') return d.burrSize ? d.burrSize + ' mm' : '';
       if (f === 'pf') return d.pf ? d.pf + ' mm' : '';
-      if (f === 'basketDose') return d.basketDose ? d.basketDose + ' g basket' : '';
+      if (f === 'basketDose') return d.basketDose ? tr('{n} g basket', { n: d.basketDose }) : '';
       if (f === 'filterSize') return d.filterSize || '';
       return said(kind, f, d[f]);
     }).filter(Boolean).join(' · ');
@@ -1230,7 +1256,7 @@
   function gearUnsaid(kind, d) {
     return LentoGear.FIELDS[kind].filter(function (f) {
       return d[f] === null || typeof d[f] === 'undefined' || d[f] === '';
-    }).map(function (f) { return UNSAID[kind + '.' + f] || f; });
+    }).map(function (f) { return UNSAID[kind + '.' + f] ? tr(UNSAID[kind + '.' + f]) : f; });
   }
 
   function openGear(g, adding) {
@@ -1296,8 +1322,8 @@
           + '</div>';
       }
       if (usedBy.length) {
-        out += '<p class="sheet-note">Still set in ' + esc(usedBy.join(' and '))
-          + ' — change it there to let this one go.</p>';
+        out += '<p class="sheet-note">' + esc(tr('Still set in {tools} — change it there to let this one go.',
+          { tools: tr(usedBy.join(' and ')) })) + '</p>';
       }
       return out;
     }
@@ -1321,13 +1347,13 @@
       if (kind === 'brewer' && can(window.LentoRecipes, 'forBrewer')) {
         var m = LentoRecipes.forBrewer(g.name);
         if (m) {
-          out += '<p class="gear-method">' + esc(m.title) + ' — 1:' + m.ratio
-            + ' · ' + esc(m.grind) + '<span class="gear-method-where">'
+          out += '<p class="gear-method">' + esc(tr(m.title)) + ' — 1:' + m.ratio
+            + ' · ' + esc(tr(m.grind)) + '<span class="gear-method-where">'
             + ' · the brew log has the pours</span></p>';
         }
       }
       if (unsaid.length) {
-        out += '<p class="gear-unsaid">Not answered: ' + esc(unsaid.join(', ')) + '</p>';
+        out += '<p class="gear-unsaid">' + esc(tr('Not answered: {list}', { list: unsaid.join(', ') })) + '</p>';
       }
       out += '</div>';
       out += marksHTML();
@@ -1367,7 +1393,7 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'chip' + (cur === o[0] ? ' on' : '');
-        b.textContent = o[1];
+        b.textContent = optWord(key, o[1]);
         b.dataset.value = String(o[0]);
         b.setAttribute('aria-pressed', cur === o[0] ? 'true' : 'false');
         // Tapping the one that is on clears it. "Nobody knows" is a real
@@ -1555,7 +1581,7 @@
     renderAll();
     syncSoon();
     toast('Gone from your gear', {
-      after: g.name + ' is back',
+      after: tr('{name} is back', { name: g.name }),
       restore: function () {
         if (was) LentoGear.put(was);
         renderAll();
@@ -1600,11 +1626,11 @@
     var days = Math.round(
       (new Date(now.getFullYear(), now.getMonth(), now.getDate())
         - new Date(then.getFullYear(), then.getMonth(), then.getDate())) / 86400000);
-    if (days <= 0) return 'today';
-    if (days === 1) return 'yesterday';
-    if (days < 14) return days + ' days ago';
-    if (days < 60) return Math.round(days / 7) + ' weeks ago';
-    return Math.round(days / 30) + ' months ago';
+    if (days <= 0) return tr('today');
+    if (days === 1) return tr('yesterday');
+    if (days < 14) return tr('{n} days ago', { n: days });
+    if (days < 60) return trn(Math.round(days / 7), '{n} week ago', '{n} weeks ago');
+    return tr('{n} months ago', { n: Math.round(days / 30) });
   }
 
   function latest(store, field, match) {
@@ -1720,7 +1746,7 @@
      the console, where whoever reads it to me can find it. */
   function fail(what, e) {
     try { console.error(what, e); } catch (ignored) {}
-    try { toast(what + '. Your tools still work — reload to try again.'); } catch (ignored) {}
+    try { toast(tr('{what}. Your tools still work — reload to try again.', { what: tr(what) })); } catch (ignored) {}
   }
 
   function boot() {
@@ -1749,6 +1775,14 @@
     // sheet: without this the stack keeps a frame for a modal nobody will
     // close, and the next Escape restores focus to the wrong control.
     $('#gear-item-go').addEventListener('click', function () { closeModal('#gear-item-modal'); });
+    /* English | Español. The control is the shared one, so it is the same
+       switch in every tool; here it is the last thing above the footer,
+       because a language is chosen once and never again. */
+    var langSlot = $('#lang-slot');
+    if (langSlot && can(window.LentoI18n, 'toggle')) {
+      langSlot.appendChild(LentoI18n.toggle());
+      $('#lang-row').classList.remove('hidden');
+    }
     renderShelf();
     renderGear();
     $('#vault').classList.remove('hidden');
@@ -1775,7 +1809,7 @@
          page had not touched them (critique). */
       status: function (phase) {
         return phase === 'synced'
-          ? 'Synced · your coffees and gear. Cuppings, shots and brews sync from their own tools.'
+          ? tr('Synced · your coffees and gear. Cuppings, shots and brews sync from their own tools.')
           : deviceLine();
       },
     });

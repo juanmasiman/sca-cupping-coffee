@@ -22,6 +22,9 @@
        this is the part of it a browser can read. -->
   <link rel="stylesheet" href="/shared/tokens.css">
   <link rel="stylesheet" href="/shared/components.css">
+  <script src="/shared/i18n.js"></script>
+  <script src="/shared/i18n/es-shared.js"></script>
+  <script src="/shared/i18n/es-espresso.js"></script>
 </head>
 <body>
 
@@ -42,7 +45,7 @@
          every shot and earns nothing. -->
     <button id="btn-coffee" class="coffee-btn" aria-haspopup="dialog">
       <span class="coffee-btn-text">
-        <span class="coffee-name" id="coffee-name">No coffee yet</span>
+        <span class="coffee-name" id="coffee-name" translate="no">No coffee yet</span>
         <span class="coffee-sub" id="coffee-sub">tap to add one</span>
       </span>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -79,7 +82,7 @@
          returned nothing, because the nine h3s all live in hidden sheets.
          Visually hidden because the header button already shows it; the
          duplication is for the reader who cannot see the button. -->
-    <h1 class="sr-only" id="board-heading"></h1>
+    <h1 class="sr-only" id="board-heading" translate="no"></h1>
     <!-- The recipe you settled on, if you have settled on one. It is pinned
          because it is the answer the whole board exists to find. -->
     <div class="keeper hidden" id="keeper"></div>
@@ -290,7 +293,7 @@
 <div id="edit-modal" class="modal hidden">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title">
     <div class="sheet-head">
-      <h2 id="edit-title">The coffee</h2>
+      <h2 id="edit-title" translate="no">The coffee</h2>
       <button id="edit-close" class="icon-btn" aria-label="Close">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       </button>
