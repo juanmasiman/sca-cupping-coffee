@@ -132,7 +132,10 @@
     "grind up": "molienda arriba",
     "grind down": "molienda abajo",
     "The grind and the dose both moved since the last shot — {0} {1}, dose {2} {3}g. Both of those change how hard it is for the water to get through, so whatever the clock says next, it cannot tell you which one did it. Move one at a time and the shot becomes a measurement instead of a guess.": "La molienda y la dosis cambiaron las dos desde la última extracción: {0} {1}, dosis {2} {3} g. Las dos cambian lo difícil que le resulta al agua pasar, así que diga lo que diga el reloj después, no podrá decirte cuál fue. Mueve una cada vez y la extracción se vuelve una medición en lugar de una adivinanza.",
-    "Marked “same again”, but {0} changed since the last shot.": "Marcado “igual otra vez”, pero {0} cambió desde la última extracción.",
+    "Marked “same again”, but {0} changed since the last shot.": function (v) {
+      if (v[1] > 1) return 'Marcado “igual otra vez”, pero desde la última extracción cambiaron ' + v[0] + '.';
+      return 'Marcado “igual otra vez”, pero ' + (v[0] === 'rendimiento' ? 'el ' : 'la ') + v[0] + ' cambió desde la última extracción.';
+    },
     "Marked “{0}”, but no {1} is recorded on both shots, so there is nothing to compare.": "Marcado “{0}”, pero no hay {1} registrado en ambas extracciones, así que no hay nada que comparar.",
     "Marked “{0}”, but the {1} is the same as the last shot.": "Marcado “{0}”, pero {1} es igual que en la última extracción.",
     "Marked “{0}”, but the {1} moved the other way.": "Marcado “{0}”, pero {1} se movió en la otra dirección.",
@@ -673,7 +676,9 @@
     "{0} and ": "{0} y ",
     "Shot time": "Tiempo de extracción",
     "In": "Entrada",
-    "To": "Hasta"
+    "To": "Hasta",
+    "grind": "molienda",
+    "temp": "temperatura"
   };
   for (var k in T) if (!(k in ES)) ES[k] = T[k];
   LentoI18n.add(ES);

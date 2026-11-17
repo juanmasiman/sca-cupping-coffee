@@ -1451,8 +1451,8 @@ function intentCheck(shot, prev) {
       .filter(f => { const a = read(shot, f), b = read(prev, f); return a !== null && b !== null && a !== b; });
     return moved.length
       ? tr("Marked “same again”, but {0} changed since the last shot.", [moved.length > 1
-          ? tr('{0} and {1}', [moved.slice(0, -1).join(', '), moved[moved.length - 1]])
-          : moved[0]])
+          ? tr('{0} and {1}', [moved.slice(0, -1).map(f => tr(f)).join(', '), tr(moved[moved.length - 1])])
+          : tr(moved[0]), moved.length])
       : null;
   }
 
